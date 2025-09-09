@@ -1,0 +1,18 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-core-backgroundtask-l1-1-0.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"RaiseCustomSystemEventTrigger": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CustomSystemEventTriggerConfig']}"
+		}
+	}
+}

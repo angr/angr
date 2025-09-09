@@ -1,0 +1,195 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"wintrust.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CryptCATAdminAcquireContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['phCatAdmin', 'pgSubsystem', 'dwFlags']}"
+		},
+		"CryptCATAdminAcquireContext2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_STRONG_SIGN_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['phCatAdmin', 'pgSubsystem', 'pwszHashAlgorithm', 'pStrongHashPolicy', 'dwFlags']}"
+		},
+		"CryptCATAdminAddCatalog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['hCatAdmin', 'pwszCatalogFile', 'pwszSelectBaseName', 'dwFlags']}"
+		},
+		"CryptCATAdminCalcHashFromFileHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFile', 'pcbHash', 'pbHash', 'dwFlags']}"
+		},
+		"CryptCATAdminCalcHashFromFileHandle2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatAdmin', 'hFile', 'pcbHash', 'pbHash', 'dwFlags']}"
+		},
+		"CryptCATAdminEnumCatalogFromHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['hCatAdmin', 'pbHash', 'cbHash', 'dwFlags', 'phPrevCatInfo']}"
+		},
+		"CryptCATAdminPauseServiceForBackup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'fResume']}"
+		},
+		"CryptCATAdminReleaseCatalogContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatAdmin', 'hCatInfo', 'dwFlags']}"
+		},
+		"CryptCATAdminReleaseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatAdmin', 'dwFlags']}"
+		},
+		"CryptCATAdminRemoveCatalog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatAdmin', 'pwszCatalogFile', 'dwFlags']}"
+		},
+		"CryptCATAdminResolveCatalogPath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CATALOG_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatAdmin', 'pwszCatalogFile', 'psCatInfo', 'dwFlags']}"
+		},
+		"CryptCATAllocSortedMemberInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pwszReferenceTag']}"
+		},
+		"CryptCATCDFClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATCDF', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCDF']}"
+		},
+		"CryptCATCDFEnumAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATCDF', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['dwErrorArea', 'dwLocalError', 'pwszLine']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['pCDF', 'pMember', 'pPrevAttr', 'pfnParseError']}"
+		},
+		"CryptCATCDFEnumCatAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATCDF', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['dwErrorArea', 'dwLocalError', 'pwszLine']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['pCDF', 'pPrevAttr', 'pfnParseError']}"
+		},
+		"CryptCATCDFEnumMembers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATCDF', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['dwErrorArea', 'dwLocalError', 'pwszLine']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, 'arg_names': ['pCDF', 'pPrevMember', 'pfnParseError']}"
+		},
+		"CryptCATCDFOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['dwErrorArea', 'dwLocalError', 'pwszLine']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATCDF', 'ot': '_ref'}}, 'arg_names': ['pwszFilePath', 'pfnParseError']}"
+		},
+		"CryptCATCatalogInfoFromContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CATALOG_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatInfo', 'psCatInfo', 'dwFlags']}"
+		},
+		"CryptCATClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatalog']}"
+		},
+		"CryptCATEnumerateAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pCatMember', 'pPrevAttr']}"
+		},
+		"CryptCATEnumerateCatAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pPrevAttr']}"
+		},
+		"CryptCATEnumerateMember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pPrevMember']}"
+		},
+		"CryptCATFreeSortedMemberInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hCatalog', 'pCatMember']}"
+		},
+		"CryptCATGetAttrInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pCatMember', 'pwszReferenceTag']}"
+		},
+		"CryptCATGetCatAttrInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pwszReferenceTag']}"
+		},
+		"CryptCATGetMemberInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pwszReferenceTag']}"
+		},
+		"CryptCATHandleFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATSTORE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['pCatStore']}"
+		},
+		"CryptCATOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CRYPTCAT_OPEN_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CRYPTCAT_VERSION', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['pwszFileName', 'fdwOpenFlags', 'hProv', 'dwPublicVersion', 'dwEncodingType']}"
+		},
+		"CryptCATPersistStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCatalog']}"
+		},
+		"CryptCATPutAttrInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pCatMember', 'pwszReferenceTag', 'dwAttrTypeAndAction', 'cbData', 'pbData']}"
+		},
+		"CryptCATPutCatAttrInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pwszReferenceTag', 'dwAttrTypeAndAction', 'cbData', 'pbData']}"
+		},
+		"CryptCATPutMemberInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATMEMBER', 'ot': '_ref'}}, 'arg_names': ['hCatalog', 'pwszFileName', 'pwszReferenceTag', 'pgSubjectType', 'dwCertVersion', 'cbSIPIndirectData', 'pbSIPIndirectData']}"
+		},
+		"CryptCATStoreFromHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTCATSTORE', 'ot': '_ref'}}, 'arg_names': ['hCatalog']}"
+		},
+		"CryptSIPCreateIndirectData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_INDIRECT_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'pcbIndirectData', 'pIndirectData']}"
+		},
+		"CryptSIPGetCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_CAP_SET_V3', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjInfo', 'pCaps']}"
+		},
+		"CryptSIPGetSealedDigest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'pSig', 'dwSig', 'pbDigest', 'pcbDigest']}"
+		},
+		"CryptSIPGetSignedDataMsg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'pdwEncodingType', 'dwIndex', 'pcbSignedDataMsg', 'pbSignedDataMsg']}"
+		},
+		"CryptSIPPutSignedDataMsg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'dwEncodingType', 'pdwIndex', 'cbSignedDataMsg', 'pbSignedDataMsg']}"
+		},
+		"CryptSIPRemoveSignedDataMsg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'dwIndex']}"
+		},
+		"CryptSIPVerifyIndirectData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_SUBJECTINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_INDIRECT_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'pIndirectData']}"
+		},
+		"FindCertsByIssuer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCertChains', 'pcbCertChains', 'pcCertChains', 'pbEncodedIssuerName', 'cbEncodedIssuerName', 'pwszPurpose', 'dwKeySpec']}"
+		},
+		"IsCatalogFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFile', 'pwszFileName']}"
+		},
+		"OpenPersonalTrustDBDialog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwndParent']}"
+		},
+		"OpenPersonalTrustDBDialogEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwndParent', 'dwFlags', 'pvReserved']}"
+		},
+		"WTHelperCertCheckValidSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvData']}"
+		},
+		"WTHelperCertIsSelfSigned": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncoding', 'pCert']}"
+		},
+		"WTHelperGetProvCertFromChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_SGNR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_CERT', 'ot': '_ref'}}, 'arg_names': ['pSgnr', 'idxCert']}"
+		},
+		"WTHelperGetProvPrivateDataFromChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_PRIVDATA', 'ot': '_ref'}}, 'arg_names': ['pProvData', 'pgProviderID']}"
+		},
+		"WTHelperGetProvSignerFromChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_SGNR', 'ot': '_ref'}}, 'arg_names': ['pProvData', 'idxSigner', 'fCounterSigner', 'idxCounterSigner']}"
+		},
+		"WTHelperProvDataFromStateData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_DATA', 'ot': '_ref'}}, 'arg_names': ['hStateData']}"
+		},
+		"WinVerifyTrust": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hwnd', 'pgActionID', 'pWVTData']}"
+		},
+		"WinVerifyTrustEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINTRUST_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hwnd', 'pgActionID', 'pWinTrustData']}"
+		},
+		"WintrustAddActionID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_REGISTER_ACTIONID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pgActionID', 'fdwFlags', 'psProvInfo']}"
+		},
+		"WintrustAddDefaultForUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_REGDEFUSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszUsageOID', 'psDefUsage']}"
+		},
+		"WintrustGetDefaultForUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINTRUST_GET_DEFAULT_FOR_USAGE_ACTION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_DEFUSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwAction', 'pszUsageOID', 'psUsage']}"
+		},
+		"WintrustGetRegPolicyFlags": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINTRUST_POLICY_FLAGS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pdwPolicyFlags']}"
+		},
+		"WintrustLoadFunctionPointers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_PROVIDER_FUNCTIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pgActionID', 'pPfns']}"
+		},
+		"WintrustRemoveActionID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pgActionID']}"
+		},
+		"WintrustSetDefaultIncludePEPageHashes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['fIncludePEPageHashes']}"
+		},
+		"WintrustSetRegPolicyFlags": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINTRUST_POLICY_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwPolicyFlags']}"
+		}
+	}
+}

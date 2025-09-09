@@ -1,0 +1,282 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"secur32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AcceptSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ASC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pInput', 'fContextReq', 'TargetDataRep', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"AcquireCredentialsHandleA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SECPKG_CRED', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'Principal', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPrincipal', 'pszPackage', 'fCredentialUse', 'pvLogonId', 'pAuthData', 'pGetKeyFn', 'pvGetKeyArgument', 'phCredential', 'ptsExpiry']}"
+		},
+		"AcquireCredentialsHandleW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SECPKG_CRED', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'Principal', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPrincipal', 'pszPackage', 'fCredentialUse', 'pvLogonId', 'pAuthData', 'pGetKeyFn', 'pvGetKeyArgument', 'phCredential', 'ptsExpiry']}"
+		},
+		"AddCredentialsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'Principal', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hCredentials', 'pszPrincipal', 'pszPackage', 'fCredentialUse', 'pAuthData', 'pGetKeyFn', 'pvGetKeyArgument', 'ptsExpiry']}"
+		},
+		"AddCredentialsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'Principal', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hCredentials', 'pszPrincipal', 'pszPackage', 'fCredentialUse', 'pAuthData', 'pGetKeyFn', 'pvGetKeyArgument', 'ptsExpiry']}"
+		},
+		"AddSecurityPackageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_PACKAGE_OPTIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'pOptions']}"
+		},
+		"AddSecurityPackageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_PACKAGE_OPTIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'pOptions']}"
+		},
+		"ApplyControlToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'pInput']}"
+		},
+		"ChangeAccountPasswordA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'pszDomainName', 'pszAccountName', 'pszOldPassword', 'pszNewPassword', 'bImpersonating', 'dwReserved', 'pOutput']}"
+		},
+		"ChangeAccountPasswordW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'pszDomainName', 'pszAccountName', 'pszOldPassword', 'pszNewPassword', 'bImpersonating', 'dwReserved', 'pOutput']}"
+		},
+		"CompleteAuthToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'pToken']}"
+		},
+		"CredMarshalTargetInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CREDENTIAL_TARGET_INFORMATIONW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InTargetInfo', 'Buffer', 'BufferSize']}"
+		},
+		"CredUnmarshalTargetInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CREDENTIAL_TARGET_INFORMATIONW', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Buffer', 'BufferSize', 'RetTargetInfo', 'RetActualSize']}"
+		},
+		"DecryptMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'pMessage', 'MessageSeqNo', 'pfQOP']}"
+		},
+		"DeleteSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext']}"
+		},
+		"DeleteSecurityPackageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName']}"
+		},
+		"DeleteSecurityPackageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName']}"
+		},
+		"EncryptMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'fQOP', 'pMessage', 'MessageSeqNo']}"
+		},
+		"EnumerateSecurityPackagesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcPackages', 'ppPackageInfo']}"
+		},
+		"EnumerateSecurityPackagesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcPackages', 'ppPackageInfo']}"
+		},
+		"ExportSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'EXPORT_SECURITY_CONTEXT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBuffer', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'fFlags', 'pPackedContext', 'pToken']}"
+		},
+		"FreeContextBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvContextBuffer']}"
+		},
+		"FreeCredentialsHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential']}"
+		},
+		"GetComputerObjectNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NameFormat', 'lpNameBuffer', 'nSize']}"
+		},
+		"GetComputerObjectNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NameFormat', 'lpNameBuffer', 'nSize']}"
+		},
+		"GetUserNameExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NameFormat', 'lpNameBuffer', 'nSize']}"
+		},
+		"GetUserNameExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NameFormat', 'lpNameBuffer', 'nSize']}"
+		},
+		"ImpersonateSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext']}"
+		},
+		"ImportSecurityContextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBuffer', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackage', 'pPackedContext', 'Token', 'phContext']}"
+		},
+		"ImportSecurityContextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBuffer', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackage', 'pPackedContext', 'Token', 'phContext']}"
+		},
+		"InitSecurityInterfaceA": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecurityFunctionTableA', 'ot': '_ref'}}, 'arg_names': []}"
+		},
+		"InitSecurityInterfaceW": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecurityFunctionTableW', 'ot': '_ref'}}, 'arg_names': []}"
+		},
+		"InitializeSecurityContextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': '_ref', 'name': 'ISC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pszTargetName', 'fContextReq', 'Reserved1', 'TargetDataRep', 'pInput', 'Reserved2', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"InitializeSecurityContextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'ISC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pszTargetName', 'fContextReq', 'Reserved1', 'TargetDataRep', 'pInput', 'Reserved2', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"LsaCallAuthenticationPackage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LsaHandle', 'AuthenticationPackage', 'ProtocolSubmitBuffer', 'SubmitBufferLength', 'ProtocolReturnBuffer', 'ReturnBufferLength', 'ProtocolStatus']}"
+		},
+		"LsaConnectUntrusted": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LsaHandle']}"
+		},
+		"LsaDeregisterLogonProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LsaHandle']}"
+		},
+		"LsaEnumerateLogonSessions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogonSessionCount', 'LogonSessionList']}"
+		},
+		"LsaFreeReturnBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Buffer']}"
+		},
+		"LsaGetLogonSessionData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_LOGON_SESSION_DATA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogonId', 'ppLogonSessionData']}"
+		},
+		"LsaLogonUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LSA_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'SECURITY_LOGON_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TOKEN_GROUPS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TOKEN_SOURCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'QUOTA_LIMITS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LsaHandle', 'OriginName', 'LogonType', 'AuthenticationPackage', 'AuthenticationInformation', 'AuthenticationInformationLength', 'LocalGroups', 'SourceContext', 'ProfileBuffer', 'ProfileBufferLength', 'LogonId', 'Token', 'Quotas', 'SubStatus']}"
+		},
+		"LsaLookupAuthenticationPackage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LSA_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LsaHandle', 'PackageName', 'AuthenticationPackage']}"
+		},
+		"LsaRegisterLogonProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LSA_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogonProcessName', 'LsaHandle', 'SecurityMode']}"
+		},
+		"LsaRegisterPolicyChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POLICY_NOTIFICATION_INFORMATION_CLASS', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InformationClass', 'NotificationEventHandle']}"
+		},
+		"LsaUnregisterPolicyChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POLICY_NOTIFICATION_INFORMATION_CLASS', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InformationClass', 'NotificationEventHandle']}"
+		},
+		"MakeSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'fQOP', 'pMessage', 'MessageSeqNo']}"
+		},
+		"QueryContextAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'SECPKG_ATTR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'ulAttribute', 'pBuffer']}"
+		},
+		"QueryContextAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'SECPKG_ATTR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'ulAttribute', 'pBuffer']}"
+		},
+		"QueryCredentialsAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'ulAttribute', 'pBuffer']}"
+		},
+		"QueryCredentialsAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'ulAttribute', 'pBuffer']}"
+		},
+		"QuerySecurityContextToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'Token']}"
+		},
+		"QuerySecurityPackageInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'ppPackageInfo']}"
+		},
+		"QuerySecurityPackageInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPackageName', 'ppPackageInfo']}"
+		},
+		"RevertSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext']}"
+		},
+		"SaslAcceptSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ASC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pInput', 'fContextReq', 'TargetDataRep', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"SaslEnumerateProfilesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProfileList', 'ProfileCount']}"
+		},
+		"SaslEnumerateProfilesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProfileList', 'ProfileCount']}"
+		},
+		"SaslGetContextOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ContextHandle', 'Option', 'Value', 'Size', 'Needed']}"
+		},
+		"SaslGetProfilePackageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProfileName', 'PackageInfo']}"
+		},
+		"SaslGetProfilePackageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProfileName', 'PackageInfo']}"
+		},
+		"SaslIdentifyPackageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pInput', 'PackageInfo']}"
+		},
+		"SaslIdentifyPackageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecPkgInfoW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pInput', 'PackageInfo']}"
+		},
+		"SaslInitializeSecurityContextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ISC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pszTargetName', 'fContextReq', 'Reserved1', 'TargetDataRep', 'pInput', 'Reserved2', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"SaslInitializeSecurityContextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ISC_REQ_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'phContext', 'pszTargetName', 'fContextReq', 'Reserved1', 'TargetDataRep', 'pInput', 'Reserved2', 'phNewContext', 'pOutput', 'pfContextAttr', 'ptsExpiry']}"
+		},
+		"SaslSetContextOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ContextHandle', 'Option', 'Value', 'Size']}"
+		},
+		"SetContextAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'SECPKG_ATTR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'ulAttribute', 'pBuffer', 'cbBuffer']}"
+		},
+		"SetContextAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'SECPKG_ATTR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'ulAttribute', 'pBuffer', 'cbBuffer']}"
+		},
+		"SetCredentialsAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'ulAttribute', 'pBuffer', 'cbBuffer']}"
+		},
+		"SetCredentialsAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phCredential', 'ulAttribute', 'pBuffer', 'cbBuffer']}"
+		},
+		"SspiCompareAuthIdentities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentity1', 'AuthIdentity2', 'SameSuppliedUser', 'SameSuppliedIdentity']}"
+		},
+		"SspiCopyAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthData', 'AuthDataCopy']}"
+		},
+		"SspiDecryptAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['EncryptedAuthData']}"
+		},
+		"SspiEncodeAuthIdentityAsStrings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAuthIdentity', 'ppszUserName', 'ppszDomainName', 'ppszPackedCredentialsString']}"
+		},
+		"SspiEncodeStringsAsAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszUserName', 'pszDomainName', 'pszPackedCredentialsString', 'ppAuthIdentity']}"
+		},
+		"SspiEncryptAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthData']}"
+		},
+		"SspiExcludePackage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentity', 'pszPackageName', 'ppNewAuthIdentity']}"
+		},
+		"SspiFreeAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['AuthData']}"
+		},
+		"SspiGetTargetHostName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszTargetName', 'pszHostName']}"
+		},
+		"SspiIsAuthIdentityEncrypted": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['EncryptedAuthData']}"
+		},
+		"SspiLocalFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DataBuffer']}"
+		},
+		"SspiMarshalAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentity', 'AuthIdentityLength', 'AuthIdentityByteArray']}"
+		},
+		"SspiPrepareForCredRead": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentity', 'pszTargetName', 'pCredmanCredentialType', 'ppszCredmanTargetName']}"
+		},
+		"SspiPrepareForCredWrite": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentity', 'pszTargetName', 'pCredmanCredentialType', 'ppszCredmanTargetName', 'ppszCredmanUserName', 'ppCredentialBlob', 'pCredentialBlobSize']}"
+		},
+		"SspiUnmarshalAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthIdentityLength', 'AuthIdentityByteArray', 'ppAuthIdentity']}"
+		},
+		"SspiValidateAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['AuthData']}"
+		},
+		"SspiZeroAuthIdentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['AuthData']}"
+		},
+		"TranslateNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['lpAccountName', 'AccountNameFormat', 'DesiredNameFormat', 'lpTranslatedName', 'nSize']}"
+		},
+		"TranslateNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': '_ref', 'name': 'EXTENDED_NAME_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['lpAccountName', 'AccountNameFormat', 'DesiredNameFormat', 'lpTranslatedName', 'nSize']}"
+		},
+		"VerifySignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecHandle', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SecBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phContext', 'pMessage', 'MessageSeqNo', 'pfQOP']}"
+		}
+	}
+}

@@ -1,0 +1,45 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mfsensorgroup.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"MFCreateCameraControlMonitor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFCameraControlNotify', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFCameraControlMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['symbolicLink', 'callback', 'ppCameraControlMonitor']}"
+		},
+		"MFCreateCameraOcclusionStateMonitor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFCameraOcclusionStateReportCallback', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFCameraOcclusionStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['symbolicLink', 'callback', 'occlusionStateMonitor']}"
+		},
+		"MFCreateRelativePanelWatcher": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFRelativePanelWatcher', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['videoDeviceId', 'displayMonitorDeviceId', 'ppRelativePanelWatcher']}"
+		},
+		"MFCreateSensorActivityMonitor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFSensorActivitiesReportCallback', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSensorActivityMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCallback', 'ppActivityMonitor']}"
+		},
+		"MFCreateSensorGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSensorGroup', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['SensorGroupSymbolicLink', 'ppSensorGroup']}"
+		},
+		"MFCreateSensorProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSensorProfile', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ProfileType', 'ProfileIndex', 'Constraints', 'ppProfile']}"
+		},
+		"MFCreateSensorProfileCollection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSensorProfileCollection', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppSensorProfile']}"
+		},
+		"MFCreateSensorStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFCollection', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSensorStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['StreamId', 'pAttributes', 'pMediaTypeCollection', 'ppStream']}"
+		},
+		"MFCreateVirtualCamera": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MFVirtualCameraType', 'ot': 'int'}, {'_t': '_ref', 'name': 'MFVirtualCameraLifetime', 'ot': 'int'}, {'_t': '_ref', 'name': 'MFVirtualCameraAccess', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFVirtualCamera', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['type', 'lifetime', 'access', 'friendlyName', 'sourceId', 'categories', 'categoryCount', 'virtualCamera']}"
+		},
+		"MFIsVirtualCameraTypeSupported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MFVirtualCameraType', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['type', 'supported']}"
+		}
+	}
+}

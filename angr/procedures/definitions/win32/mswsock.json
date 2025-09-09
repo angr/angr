@@ -1,0 +1,63 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mswsock.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AcceptEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SOCKET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SOCKET', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['sListenSocket', 'sAcceptSocket', 'lpOutputBuffer', 'dwReceiveDataLength', 'dwLocalAddressLength', 'dwRemoteAddressLength', 'lpdwBytesReceived', 'lpOverlapped']}"
+		},
+		"EnumProtocolsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpiProtocols', 'lpProtocolBuffer', 'lpdwBufferLength']}"
+		},
+		"EnumProtocolsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpiProtocols', 'lpProtocolBuffer', 'lpdwBufferLength']}"
+		},
+		"GetAcceptExSockaddrs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpOutputBuffer', 'dwReceiveDataLength', 'dwLocalAddressLength', 'dwRemoteAddressLength', 'LocalSockaddr', 'LocalSockaddrLength', 'RemoteSockaddr', 'RemoteSockaddrLength']}"
+		},
+		"GetAddressByNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'lpServiceType', 'lpServiceName', 'lpiProtocols', 'dwResolution', 'lpServiceAsyncInfo', 'lpCsaddrBuffer', 'lpdwBufferLength', 'lpAliasBuffer', 'lpdwAliasBufferLength']}"
+		},
+		"GetAddressByNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'lpServiceType', 'lpServiceName', 'lpiProtocols', 'dwResolution', 'lpServiceAsyncInfo', 'lpCsaddrBuffer', 'lpdwBufferLength', 'lpAliasBuffer', 'lpdwAliasBufferLength']}"
+		},
+		"GetNameByTypeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpServiceType', 'lpServiceName', 'dwNameLength']}"
+		},
+		"GetNameByTypeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpServiceType', 'lpServiceName', 'dwNameLength']}"
+		},
+		"GetServiceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'lpGuid', 'lpServiceName', 'dwProperties', 'lpBuffer', 'lpdwBufferSize', 'lpServiceAsyncInfo']}"
+		},
+		"GetServiceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'lpGuid', 'lpServiceName', 'dwProperties', 'lpBuffer', 'lpdwBufferSize', 'lpServiceAsyncInfo']}"
+		},
+		"GetTypeByNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpServiceName', 'lpServiceType']}"
+		},
+		"GetTypeByNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpServiceName', 'lpServiceType']}"
+		},
+		"SetServiceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'SET_SERVICE_OPERATION', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_INFOA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'dwOperation', 'dwFlags', 'lpServiceInfo', 'lpServiceAsyncInfo', 'lpdwStatusFlags']}"
+		},
+		"SetServiceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'SET_SERVICE_OPERATION', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_INFOW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SERVICE_ASYNC_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwNameSpace', 'dwOperation', 'dwFlags', 'lpServiceInfo', 'lpServiceAsyncInfo', 'lpdwStatusFlags']}"
+		},
+		"TransmitFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SOCKET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TRANSMIT_FILE_BUFFERS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hSocket', 'hFile', 'nNumberOfBytesToWrite', 'nNumberOfBytesPerSend', 'lpOverlapped', 'lpTransmitBuffers', 'dwReserved']}"
+		},
+		"WSARecvEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SOCKET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['s', 'buf', 'len', 'flags']}"
+		}
+	}
+}

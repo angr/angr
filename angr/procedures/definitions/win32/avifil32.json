@@ -1,0 +1,195 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"avifil32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AVIBuildFilterA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpszFilter', 'cbFilter', 'fSaving']}"
+		},
+		"AVIBuildFilterW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpszFilter', 'cbFilter', 'fSaving']}"
+		},
+		"AVIClearClipboard": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"AVIFileAddRef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pfile']}"
+		},
+		"AVIFileCreateStreamA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'ppavi', 'psi']}"
+		},
+		"AVIFileCreateStreamW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'ppavi', 'psi']}"
+		},
+		"AVIFileEndRecord": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile']}"
+		},
+		"AVIFileExit": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"AVIFileGetStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'ppavi', 'fccType', 'lParam']}"
+		},
+		"AVIFileInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVIFILEINFOA', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'pfi', 'lSize']}"
+		},
+		"AVIFileInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVIFILEINFOW', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'pfi', 'lSize']}"
+		},
+		"AVIFileInit": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"AVIFileOpenA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIFile', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppfile', 'szFile', 'uMode', 'lpHandler']}"
+		},
+		"AVIFileOpenW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIFile', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppfile', 'szFile', 'uMode', 'lpHandler']}"
+		},
+		"AVIFileReadData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'ckid', 'lpData', 'lpcbData']}"
+		},
+		"AVIFileRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pfile']}"
+		},
+		"AVIFileWriteData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pfile', 'ckid', 'lpData', 'cbData']}"
+		},
+		"AVIGetFromClipboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIFile', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lppf']}"
+		},
+		"AVIMakeCompressedStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppsCompressed', 'ppsSource', 'lpOptions', 'pclsidHandler']}"
+		},
+		"AVIMakeFileFromStreams": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIFile', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppfile', 'nStreams', 'papStreams']}"
+		},
+		"AVIMakeStreamFromClipboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cfFormat', 'hGlobal', 'ppstream']}"
+		},
+		"AVIPutFileOnClipboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIFile', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pf']}"
+		},
+		"AVISaveA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'pclsidHandler', 'lpfnCallback', 'nStreams', 'pfile', 'lpOptions']}"
+		},
+		"AVISaveOptions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['hwnd', 'uiFlags', 'nStreams', 'ppavi', 'plpOptions']}"
+		},
+		"AVISaveOptionsFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['nStreams', 'plpOptions']}"
+		},
+		"AVISaveVA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'pclsidHandler', 'lpfnCallback', 'nStreams', 'ppavi', 'plpOptions']}"
+		},
+		"AVISaveVW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'pclsidHandler', 'lpfnCallback', 'nStreams', 'ppavi', 'plpOptions']}"
+		},
+		"AVISaveW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVICOMPRESSOPTIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'pclsidHandler', 'lpfnCallback', 'nStreams', 'pfile', 'lpOptions']}"
+		},
+		"AVIStreamAddRef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pavi']}"
+		},
+		"AVIStreamBeginStreaming": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lStart', 'lEnd', 'lRate']}"
+		},
+		"AVIStreamCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppavi', 'lParam1', 'lParam2', 'pclsidHandler']}"
+		},
+		"AVIStreamEndStreaming": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi']}"
+		},
+		"AVIStreamFindSample": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pavi', 'lPos', 'lFlags']}"
+		},
+		"AVIStreamGetFrame": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IGetFrame', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pg', 'lPos']}"
+		},
+		"AVIStreamGetFrameClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IGetFrame', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pg']}"
+		},
+		"AVIStreamGetFrameOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BITMAPINFOHEADER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'IGetFrame', 'ot': 'bot'}, 'arg_names': ['pavi', 'lpbiWanted']}"
+		},
+		"AVIStreamInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOA', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'psi', 'lSize']}"
+		},
+		"AVIStreamInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOW', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'psi', 'lSize']}"
+		},
+		"AVIStreamLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pavi']}"
+		},
+		"AVIStreamOpenFromFileA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppavi', 'szFile', 'fccType', 'lParam', 'mode', 'pclsidHandler']}"
+		},
+		"AVIStreamOpenFromFileW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppavi', 'szFile', 'fccType', 'lParam', 'mode', 'pclsidHandler']}"
+		},
+		"AVIStreamRead": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lStart', 'lSamples', 'lpBuffer', 'cbBuffer', 'plBytes', 'plSamples']}"
+		},
+		"AVIStreamReadData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'fcc', 'lp', 'lpcb']}"
+		},
+		"AVIStreamReadFormat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lPos', 'lpFormat', 'lpcbFormat']}"
+		},
+		"AVIStreamRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pavi']}"
+		},
+		"AVIStreamSampleToTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pavi', 'lSample']}"
+		},
+		"AVIStreamSetFormat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lPos', 'lpFormat', 'cbFormat']}"
+		},
+		"AVIStreamStart": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pavi']}"
+		},
+		"AVIStreamTimeToSample": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pavi', 'lTime']}"
+		},
+		"AVIStreamWrite": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lStart', 'lSamples', 'lpBuffer', 'cbBuffer', 'dwFlags', 'plSampWritten', 'plBytesWritten']}"
+		},
+		"AVIStreamWriteData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'fcc', 'lp', 'cb']}"
+		},
+		"CreateEditableStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppsEditable', 'psSource']}"
+		},
+		"EditStreamClone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'ppResult']}"
+		},
+		"EditStreamCopy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'plStart', 'plLength', 'ppResult']}"
+		},
+		"EditStreamCut": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAVIStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'plStart', 'plLength', 'ppResult']}"
+		},
+		"EditStreamPaste": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'plPos', 'plLength', 'pstream', 'lStart', 'lEnd']}"
+		},
+		"EditStreamSetInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOA', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lpInfo', 'cbInfo']}"
+		},
+		"EditStreamSetInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AVISTREAMINFOW', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lpInfo', 'cbInfo']}"
+		},
+		"EditStreamSetNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lpszName']}"
+		},
+		"EditStreamSetNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAVIStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pavi', 'lpszName']}"
+		}
+	}
+}

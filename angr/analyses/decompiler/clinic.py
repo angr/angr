@@ -1662,7 +1662,12 @@ class Clinic(Analysis):
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
-            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(self.function.prototype)
+            proto = (
+                dereference_simtype_by_lib(self.function.prototype, self.function.prototype_libname)
+                if self.function.prototype_libname
+                else self.function.prototype
+            )
+            args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
             arg_vars: list[SimVariable] = []
             if args:
                 arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]

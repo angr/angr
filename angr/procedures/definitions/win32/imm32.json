@@ -1,0 +1,261 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"imm32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ImmAssociateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmAssociateContextEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"ImmConfigureIMEA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmConfigureIMEW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmCreateContext": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"ImmCreateIMCC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}, 'arg_names': ['param0']}"
+		},
+		"ImmCreateSoftKeyboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmDestroyContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmDestroyIMCC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}, 'arg_names': ['param0']}"
+		},
+		"ImmDestroySoftKeyboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmDisableIME": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmDisableLegacyIME": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"ImmDisableTextFrameService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['idThread']}"
+		},
+		"ImmEnumInputContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['idThread', 'lpfn', 'lParam']}"
+		},
+		"ImmEnumRegisterWordA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpszReading', 'param1', 'lpszString', 'param3']}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'lpszReading', 'param3', 'lpszRegister', 'param5']}"
+		},
+		"ImmEnumRegisterWordW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpszReading', 'param1', 'lpszString', 'param3']}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'lpszReading', 'param3', 'lpszRegister', 'param5']}"
+		},
+		"ImmEscapeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_ESCAPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmEscapeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_ESCAPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmGenerateMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetCandidateListA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATELIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'deIndex', 'lpCandList', 'dwBufLen']}"
+		},
+		"ImmGetCandidateListCountA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpdwListCount']}"
+		},
+		"ImmGetCandidateListCountW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpdwListCount']}"
+		},
+		"ImmGetCandidateListW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATELIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'deIndex', 'lpCandList', 'dwBufLen']}"
+		},
+		"ImmGetCandidateWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATEFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'lpCandidate']}"
+		},
+		"ImmGetCompositionFontA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lplf']}"
+		},
+		"ImmGetCompositionFontW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lplf']}"
+		},
+		"ImmGetCompositionStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_COMPOSITION_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'param1', 'lpBuf', 'dwBufLen']}"
+		},
+		"ImmGetCompositionStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_COMPOSITION_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'param1', 'lpBuf', 'dwBufLen']}"
+		},
+		"ImmGetCompositionWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COMPOSITIONFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpCompForm']}"
+		},
+		"ImmGetContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetConversionListA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATELIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'GET_CONVERSION_LIST_FLAG', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'lpSrc', 'lpDst', 'dwBufLen', 'uFlag']}"
+		},
+		"ImmGetConversionListW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATELIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'GET_CONVERSION_LIST_FLAG', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'lpSrc', 'lpDst', 'dwBufLen', 'uFlag']}"
+		},
+		"ImmGetConversionStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IME_CONVERSION_MODE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IME_SENTENCE_MODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpfdwConversion', 'lpfdwSentence']}"
+		},
+		"ImmGetDefaultIMEWnd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetDescriptionA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpszDescription', 'uBufLen']}"
+		},
+		"ImmGetDescriptionW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpszDescription', 'uBufLen']}"
+		},
+		"ImmGetGuideLineA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'GET_GUIDE_LINE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'dwIndex', 'lpBuf', 'dwBufLen']}"
+		},
+		"ImmGetGuideLineW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'GET_GUIDE_LINE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'dwIndex', 'lpBuf', 'dwBufLen']}"
+		},
+		"ImmGetHotKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpuModifiers', 'lpuVKey', 'phKL']}"
+		},
+		"ImmGetIMCCLockCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetIMCCSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetIMCLockCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetIMEFileNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpszFileName', 'uBufLen']}"
+		},
+		"ImmGetIMEFileNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'lpszFileName', 'uBufLen']}"
+		},
+		"ImmGetImeMenuItemsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMEMENUITEMINFOA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMEMENUITEMINFOA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'lpImeParentMenu', 'lpImeMenu', 'dwSize']}"
+		},
+		"ImmGetImeMenuItemsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMEMENUITEMINFOW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMEMENUITEMINFOW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'lpImeParentMenu', 'lpImeMenu', 'dwSize']}"
+		},
+		"ImmGetOpenStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmGetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmGetRegisterWordStyleA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STYLEBUFA', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'nItem', 'lpStyleBuf']}"
+		},
+		"ImmGetRegisterWordStyleW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STYLEBUFW', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'nItem', 'lpStyleBuf']}"
+		},
+		"ImmGetStatusWindowPos": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpptPos']}"
+		},
+		"ImmGetVirtualKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
+		},
+		"ImmInstallIMEA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, 'arg_names': ['lpszIMEFileName', 'lpszLayoutText']}"
+		},
+		"ImmInstallIMEW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, 'arg_names': ['lpszIMEFileName', 'lpszLayoutText']}"
+		},
+		"ImmIsIME": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmIsUIMessageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmIsUIMessageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmLockIMC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INPUTCONTEXT', 'ot': '_ref'}}, 'arg_names': ['param0']}"
+		},
+		"ImmLockIMCC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['param0']}"
+		},
+		"ImmNotifyIME": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NOTIFY_IME_ACTION', 'ot': 'int'}, {'_t': '_ref', 'name': 'NOTIFY_IME_INDEX', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'dwAction', 'dwIndex', 'dwValue']}"
+		},
+		"ImmReSizeIMCC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmRegisterWordA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpszReading', 'param2', 'lpszRegister']}"
+		},
+		"ImmRegisterWordW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpszReading', 'param2', 'lpszRegister']}"
+		},
+		"ImmReleaseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmRequestMessageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"ImmRequestMessageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"ImmSetCandidateWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CANDIDATEFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpCandidate']}"
+		},
+		"ImmSetCompositionFontA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lplf']}"
+		},
+		"ImmSetCompositionFontW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lplf']}"
+		},
+		"ImmSetCompositionStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SET_COMPOSITION_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'dwIndex', 'lpComp', 'dwCompLen', 'lpRead', 'dwReadLen']}"
+		},
+		"ImmSetCompositionStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SET_COMPOSITION_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'dwIndex', 'lpComp', 'dwCompLen', 'lpRead', 'dwReadLen']}"
+		},
+		"ImmSetCompositionWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COMPOSITIONFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpCompForm']}"
+		},
+		"ImmSetConversionStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_CONVERSION_MODE', 'ot': 'int'}, {'_t': '_ref', 'name': 'IME_SENTENCE_MODE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"ImmSetHotKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"ImmSetOpenStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmSetStatusWindowPos": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpptPos']}"
+		},
+		"ImmShowSoftKeyboard": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmSimulateHotKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IME_HOTKEY_IDENTIFIER', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"ImmUnlockIMC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmUnlockIMCC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMCC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"ImmUnregisterWordA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpszReading', 'param2', 'lpszUnregister']}"
+		},
+		"ImmUnregisterWordW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKL', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'lpszReading', 'param2', 'lpszUnregister']}"
+		}
+	}
+}

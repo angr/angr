@@ -1,0 +1,96 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"d3d10.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"D3D10CompileEffectFromMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_SHADER_MACRO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ID3DInclude', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pData', 'DataLength', 'pSrcFileName', 'pDefines', 'pInclude', 'HLSLFlags', 'FXFlags', 'ppCompiledEffect', 'ppErrors']}"
+		},
+		"D3D10CompileShader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_SHADER_MACRO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ID3DInclude', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrcData', 'SrcDataSize', 'pFileName', 'pDefines', 'pInclude', 'pFunctionName', 'pProfile', 'Flags', 'ppShader', 'ppErrorMsgs']}"
+		},
+		"D3D10CreateBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['NumBytes', 'ppBuffer']}"
+		},
+		"D3D10CreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D10_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10Device', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'SDKVersion', 'ppDevice']}"
+		},
+		"D3D10CreateDeviceAndSwapChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D10_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DXGI_SWAP_CHAIN_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDXGISwapChain', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10Device', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'SDKVersion', 'pSwapChainDesc', 'ppSwapChain', 'ppDevice']}"
+		},
+		"D3D10CreateEffectFromMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'ID3D10EffectPool', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10Effect', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pData', 'DataLength', 'FXFlags', 'pDevice', 'pEffectPool', 'ppEffect']}"
+		},
+		"D3D10CreateEffectPoolFromMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10EffectPool', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pData', 'DataLength', 'FXFlags', 'pDevice', 'ppEffectPool']}"
+		},
+		"D3D10CreateStateBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10StateBlock', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDevice', 'pStateBlockMask', 'ppStateBlock']}"
+		},
+		"D3D10DisassembleEffect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D10Effect', 'ot': 'bot'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pEffect', 'EnableColorCode', 'ppDisassembly']}"
+		},
+		"D3D10DisassembleShader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShader', 'BytecodeLength', 'EnableColorCode', 'pComments', 'ppDisassembly']}"
+		},
+		"D3D10GetGeometryShaderProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pDevice']}"
+		},
+		"D3D10GetInputAndOutputSignatureBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShaderBytecode', 'BytecodeLength', 'ppSignatureBlob']}"
+		},
+		"D3D10GetInputSignatureBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShaderBytecode', 'BytecodeLength', 'ppSignatureBlob']}"
+		},
+		"D3D10GetOutputSignatureBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShaderBytecode', 'BytecodeLength', 'ppSignatureBlob']}"
+		},
+		"D3D10GetPixelShaderProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pDevice']}"
+		},
+		"D3D10GetShaderDebugInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShaderBytecode', 'BytecodeLength', 'ppDebugInfo']}"
+		},
+		"D3D10GetVertexShaderProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D10Device', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pDevice']}"
+		},
+		"D3D10PreprocessShader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_SHADER_MACRO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ID3DInclude', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3DBlob', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrcData', 'SrcDataSize', 'pFileName', 'pDefines', 'pInclude', 'ppShaderText', 'ppErrorMsgs']}"
+		},
+		"D3D10ReflectShader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10ShaderReflection', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pShaderBytecode', 'BytecodeLength', 'ppReflector']}"
+		},
+		"D3D10StateBlockMaskDifference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pA', 'pB', 'pResult']}"
+		},
+		"D3D10StateBlockMaskDisableAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMask']}"
+		},
+		"D3D10StateBlockMaskDisableCapture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'D3D10_DEVICE_STATE_TYPES', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMask', 'StateType', 'RangeStart', 'RangeLength']}"
+		},
+		"D3D10StateBlockMaskEnableAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMask']}"
+		},
+		"D3D10StateBlockMaskEnableCapture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'D3D10_DEVICE_STATE_TYPES', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMask', 'StateType', 'RangeStart', 'RangeLength']}"
+		},
+		"D3D10StateBlockMaskGetSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'D3D10_DEVICE_STATE_TYPES', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pMask', 'StateType', 'Entry']}"
+		},
+		"D3D10StateBlockMaskIntersect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pA', 'pB', 'pResult']}"
+		},
+		"D3D10StateBlockMaskUnion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D10_STATE_BLOCK_MASK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pA', 'pB', 'pResult']}"
+		}
+	}
+}

@@ -1,0 +1,117 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"winusb.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"WinUsb_AbortPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID']}"
+		},
+		"WinUsb_ControlTransfer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WINUSB_SETUP_PACKET', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'SetupPacket', 'Buffer', 'BufferLength', 'LengthTransferred', 'Overlapped']}"
+		},
+		"WinUsb_FlushPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID']}"
+		},
+		"WinUsb_Free": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle']}"
+		},
+		"WinUsb_GetAdjustedFrameNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'llong', 'label': 'Int64'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['CurrentFrameNumber', 'TimeStamp']}"
+		},
+		"WinUsb_GetAssociatedInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'AssociatedInterfaceIndex', 'AssociatedInterfaceHandle']}"
+		},
+		"WinUsb_GetCurrentAlternateSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'SettingNumber']}"
+		},
+		"WinUsb_GetCurrentFrameNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'CurrentFrameNumber', 'TimeStamp']}"
+		},
+		"WinUsb_GetCurrentFrameNumberAndQpc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_FRAME_NUMBER_AND_QPC_FOR_TIME_SYNC_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'FrameQpcInfo']}"
+		},
+		"WinUsb_GetDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'DescriptorType', 'Index', 'LanguageID', 'Buffer', 'BufferLength', 'LengthTransferred']}"
+		},
+		"WinUsb_GetOverlappedResult": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'lpOverlapped', 'lpNumberOfBytesTransferred', 'bWait']}"
+		},
+		"WinUsb_GetPipePolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'WINUSB_PIPE_POLICY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID', 'PolicyType', 'ValueLength', 'Value']}"
+		},
+		"WinUsb_GetPowerPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WINUSB_POWER_POLICY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PolicyType', 'ValueLength', 'Value']}"
+		},
+		"WinUsb_Initialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['DeviceHandle', 'InterfaceHandle']}"
+		},
+		"WinUsb_ParseConfigurationDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_CONFIGURATION_DESCRIPTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_INTERFACE_DESCRIPTOR', 'ot': '_ref'}}, 'arg_names': ['ConfigurationDescriptor', 'StartPosition', 'InterfaceNumber', 'AlternateSetting', 'InterfaceClass', 'InterfaceSubClass', 'InterfaceProtocol']}"
+		},
+		"WinUsb_ParseDescriptors": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_COMMON_DESCRIPTOR', 'ot': '_ref'}}, 'arg_names': ['DescriptorBuffer', 'TotalLength', 'StartPosition', 'DescriptorType']}"
+		},
+		"WinUsb_QueryDeviceInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'InformationType', 'BufferLength', 'Buffer']}"
+		},
+		"WinUsb_QueryInterfaceSettings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_INTERFACE_DESCRIPTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'AlternateInterfaceNumber', 'UsbAltInterfaceDescriptor']}"
+		},
+		"WinUsb_QueryPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINUSB_PIPE_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'AlternateInterfaceNumber', 'PipeIndex', 'PipeInformation']}"
+		},
+		"WinUsb_QueryPipeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WINUSB_PIPE_INFORMATION_EX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'AlternateSettingNumber', 'PipeIndex', 'PipeInformationEx']}"
+		},
+		"WinUsb_ReadIsochPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USBD_ISO_PACKET_DESCRIPTOR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['BufferHandle', 'Offset', 'Length', 'FrameNumber', 'NumberOfPackets', 'IsoPacketDescriptors', 'Overlapped']}"
+		},
+		"WinUsb_ReadIsochPipeAsap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USBD_ISO_PACKET_DESCRIPTOR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['BufferHandle', 'Offset', 'Length', 'ContinueStream', 'NumberOfPackets', 'IsoPacketDescriptors', 'Overlapped']}"
+		},
+		"WinUsb_ReadPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID', 'Buffer', 'BufferLength', 'LengthTransferred', 'Overlapped']}"
+		},
+		"WinUsb_RegisterIsochBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID', 'Buffer', 'BufferLength', 'IsochBufferHandle']}"
+		},
+		"WinUsb_ResetPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID']}"
+		},
+		"WinUsb_SetCurrentAlternateSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'SettingNumber']}"
+		},
+		"WinUsb_SetPipePolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'WINUSB_PIPE_POLICY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID', 'PolicyType', 'ValueLength', 'Value']}"
+		},
+		"WinUsb_SetPowerPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WINUSB_POWER_POLICY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PolicyType', 'ValueLength', 'Value']}"
+		},
+		"WinUsb_StartTrackingForTimeSync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_START_TRACKING_FOR_TIME_SYNC_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'StartTrackingInfo']}"
+		},
+		"WinUsb_StopTrackingForTimeSync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USB_STOP_TRACKING_FOR_TIME_SYNC_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'StopTrackingInfo']}"
+		},
+		"WinUsb_UnregisterIsochBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['IsochBufferHandle']}"
+		},
+		"WinUsb_WriteIsochPipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['BufferHandle', 'Offset', 'Length', 'FrameNumber', 'Overlapped']}"
+		},
+		"WinUsb_WriteIsochPipeAsap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['BufferHandle', 'Offset', 'Length', 'ContinueStream', 'Overlapped']}"
+		},
+		"WinUsb_WritePipe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WINUSB_INTERFACE_HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InterfaceHandle', 'PipeID', 'Buffer', 'BufferLength', 'LengthTransferred', 'Overlapped']}"
+		}
+	}
+}

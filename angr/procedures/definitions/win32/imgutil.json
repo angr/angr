@@ -1,0 +1,42 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"imgutil.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ComputeInvCMAP": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RGBQUAD', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pRGBColors', 'nColors', 'pInvTable', 'cbTable']}"
+		},
+		"CreateDDrawSurfaceOnDIB": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDirectDrawSurface', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hbmDib', 'ppSurface']}"
+		},
+		"CreateMIMEMap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMapMIMEToCLSID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppMap']}"
+		},
+		"DecodeImage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMapMIMEToCLSID', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pStream', 'pMap', 'pEventSink']}"
+		},
+		"DecodeImageEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMapMIMEToCLSID', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pStream', 'pMap', 'pEventSink', 'pszMIMETypeParam']}"
+		},
+		"DitherTo8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RGBQUAD', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RGBQUAD', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDestBits', 'nDestPitch', 'pSrcBits', 'nSrcPitch', 'bfidSrc', 'prgbDestColors', 'prgbSrcColors', 'pbDestInvMap', 'x', 'y', 'cx', 'cy', 'lDestTrans', 'lSrcTrans']}"
+		},
+		"GetMaxMIMEIDBytes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pnMaxBytes']}"
+		},
+		"IdentifyMIMEType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pbBytes', 'nBytes', 'pnFormat']}"
+		},
+		"SniffStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pInStream', 'pnFormat', 'ppOutStream']}"
+		}
+	}
+}

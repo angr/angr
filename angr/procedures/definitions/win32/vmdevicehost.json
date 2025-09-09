@@ -1,0 +1,54 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"vmdevicehost.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"HdvCreateDeviceInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HDV_DEVICE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['deviceHostHandle', 'deviceType', 'deviceClassId', 'deviceInstanceId', 'deviceInterface', 'deviceContext', 'deviceHandle']}"
+		},
+		"HdvCreateGuestMemoryAperture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'guestPhysicalAddress', 'byteCount', 'writeProtected', 'mappedAddress']}"
+		},
+		"HdvCreateSectionBackedMmioRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HDV_PCI_BAR_SELECTOR', 'ot': 'int'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HDV_MMIO_MAPPING_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'barIndex', 'offsetInPages', 'lengthInPages', 'MappingFlags', 'sectionHandle', 'sectionOffsetInPages']}"
+		},
+		"HdvDeliverGuestInterrupt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'msiAddress', 'msiData']}"
+		},
+		"HdvDestroyGuestMemoryAperture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'mappedAddress']}"
+		},
+		"HdvDestroySectionBackedMmioRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HDV_PCI_BAR_SELECTOR', 'ot': 'int'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'barIndex', 'offsetInPages']}"
+		},
+		"HdvInitializeDeviceHost": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCS_SYSTEM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['computeSystem', 'deviceHostHandle']}"
+		},
+		"HdvInitializeDeviceHostEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCS_SYSTEM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDV_DEVICE_HOST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['computeSystem', 'flags', 'deviceHostHandle']}"
+		},
+		"HdvReadGuestMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'guestPhysicalAddress', 'byteCount', 'buffer']}"
+		},
+		"HdvRegisterDoorbell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HDV_PCI_BAR_SELECTOR', 'ot': 'int'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'BarIndex', 'BarOffset', 'TriggerValue', 'Flags', 'DoorbellEvent']}"
+		},
+		"HdvTeardownDeviceHost": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['deviceHostHandle']}"
+		},
+		"HdvUnregisterDoorbell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HDV_PCI_BAR_SELECTOR', 'ot': 'int'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'BarIndex', 'BarOffset', 'TriggerValue', 'Flags']}"
+		},
+		"HdvWriteGuestMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['requestor', 'guestPhysicalAddress', 'byteCount', 'buffer']}"
+		}
+	}
+}

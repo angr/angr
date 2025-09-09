@@ -1,0 +1,18 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mmdevapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ActivateAudioInterfaceAsync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IActivateAudioInterfaceCompletionHandler', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IActivateAudioInterfaceAsyncOperation', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['deviceInterfacePath', 'riid', 'activationParams', 'completionHandler', 'activationOperation']}"
+		}
+	}
+}

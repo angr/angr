@@ -1,0 +1,129 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"dxva2.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CapabilitiesRequestAndCapabilitiesReply": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pszASCIICapabilitiesString', 'dwCapabilitiesStringLengthInCharacters']}"
+		},
+		"DXVA2CreateDirect3DDeviceManager9": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDirect3DDeviceManager9', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pResetToken', 'ppDeviceManager']}"
+		},
+		"DXVA2CreateVideoService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDirect3DDevice9', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDD', 'riid', 'ppService']}"
+		},
+		"DXVAHD_CreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDirect3DDevice9Ex', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DXVAHD_CONTENT_DESC', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DXVAHD_DEVICE_USAGE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Size', 'pCallbacks']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDXVAHD_Device', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pD3DDevice', 'pContentDesc', 'Usage', 'pPlugin', 'ppDevice']}"
+		},
+		"DegaussMonitor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor']}"
+		},
+		"DestroyPhysicalMonitor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hMonitor']}"
+		},
+		"DestroyPhysicalMonitors": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PHYSICAL_MONITOR', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwPhysicalMonitorArraySize', 'pPhysicalMonitorArray']}"
+		},
+		"GetCapabilitiesStringLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pdwCapabilitiesStringLengthInCharacters']}"
+		},
+		"GetMonitorBrightness": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pdwMinimumBrightness', 'pdwCurrentBrightness', 'pdwMaximumBrightness']}"
+		},
+		"GetMonitorCapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pdwMonitorCapabilities', 'pdwSupportedColorTemperatures']}"
+		},
+		"GetMonitorColorTemperature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MC_COLOR_TEMPERATURE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pctCurrentColorTemperature']}"
+		},
+		"GetMonitorContrast": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pdwMinimumContrast', 'pdwCurrentContrast', 'pdwMaximumContrast']}"
+		},
+		"GetMonitorDisplayAreaPosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_POSITION_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'ptPositionType', 'pdwMinimumPosition', 'pdwCurrentPosition', 'pdwMaximumPosition']}"
+		},
+		"GetMonitorDisplayAreaSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_SIZE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'stSizeType', 'pdwMinimumWidthOrHeight', 'pdwCurrentWidthOrHeight', 'pdwMaximumWidthOrHeight']}"
+		},
+		"GetMonitorRedGreenOrBlueDrive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_DRIVE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'dtDriveType', 'pdwMinimumDrive', 'pdwCurrentDrive', 'pdwMaximumDrive']}"
+		},
+		"GetMonitorRedGreenOrBlueGain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_GAIN_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'gtGainType', 'pdwMinimumGain', 'pdwCurrentGain', 'pdwMaximumGain']}"
+		},
+		"GetMonitorTechnologyType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MC_DISPLAY_TECHNOLOGY_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pdtyDisplayTechnologyType']}"
+		},
+		"GetNumberOfPhysicalMonitorsFromHMONITOR": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hMonitor', 'pdwNumberOfPhysicalMonitors']}"
+		},
+		"GetNumberOfPhysicalMonitorsFromIDirect3DDevice9": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDirect3DDevice9', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDirect3DDevice9', 'pdwNumberOfPhysicalMonitors']}"
+		},
+		"GetPhysicalMonitorsFromHMONITOR": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PHYSICAL_MONITOR', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hMonitor', 'dwPhysicalMonitorArraySize', 'pPhysicalMonitorArray']}"
+		},
+		"GetPhysicalMonitorsFromIDirect3DDevice9": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDirect3DDevice9', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PHYSICAL_MONITOR', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDirect3DDevice9', 'dwPhysicalMonitorArraySize', 'pPhysicalMonitorArray']}"
+		},
+		"GetTimingReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MC_TIMING_REPORT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'pmtrMonitorTimingReport']}"
+		},
+		"GetVCPFeatureAndVCPFeatureReply": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MC_VCP_CODE_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'bVCPCode', 'pvct', 'pdwCurrentValue', 'pdwMaximumValue']}"
+		},
+		"OPMGetVideoOutputForTarget": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'OPM_VIDEO_OUTPUT_SEMANTICS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IOPMVideoOutput', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapterLuid', 'VidPnTarget', 'vos', 'ppOPMVideoOutput']}"
+		},
+		"OPMGetVideoOutputsFromHMONITOR": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'OPM_VIDEO_OUTPUT_SEMANTICS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IOPMVideoOutput', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hMonitor', 'vos', 'pulNumVideoOutputs', 'pppOPMVideoOutputArray']}"
+		},
+		"OPMGetVideoOutputsFromIDirect3DDevice9Object": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDirect3DDevice9', 'ot': 'bot'}, {'_t': '_ref', 'name': 'OPM_VIDEO_OUTPUT_SEMANTICS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IOPMVideoOutput', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDirect3DDevice9', 'vos', 'pulNumVideoOutputs', 'pppOPMVideoOutputArray']}"
+		},
+		"RestoreMonitorFactoryColorDefaults": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor']}"
+		},
+		"RestoreMonitorFactoryDefaults": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor']}"
+		},
+		"SaveCurrentMonitorSettings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor']}"
+		},
+		"SaveCurrentSettings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor']}"
+		},
+		"SetMonitorBrightness": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'dwNewBrightness']}"
+		},
+		"SetMonitorColorTemperature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_COLOR_TEMPERATURE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'ctCurrentColorTemperature']}"
+		},
+		"SetMonitorContrast": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'dwNewContrast']}"
+		},
+		"SetMonitorDisplayAreaPosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_POSITION_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'ptPositionType', 'dwNewPosition']}"
+		},
+		"SetMonitorDisplayAreaSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_SIZE_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'stSizeType', 'dwNewDisplayAreaWidthOrHeight']}"
+		},
+		"SetMonitorRedGreenOrBlueDrive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_DRIVE_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'dtDriveType', 'dwNewDrive']}"
+		},
+		"SetMonitorRedGreenOrBlueGain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MC_GAIN_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'gtGainType', 'dwNewGain']}"
+		},
+		"SetVCPFeature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hMonitor', 'bVCPCode', 'dwNewValue']}"
+		}
+	}
+}

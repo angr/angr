@@ -1,0 +1,27 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"compstui.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CommonPropertySheetUIA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETUI_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pPSUIInfo', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hWndOwner', 'pfnPropSheetUI', 'lParam', 'pResult']}"
+		},
+		"CommonPropertySheetUIW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETUI_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pPSUIInfo', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hWndOwner', 'pfnPropSheetUI', 'lParam', 'pResult']}"
+		},
+		"GetCPSUIUserData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['hDlg']}"
+		},
+		"SetCPSUIUserData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hDlg', 'CPSUIUserData']}"
+		}
+	}
+}

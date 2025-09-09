@@ -2580,5 +2580,16 @@ def register_syscall_cc(arch, os, cc):
     SYSCALL_CC[arch][os] = cc
 
 
+CC_NAMES = {}
+
+cls_queue = [SimCC]
+while cls_queue:
+    cls_ = cls_queue.pop()
+    if not cls_.__subclasses__():
+        CC_NAMES[cls_.__name__] = cls_
+    else:
+        cls_queue.extend(cls_.__subclasses__())
+
+
 SyscallCC = SYSCALL_CC
 DefaultCC = DEFAULT_CC

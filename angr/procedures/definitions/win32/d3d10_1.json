@@ -1,0 +1,21 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"d3d10_1.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"D3D10CreateDevice1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D10_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'D3D10_FEATURE_LEVEL1', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10Device1', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'HardwareLevel', 'SDKVersion', 'ppDevice']}"
+		},
+		"D3D10CreateDeviceAndSwapChain1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D10_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'D3D10_FEATURE_LEVEL1', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DXGI_SWAP_CHAIN_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDXGISwapChain', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D10Device1', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'HardwareLevel', 'SDKVersion', 'pSwapChainDesc', 'ppSwapChain', 'ppDevice']}"
+		}
+	}
+}

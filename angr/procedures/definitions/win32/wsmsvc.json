@@ -1,0 +1,114 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"wsmsvc.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"WSManCloseCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['commandHandle', 'flags', 'async']}"
+		},
+		"WSManCloseOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_OPERATION_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['operationHandle', 'flags']}"
+		},
+		"WSManCloseSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['session', 'flags']}"
+		},
+		"WSManCloseShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shellHandle', 'flags', 'async']}"
+		},
+		"WSManConnectShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['session', 'flags', 'resourceUri', 'shellID', 'options', 'connectXml', 'async', 'shell']}"
+		},
+		"WSManConnectShellCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'flags', 'commandID', 'options', 'connectXml', 'async', 'command']}"
+		},
+		"WSManCreateSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_API_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_AUTHENTICATION_CREDENTIALS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['apiHandle', 'connection', 'flags', 'serverAuthenticationCredentials', 'proxyInfo', 'session']}"
+		},
+		"WSManCreateShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_STARTUP_INFO_V11', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['session', 'flags', 'resourceUri', 'startupInfo', 'options', 'createXml', 'async', 'shell']}"
+		},
+		"WSManCreateShellEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_STARTUP_INFO_V11', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['session', 'flags', 'resourceUri', 'shellId', 'startupInfo', 'options', 'createXml', 'async', 'shell']}"
+		},
+		"WSManDeinitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_API_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['apiHandle', 'flags']}"
+		},
+		"WSManDisconnectShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_DISCONNECT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'flags', 'disconnectInfo', 'async']}"
+		},
+		"WSManGetErrorMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_API_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['apiHandle', 'flags', 'languageCode', 'errorCode', 'messageLength', 'message', 'messageLengthUsed']}"
+		},
+		"WSManGetSessionOptionAsDword": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSManSessionOption', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['session', 'option', 'value']}"
+		},
+		"WSManGetSessionOptionAsString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSManSessionOption', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['session', 'option', 'stringLength', 'string', 'stringLengthUsed']}"
+		},
+		"WSManInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_API_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['flags', 'apiHandle']}"
+		},
+		"WSManPluginAuthzOperationComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SENDER_DETAILS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['senderDetails', 'flags', 'userAuthorizationContext', 'errorCode', 'extendedErrorInformation']}"
+		},
+		"WSManPluginAuthzQueryQuotaComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SENDER_DETAILS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_AUTHZ_QUOTA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['senderDetails', 'flags', 'quota', 'errorCode', 'extendedErrorInformation']}"
+		},
+		"WSManPluginAuthzUserComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SENDER_DETAILS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['senderDetails', 'flags', 'userAuthorizationContext', 'impersonationToken', 'userIsAdministrator', 'errorCode', 'extendedErrorInformation']}"
+		},
+		"WSManPluginFreeRequestDetails": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PLUGIN_REQUEST', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['requestDetails']}"
+		},
+		"WSManPluginGetConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pluginContext', 'flags', 'data']}"
+		},
+		"WSManPluginGetOperationParameters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PLUGIN_REQUEST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['requestDetails', 'flags', 'data']}"
+		},
+		"WSManPluginOperationComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PLUGIN_REQUEST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['requestDetails', 'flags', 'errorCode', 'extendedInformation']}"
+		},
+		"WSManPluginReceiveResult": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PLUGIN_REQUEST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['requestDetails', 'flags', 'stream', 'streamResult', 'commandState', 'exitCode']}"
+		},
+		"WSManPluginReportCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pluginContext', 'flags']}"
+		},
+		"WSManPluginReportContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_PLUGIN_REQUEST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['requestDetails', 'flags', 'context']}"
+		},
+		"WSManReceiveShellOutput": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_STREAM_ID_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPERATION_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'command', 'flags', 'desiredStreamSet', 'async', 'receiveOperation']}"
+		},
+		"WSManReconnectShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'flags', 'async']}"
+		},
+		"WSManReconnectShellCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['commandHandle', 'flags', 'async']}"
+		},
+		"WSManRunShellCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_COMMAND_ARG_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'flags', 'commandLine', 'args', 'options', 'async', 'command']}"
+		},
+		"WSManRunShellCommandEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_COMMAND_ARG_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPTION_SET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'flags', 'commandId', 'commandLine', 'args', 'options', 'async', 'command']}"
+		},
+		"WSManSendShellInput": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPERATION_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'command', 'flags', 'streamId', 'streamData', 'endOfStream', 'async', 'sendOperation']}"
+		},
+		"WSManSetSessionOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SESSION_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSManSessionOption', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['session', 'option', 'data']}"
+		},
+		"WSManSignalShell": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'WSMAN_SHELL_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSMAN_COMMAND_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_SHELL_ASYNC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WSMAN_OPERATION_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['shell', 'command', 'flags', 'code', 'async', 'signalOperation']}"
+		}
+	}
+}

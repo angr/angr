@@ -1,0 +1,99 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"hlink.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"HlinkClone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IHlink', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pihl', 'riid', 'pihlsiteForClone', 'dwSiteData', 'ppvObj']}"
+		},
+		"HlinkCreateBrowseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkCreateExtensionServices": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzAdditionalHeaders', 'phwnd', 'pszUsername', 'pszPassword', 'piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkCreateFromData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['piDataObj', 'pihlsite', 'dwSiteData', 'piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkCreateFromMoniker": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pimkTrgt', 'pwzLocation', 'pwzFriendlyName', 'pihlsite', 'dwSiteData', 'piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkCreateFromString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzTarget', 'pwzLocation', 'pwzFriendlyName', 'pihlsite', 'dwSiteData', 'piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkCreateShortcut": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IHlink', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['grfHLSHORTCUTF', 'pihl', 'pwzDir', 'pwzFileName', 'ppwzShortcutFile', 'dwReserved']}"
+		},
+		"HlinkCreateShortcutFromMoniker": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['grfHLSHORTCUTF', 'pimkTarget', 'pwzLocation', 'pwzDir', 'pwzFileName', 'ppwzShortcutFile', 'dwReserved']}"
+		},
+		"HlinkCreateShortcutFromString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['grfHLSHORTCUTF', 'pwzTarget', 'pwzLocation', 'pwzDir', 'pwzFileName', 'ppwzShortcutFile', 'dwReserved']}"
+		},
+		"HlinkGetSpecialReference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uReference', 'ppwzReference']}"
+		},
+		"HlinkGetValueFromParams": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzParams', 'pwzName', 'ppwzValue']}"
+		},
+		"HlinkIsShortcut": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzFileName']}"
+		},
+		"HlinkNavigate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IHlink', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkFrame', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IBindStatusCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkBrowseContext', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pihl', 'pihlframe', 'grfHLNF', 'pbc', 'pibsc', 'pihlbc']}"
+		},
+		"HlinkNavigateToStringReference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IHlinkFrame', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IBindStatusCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkBrowseContext', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzTarget', 'pwzLocation', 'pihlsite', 'dwSiteData', 'pihlframe', 'grfHLNF', 'pibc', 'pibsc', 'pihlbc']}"
+		},
+		"HlinkOnNavigate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IHlinkFrame', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkBrowseContext', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pihlframe', 'pihlbc', 'grfHLNF', 'pimkTarget', 'pwzLocation', 'pwzFriendlyName', 'puHLID']}"
+		},
+		"HlinkOnRenameDocument": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IHlinkBrowseContext', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwReserved', 'pihlbc', 'pimkOld', 'pimkNew']}"
+		},
+		"HlinkParseDisplayName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMoniker', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pibc', 'pwzDisplayName', 'fNoForceAbs', 'pcchEaten', 'ppimk']}"
+		},
+		"HlinkPreprocessMoniker": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMoniker', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pibc', 'pimkIn', 'ppimkOut']}"
+		},
+		"HlinkQueryCreateFromData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['piDataObj']}"
+		},
+		"HlinkResolveMonikerForData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FORMATETC', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindStatusCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pimkReference', 'reserved', 'pibc', 'cFmtetc', 'rgFmtetc', 'pibsc', 'pimkBase']}"
+		},
+		"HlinkResolveShortcut": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IHlinkSite', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzShortcutFileName', 'pihlsite', 'dwSiteData', 'piunkOuter', 'riid', 'ppvObj']}"
+		},
+		"HlinkResolveShortcutToMoniker": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMoniker', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzShortcutFileName', 'ppimkTarget', 'ppwzLocation']}"
+		},
+		"HlinkResolveShortcutToString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzShortcutFileName', 'ppwzTarget', 'ppwzLocation']}"
+		},
+		"HlinkResolveStringForData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FORMATETC', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindStatusCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzReference', 'reserved', 'pibc', 'cFmtetc', 'rgFmtetc', 'pibsc', 'pimkBase']}"
+		},
+		"HlinkSetSpecialReference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uReference', 'pwzReference']}"
+		},
+		"HlinkTranslateURL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzURL', 'grfFlags', 'ppwzTranslatedURL']}"
+		},
+		"HlinkUpdateStackItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IHlinkFrame', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IHlinkBrowseContext', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMoniker', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pihlframe', 'pihlbc', 'uHLID', 'pimkTrgt', 'pwzLocation', 'pwzFriendlyName']}"
+		},
+		"OleSaveToStreamEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['piunk', 'pistm', 'fClearDirty']}"
+		}
+	}
+}

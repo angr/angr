@@ -1,0 +1,267 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"powrprof.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CallNtPowerInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POWER_INFORMATION_LEVEL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InformationLevel', 'InputBuffer', 'InputBufferLength', 'OutputBuffer', 'OutputBufferLength']}"
+		},
+		"CanUserWritePwrScheme": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"DeletePwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['uiID']}"
+		},
+		"DevicePowerClose": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"DevicePowerEnumDevices": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['QueryIndex', 'QueryInterpretationFlags', 'QueryFlags', 'pReturnBuffer', 'pBufferSize']}"
+		},
+		"DevicePowerOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['DebugMask']}"
+		},
+		"DevicePowerSetDeviceState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DeviceDescription', 'SetFlags', 'SetData']}"
+		},
+		"EnumPwrSchemes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Index', 'NameSize', 'Name', 'DescriptionSize', 'Description', 'Policy', 'Context']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['lpfn', 'lParam']}"
+		},
+		"GetActivePwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['puiID']}"
+		},
+		"GetCurrentPowerPolicies": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLOBAL_POWER_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pGlobalPowerPolicy', 'pPowerPolicy']}"
+		},
+		"GetPwrCapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SYSTEM_POWER_CAPABILITIES', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['lpspc']}"
+		},
+		"GetPwrDiskSpindownRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['puiMax', 'puiMin']}"
+		},
+		"IsAdminOverrideActive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ADMINISTRATOR_POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['papp']}"
+		},
+		"IsPwrHibernateAllowed": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"IsPwrShutdownAllowed": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"IsPwrSuspendAllowed": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"PowerCanRestoreIndividualDefaultPowerScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['SchemeGuid']}"
+		},
+		"PowerCreatePossibleSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootSystemPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'PossibleSettingIndex']}"
+		},
+		"PowerCreateSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootSystemPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid']}"
+		},
+		"PowerDeleteScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid']}"
+		},
+		"PowerDeterminePlatformRole": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'POWER_PLATFORM_ROLE', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"PowerDeterminePlatformRoleEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POWER_PLATFORM_ROLE_VERSION', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'POWER_PLATFORM_ROLE', 'ot': 'int'}, 'arg_names': ['Version']}"
+		},
+		"PowerDuplicateScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SourceSchemeGuid', 'DestinationSchemeGuid']}"
+		},
+		"PowerEnumerate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'POWER_DATA_ACCESSOR', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'AccessFlags', 'Index', 'Buffer', 'BufferSize']}"
+		},
+		"PowerGetActiveScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['UserRootPowerKey', 'ActivePolicyGuid']}"
+		},
+		"PowerImportPowerScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'ImportFileNamePath', 'DestinationSchemeGuid']}"
+		},
+		"PowerIsSettingRangeDefined": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['SubKeyGuid', 'SettingGuid']}"
+		},
+		"PowerOpenSystemPowerKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phSystemPowerKey', 'Access', 'OpenExisting']}"
+		},
+		"PowerOpenUserPowerKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phUserPowerKey', 'Access', 'OpenExisting']}"
+		},
+		"PowerReadACDefaultIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemePersonalityGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'AcDefaultIndex']}"
+		},
+		"PowerReadACValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Type', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadACValueIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'AcValueIndex']}"
+		},
+		"PowerReadDCDefaultIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemePersonalityGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'DcDefaultIndex']}"
+		},
+		"PowerReadDCValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Type', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadDCValueIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'DcValueIndex']}"
+		},
+		"PowerReadDescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadFriendlyName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadIconResourceSpecifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadPossibleDescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadPossibleFriendlyName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadPossibleValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Type', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerReadSettingAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['SubGroupGuid', 'PowerSettingGuid']}"
+		},
+		"PowerReadValueIncrement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueIncrement']}"
+		},
+		"PowerReadValueMax": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueMaximum']}"
+		},
+		"PowerReadValueMin": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueMinimum']}"
+		},
+		"PowerReadValueUnitsSpecifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerRegisterForEffectivePowerModeNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EFFECTIVE_POWER_MODE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Mode', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Version', 'Callback', 'Context', 'RegistrationHandle']}"
+		},
+		"PowerRegisterSuspendResumeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'REGISTER_NOTIFICATION_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['Flags', 'Recipient', 'RegistrationHandle']}"
+		},
+		"PowerRemovePowerSetting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['PowerSettingSubKeyGuid', 'PowerSettingGuid']}"
+		},
+		"PowerReplaceDefaultPowerSchemes": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"PowerReportThermalEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'THERMAL_EVENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['Event']}"
+		},
+		"PowerRestoreDefaultPowerSchemes": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"PowerRestoreIndividualDefaultPowerScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['SchemeGuid']}"
+		},
+		"PowerSetActiveScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['UserRootPowerKey', 'SchemeGuid']}"
+		},
+		"PowerSettingAccessCheck": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POWER_DATA_ACCESSOR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['AccessFlags', 'PowerGuid']}"
+		},
+		"PowerSettingAccessCheckEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'POWER_DATA_ACCESSOR', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'REG_SAM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['AccessFlags', 'PowerGuid', 'AccessType']}"
+		},
+		"PowerSettingRegisterNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'REGISTER_NOTIFICATION_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['SettingGuid', 'Flags', 'Recipient', 'RegistrationHandle']}"
+		},
+		"PowerSettingUnregisterNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPOWERNOTIFY', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RegistrationHandle']}"
+		},
+		"PowerUnregisterFromEffectivePowerModeNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['RegistrationHandle']}"
+		},
+		"PowerUnregisterSuspendResumeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPOWERNOTIFY', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RegistrationHandle']}"
+		},
+		"PowerWriteACDefaultIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootSystemPowerKey', 'SchemePersonalityGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'DefaultAcIndex']}"
+		},
+		"PowerWriteACValueIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'AcValueIndex']}"
+		},
+		"PowerWriteDCDefaultIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootSystemPowerKey', 'SchemePersonalityGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'DefaultDcIndex']}"
+		},
+		"PowerWriteDCValueIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'DcValueIndex']}"
+		},
+		"PowerWriteDescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWriteFriendlyName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWriteIconResourceSpecifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SchemeGuid', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWritePossibleDescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWritePossibleFriendlyName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWritePossibleValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Type', 'PossibleSettingIndex', 'Buffer', 'BufferSize']}"
+		},
+		"PowerWriteSettingAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['SubGroupGuid', 'PowerSettingGuid', 'Attributes']}"
+		},
+		"PowerWriteValueIncrement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueIncrement']}"
+		},
+		"PowerWriteValueMax": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueMaximum']}"
+		},
+		"PowerWriteValueMin": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'ValueMinimum']}"
+		},
+		"PowerWriteValueUnitsSpecifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['RootPowerKey', 'SubGroupOfPowerSettingsGuid', 'PowerSettingGuid', 'Buffer', 'BufferSize']}"
+		},
+		"ReadGlobalPwrPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLOBAL_POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pGlobalPowerPolicy']}"
+		},
+		"ReadProcessorPwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MACHINE_PROCESSOR_POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['uiID', 'pMachineProcessorPowerPolicy']}"
+		},
+		"ReadPwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['uiID', 'pPowerPolicy']}"
+		},
+		"SetActivePwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLOBAL_POWER_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['uiID', 'pGlobalPowerPolicy', 'pPowerPolicy']}"
+		},
+		"SetSuspendState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['bHibernate', 'bForce', 'bWakeupEventsDisabled']}"
+		},
+		"ValidatePowerPolicies": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLOBAL_POWER_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pGlobalPowerPolicy', 'pPowerPolicy']}"
+		},
+		"WriteGlobalPwrPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLOBAL_POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['pGlobalPowerPolicy']}"
+		},
+		"WriteProcessorPwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MACHINE_PROCESSOR_POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['uiID', 'pMachineProcessorPowerPolicy']}"
+		},
+		"WritePwrScheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POWER_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['puiID', 'lpszSchemeName', 'lpszDescription', 'lpScheme']}"
+		}
+	}
+}

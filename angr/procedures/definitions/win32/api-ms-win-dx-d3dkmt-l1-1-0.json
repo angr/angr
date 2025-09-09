@@ -1,0 +1,18 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-dx-d3dkmt-l1-1-0.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GdiEntry13": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		}
+	}
+}

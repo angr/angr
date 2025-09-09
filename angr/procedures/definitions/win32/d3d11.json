@@ -1,0 +1,24 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"d3d11.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"D3D11CreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'D3D11_CREATE_DEVICE_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11Device', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11DeviceContext', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'pFeatureLevels', 'FeatureLevels', 'SDKVersion', 'ppDevice', 'pFeatureLevel', 'ppImmediateContext']}"
+		},
+		"D3D11CreateDeviceAndSwapChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDXGIAdapter', 'ot': 'bot'}, {'_t': '_ref', 'name': 'D3D_DRIVER_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'D3D11_CREATE_DEVICE_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DXGI_SWAP_CHAIN_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDXGISwapChain', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11Device', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11DeviceContext', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAdapter', 'DriverType', 'Software', 'Flags', 'pFeatureLevels', 'FeatureLevels', 'SDKVersion', 'pSwapChainDesc', 'ppSwapChain', 'ppDevice', 'pFeatureLevel', 'ppImmediateContext']}"
+		},
+		"D3D11On12CreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11Device', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ID3D11DeviceContext', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3D_FEATURE_LEVEL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pDevice', 'Flags', 'pFeatureLevels', 'FeatureLevels', 'ppCommandQueues', 'NumQueues', 'NodeMask', 'ppDevice', 'ppImmediateContext', 'pChosenFeatureLevel']}"
+		}
+	}
+}

@@ -1,0 +1,246 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"uxtheme.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"BeginBufferedAnimation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BP_BUFFERFORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BP_PAINTPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BP_ANIMATIONPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDC', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['hwnd', 'hdcTarget', 'prcTarget', 'dwFormat', 'pPaintParams', 'pAnimationParams', 'phdcFrom', 'phdcTo']}"
+		},
+		"BeginBufferedPaint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BP_BUFFERFORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BP_PAINTPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDC', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['hdcTarget', 'prcTarget', 'dwFormat', 'pPaintParams', 'phdc']}"
+		},
+		"BeginPanningFeedback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd']}"
+		},
+		"BufferedPaintClear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hBufferedPaint', 'prc']}"
+		},
+		"BufferedPaintInit": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"BufferedPaintRenderAnimation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd', 'hdcTarget']}"
+		},
+		"BufferedPaintSetAlpha": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hBufferedPaint', 'prc', 'alpha']}"
+		},
+		"BufferedPaintStopAllAnimations": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd']}"
+		},
+		"BufferedPaintUnInit": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"CloseThemeData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme']}"
+		},
+		"DrawThemeBackground": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pRect', 'pClipRect']}"
+		},
+		"DrawThemeBackgroundEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DTBGOPTS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pRect', 'pOptions']}"
+		},
+		"DrawThemeEdge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DRAWEDGE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'DRAW_EDGE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pDestRect', 'uEdge', 'uFlags', 'pContentRect']}"
+		},
+		"DrawThemeIcon": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pRect', 'himl', 'iImageIndex']}"
+		},
+		"DrawThemeParentBackground": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'hdc', 'prc']}"
+		},
+		"DrawThemeParentBackgroundEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DRAW_THEME_PARENT_BACKGROUND_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'hdc', 'dwFlags', 'prc']}"
+		},
+		"DrawThemeText": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'DRAW_TEXT_FORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pszText', 'cchText', 'dwTextFlags', 'dwTextFlags2', 'pRect']}"
+		},
+		"DrawThemeTextEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'DRAW_TEXT_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DTTOPTS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pszText', 'cchText', 'dwTextFlags', 'pRect', 'pOptions']}"
+		},
+		"EnableThemeDialogTexture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'dwFlags']}"
+		},
+		"EnableTheming": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fEnable']}"
+		},
+		"EndBufferedAnimation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hbpAnimation', 'fUpdateTarget']}"
+		},
+		"EndBufferedPaint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hBufferedPaint', 'fUpdateTarget']}"
+		},
+		"EndPanningFeedback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd', 'fAnimateBack']}"
+		},
+		"GetBufferedPaintBits": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RGBQUAD', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hBufferedPaint', 'ppbBuffer', 'pcxRow']}"
+		},
+		"GetBufferedPaintDC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, 'arg_names': ['hBufferedPaint']}"
+		},
+		"GetBufferedPaintTargetDC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, 'arg_names': ['hBufferedPaint']}"
+		},
+		"GetBufferedPaintTargetRect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hBufferedPaint', 'prc']}"
+		},
+		"GetCurrentThemeName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszThemeFileName', 'cchMaxNameChars', 'pszColorBuff', 'cchMaxColorChars', 'pszSizeBuff', 'cchMaxSizeChars']}"
+		},
+		"GetThemeAnimationProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'TA_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iStoryboardId', 'iTargetId', 'eProperty', 'pvProperty', 'cbSize', 'pcbSizeOut']}"
+		},
+		"GetThemeAnimationTransform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TA_TRANSFORM', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iStoryboardId', 'iTargetId', 'dwTransformIndex', 'pTransform', 'cbSize', 'pcbSizeOut']}"
+		},
+		"GetThemeAppProperties": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'SET_THEME_APP_PROPERTIES_FLAGS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"GetThemeBackgroundContentRect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pBoundingRect', 'pContentRect']}"
+		},
+		"GetThemeBackgroundExtent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pContentRect', 'pExtentRect']}"
+		},
+		"GetThemeBackgroundRegion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRGN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pRect', 'pRegion']}"
+		},
+		"GetThemeBitmap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'GET_THEME_BITMAP_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HBITMAP', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'dwFlags', 'phBitmap']}"
+		},
+		"GetThemeBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pfVal']}"
+		},
+		"GetThemeColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COLORREF', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pColor']}"
+		},
+		"GetThemeDocumentationProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszThemeName', 'pszPropertyName', 'pszValueBuff', 'cchMaxValChars']}"
+		},
+		"GetThemeEnumValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'piVal']}"
+		},
+		"GetThemeFilename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pszThemeFileName', 'cchMaxBuffChars']}"
+		},
+		"GetThemeFont": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'iPropId', 'pFont']}"
+		},
+		"GetThemeInt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'piVal']}"
+		},
+		"GetThemeIntList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTLIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pIntList']}"
+		},
+		"GetThemeMargins": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MARGINS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'iPropId', 'prc', 'pMargins']}"
+		},
+		"GetThemeMetric": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'iPropId', 'piVal']}"
+		},
+		"GetThemePartSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'THEMESIZE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIZE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'prc', 'eSize', 'psz']}"
+		},
+		"GetThemePosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pPoint']}"
+		},
+		"GetThemePropertyOrigin": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYORIGIN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pOrigin']}"
+		},
+		"GetThemeRect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pRect']}"
+		},
+		"GetThemeStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'ppvStream', 'pcbStream', 'hInst']}"
+		},
+		"GetThemeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId', 'iPropId', 'pszBuff', 'cchMaxBuffChars']}"
+		},
+		"GetThemeSysBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hTheme', 'iBoolId']}"
+		},
+		"GetThemeSysColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, 'arg_names': ['hTheme', 'iColorId']}"
+		},
+		"GetThemeSysColorBrush": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HBRUSH', 'ot': 'ptr'}, 'arg_names': ['hTheme', 'iColorId']}"
+		},
+		"GetThemeSysFont": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGFONTW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iFontId', 'plf']}"
+		},
+		"GetThemeSysInt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iIntId', 'piValue']}"
+		},
+		"GetThemeSysSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hTheme', 'iSizeId']}"
+		},
+		"GetThemeSysString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iStringId', 'pszStringBuff', 'cchMaxStringChars']}"
+		},
+		"GetThemeTextExtent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'DRAW_TEXT_FORMAT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'pszText', 'cchCharCount', 'dwTextFlags', 'pBoundingRect', 'pExtentRect']}"
+		},
+		"GetThemeTextMetrics": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TEXTMETRICW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'ptm']}"
+		},
+		"GetThemeTimingFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TA_TIMINGFUNCTION', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iTimingFunctionId', 'pTimingFunction', 'cbSize', 'pcbSizeOut']}"
+		},
+		"GetThemeTransitionDuration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateIdFrom', 'iStateIdTo', 'iPropId', 'pdwDuration']}"
+		},
+		"GetWindowTheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, 'arg_names': ['hwnd']}"
+		},
+		"HitTestThemeBackground": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HIT_TEST_BACKGROUND_OPTIONS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HRGN', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTheme', 'hdc', 'iPartId', 'iStateId', 'dwOptions', 'pRect', 'hrgn', 'ptTest', 'pwHitTestCode']}"
+		},
+		"IsAppThemed": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"IsCompositionActive": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"IsThemeActive": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"IsThemeBackgroundPartiallyTransparent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId']}"
+		},
+		"IsThemeDialogTextureEnabled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd']}"
+		},
+		"IsThemePartDefined": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hTheme', 'iPartId', 'iStateId']}"
+		},
+		"OpenThemeData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, 'arg_names': ['hwnd', 'pszClassList']}"
+		},
+		"OpenThemeDataEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'OPEN_THEME_DATA_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, 'arg_names': ['hwnd', 'pszClassList', 'dwFlags']}"
+		},
+		"OpenThemeDataForDpi": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HTHEME', 'ot': 'ptr'}, 'arg_names': ['hwnd', 'pszClassList', 'dpi']}"
+		},
+		"SetThemeAppProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SET_THEME_APP_PROPERTIES_FLAGS', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['dwFlags']}"
+		},
+		"SetWindowTheme": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'pszSubAppName', 'pszSubIdList']}"
+		},
+		"SetWindowThemeAttribute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WINDOWTHEMEATTRIBUTETYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'eAttribute', 'pvAttribute', 'cbAttribute']}"
+		},
+		"UpdatePanningFeedback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd', 'lTotalOverpanOffsetX', 'lTotalOverpanOffsetY', 'fInInertia']}"
+		}
+	}
+}

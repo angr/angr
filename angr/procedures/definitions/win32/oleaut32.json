@@ -1,0 +1,1230 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"oleaut32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"BSTR_UserFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"BSTR_UserFree64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"BSTR_UserMarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BSTR_UserMarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BSTR_UserSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BSTR_UserSize64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BSTR_UserUnmarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BSTR_UserUnmarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"BstrFromVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'pbstr']}"
+		},
+		"ClearCustData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CUSTDATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pCustData']}"
+		},
+		"CreateDispTypeInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACEDATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITypeInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidata', 'lcid', 'pptinfo']}"
+		},
+		"CreateErrorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ICreateErrorInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pperrinfo']}"
+		},
+		"CreateStdDispatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punkOuter', 'pvThis', 'ptinfo', 'ppunkStdDisp']}"
+		},
+		"CreateTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ICreateTypeLib', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['syskind', 'szFile', 'ppctlib']}"
+		},
+		"CreateTypeLib2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ICreateTypeLib2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['syskind', 'szFile', 'ppctlib']}"
+		},
+		"DispCallFunc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CALLCONV', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvInstance', 'oVft', 'cc', 'vtReturn', 'cActuals', 'prgvt', 'prgpvarg', 'pvargResult']}"
+		},
+		"DispGetIDsOfNames": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ptinfo', 'rgszNames', 'cNames', 'rgdispid']}"
+		},
+		"DispGetParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DISPPARAMS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispparams', 'position', 'vtTarg', 'pvarResult', 'puArgErr']}"
+		},
+		"DispInvoke": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DISPPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EXCEPINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['_this', 'ptinfo', 'dispidMember', 'wFlags', 'pparams', 'pvarResult', 'pexcepinfo', 'puArgErr']}"
+		},
+		"DosDateTimeToVariantTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['wDosDate', 'wDosTime', 'pvtime']}"
+		},
+		"GetActiveObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rclsid', 'pvReserved', 'ppunk']}"
+		},
+		"GetAltMonthNames": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lcid', 'prgp']}"
+		},
+		"GetErrorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IErrorInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwReserved', 'pperrinfo']}"
+		},
+		"GetRecordInfoFromGuids": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRecordInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rGuidTypeLib', 'uVerMajor', 'uVerMinor', 'lcid', 'rGuidTypeInfo', 'ppRecInfo']}"
+		},
+		"GetRecordInfoFromTypeInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRecordInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTypeInfo', 'ppRecInfo']}"
+		},
+		"LHashValOfNameSys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['syskind', 'lcid', 'szName']}"
+		},
+		"LHashValOfNameSysA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['syskind', 'lcid', 'szName']}"
+		},
+		"LPSAFEARRAY_UserFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"LPSAFEARRAY_UserFree64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"LPSAFEARRAY_UserMarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LPSAFEARRAY_UserMarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LPSAFEARRAY_UserSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LPSAFEARRAY_UserSize64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LPSAFEARRAY_UserUnmarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LPSAFEARRAY_UserUnmarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"LoadRegTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITypeLib', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rguid', 'wVerMajor', 'wVerMinor', 'lcid', 'pptlib']}"
+		},
+		"LoadTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITypeLib', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'pptlib']}"
+		},
+		"LoadTypeLibEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'REGKIND', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITypeLib', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szFile', 'regkind', 'pptlib']}"
+		},
+		"OaBuildVersion": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"OaEnablePerUserTLibRegistration": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"OleCreateFontIndirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FONTDESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpFontDesc', 'riid', 'lplpvObj']}"
+		},
+		"OleCreatePictureIndirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PICTDESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpPictDesc', 'riid', 'fOwn', 'lplpvObj']}"
+		},
+		"OleCreatePropertyFrame": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndOwner', 'x', 'y', 'lpszCaption', 'cObjects', 'ppUnk', 'cPages', 'pPageClsID', 'lcid', 'dwReserved', 'pvReserved']}"
+		},
+		"OleCreatePropertyFrameIndirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OCPFIPARAMS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpParams']}"
+		},
+		"OleIconToCursor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HICON', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCURSOR', 'ot': 'ptr'}, 'arg_names': ['hinstExe', 'hIcon']}"
+		},
+		"OleLoadPicture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpstream', 'lSize', 'fRunmode', 'riid', 'lplpvObj']}"
+		},
+		"OleLoadPictureEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LOAD_PICTURE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpstream', 'lSize', 'fRunmode', 'riid', 'xSizeDesired', 'ySizeDesired', 'dwFlags', 'lplpvObj']}"
+		},
+		"OleLoadPictureFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDispatch', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['varFileName', 'lplpdispPicture']}"
+		},
+		"OleLoadPictureFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LOAD_PICTURE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IDispatch', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['varFileName', 'xSizeDesired', 'ySizeDesired', 'dwFlags', 'lplpdispPicture']}"
+		},
+		"OleLoadPicturePath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['szURLorPath', 'punkCaller', 'dwReserved', 'clrReserved', 'riid', 'ppvRet']}"
+		},
+		"OleSavePictureFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpdispPicture', 'bstrFileName']}"
+		},
+		"OleTranslateColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HPALETTE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COLORREF', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['clr', 'hpal', 'lpcolorref']}"
+		},
+		"QueryPathOfRegTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['guid', 'wMaj', 'wMin', 'lcid', 'lpbstrPathName']}"
+		},
+		"RegisterActiveObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'ACTIVEOBJECT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'rclsid', 'dwFlags', 'pdwRegister']}"
+		},
+		"RegisterTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ITypeLib', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ptlib', 'szFullPath', 'szHelpDir']}"
+		},
+		"RegisterTypeLibForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ITypeLib', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ptlib', 'szFullPath', 'szHelpDir']}"
+		},
+		"RevokeActiveObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwRegister', 'pvReserved']}"
+		},
+		"SafeArrayAccessData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'ppvData']}"
+		},
+		"SafeArrayAddRef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'ppDataToRelease']}"
+		},
+		"SafeArrayAllocData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayAllocDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cDims', 'ppsaOut']}"
+		},
+		"SafeArrayAllocDescriptorEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['vt', 'cDims', 'ppsaOut']}"
+		},
+		"SafeArrayCopy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'ppsaOut']}"
+		},
+		"SafeArrayCopyData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psaSource', 'psaTarget']}"
+		},
+		"SafeArrayCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound']}"
+		},
+		"SafeArrayCreateEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound', 'pvExtra']}"
+		},
+		"SafeArrayCreateVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements']}"
+		},
+		"SafeArrayCreateVectorEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements', 'pvExtra']}"
+		},
+		"SafeArrayDestroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayDestroyData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayDestroyDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayGetDim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayGetElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'rgIndices', 'pv']}"
+		},
+		"SafeArrayGetElemsize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayGetIID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'pguid']}"
+		},
+		"SafeArrayGetLBound": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'nDim', 'plLbound']}"
+		},
+		"SafeArrayGetRecordInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRecordInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'prinfo']}"
+		},
+		"SafeArrayGetUBound": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'nDim', 'plUbound']}"
+		},
+		"SafeArrayGetVartype": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARENUM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'pvt']}"
+		},
+		"SafeArrayLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayPtrOfIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'rgIndices', 'ppvData']}"
+		},
+		"SafeArrayPutElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'rgIndices', 'pv']}"
+		},
+		"SafeArrayRedim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'psaboundNew']}"
+		},
+		"SafeArrayReleaseData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pData']}"
+		},
+		"SafeArrayReleaseDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['psa']}"
+		},
+		"SafeArraySetIID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'guid']}"
+		},
+		"SafeArraySetRecordInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IRecordInfo', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'prinfo']}"
+		},
+		"SafeArrayUnaccessData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SafeArrayUnlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
+		},
+		"SetErrorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IErrorInfo', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwReserved', 'perrinfo']}"
+		},
+		"SysAddRefString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bstrString']}"
+		},
+		"SysAllocString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, 'arg_names': ['psz']}"
+		},
+		"SysAllocStringByteLen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, 'arg_names': ['psz', 'len']}"
+		},
+		"SysAllocStringLen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, 'arg_names': ['strIn', 'ui']}"
+		},
+		"SysFreeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bstrString']}"
+		},
+		"SysReAllocString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pbstr', 'psz']}"
+		},
+		"SysReAllocStringLen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pbstr', 'psz', 'len']}"
+		},
+		"SysReleaseString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bstrString']}"
+		},
+		"SysStringByteLen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['bstr']}"
+		},
+		"SysStringLen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pbstr']}"
+		},
+		"SystemTimeToVariantTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SYSTEMTIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpSystemTime', 'pvtime']}"
+		},
+		"UnRegisterTypeLib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['libID', 'wVerMajor', 'wVerMinor', 'lcid', 'syskind']}"
+		},
+		"UnRegisterTypeLibForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['libID', 'wMajorVerNum', 'wMinorVerNum', 'lcid', 'syskind']}"
+		},
+		"VARIANT_UserFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"VARIANT_UserFree64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"VARIANT_UserMarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VARIANT_UserMarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VARIANT_UserSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VARIANT_UserSize64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VARIANT_UserUnmarshal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VARIANT_UserUnmarshal64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"VarAbs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pvarResult']}"
+		},
+		"VarAdd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarAnd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarBoolFromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pboolOut']}"
+		},
+		"VarBoolFromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pboolOut']}"
+		},
+		"VarBoolFromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pboolOut']}"
+		},
+		"VarBoolFromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pboolOut']}"
+		},
+		"VarBoolFromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pboolOut']}"
+		},
+		"VarBoolFromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pboolOut']}"
+		},
+		"VarBoolFromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pboolOut']}"
+		},
+		"VarBoolFromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pboolOut']}"
+		},
+		"VarBoolFromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pboolOut']}"
+		},
+		"VarBoolFromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pboolOut']}"
+		},
+		"VarBoolFromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pboolOut']}"
+		},
+		"VarBoolFromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pboolOut']}"
+		},
+		"VarBoolFromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pboolOut']}"
+		},
+		"VarBoolFromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pboolOut']}"
+		},
+		"VarBoolFromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pboolOut']}"
+		},
+		"VarBstrCat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bstrLeft', 'bstrRight', 'pbstrResult']}"
+		},
+		"VarBstrCmp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bstrLeft', 'bstrRight', 'lcid', 'dwFlags']}"
+		},
+		"VarBstrFromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['iVal', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bVal', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarBstrFromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'lcid', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarCat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarCmp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'lcid', 'dwFlags']}"
+		},
+		"VarCyAbs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pcyResult']}"
+		},
+		"VarCyAdd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyLeft', 'cyRight', 'pcyResult']}"
+		},
+		"VarCyCmp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['cyLeft', 'cyRight']}"
+		},
+		"VarCyCmpR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['cyLeft', 'dblRight']}"
+		},
+		"VarCyFix": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pcyResult']}"
+		},
+		"VarCyFromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pcyOut']}"
+		},
+		"VarCyFromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pcyOut']}"
+		},
+		"VarCyFromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pcyOut']}"
+		},
+		"VarCyFromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pcyOut']}"
+		},
+		"VarCyFromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pcyOut']}"
+		},
+		"VarCyFromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pcyOut']}"
+		},
+		"VarCyFromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pcyOut']}"
+		},
+		"VarCyFromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pcyOut']}"
+		},
+		"VarCyFromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pcyOut']}"
+		},
+		"VarCyFromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pcyOut']}"
+		},
+		"VarCyFromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pcyOut']}"
+		},
+		"VarCyFromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pcyOut']}"
+		},
+		"VarCyFromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pcyOut']}"
+		},
+		"VarCyFromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pcyOut']}"
+		},
+		"VarCyFromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pcyOut']}"
+		},
+		"VarCyInt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pcyResult']}"
+		},
+		"VarCyMul": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyLeft', 'cyRight', 'pcyResult']}"
+		},
+		"VarCyMulI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyLeft', 'lRight', 'pcyResult']}"
+		},
+		"VarCyMulI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyLeft', 'lRight', 'pcyResult']}"
+		},
+		"VarCyNeg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pcyResult']}"
+		},
+		"VarCyRound": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'cDecimals', 'pcyResult']}"
+		},
+		"VarCySub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyLeft', 'cyRight', 'pcyResult']}"
+		},
+		"VarDateFromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pdateOut']}"
+		},
+		"VarDateFromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pdateOut']}"
+		},
+		"VarDateFromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdateOut']}"
+		},
+		"VarDateFromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pdateOut']}"
+		},
+		"VarDateFromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pdateOut']}"
+		},
+		"VarDateFromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pdateOut']}"
+		},
+		"VarDateFromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pdateOut']}"
+		},
+		"VarDateFromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pdateOut']}"
+		},
+		"VarDateFromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pdateOut']}"
+		},
+		"VarDateFromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pdateOut']}"
+		},
+		"VarDateFromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pdateOut']}"
+		},
+		"VarDateFromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pdateOut']}"
+		},
+		"VarDateFromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pdateOut']}"
+		},
+		"VarDateFromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pdateOut']}"
+		},
+		"VarDateFromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pdateOut']}"
+		},
+		"VarDateFromUdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UDATE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pudateIn', 'dwFlags', 'pdateOut']}"
+		},
+		"VarDateFromUdateEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UDATE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pudateIn', 'lcid', 'dwFlags', 'pdateOut']}"
+		},
+		"VarDecAbs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdecResult']}"
+		},
+		"VarDecAdd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'pdecRight', 'pdecResult']}"
+		},
+		"VarDecCmp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'pdecRight']}"
+		},
+		"VarDecCmpR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'dblRight']}"
+		},
+		"VarDecDiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'pdecRight', 'pdecResult']}"
+		},
+		"VarDecFix": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdecResult']}"
+		},
+		"VarDecFromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pdecOut']}"
+		},
+		"VarDecFromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pdecOut']}"
+		},
+		"VarDecFromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pdecOut']}"
+		},
+		"VarDecFromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pdecOut']}"
+		},
+		"VarDecFromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pdecOut']}"
+		},
+		"VarDecFromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pdecOut']}"
+		},
+		"VarDecFromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pdecOut']}"
+		},
+		"VarDecFromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pdecOut']}"
+		},
+		"VarDecFromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pdecOut']}"
+		},
+		"VarDecFromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pdecOut']}"
+		},
+		"VarDecFromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pdecOut']}"
+		},
+		"VarDecFromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pdecOut']}"
+		},
+		"VarDecFromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pdecOut']}"
+		},
+		"VarDecFromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pdecOut']}"
+		},
+		"VarDecFromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pdecOut']}"
+		},
+		"VarDecInt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdecResult']}"
+		},
+		"VarDecMul": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'pdecRight', 'pdecResult']}"
+		},
+		"VarDecNeg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdecResult']}"
+		},
+		"VarDecRound": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'cDecimals', 'pdecResult']}"
+		},
+		"VarDecSub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecLeft', 'pdecRight', 'pdecResult']}"
+		},
+		"VarDiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarEqv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarFix": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pvarResult']}"
+		},
+		"VarFormat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'VARFORMAT_FIRST_DAY', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_FIRST_WEEK', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pstrFormat', 'iFirstDay', 'iFirstWeek', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarFormatCurrency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'iNumDig', 'iIncLead', 'iUseParens', 'iGroup', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarFormatDateTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'VARFORMAT_NAMED_FORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'iNamedFormat', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarFormatFromTokens": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pstrFormat', 'pbTokCur', 'dwFlags', 'pbstrOut', 'lcid']}"
+		},
+		"VarFormatNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'VARFORMAT_LEADING_DIGIT', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_PARENTHESES', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_GROUP', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'iNumDig', 'iIncLead', 'iUseParens', 'iGroup', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarFormatPercent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'VARFORMAT_LEADING_DIGIT', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_PARENTHESES', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_GROUP', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'iNumDig', 'iIncLead', 'iUseParens', 'iGroup', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarI1FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pcOut']}"
+		},
+		"VarI1FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pcOut']}"
+		},
+		"VarI1FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pcOut']}"
+		},
+		"VarI1FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pcOut']}"
+		},
+		"VarI1FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pcOut']}"
+		},
+		"VarI1FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pcOut']}"
+		},
+		"VarI1FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pcOut']}"
+		},
+		"VarI1FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pcOut']}"
+		},
+		"VarI1FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pcOut']}"
+		},
+		"VarI1FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pcOut']}"
+		},
+		"VarI1FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pcOut']}"
+		},
+		"VarI1FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pcOut']}"
+		},
+		"VarI1FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pcOut']}"
+		},
+		"VarI1FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pcOut']}"
+		},
+		"VarI1FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pcOut']}"
+		},
+		"VarI2FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'psOut']}"
+		},
+		"VarI2FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'psOut']}"
+		},
+		"VarI2FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'psOut']}"
+		},
+		"VarI2FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'psOut']}"
+		},
+		"VarI2FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'psOut']}"
+		},
+		"VarI2FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'psOut']}"
+		},
+		"VarI2FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'psOut']}"
+		},
+		"VarI2FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'psOut']}"
+		},
+		"VarI2FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'psOut']}"
+		},
+		"VarI2FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'psOut']}"
+		},
+		"VarI2FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'psOut']}"
+		},
+		"VarI2FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'psOut']}"
+		},
+		"VarI2FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'psOut']}"
+		},
+		"VarI2FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'psOut']}"
+		},
+		"VarI2FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'psOut']}"
+		},
+		"VarI4FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'plOut']}"
+		},
+		"VarI4FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'plOut']}"
+		},
+		"VarI4FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'plOut']}"
+		},
+		"VarI4FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'plOut']}"
+		},
+		"VarI4FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'plOut']}"
+		},
+		"VarI4FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'plOut']}"
+		},
+		"VarI4FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'plOut']}"
+		},
+		"VarI4FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'plOut']}"
+		},
+		"VarI4FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'plOut']}"
+		},
+		"VarI4FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'plOut']}"
+		},
+		"VarI4FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'plOut']}"
+		},
+		"VarI4FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'plOut']}"
+		},
+		"VarI4FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'plOut']}"
+		},
+		"VarI4FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'plOut']}"
+		},
+		"VarI4FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'plOut']}"
+		},
+		"VarI8FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pi64Out']}"
+		},
+		"VarI8FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pi64Out']}"
+		},
+		"VarI8FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pi64Out']}"
+		},
+		"VarI8FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pi64Out']}"
+		},
+		"VarI8FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pi64Out']}"
+		},
+		"VarI8FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pi64Out']}"
+		},
+		"VarI8FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pi64Out']}"
+		},
+		"VarI8FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pi64Out']}"
+		},
+		"VarI8FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pi64Out']}"
+		},
+		"VarI8FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pi64Out']}"
+		},
+		"VarI8FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pi64Out']}"
+		},
+		"VarI8FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pi64Out']}"
+		},
+		"VarI8FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pi64Out']}"
+		},
+		"VarI8FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pi64Out']}"
+		},
+		"VarIdiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarImp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarInt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pvarResult']}"
+		},
+		"VarMod": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarMonthName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['iMonth', 'fAbbrev', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarMul": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarNeg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pvarResult']}"
+		},
+		"VarNot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'pvarResult']}"
+		},
+		"VarNumFromParseNum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NUMPARSE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pnumprs', 'rgbDig', 'dwVtBits', 'pvar']}"
+		},
+		"VarOr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarParseNumFromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NUMPARSE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pnumprs', 'rgbDig']}"
+		},
+		"VarPow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarR4CmpR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'VARCMP', 'ot': 'int'}, 'arg_names': ['fltLeft', 'dblRight']}"
+		},
+		"VarR4FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pfltOut']}"
+		},
+		"VarR4FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pfltOut']}"
+		},
+		"VarR4FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pfltOut']}"
+		},
+		"VarR4FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pfltOut']}"
+		},
+		"VarR4FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pfltOut']}"
+		},
+		"VarR4FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pfltOut']}"
+		},
+		"VarR4FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pfltOut']}"
+		},
+		"VarR4FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pfltOut']}"
+		},
+		"VarR4FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pfltOut']}"
+		},
+		"VarR4FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pfltOut']}"
+		},
+		"VarR4FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pfltOut']}"
+		},
+		"VarR4FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pfltOut']}"
+		},
+		"VarR4FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pfltOut']}"
+		},
+		"VarR4FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pfltOut']}"
+		},
+		"VarR4FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pfltOut']}"
+		},
+		"VarR8FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pdblOut']}"
+		},
+		"VarR8FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pdblOut']}"
+		},
+		"VarR8FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pdblOut']}"
+		},
+		"VarR8FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pdblOut']}"
+		},
+		"VarR8FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pdblOut']}"
+		},
+		"VarR8FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pdblOut']}"
+		},
+		"VarR8FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pdblOut']}"
+		},
+		"VarR8FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pdblOut']}"
+		},
+		"VarR8FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pdblOut']}"
+		},
+		"VarR8FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pdblOut']}"
+		},
+		"VarR8FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pdblOut']}"
+		},
+		"VarR8FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pdblOut']}"
+		},
+		"VarR8FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pdblOut']}"
+		},
+		"VarR8FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pdblOut']}"
+		},
+		"VarR8FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pdblOut']}"
+		},
+		"VarR8Pow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblLeft', 'dblRight', 'pdblResult']}"
+		},
+		"VarR8Round": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'cDecimals', 'pdblResult']}"
+		},
+		"VarRound": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarIn', 'cDecimals', 'pvarResult']}"
+		},
+		"VarSub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VarTokenizeFormatString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'VARFORMAT_FIRST_DAY', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARFORMAT_FIRST_WEEK', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstrFormat', 'rgbTok', 'cbTok', 'iFirstDay', 'iFirstWeek', 'lcid', 'pcbActual']}"
+		},
+		"VarUI1FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pbOut']}"
+		},
+		"VarUI1FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pbOut']}"
+		},
+		"VarUI1FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pbOut']}"
+		},
+		"VarUI1FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pbOut']}"
+		},
+		"VarUI1FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pbOut']}"
+		},
+		"VarUI1FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pbOut']}"
+		},
+		"VarUI1FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pbOut']}"
+		},
+		"VarUI1FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pbOut']}"
+		},
+		"VarUI1FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'pbOut']}"
+		},
+		"VarUI1FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pbOut']}"
+		},
+		"VarUI1FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pbOut']}"
+		},
+		"VarUI1FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pbOut']}"
+		},
+		"VarUI1FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pbOut']}"
+		},
+		"VarUI1FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pbOut']}"
+		},
+		"VarUI1FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pbOut']}"
+		},
+		"VarUI2FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'puiOut']}"
+		},
+		"VarUI2FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'puiOut']}"
+		},
+		"VarUI2FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'puiOut']}"
+		},
+		"VarUI2FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'puiOut']}"
+		},
+		"VarUI2FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'puiOut']}"
+		},
+		"VarUI2FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'puiOut']}"
+		},
+		"VarUI2FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'puiOut']}"
+		},
+		"VarUI2FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'puiOut']}"
+		},
+		"VarUI2FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'puiOut']}"
+		},
+		"VarUI2FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'puiOut']}"
+		},
+		"VarUI2FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'puiOut']}"
+		},
+		"VarUI2FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'puiOut']}"
+		},
+		"VarUI2FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'puiOut']}"
+		},
+		"VarUI2FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'puiOut']}"
+		},
+		"VarUI2FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'puiOut']}"
+		},
+		"VarUI4FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pulOut']}"
+		},
+		"VarUI4FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pulOut']}"
+		},
+		"VarUI4FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pulOut']}"
+		},
+		"VarUI4FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pulOut']}"
+		},
+		"VarUI4FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pulOut']}"
+		},
+		"VarUI4FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pulOut']}"
+		},
+		"VarUI4FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pulOut']}"
+		},
+		"VarUI4FromI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lIn', 'pulOut']}"
+		},
+		"VarUI4FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['i64In', 'plOut']}"
+		},
+		"VarUI4FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pulOut']}"
+		},
+		"VarUI4FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pulOut']}"
+		},
+		"VarUI4FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pulOut']}"
+		},
+		"VarUI4FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pulOut']}"
+		},
+		"VarUI4FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pulOut']}"
+		},
+		"VarUI4FromUI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'plOut']}"
+		},
+		"VarUI8FromBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARIANT_BOOL', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['boolIn', 'pi64Out']}"
+		},
+		"VarUI8FromCy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'Lo': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'Hi': {'_t': 'int', 'label': 'Int32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'int64': {'_t': 'llong', 'label': 'Int64'}}, 'name': '<anon>'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cyIn', 'pi64Out']}"
+		},
+		"VarUI8FromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'pi64Out']}"
+		},
+		"VarUI8FromDec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DECIMAL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdecIn', 'pi64Out']}"
+		},
+		"VarUI8FromDisp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDispatch', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispIn', 'lcid', 'pi64Out']}"
+		},
+		"VarUI8FromI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cIn', 'pi64Out']}"
+		},
+		"VarUI8FromI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['sIn', 'pi64Out']}"
+		},
+		"VarUI8FromI8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ui64In', 'pi64Out']}"
+		},
+		"VarUI8FromR4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['fltIn', 'pi64Out']}"
+		},
+		"VarUI8FromR8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dblIn', 'pi64Out']}"
+		},
+		"VarUI8FromStr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['strIn', 'lcid', 'dwFlags', 'pi64Out']}"
+		},
+		"VarUI8FromUI1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bIn', 'pi64Out']}"
+		},
+		"VarUI8FromUI2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['uiIn', 'pi64Out']}"
+		},
+		"VarUI8FromUI4": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulIn', 'pi64Out']}"
+		},
+		"VarUdateFromDate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UDATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dateIn', 'dwFlags', 'pudateOut']}"
+		},
+		"VarWeekdayName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['iWeekday', 'fAbbrev', 'iFirstDay', 'dwFlags', 'pbstrOut']}"
+		},
+		"VarXor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
+		},
+		"VariantChangeType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'wFlags', 'vt']}"
+		},
+		"VariantChangeTypeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'lcid', 'wFlags', 'vt']}"
+		},
+		"VariantClear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarg']}"
+		},
+		"VariantCopy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvargSrc']}"
+		},
+		"VariantCopyInd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarDest', 'pvargSrc']}"
+		},
+		"VariantInit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pvarg']}"
+		},
+		"VariantTimeToDosDateTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['vtime', 'pwDosDate', 'pwDosTime']}"
+		},
+		"VariantTimeToSystemTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SYSTEMTIME', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['vtime', 'lpSystemTime']}"
+		},
+		"VectorFromBstr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['bstr', 'ppsa']}"
+		}
+	}
+}

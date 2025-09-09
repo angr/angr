@@ -1,0 +1,309 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"uiautomationcore.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DockPattern_SetDockPosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DockPosition', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'dockPosition']}"
+		},
+		"ExpandCollapsePattern_Collapse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"ExpandCollapsePattern_Expand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"GridPattern_GetItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'row', 'column', 'pResult']}"
+		},
+		"InvokePattern_Invoke": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"ItemContainerPattern_FindItemByProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'hnodeStartAfter', 'propertyId', 'value', 'pFound']}"
+		},
+		"LegacyIAccessiblePattern_DoDefaultAction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"LegacyIAccessiblePattern_GetIAccessible": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAccessible', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pAccessible']}"
+		},
+		"LegacyIAccessiblePattern_Select": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'flagsSelect']}"
+		},
+		"LegacyIAccessiblePattern_SetValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'szValue']}"
+		},
+		"MultipleViewPattern_GetViewName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'viewId', 'ppStr']}"
+		},
+		"MultipleViewPattern_SetCurrentView": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'viewId']}"
+		},
+		"RangeValuePattern_SetValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'val']}"
+		},
+		"ScrollItemPattern_ScrollIntoView": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"ScrollPattern_Scroll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ScrollAmount', 'ot': 'int'}, {'_t': '_ref', 'name': 'ScrollAmount', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'horizontalAmount', 'verticalAmount']}"
+		},
+		"ScrollPattern_SetScrollPercent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'horizontalPercent', 'verticalPercent']}"
+		},
+		"SelectionItemPattern_AddToSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"SelectionItemPattern_RemoveFromSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"SelectionItemPattern_Select": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"SynchronizedInputPattern_Cancel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"SynchronizedInputPattern_StartListening": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SynchronizedInputType', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'inputType']}"
+		},
+		"TextPattern_GetSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextPattern_GetVisibleRanges": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextPattern_RangeFromChild": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'hnodeChild', 'pRetVal']}"
+		},
+		"TextPattern_RangeFromPoint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'UiaPoint', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'point', 'pRetVal']}"
+		},
+		"TextPattern_get_DocumentRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextPattern_get_SupportedTextSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SupportedTextSelection', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextRange_AddToSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"TextRange_Clone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextRange_Compare": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'range', 'pRetVal']}"
+		},
+		"TextRange_CompareEndpoints": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextPatternRangeEndpoint', 'ot': 'int'}, {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextPatternRangeEndpoint', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'endpoint', 'targetRange', 'targetEndpoint', 'pRetVal']}"
+		},
+		"TextRange_ExpandToEnclosingUnit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextUnit', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'unit']}"
+		},
+		"TextRange_FindAttribute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'attributeId', 'val', 'backward', 'pRetVal']}"
+		},
+		"TextRange_FindText": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'text', 'backward', 'ignoreCase', 'pRetVal']}"
+		},
+		"TextRange_GetAttributeValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'attributeId', 'pRetVal']}"
+		},
+		"TextRange_GetBoundingRectangles": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextRange_GetChildren": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextRange_GetEnclosingElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pRetVal']}"
+		},
+		"TextRange_GetText": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'maxLength', 'pRetVal']}"
+		},
+		"TextRange_Move": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextUnit', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'unit', 'count', 'pRetVal']}"
+		},
+		"TextRange_MoveEndpointByRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextPatternRangeEndpoint', 'ot': 'int'}, {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextPatternRangeEndpoint', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'endpoint', 'targetRange', 'targetEndpoint']}"
+		},
+		"TextRange_MoveEndpointByUnit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TextPatternRangeEndpoint', 'ot': 'int'}, {'_t': '_ref', 'name': 'TextUnit', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'endpoint', 'unit', 'count', 'pRetVal']}"
+		},
+		"TextRange_RemoveFromSelection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"TextRange_ScrollIntoView": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'alignToTop']}"
+		},
+		"TextRange_Select": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"TogglePattern_Toggle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"TransformPattern_Move": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'x', 'y']}"
+		},
+		"TransformPattern_Resize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'width', 'height']}"
+		},
+		"TransformPattern_Rotate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'degrees']}"
+		},
+		"UiaAddEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaEventArgs', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pArgs', 'pRequestedData', 'pTreeStructure']}}}, {'_t': '_ref', 'name': 'TreeScope', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIAEVENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'eventId', 'pCallback', 'scope', 'pProperties', 'cProperties', 'pRequest', 'phEvent']}"
+		},
+		"UiaClientsAreListening": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"UiaDisconnectAllProviders": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"UiaDisconnectProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider']}"
+		},
+		"UiaEventAddWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAEVENT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hEvent', 'hwnd']}"
+		},
+		"UiaEventRemoveWindow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAEVENT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hEvent', 'hwnd']}"
+		},
+		"UiaFind": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaFindParams', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'pParams', 'pRequest', 'ppRequestedData', 'ppOffsets', 'ppTreeStructures']}"
+		},
+		"UiaGetErrorDescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDescription']}"
+		},
+		"UiaGetPatternProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'patternId', 'phobj']}"
+		},
+		"UiaGetPropertyValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'propertyId', 'pValue']}"
+		},
+		"UiaGetReservedMixedAttributeValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punkMixedAttributeValue']}"
+		},
+		"UiaGetReservedNotSupportedValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punkNotSupportedValue']}"
+		},
+		"UiaGetRootNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phnode']}"
+		},
+		"UiaGetRuntimeId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'pruntimeId']}"
+		},
+		"UiaGetUpdatedCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NormalizeState', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCondition', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'pRequest', 'normalizeState', 'pNormalizeCondition', 'ppRequestedData', 'ppTreeStructure']}"
+		},
+		"UiaHPatternObjectFromVariant": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvar', 'phobj']}"
+		},
+		"UiaHTextRangeFromVariant": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvar', 'phtextrange']}"
+		},
+		"UiaHUiaNodeFromVariant": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvar', 'phnode']}"
+		},
+		"UiaHasServerSideProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd']}"
+		},
+		"UiaHostProviderFromHwnd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'ppProvider']}"
+		},
+		"UiaIAccessibleFromProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAccessible', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'dwFlags', 'ppAccessible', 'pvarChild']}"
+		},
+		"UiaLookupId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AutomationIdentifierType', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['type', 'pGuid']}"
+		},
+		"UiaNavigate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NavigateDirection', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCondition', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode', 'direction', 'pCondition', 'pRequest', 'ppRequestedData', 'ppTreeStructure']}"
+		},
+		"UiaNodeFromFocus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pRequest', 'ppRequestedData', 'ppTreeStructure']}"
+		},
+		"UiaNodeFromHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'phnode']}"
+		},
+		"UiaNodeFromPoint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaCacheRequest', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['x', 'y', 'pRequest', 'ppRequestedData', 'ppTreeStructure']}"
+		},
+		"UiaNodeFromProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HUIANODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'phnode']}"
+		},
+		"UiaNodeRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hnode']}"
+		},
+		"UiaPatternRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"UiaProviderForNonClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'idObject', 'idChild', 'ppProvider']}"
+		},
+		"UiaProviderFromIAccessible": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IAccessible', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAccessible', 'idChild', 'dwFlags', 'ppProvider']}"
+		},
+		"UiaRaiseActiveTextPositionChangedEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'ITextRangeProvider', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['provider', 'textRange']}"
+		},
+		"UiaRaiseAsyncContentLoadedEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'AsyncContentLoadedState', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'asyncContentLoadedState', 'percentComplete']}"
+		},
+		"UiaRaiseAutomationEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'UIA_EVENT_ID', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'id']}"
+		},
+		"UiaRaiseAutomationPropertyChangedEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'UIA_PROPERTY_ID', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}, {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'id', 'oldValue', 'newValue']}"
+		},
+		"UiaRaiseChangesEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UiaChangeInfo', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'eventIdCount', 'pUiaChanges']}"
+		},
+		"UiaRaiseNotificationEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'NotificationKind', 'ot': 'int'}, {'_t': '_ref', 'name': 'NotificationProcessing', 'ot': 'int'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['provider', 'notificationKind', 'notificationProcessing', 'displayString', 'activityId']}"
+		},
+		"UiaRaiseStructureChangedEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'StructureChangeType', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'structureChangeType', 'pRuntimeId', 'cRuntimeIdLen']}"
+		},
+		"UiaRaiseTextEditTextChangedEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}, {'_t': '_ref', 'name': 'TextEditChangeType', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pProvider', 'textEditChangeType', 'pChangedData']}"
+		},
+		"UiaRegisterProviderCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ProviderType', 'ot': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['hwnd', 'providerType']}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pCallback']}"
+		},
+		"UiaRemoveEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAEVENT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hEvent']}"
+		},
+		"UiaReturnRawElementProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IRawElementProviderSimple', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['hwnd', 'wParam', 'lParam', 'el']}"
+		},
+		"UiaSetFocus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIANODE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hnode']}"
+		},
+		"UiaTextRangeRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIATEXTRANGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"ValuePattern_SetValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'pVal']}"
+		},
+		"VirtualizedItemPattern_Realize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"WindowPattern_Close": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj']}"
+		},
+		"WindowPattern_SetWindowVisualState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WindowVisualState', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'state']}"
+		},
+		"WindowPattern_WaitForInputIdle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HUIAPATTERNOBJECT', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hobj', 'milliseconds', 'pResult']}"
+		}
+	}
+}

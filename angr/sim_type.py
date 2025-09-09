@@ -35,10 +35,12 @@ class SimType:
     """
 
     _fields: tuple[str, ...] = ()
+    _args: tuple[str, ...] = ("label",)
     _arch: Arch | None
     _size: int | None = None
     _can_refine_int: bool = False
     _base_name: str
+    _ident: str = "simtype"
     base: bool = True
 
     def __init__(self, label=None):
@@ -160,12 +162,78 @@ class SimType:
         """
         raise NotImplementedError(f"extract_claripy is not implemented for {self}")
 
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        """
+        Serialize the type class to a JSON-compatible dictionary.
+        """
+
+        nullable_fields = {"label"}
+        if fields is None:
+            fields = self._args
+
+        d: dict[str, Any] = {"_t": self._ident}
+        for field in fields:
+            value = getattr(self, field)
+            if isinstance(value, SimType):
+                d[field] = value.to_json()
+            elif isinstance(value, (list, tuple)):
+                d[field] = [v.to_json() if isinstance(v, SimType) else v for v in value]
+            elif isinstance(value, dict):
+                d[field] = {k: v.to_json() if isinstance(v, SimType) else v for k, v in value.items()}
+            else:
+                if field in nullable_fields and value is None:
+                    continue
+                d[field] = value
+        return d
+
+    @staticmethod
+    def from_json(d: dict[str, Any]):
+        """
+        Deserialize a type class from a JSON-compatible dictionary.
+        """
+
+        assert "_t" in d
+        cls = IDENT_TO_CLS.get(d["_t"], None)
+        assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
+        if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
+            return cls.from_json(d)
+
+        kwargs = {}
+        for field in cls._args:
+            if field not in d:
+                continue
+            value = d[field]
+            if isinstance(value, dict):
+                if "_t" in value:
+                    value = SimType.from_json(value)
+                else:
+                    new_value = {}
+                    for k, v in value.items():
+                        if isinstance(v, dict) and "_t" in v:
+                            new_value[k] = SimType.from_json(v)
+                        else:
+                            new_value[k] = v
+                    value = new_value
+            elif isinstance(value, list):
+                new_value = []
+                for v in value:
+                    if isinstance(v, dict) and "_t" in v:
+                        new_value.append(SimType.from_json(v))
+                    else:
+                        new_value.append(v)
+                value = new_value
+            kwargs[field] = value
+        return cls(**kwargs)
+
 
 class TypeRef(SimType):
     """
     A TypeRef is a reference to a type with a name. This allows for interactivity in type analysis, by storing a type
     and having the option to update it later and have all references to it automatically update as well.
     """
+
+    _args = ("name", "ty")
+    _ident = "tref"
 
     def __init__(self, name, ty):
         super().__init__()
@@ -260,6 +328,7 @@ class SimTypeBottom(SimType):
     """
 
     _base_name = "bot"
+    _ident = "bot"
 
     def __repr__(self):
         return self.label or "BOT"
@@ -284,6 +353,8 @@ class SimTypeTop(SimType):
     """
 
     _fields = ("size",)
+    _args = ("size", "label")
+    _ident = "top"
 
     def __init__(self, size: int | None = None, label=None):
         SimType.__init__(self, label)
@@ -302,6 +373,8 @@ class SimTypeReg(SimType):
     """
 
     _fields = ("size",)
+    _args = ("size", "label")
+    _ident = "reg"
 
     def __init__(self, size: int | None, label=None):
         """
@@ -342,6 +415,8 @@ class SimTypeNum(SimType):
     """
 
     _fields = (*SimType._fields, "signed", "size")
+    _args = ("size", "signed", "label")
+    _ident = "num"
 
     def __init__(self, size: int, signed=True, label=None):
         """
@@ -401,7 +476,9 @@ class SimTypeInt(SimTypeReg):
     """
 
     _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "signed")
+    _args = ("signed", "label")
     _base_name = "int"
+    _ident = "int"
 
     def __init__(self, signed=True, label=None):
         """
@@ -410,6 +487,12 @@ class SimTypeInt(SimTypeReg):
         """
         super().__init__(None, label=label)
         self.signed = signed
+
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = super().to_json(fields=fields)
+        if "signed" in d and d["signed"] is True:
+            del d["signed"]
+        return d
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
@@ -482,14 +565,17 @@ class SimTypeInt(SimTypeReg):
 
 class SimTypeShort(SimTypeInt):
     _base_name = "short"
+    _ident = "short"
 
 
 class SimTypeLong(SimTypeInt):
     _base_name = "long"
+    _ident = "long"
 
 
 class SimTypeLongLong(SimTypeInt):
     _base_name = "long long"
+    _ident = "llong"
 
 
 class SimTypeFixedSizeInt(SimTypeInt):
@@ -498,7 +584,9 @@ class SimTypeFixedSizeInt(SimTypeInt):
     instantiate this class directly.
     """
 
+    _args = ("signed", "label")
     _base_name: str = "int"
+    _ident = "intfixedsize"
     _fixed_size: int = 32
 
     def c_repr(
@@ -533,16 +621,19 @@ class SimTypeFixedSizeInt(SimTypeInt):
 
 class SimTypeInt128(SimTypeFixedSizeInt):
     _base_name = "int128_t"
+    _ident = "int128"
     _fixed_size = 128
 
 
 class SimTypeInt256(SimTypeFixedSizeInt):
     _base_name = "int256_t"
+    _ident = "int256"
     _fixed_size = 256
 
 
 class SimTypeInt512(SimTypeFixedSizeInt):
     _base_name = "int512_t"
+    _ident = "int512"
     _fixed_size = 512
 
 
@@ -553,6 +644,8 @@ class SimTypeChar(SimTypeReg):
     """
 
     _base_name = "char"
+    _args = ("signed", "label")
+    _ident = "char"
 
     def __init__(self, signed=True, label=None):
         """
@@ -607,7 +700,9 @@ class SimTypeWideChar(SimTypeReg):
     SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
     """
 
+    _args = ("signed", "label", "endness")
     _base_name = "char"
+    _ident = "wchar"
 
     def __init__(self, signed=True, label=None, endness: Endness = Endness.BE):
         """
@@ -657,7 +752,9 @@ class SimTypeWideChar(SimTypeReg):
 
 
 class SimTypeBool(SimTypeReg):
+    _args = ("signed", "label")
     _base_name = "bool"
+    _ident = "bool"
 
     def __init__(self, signed=True, label=None):
         """
@@ -700,6 +797,8 @@ class SimTypeFd(SimTypeReg):
     """
 
     _fields = SimTypeReg._fields
+    _args = ("label",)
+    _ident = "fd"
 
     def __init__(self, label=None):
         """
@@ -747,6 +846,8 @@ class SimTypePointer(SimTypeReg):
     """
 
     _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
+    _args = ("pts_to", "label", "offset")
+    _ident = "ptr"
 
     def __init__(self, pts_to, label=None, offset=0):
         """
@@ -758,8 +859,14 @@ class SimTypePointer(SimTypeReg):
         self.signed = False
         self.offset = offset
 
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = super().to_json(fields=fields)
+        if d["offset"] == 0:
+            d.pop("offset")
+        return d
+
     def __repr__(self):
-        return f"{self.pts_to}*"
+        return f"{self.pts_to}*" if not self.label else self.label
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
@@ -818,6 +925,9 @@ class SimTypeReference(SimTypeReg):
     """
     SimTypeReference is a type that specifies a reference to some other type.
     """
+
+    _args = ("refs", "label")
+    _ident = "ref"
 
     def __init__(self, refs, label=None):
         super().__init__(None, label=label)
@@ -880,6 +990,8 @@ class SimTypeArray(SimType):
     """
 
     _fields = ("elem_type", "length")
+    _args = ("elem_type", "length", "label")
+    _ident = "array"
 
     def __init__(self, elem_type, length=None, label=None):
         """
@@ -972,6 +1084,8 @@ class SimTypeString(NamedTypeMixin, SimType):
     """
 
     _fields = (*SimTypeArray._fields, "length")
+    _args = ("length", "label", "name")
+    _ident = "str"
 
     def __init__(self, length: int | None = None, label=None, name: str | None = None):
         """
@@ -1054,6 +1168,8 @@ class SimTypeWString(NamedTypeMixin, SimType):
     """
 
     _fields = (*SimTypeArray._fields, "length")
+    _args = ("length", "label", "name")
+    _ident = "wstr"
 
     def __init__(self, length: int | None = None, label=None, name: str | None = None):
         super().__init__(label=label, name=name)
@@ -1133,7 +1249,9 @@ class SimTypeFunction(SimType):
     a certain return value.
     """
 
-    _fields = ("args", "returnty")
+    _fields = ("args", "returnty", "variadic")
+    _args = ("args", "returnty", "label", "arg_names", "variadic")
+    _ident = "func"
     base = False
 
     def __init__(
@@ -1155,6 +1273,12 @@ class SimTypeFunction(SimType):
         self.returnty: SimType | None = returnty
         self.arg_names = tuple(arg_names) if arg_names else ()
         self.variadic = variadic
+
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = super().to_json(fields=fields)
+        if d["variadic"] is False:
+            d.pop("variadic")
+        return d
 
     def __hash__(self):
         return hash(type(self)) ^ hash(tuple(self.args)) ^ hash(self.returnty)
@@ -1222,6 +1346,9 @@ class SimTypeCppFunction(SimTypeFunction):
     :ivar dtor: Whether the function is a destructor or not.
     """
 
+    _args = ("args", "returnty", "label", "arg_names", "ctor", "dtor", "convention")
+    _ident = "cppfunc"
+
     def __init__(
         self,
         args,
@@ -1286,6 +1413,8 @@ class SimTypeLength(SimTypeLong):
     """
 
     _fields = (*(x for x in SimTypeReg._fields if x != "size"), "addr", "length")  # ?
+    _args = ("signed", "addr", "length", "label")
+    _ident = "len"
 
     def __init__(self, signed=False, addr=None, length=None, label=None):
         """
@@ -1320,9 +1449,11 @@ class SimTypeFloat(SimTypeReg):
     """
 
     _base_name = "float"
+    _args = ("label",)
+    _ident = "float"
 
-    def __init__(self, size=32):
-        super().__init__(size)
+    def __init__(self, size=32, label=None):
+        super().__init__(size, label=label)
 
     sort = claripy.FSORT_FLOAT
     signed = True
@@ -1360,10 +1491,12 @@ class SimTypeDouble(SimTypeFloat):
     """
 
     _base_name = "double"
+    _args = ("align_double", "label")
+    _ident = "double"
 
-    def __init__(self, align_double=True):
+    def __init__(self, align_double=True, label=None):
         self.align_double = align_double
-        super().__init__(64)
+        super().__init__(64, label=label)
 
     sort = claripy.FSORT_DOUBLE
 
@@ -1387,6 +1520,8 @@ class SimTypeDouble(SimTypeFloat):
 
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields", "anonymous")
+    _args = ("fields", "name", "pack", "align", "anonymous")
+    _ident = "struct"
 
     def __init__(
         self,
@@ -1408,6 +1543,22 @@ class SimStruct(NamedTypeMixin, SimType):
             self.anonymous = True
 
         self._arch_memo = {}
+
+    #
+    # pack and align are for supporting SimType.from_json and SimType.to_json
+    #
+
+    @property
+    def pack(self):
+        return self._pack
+
+    @property
+    def align(self):
+        return self._align
+
+    #
+    # Other properties
+    #
 
     @property
     def packed(self):
@@ -1442,6 +1593,16 @@ class SimStruct(NamedTypeMixin, SimType):
                 offset_so_far += ty.size
 
         return offsets
+
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = super().to_json(fields=fields)
+        if d["pack"] is False:
+            d.pop("pack")
+        if d["align"] is None:
+            d.pop("align")
+        if d["anonymous"] is False:
+            d.pop("anonymous")
+        return d
 
     def extract(self, state, addr, concrete=False) -> SimStructValue:
         values = {}
@@ -1650,6 +1811,8 @@ class SimStructValue:
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
+    _args = ("members", "name", "label")
+    _ident = "union"
 
     def __init__(self, members: dict[str, SimType], name=None, label=None):
         """
@@ -1663,7 +1826,10 @@ class SimUnion(NamedTypeMixin, SimType):
     def size(self):
         if self._arch is None:
             raise ValueError("Can't tell my size without an arch!")
-        member_sizes: list[int] = [ty.size for ty in self.members.values() if not isinstance(ty, SimTypeBottom)]
+        all_member_sizes: list[int | None] = [
+            ty.size for ty in self.members.values() if not isinstance(ty, (SimTypeBottom, SimTypeRef))
+        ]
+        member_sizes: list[int] = [s for s in all_member_sizes if s is not None]
         # fall back to word size in case all members are SimTypeBottom
         return max(member_sizes) if member_sizes else self._arch.bytes
 
@@ -1779,6 +1945,19 @@ class SimUnionValue:
 
 
 class SimCppClass(SimStruct):
+
+    _args = (
+        "unique_name",
+        "name",
+        "members",
+        "function_members",
+        "vtable_ptrs",
+        "pack",
+        "align",
+        "size",
+    )
+    _ident = "cppclass"
+
     def __init__(
         self,
         *,
@@ -1945,6 +2124,8 @@ class SimTypeNumOffset(SimTypeNum):
     """
 
     _fields = (*SimTypeNum._fields, "offset")
+    _args = ("size", "signed", "label", "offset")
+    _ident = "numoff"
 
     def __init__(self, size, signed=True, label=None, offset=0):
         super().__init__(size, signed, label)
@@ -1986,7 +2167,10 @@ class SimTypeRef(SimType):
     SimTypeRef is not SimTypeReference.
     """
 
-    def __init__(self, name, original_type: type[SimStruct]):
+    _args = ("name", "original_type")
+    _ident = "_ref"
+
+    def __init__(self, name, original_type: type[SimType]):
         super().__init__(label=name)
         self.original_type = original_type
 
@@ -1996,6 +2180,12 @@ class SimTypeRef(SimType):
 
     def set_size(self, v: int):
         self._size = v
+
+    def __repr__(self):
+        if self.label:
+            return self.label
+        prefix = "struct " if self.original_type is SimStruct else ""
+        return f"{prefix}{self.name}"
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
@@ -2010,6 +2200,30 @@ class SimTypeRef(SimType):
     def _init_str(self) -> str:
         original_type_name = self.original_type.__name__.split(".")[-1]
         return f'SimTypeRef("{self.name}", {original_type_name})'
+
+    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+        d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
+        if fields is not None:
+            d = {k: d[k] for k in fields}
+        return d
+
+    @staticmethod
+    def from_json(d: dict[str, Any]) -> SimTypeRef:
+        if "ot" not in d:
+            raise ValueError("Missing original type for SimTypeRef")
+        original_type = IDENT_TO_CLS.get(d["ot"], None)
+        if original_type is None:
+            raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
+        return SimTypeRef(d["name"], original_type)
+
+
+IDENT_TO_CLS: dict[str, type[SimType]] = {}
+_queue = [SimType]
+while _queue:
+    cls = _queue.pop()
+    assert cls._ident not in IDENT_TO_CLS
+    IDENT_TO_CLS[cls._ident] = cls
+    _queue.extend(cls.__subclasses__())
 
 
 ALL_TYPES: dict[str, SimType] = {}

@@ -1,0 +1,189 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"clfs.sys"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ClfsAddLogContainer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'pcbContainer', 'puszContainerPath']}"
+		},
+		"ClfsAddLogContainerSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'cContainers', 'pcbContainer', 'rguszContainerPath']}"
+		},
+		"ClfsAdvanceLogBase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'plsnBase', 'fFlags']}"
+		},
+		"ClfsAlignReservedLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'cRecords', 'rgcbReservation', 'pcbAlignReservation']}"
+		},
+		"ClfsAllocReservedLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'cRecords', 'pcbAdjustment']}"
+		},
+		"ClfsCloseAndResetLogFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog']}"
+		},
+		"ClfsCloseLogFileObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog']}"
+		},
+		"ClfsCreateLogFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pplfoLog', 'puszLogFileName', 'fDesiredAccess', 'dwShareMode', 'psdLogFile', 'fCreateDisposition', 'fCreateOptions', 'fFlagsAndAttributes', 'fLogOptionFlag', 'pvContext', 'cbContext']}"
+		},
+		"ClfsCreateMarshallingArea": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'POOL_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': []}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'ePoolType', 'pfnAllocBuffer', 'pfnFreeBuffer', 'cbMarshallingBuffer', 'cMaxWriteBuffers', 'cMaxReadBuffers', 'ppvMarshalContext']}"
+		},
+		"ClfsCreateMarshallingAreaEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'POOL_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': []}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'ePoolType', 'pfnAllocBuffer', 'pfnFreeBuffer', 'cbMarshallingBuffer', 'cMaxWriteBuffers', 'cMaxReadBuffers', 'cAlignmentSize', 'fFlags', 'ppvMarshalContext']}"
+		},
+		"ClfsCreateScanContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_SCAN_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'cFromContainer', 'cContainers', 'eScanMode', 'pcxScan']}"
+		},
+		"ClfsDeleteLogByPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog']}"
+		},
+		"ClfsDeleteLogFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['puszLogFileName', 'pvReserved', 'fLogOptionFlag', 'pvContext', 'cbContext']}"
+		},
+		"ClfsDeleteMarshallingArea": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext']}"
+		},
+		"ClfsEarlierLsn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsFinalize": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"ClfsFlushBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext']}"
+		},
+		"ClfsFlushToLsn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'plsnFlush', 'plsnLastFlushed']}"
+		},
+		"ClfsFreeReservedLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'cRecords', 'pcbAdjustment']}"
+		},
+		"ClfsGetContainerName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'cidLogicalContainer', 'puszContainerName', 'pcActualLenContainerName']}"
+		},
+		"ClfsGetIoStatistics": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CLFS_IOSTATS_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'pvStatsBuffer', 'cbStatsBuffer', 'eStatsClass', 'pcbStatsWritten']}"
+		},
+		"ClfsGetLogFileInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'pinfoBuffer', 'pcbInfoBuffer']}"
+		},
+		"ClfsInitialize": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"ClfsLaterLsn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsLsnBlockOffset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsLsnContainer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsLsnCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}, 'arg_names': ['cidContainer', 'offBlock', 'cRecord']}"
+		},
+		"ClfsLsnDifference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plsnStart', 'plsnFinish', 'cbContainer', 'cbMaxBlock', 'pcbDifference']}"
+		},
+		"ClfsLsnEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['plsn1', 'plsn2']}"
+		},
+		"ClfsLsnGreater": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['plsn1', 'plsn2']}"
+		},
+		"ClfsLsnInvalid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsLsnLess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['plsn1', 'plsn2']}"
+		},
+		"ClfsLsnNull": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsLsnRecordSequence": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['plsn']}"
+		},
+		"ClfsMgmtDeregisterManagedClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ClientCookie']}"
+		},
+		"ClfsMgmtHandleLogFileFull": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Client']}"
+		},
+		"ClfsMgmtInstallPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLFS_MGMT_POLICY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'Policy', 'PolicyLength']}"
+		},
+		"ClfsMgmtQueryPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CLFS_MGMT_POLICY_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLFS_MGMT_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'PolicyType', 'Policy', 'PolicyLength']}"
+		},
+		"ClfsMgmtRegisterManagedClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLFS_MGMT_CLIENT_REGISTRATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'RegistrationData', 'ClientCookie']}"
+		},
+		"ClfsMgmtRemovePolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CLFS_MGMT_POLICY_TYPE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'PolicyType']}"
+		},
+		"ClfsMgmtSetLogFileSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogFile', 'OperationStatus', 'ClientData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'NewSizeInContainers', 'ResultingSizeInContainers', 'CompletionRoutine', 'CompletionRoutineData']}"
+		},
+		"ClfsMgmtSetLogFileSizeAsClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogFile', 'OperationStatus', 'ClientData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LogFile', 'ClientCookie', 'NewSizeInContainers', 'ResultingSizeInContainers', 'CompletionRoutine', 'CompletionRoutineData']}"
+		},
+		"ClfsMgmtTailAdvanceFailure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Client', 'Reason']}"
+		},
+		"ClfsQueryLogFileInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CLS_LOG_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'eInformationClass', 'pinfoInputBuffer', 'cbinfoInputBuffer', 'pinfoBuffer', 'pcbInfoBuffer']}"
+		},
+		"ClfsReadLogRecord": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CLFS_CONTEXT_MODE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'plsnFirst', 'peContextMode', 'ppvReadBuffer', 'pcbReadBuffer', 'peRecordType', 'plsnUndoNext', 'plsnPrevious', 'ppvReadContext']}"
+		},
+		"ClfsReadNextLogRecord": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvReadContext', 'ppvBuffer', 'pcbBuffer', 'peRecordType', 'plsnUser', 'plsnUndoNext', 'plsnPrevious', 'plsnRecord']}"
+		},
+		"ClfsReadPreviousRestartArea": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvReadContext', 'ppvRestartBuffer', 'pcbRestartBuffer', 'plsnRestart']}"
+		},
+		"ClfsReadRestartArea": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'ppvRestartBuffer', 'pcbRestartBuffer', 'plsn', 'ppvReadContext']}"
+		},
+		"ClfsRemoveLogContainer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'puszContainerPath', 'fForce']}"
+		},
+		"ClfsRemoveLogContainerSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'cContainers', 'rgwszContainerPath', 'fForce']}"
+		},
+		"ClfsReserveAndAppendLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_WRITE_ENTRY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'rgWriteEntries', 'cWriteEntries', 'plsnUndoNext', 'plsnPrevious', 'cReserveRecords', 'rgcbReservation', 'fFlags', 'plsn']}"
+		},
+		"ClfsReserveAndAppendLogAligned": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_WRITE_ENTRY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'rgWriteEntries', 'cWriteEntries', 'cbEntryAlignment', 'plsnUndoNext', 'plsnPrevious', 'cReserveRecords', 'rgcbReservation', 'fFlags', 'plsn']}"
+		},
+		"ClfsScanLogContainers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_SCAN_CONTEXT', 'ot': '_ref'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pcxScan', 'eScanMode']}"
+		},
+		"ClfsSetArchiveTail": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'plsnArchiveTail']}"
+		},
+		"ClfsSetEndOfLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'plsnEnd']}"
+		},
+		"ClfsSetLogFileInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CLS_LOG_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['plfoLog', 'eInformationClass', 'pinfoBuffer', 'cbBuffer']}"
+		},
+		"ClfsTerminateReadLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvCursorContext']}"
+		},
+		"ClfsWriteRestartArea": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLS_LSN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['pvMarshalContext', 'pvRestartBuffer', 'cbRestartBuffer', 'plsnBase', 'fFlags', 'pcbWritten', 'plsnNext']}"
+		}
+	}
+}

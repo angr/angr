@@ -1,0 +1,375 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"resutils.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CloseClusterCryptProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSCRYPTPROVIDER', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusCryptProvider']}"
+		},
+		"ClusAddClusterHealthFault": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'failure', 'param2']}"
+		},
+		"ClusGetClusterHealthFaults": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT_ARRAY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'objects', 'flags']}"
+		},
+		"ClusRemoveClusterHealthFault": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'id', 'flags']}"
+		},
+		"ClusWorkerCheckTerminate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpWorker']}"
+		},
+		"ClusWorkerCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pWorker', 'lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpWorker', 'lpStartAddress', 'lpParameter']}"
+		},
+		"ClusWorkerTerminate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpWorker']}"
+		},
+		"ClusWorkerTerminateEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ClusWorker', 'TimeoutInMilliseconds', 'WaitOnly']}"
+		},
+		"ClusWorkersTerminate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_WORKER', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ClusWorkers', 'ClusWorkersCount', 'TimeoutInMilliseconds', 'WaitOnly']}"
+		},
+		"ClusterClearBackupStateForSharedVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszVolumePathName']}"
+		},
+		"ClusterDecrypt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSCRYPTPROVIDER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusCryptProvider', 'pCryptInput', 'cbCryptInput', 'ppCryptOutput', 'pcbCryptOutput']}"
+		},
+		"ClusterEncrypt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSCRYPTPROVIDER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusCryptProvider', 'pData', 'cbData', 'ppData', 'pcbData']}"
+		},
+		"ClusterGetVolumeNameForVolumeMountPoint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpszVolumeMountPoint', 'lpszVolumeName', 'cchBufferLength']}"
+		},
+		"ClusterGetVolumePathName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpszFileName', 'lpszVolumePathName', 'cchBufferLength']}"
+		},
+		"ClusterIsPathOnSharedVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpszPathName']}"
+		},
+		"ClusterPrepareSharedVolumeForBackup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszFileName', 'lpszVolumePathName', 'lpcchVolumePathName', 'lpszVolumeName', 'lpcchVolumeName']}"
+		},
+		"FreeClusterCrypt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCryptInfo']}"
+		},
+		"FreeClusterHealthFault": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['clusterHealthFault']}"
+		},
+		"FreeClusterHealthFaultArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT_ARRAY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['clusterHealthFaultArray']}"
+		},
+		"InitializeClusterHealthFault": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['clusterHealthFault']}"
+		},
+		"InitializeClusterHealthFaultArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_HEALTH_FAULT_ARRAY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['clusterHealthFaultArray']}"
+		},
+		"OpenClusterCryptProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSCRYPTPROVIDER', 'ot': 'ptr'}, 'arg_names': ['lpszResource', 'lpszProvider', 'dwType', 'dwFlags']}"
+		},
+		"OpenClusterCryptProviderEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSCRYPTPROVIDER', 'ot': 'ptr'}, 'arg_names': ['lpszResource', 'lpszKeyname', 'lpszProvider', 'dwType', 'dwFlags']}"
+		},
+		"ResUtilAddUnknownProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'pOutPropertyList', 'pcbOutPropertyListSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilCreateDirectoryTree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszPath']}"
+		},
+		"ResUtilDupGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HGROUP', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['group', 'copy']}"
+		},
+		"ResUtilDupParameterBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pOutParams', 'pInParams', 'pPropertyTable']}"
+		},
+		"ResUtilDupResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['group', 'copy']}"
+		},
+		"ResUtilDupString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pszInString']}"
+		},
+		"ResUtilEnumGroups": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hSelf', 'pResCallBack', 'pParameter']}"
+		},
+		"ResUtilEnumGroupsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSGROUP_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hSelf', 'groupType', 'pResCallBack', 'pParameter']}"
+		},
+		"ResUtilEnumPrivateProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszOutProperties', 'cbOutPropertiesSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilEnumProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyTable', 'pszOutProperties', 'cbOutPropertiesSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilEnumResources": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hSelf', 'lpszResTypeName', 'pResCallBack', 'pParameter']}"
+		},
+		"ResUtilEnumResourcesEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hSelf', 'lpszResTypeName', 'pResCallBack', 'pParameter']}"
+		},
+		"ResUtilEnumResourcesEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hSelf', 'lpszResTypeName', 'pResCallBack', 'pParameter', 'dwDesiredAccess']}"
+		},
+		"ResUtilExpandEnvironmentStrings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pszSrc']}"
+		},
+		"ResUtilFindBinaryProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pbPropertyValue', 'pcbPropertyValueSize']}"
+		},
+		"ResUtilFindDependentDiskResourceDriveLetter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hResource', 'pszDriveLetter', 'pcchDriveLetter']}"
+		},
+		"ResUtilFindDwordProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pdwPropertyValue']}"
+		},
+		"ResUtilFindExpandSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pszPropertyValue']}"
+		},
+		"ResUtilFindExpandedSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pszPropertyValue']}"
+		},
+		"ResUtilFindFileTimeProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pftPropertyValue']}"
+		},
+		"ResUtilFindLongProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'plPropertyValue']}"
+		},
+		"ResUtilFindMultiSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pszPropertyValue', 'pcbPropertyValueSize']}"
+		},
+		"ResUtilFindSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'pszPropertyValue']}"
+		},
+		"ResUtilFindULargeIntegerProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyList', 'cbPropertyListSize', 'pszPropertyName', 'plPropertyValue']}"
+		},
+		"ResUtilFreeEnvironment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpEnvironment']}"
+		},
+		"ResUtilFreeParameterBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pOutParams', 'pInParams', 'pPropertyTable']}"
+		},
+		"ResUtilGetAllProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'pOutPropertyList', 'cbOutPropertyListSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilGetBinaryProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_BINARY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppbOutValue', 'pcbOutValueSize', 'pValueStruct', 'pbOldValue', 'cbOldValueSize', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetBinaryValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'ppbOutValue', 'pcbOutValueSize']}"
+		},
+		"ResUtilGetClusterGroupType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSGROUP_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'groupType']}"
+		},
+		"ResUtilGetClusterId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'guid']}"
+		},
+		"ResUtilGetClusterRoleState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_ROLE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_ROLE_STATE', 'ot': 'int'}, 'arg_names': ['hCluster', 'eClusterRole']}"
+		},
+		"ResUtilGetCoreClusterResources": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'phClusterNameResource', 'phClusterIPAddressResource', 'phClusterQuorumResource']}"
+		},
+		"ResUtilGetCoreClusterResourcesEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusterIn', 'phClusterNameResourceOut', 'phClusterQuorumResourceOut', 'dwDesiredAccess']}"
+		},
+		"ResUtilGetCoreGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, 'arg_names': ['hCluster']}"
+		},
+		"ResUtilGetDwordProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_DWORD', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pdwOutValue', 'pValueStruct', 'dwOldValue', 'dwMinimum', 'dwMaximum', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetDwordValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pdwOutValue', 'dwDefaultValue']}"
+		},
+		"ResUtilGetEnvironmentWithNetName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['hResource']}"
+		},
+		"ResUtilGetFileTimeProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_FILETIME', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pftOutValue', 'pValueStruct', 'ftOldValue', 'ftMinimum', 'ftMaximum', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetLongProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_LONG', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['plOutValue', 'pValueStruct', 'lOldValue', 'lMinimum', 'lMaximum', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetMultiSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_SZ', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppszOutValue', 'pcbOutValueSize', 'pValueStruct', 'pszOldValue', 'cbOldValueSize', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetPrivateProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pOutPropertyList', 'cbOutPropertyListSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilGetProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'pOutPropertyList', 'cbOutPropertyListSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilGetPropertiesToParameterBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'pOutParams', 'bCheckForRequiredProperties', 'pszNameOfPropInError']}"
+		},
+		"ResUtilGetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTableItem', 'pOutPropertyItem', 'pcbOutPropertyItemSize']}"
+		},
+		"ResUtilGetPropertyFormats": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyTable', 'pOutPropertyFormatList', 'cbPropertyFormatListSize', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilGetPropertySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTableItem', 'pcbOutPropertyListSize', 'pnPropertyCount']}"
+		},
+		"ResUtilGetQwordValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pqwOutValue', 'qwDefaultValue']}"
+		},
+		"ResUtilGetResourceDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hSelf', 'lpszResourceType']}"
+		},
+		"ResUtilGetResourceDependencyByClass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_RESOURCE_CLASS_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'hSelf', 'prci', 'bRecurse']}"
+		},
+		"ResUtilGetResourceDependencyByClassEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_RESOURCE_CLASS_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'hSelf', 'prci', 'bRecurse', 'dwDesiredAccess']}"
+		},
+		"ResUtilGetResourceDependencyByName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'hSelf', 'lpszResourceType', 'bRecurse']}"
+		},
+		"ResUtilGetResourceDependencyByNameEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'hSelf', 'lpszResourceType', 'bRecurse', 'dwDesiredAccess']}"
+		},
+		"ResUtilGetResourceDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hSelf', 'lpszResourceType', 'dwDesiredAccess']}"
+		},
+		"ResUtilGetResourceDependentIPAddressProps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'pszAddress', 'pcchAddress', 'pszSubnetMask', 'pcchSubnetMask', 'pszNetwork', 'pcchNetwork']}"
+		},
+		"ResUtilGetResourceName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'pszResourceName', 'pcchResourceNameInOut']}"
+		},
+		"ResUtilGetResourceNameDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['lpszResourceName', 'lpszResourceType']}"
+		},
+		"ResUtilGetResourceNameDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['lpszResourceName', 'lpszResourceType', 'dwDesiredAccess']}"
+		},
+		"ResUtilGetSzProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSPROP_SZ', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppszOutValue', 'pValueStruct', 'pszOldValue', 'ppPropertyList', 'pcbPropertyListSize']}"
+		},
+		"ResUtilGetSzValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['hkeyClusterKey', 'pszValueName']}"
+		},
+		"ResUtilGroupsEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hSelf', 'hGroup', 'pEqual']}"
+		},
+		"ResUtilIsPathValid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszPath']}"
+		},
+		"ResUtilIsResourceClassEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUS_RESOURCE_CLASS_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['prci', 'hResource']}"
+		},
+		"ResUtilLeftPaxosIsLessThanRight": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PaxosTagCStruct', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PaxosTagCStruct', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['left', 'right']}"
+		},
+		"ResUtilNodeEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_NODE_STATE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'pNodeCallBack', 'pParameter']}"
+		},
+		"ResUtilPaxosComparer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PaxosTagCStruct', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PaxosTagCStruct', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['left', 'right']}"
+		},
+		"ResUtilPropertyListFromParameterBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyTable', 'pOutPropertyList', 'pcbOutPropertyListSize', 'pInParams', 'pcbBytesReturned', 'pcbRequired']}"
+		},
+		"ResUtilRemoveResourceServiceEnvironment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'LOG_LEVEL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ResourceHandle', 'LogLevel', 'FormatString']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName', 'pfnLogEvent', 'hResourceHandle']}"
+		},
+		"ResUtilResourceDepEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hSelf', 'enumType', 'pResCallBack', 'pParameter']}"
+		},
+		"ResUtilResourceTypesEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpszResourceTypeName', 'hResource']}"
+		},
+		"ResUtilResourcesEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hSelf', 'hResource']}"
+		},
+		"ResUtilSetBinaryValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pbNewValue', 'cbNewValueSize', 'ppbOutValue', 'pcbOutValueSize']}"
+		},
+		"ResUtilSetDwordValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'dwNewValue', 'pdwOutValue']}"
+		},
+		"ResUtilSetExpandSzValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pszNewValue', 'ppszOutString']}"
+		},
+		"ResUtilSetMultiSzValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pszNewValue', 'cbNewValueSize', 'ppszOutValue', 'pcbOutValueSize']}"
+		},
+		"ResUtilSetPrivatePropertyList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pInPropertyList', 'cbInPropertyListSize']}"
+		},
+		"ResUtilSetPropertyParameterBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'Reserved', 'pInParams', 'pInPropertyList', 'cbInPropertyListSize', 'pOutParams']}"
+		},
+		"ResUtilSetPropertyParameterBlockEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'Reserved', 'pInParams', 'pInPropertyList', 'cbInPropertyListSize', 'bForceWrite', 'pOutParams']}"
+		},
+		"ResUtilSetPropertyTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'Reserved', 'bAllowUnknownProperties', 'pInPropertyList', 'cbInPropertyListSize', 'pOutParams']}"
+		},
+		"ResUtilSetPropertyTableEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'Reserved', 'bAllowUnknownProperties', 'pInPropertyList', 'cbInPropertyListSize', 'bForceWrite', 'pOutParams']}"
+		},
+		"ResUtilSetQwordValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'qwNewValue', 'pqwOutValue']}"
+		},
+		"ResUtilSetResourceServiceEnvironment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'LOG_LEVEL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ResourceHandle', 'LogLevel', 'FormatString']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName', 'hResource', 'pfnLogEvent', 'hResourceHandle']}"
+		},
+		"ResUtilSetResourceServiceStartParameters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SC_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'LOG_LEVEL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ResourceHandle', 'LogLevel', 'FormatString']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName', 'schSCMHandle', 'phService', 'pfnLogEvent', 'hResourceHandle']}"
+		},
+		"ResUtilSetResourceServiceStartParametersEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SC_HANDLE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'LOG_LEVEL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ResourceHandle', 'LogLevel', 'FormatString']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName', 'schSCMHandle', 'phService', 'dwDesiredAccess', 'pfnLogEvent', 'hResourceHandle']}"
+		},
+		"ResUtilSetSzValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pszValueName', 'pszNewValue', 'ppszOutString']}"
+		},
+		"ResUtilSetUnknownProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'pPropertyTable', 'pInPropertyList', 'cbInPropertyListSize']}"
+		},
+		"ResUtilSetValueEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hkeyClusterKey', 'valueName', 'valueType', 'valueData', 'valueSize', 'flags']}"
+		},
+		"ResUtilStartResourceService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SC_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName', 'phServiceHandle']}"
+		},
+		"ResUtilStopResourceService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName']}"
+		},
+		"ResUtilStopService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hServiceHandle']}"
+		},
+		"ResUtilTerminateServiceProcessFromResDll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'LOG_LEVEL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ResourceHandle', 'LogLevel', 'FormatString']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwServicePid', 'bOffline', 'pdwResourceState', 'pfnLogEvent', 'hResourceHandle']}"
+		},
+		"ResUtilVerifyPrivatePropertyList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInPropertyList', 'cbInPropertyListSize']}"
+		},
+		"ResUtilVerifyPropertyTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESUTIL_PROPERTY_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPropertyTable', 'Reserved', 'bAllowUnknownProperties', 'pInPropertyList', 'cbInPropertyListSize', 'pOutParams']}"
+		},
+		"ResUtilVerifyResourceService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszServiceName']}"
+		},
+		"ResUtilVerifyService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SC_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hServiceHandle']}"
+		},
+		"ResUtilVerifyShutdownSafe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['flags', 'reason', 'pResult']}"
+		},
+		"ResUtilsDeleteKeyTree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['key', 'keyName', 'treatNoKeyAsError']}"
+		}
+	}
+}

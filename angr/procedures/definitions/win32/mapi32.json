@@ -1,0 +1,213 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"mapi32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"BuildDisplayTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lpObject', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}, {'_t': '_ref', 'name': 'IMalloc', 'ot': 'bot'}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DTPAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAPITable', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITableData', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpAllocateBuffer', 'lpAllocateMore', 'lpFreeBuffer', 'lpMalloc', 'hInstance', 'cPages', 'lpPage', 'ulFlags', 'lppTable', 'lppTblData']}"
+		},
+		"ChangeIdleRoutine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ftg', 'lpfnIdle', 'lpvIdleParam', 'priIdle', 'csecIdle', 'iroIdle', 'ircIdle']}"
+		},
+		"CloseIMsgSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'LPMSGSESS', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpMsgSess']}"
+		},
+		"CreateIProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lpObject', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IPropData', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpInterface', 'lpAllocateBuffer', 'lpAllocateMore', 'lpFreeBuffer', 'lpvReserved', 'lppPropData']}"
+		},
+		"DeinitMapiUtil": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"DeregisterIdleRoutine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ftg']}"
+		},
+		"EnableIdleRoutine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ftg', 'fEnable']}"
+		},
+		"FEqualNames": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MAPINAMEID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MAPINAMEID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpName1', 'lpName2']}"
+		},
+		"FPropCompareProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpSPropValue1', 'ulRelOp', 'lpSPropValue2']}"
+		},
+		"FPropContainsProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpSPropValueDst', 'lpSPropValueSrc', 'ulFuzzyLevel']}"
+		},
+		"FPropExists": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPIProp', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpMapiProp', 'ulPropTag']}"
+		},
+		"FreePadrlist": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ADRLIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpAdrlist']}"
+		},
+		"FreeProws": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SRowSet', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpRows']}"
+		},
+		"FtAddFt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, 'arg_names': ['ftAddend1', 'ftAddend2']}"
+		},
+		"FtMulDw": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, 'arg_names': ['ftMultiplier', 'ftMultiplicand']}"
+		},
+		"FtMulDwDw": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, 'arg_names': ['ftMultiplicand', 'ftMultiplier']}"
+		},
+		"FtNegFt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, 'arg_names': ['ft']}"
+		},
+		"FtSubFt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}, 'arg_names': ['ftMinuend', 'ftSubtrahend']}"
+		},
+		"FtgRegisterIdleRoutine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['lpfnIdle', 'lpvIdleParam', 'priIdle', 'csecIdle', 'iroIdle']}"
+		},
+		"GetAttribIMsgOnIStg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropTagArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropAttrArray', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpObject', 'lpPropTagArray', 'lppPropAttrArray']}"
+		},
+		"GetTnefStreamCodepage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpStream', 'lpulCodepage', 'lpulSubCodepage']}"
+		},
+		"HrAddColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPITable', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropTagArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lptbl', 'lpproptagColumnsNew', 'lpAllocateBuffer', 'lpFreeBuffer']}"
+		},
+		"HrAddColumnsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPITable', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropTagArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lptbl', 'lpproptagColumnsNew', 'lpAllocateBuffer', 'lpFreeBuffer', 'lpfnFilterColumns']}"
+		},
+		"HrAllocAdviseSink": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpvContext', 'cNotification', 'lpNotifications']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAPIAdviseSink', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpfnCallback', 'lpvContext', 'lppAdviseSink']}"
+		},
+		"HrDispatchNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulFlags']}"
+		},
+		"HrGetOneProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPIProp', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpMapiProp', 'ulPropTag', 'lppProp']}"
+		},
+		"HrIStorageFromStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStorage', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpUnkIn', 'lpInterface', 'ulFlags', 'lppStorageOut']}"
+		},
+		"HrQueryAllRows": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPITable', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropTagArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SRestriction', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SSortOrderSet', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SRowSet', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpTable', 'lpPropTags', 'lpRestriction', 'lpSortOrderSet', 'crowsMax', 'lppRows']}"
+		},
+		"HrSetOneProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPIProp', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpMapiProp', 'lpProp']}"
+		},
+		"HrThisThreadAdviseSink": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAPIAdviseSink', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAPIAdviseSink', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpAdviseSink', 'lppAdviseSink']}"
+		},
+		"LPropCompareProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpSPropValueA', 'lpSPropValueB']}"
+		},
+		"LpValFindProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, 'arg_names': ['ulPropTag', 'cValues', 'lpPropArray']}"
+		},
+		"MAPIDeinitIdle": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"MAPIFreeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pv']}"
+		},
+		"MAPIGetDefaultMalloc": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'IMalloc', 'ot': 'bot'}, 'arg_names': []}"
+		},
+		"MAPIInitIdle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpvReserved']}"
+		},
+		"MapStorageSCode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['StgSCode']}"
+		},
+		"OpenIMsgOnIStg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'LPMSGSESS', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lpObject', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}, {'_t': '_ref', 'name': 'IMalloc', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'IStorage', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMessage', 'ot': 'bot'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ulCallerData', 'lpMessage']}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMessage', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpMsgSess', 'lpAllocateBuffer', 'lpAllocateMore', 'lpFreeBuffer', 'lpMalloc', 'lpMapiSup', 'lpStg', 'lpfMsgCallRelease', 'ulCallerData', 'ulFlags', 'lppMsg']}"
+		},
+		"OpenIMsgSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMalloc', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LPMSGSESS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpMalloc', 'ulFlags', 'lppMsgSess']}"
+		},
+		"OpenStreamOnFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpBuffer']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpAllocateBuffer', 'lpFreeBuffer', 'ulFlags', 'lpszFileName', 'lpszPrefix', 'lppStream']}"
+		},
+		"OpenTnefStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMessage', 'ot': 'bot'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITnef', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpvSupport', 'lpStream', 'lpszStreamName', 'ulFlags', 'lpMessage', 'wKeyVal', 'lppTNEF']}"
+		},
+		"OpenTnefStreamEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMessage', 'ot': 'bot'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'IAddrBook', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITnef', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpvSupport', 'lpStream', 'lpszStreamName', 'ulFlags', 'lpMessage', 'wKeyVal', 'lpAdressBook', 'lppTNEF']}"
+		},
+		"PpropFindProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, 'arg_names': ['lpPropArray', 'cValues', 'ulPropTag']}"
+		},
+		"PropCopyMore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lpObject', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpSPropValueDest', 'lpSPropValueSrc', 'lpfAllocMore', 'lpvObject']}"
+		},
+		"RTFSync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMessage', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpMessage', 'ulFlags', 'lpfMessageUpdated']}"
+		},
+		"ScCopyNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFICATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cNotification', 'lpNotifications', 'lpvDst', 'lpcb']}"
+		},
+		"ScCopyProps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cValues', 'lpPropArray', 'lpvDst', 'lpcb']}"
+		},
+		"ScCountNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFICATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cNotifications', 'lpNotifications', 'lpcb']}"
+		},
+		"ScCountProps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cValues', 'lpPropArray', 'lpcb']}"
+		},
+		"ScCreateConversationIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbParent', 'lpbParent', 'lpcbConvIndex', 'lppbConvIndex']}"
+		},
+		"ScDupPropset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cbSize', 'lppBuffer']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cValues', 'lpPropArray', 'lpAllocateBuffer', 'lppPropArray']}"
+		},
+		"ScInitMapiUtil": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['ulFlags']}"
+		},
+		"ScLocalPathFromUNC": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpszUNC', 'lpszLocal', 'cchLocal']}"
+		},
+		"ScRelocNotifications": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFICATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cNotification', 'lpNotifications', 'lpvBaseOld', 'lpvBaseNew', 'lpcb']}"
+		},
+		"ScRelocProps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cValues', 'lpPropArray', 'lpvBaseOld', 'lpvBaseNew', 'lpcb']}"
+		},
+		"ScUNCFromLocalPath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpszLocal', 'lpszUNC', 'cchUNC']}"
+		},
+		"SetAttribIMsgOnIStg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropTagArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropAttrArray', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropProblemArray', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpObject', 'lpPropTags', 'lpPropAttrs', 'lppPropProblems']}"
+		},
+		"SzFindCh": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, 'arg_names': ['lpsz', 'ch']}"
+		},
+		"SzFindLastCh": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, 'arg_names': ['lpsz', 'ch']}"
+		},
+		"SzFindSz": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, 'arg_names': ['lpsz', 'lpszKey']}"
+		},
+		"UFromSz": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpsz']}"
+		},
+		"UlAddRef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpunk']}"
+		},
+		"UlPropSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SPropValue', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpSPropValue']}"
+		},
+		"UlRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpunk']}"
+		},
+		"WrapCompressedRTFStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lpCompressedRTFStream', 'ulFlags', 'lpUncompressedRTFStream']}"
+		},
+		"WrapStoreEntryID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ENTRYID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ENTRYID', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ulFlags', 'lpszDLLName', 'cbOrigEntry', 'lpOrigEntry', 'lpcbWrappedEntry', 'lppWrappedEntry']}"
+		}
+	}
+}

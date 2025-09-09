@@ -1,0 +1,144 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"httpapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"HttpAddFragmentToCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_DATA_CHUNK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_CACHE_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'UrlPrefix', 'DataChunk', 'CachePolicy', 'Overlapped']}"
+		},
+		"HttpAddUrl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'FullyQualifiedUrl', 'Reserved']}"
+		},
+		"HttpAddUrlToUrlGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UrlGroupId', 'pFullyQualifiedUrl', 'UrlContext', 'Reserved']}"
+		},
+		"HttpCancelHttpRequest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Overlapped']}"
+		},
+		"HttpCloseRequestQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle']}"
+		},
+		"HttpCloseServerSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServerSessionId']}"
+		},
+		"HttpCloseUrlGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UrlGroupId']}"
+		},
+		"HttpCreateHttpHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'Reserved']}"
+		},
+		"HttpCreateRequestQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTPAPI_VERSION', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Version', 'Name', 'SecurityAttributes', 'Flags', 'RequestQueueHandle']}"
+		},
+		"HttpCreateServerSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTPAPI_VERSION', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Version', 'ServerSessionId', 'Reserved']}"
+		},
+		"HttpCreateUrlGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServerSessionId', 'pUrlGroupId', 'Reserved']}"
+		},
+		"HttpDeclarePush": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_VERB', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_REQUEST_HEADERS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Verb', 'Path', 'Query', 'Headers']}"
+		},
+		"HttpDelegateRequestEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_DELEGATE_REQUEST_PROPERTY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'DelegateQueueHandle', 'RequestId', 'DelegateUrlGroupId', 'PropertyInfoSetSize', 'PropertyInfoSet']}"
+		},
+		"HttpDeleteServiceConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVICE_CONFIG_ID', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'ConfigId', 'pConfigInformation', 'ConfigInformationLength', 'pOverlapped']}"
+		},
+		"HttpFindUrlGroupId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['FullyQualifiedUrl', 'RequestQueueHandle', 'UrlGroupId']}"
+		},
+		"HttpFlushResponseCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'UrlPrefix', 'Flags', 'Overlapped']}"
+		},
+		"HttpGetExtension": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTPAPI_VERSION', 'ot': '_ref'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Version', 'Extension', 'Buffer', 'BufferSize']}"
+		},
+		"HttpInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTPAPI_VERSION', 'ot': '_ref'}, {'_t': '_ref', 'name': 'HTTP_INITIALIZE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Version', 'Flags', 'pReserved']}"
+		},
+		"HttpIsFeatureSupported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTP_FEATURE_ID', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['FeatureId']}"
+		},
+		"HttpPrepareUrl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Reserved', 'Flags', 'Url', 'PreparedUrl']}"
+		},
+		"HttpQueryRequestQueueProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'Property', 'PropertyInformation', 'PropertyInformationLength', 'Reserved1', 'ReturnLength', 'Reserved2']}"
+		},
+		"HttpQueryServerSessionProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServerSessionId', 'Property', 'PropertyInformation', 'PropertyInformationLength', 'ReturnLength']}"
+		},
+		"HttpQueryServiceConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVICE_CONFIG_ID', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'ConfigId', 'pInput', 'InputLength', 'pOutput', 'OutputLength', 'pReturnLength', 'pOverlapped']}"
+		},
+		"HttpQueryUrlGroupProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UrlGroupId', 'Property', 'PropertyInformation', 'PropertyInformationLength', 'ReturnLength']}"
+		},
+		"HttpReadFragmentFromCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_BYTE_RANGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'UrlPrefix', 'ByteRange', 'Buffer', 'BufferLength', 'BytesRead', 'Overlapped']}"
+		},
+		"HttpReceiveClientCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_SSL_CLIENT_CERT_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'ConnectionId', 'Flags', 'SslClientCertInfo', 'SslClientCertInfoSize', 'BytesReceived', 'Overlapped']}"
+		},
+		"HttpReceiveHttpRequest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_RECEIVE_HTTP_REQUEST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_REQUEST_V2', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Flags', 'RequestBuffer', 'RequestBufferLength', 'BytesReturned', 'Overlapped']}"
+		},
+		"HttpReceiveRequestEntityBody": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Flags', 'EntityBuffer', 'EntityBufferLength', 'BytesReturned', 'Overlapped']}"
+		},
+		"HttpRemoveUrl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'FullyQualifiedUrl']}"
+		},
+		"HttpRemoveUrlFromUrlGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UrlGroupId', 'pFullyQualifiedUrl', 'Flags']}"
+		},
+		"HttpSendHttpResponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_RESPONSE_V2', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_CACHE_POLICY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_LOG_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Flags', 'HttpResponse', 'CachePolicy', 'BytesSent', 'Reserved1', 'Reserved2', 'Overlapped', 'LogData']}"
+		},
+		"HttpSendResponseEntityBody": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_DATA_CHUNK', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HTTP_LOG_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'RequestId', 'Flags', 'EntityChunkCount', 'EntityChunks', 'BytesSent', 'Reserved1', 'Reserved2', 'Overlapped', 'LogData']}"
+		},
+		"HttpSetRequestProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_REQUEST_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'Id', 'PropertyId', 'Input', 'InputPropertySize', 'Overlapped']}"
+		},
+		"HttpSetRequestQueueProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'Property', 'PropertyInformation', 'PropertyInformationLength', 'Reserved1', 'Reserved2']}"
+		},
+		"HttpSetServerSessionProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServerSessionId', 'Property', 'PropertyInformation', 'PropertyInformationLength']}"
+		},
+		"HttpSetServiceConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVICE_CONFIG_ID', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceHandle', 'ConfigId', 'pConfigInformation', 'ConfigInformationLength', 'pOverlapped']}"
+		},
+		"HttpSetUrlGroupProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'HTTP_SERVER_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UrlGroupId', 'Property', 'PropertyInformation', 'PropertyInformationLength']}"
+		},
+		"HttpShutdownRequestQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle']}"
+		},
+		"HttpTerminate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HTTP_INITIALIZE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Flags', 'pReserved']}"
+		},
+		"HttpUpdateServiceConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HTTP_SERVICE_CONFIG_ID', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Handle', 'ConfigId', 'ConfigInfo', 'ConfigInfoLength', 'Overlapped']}"
+		},
+		"HttpWaitForDemandStart": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'Overlapped']}"
+		},
+		"HttpWaitForDisconnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'ConnectionId', 'Overlapped']}"
+		},
+		"HttpWaitForDisconnectEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['RequestQueueHandle', 'ConnectionId', 'Reserved', 'Overlapped']}"
+		}
+	}
+}

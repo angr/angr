@@ -1,0 +1,21 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"quartz.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AMGetErrorTextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hr', 'pbuffer', 'MaxLen']}"
+		},
+		"AMGetErrorTextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hr', 'pbuffer', 'MaxLen']}"
+		}
+	}
+}

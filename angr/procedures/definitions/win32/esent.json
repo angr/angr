@@ -1,0 +1,702 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"esent.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"JetAddColumnA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COLUMNDEF', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'pcolumndef', 'pvDefault', 'cbDefault', 'pcolumnid']}"
+		},
+		"JetAddColumnW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COLUMNDEF', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'pcolumndef', 'pvDefault', 'cbDefault', 'pcolumnid']}"
+		},
+		"JetAttachDatabase2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'cpgDatabaseSizeMax', 'grbit']}"
+		},
+		"JetAttachDatabase2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'cpgDatabaseSizeMax', 'grbit']}"
+		},
+		"JetAttachDatabaseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'grbit']}"
+		},
+		"JetAttachDatabaseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'grbit']}"
+		},
+		"JetBackupA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szBackupPath', 'grbit', 'pfnStatus']}"
+		},
+		"JetBackupInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szBackupPath', 'grbit', 'pfnStatus']}"
+		},
+		"JetBackupInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szBackupPath', 'grbit', 'pfnStatus']}"
+		},
+		"JetBackupW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szBackupPath', 'grbit', 'pfnStatus']}"
+		},
+		"JetBeginExternalBackup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['grbit']}"
+		},
+		"JetBeginExternalBackupInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'grbit']}"
+		},
+		"JetBeginSessionA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SESID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'psesid', 'szUserName', 'szPassword']}"
+		},
+		"JetBeginSessionW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SESID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'psesid', 'szUserName', 'szPassword']}"
+		},
+		"JetBeginTransaction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid']}"
+		},
+		"JetBeginTransaction2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit']}"
+		},
+		"JetBeginTransaction3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'trxid', 'grbit']}"
+		},
+		"JetCloseDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'grbit']}"
+		},
+		"JetCloseFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hfFile']}"
+		},
+		"JetCloseFileInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'hfFile']}"
+		},
+		"JetCloseTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid']}"
+		},
+		"JetCommitTransaction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit']}"
+		},
+		"JetCommitTransaction2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COMMIT_ID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit', 'cmsecDurableCommit', 'pCommitId']}"
+		},
+		"JetCompactA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_CONVERT_A', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseSrc', 'szDatabaseDest', 'pfnStatus', 'pconvert', 'grbit']}"
+		},
+		"JetCompactW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_CONVERT_W', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseSrc', 'szDatabaseDest', 'pfnStatus', 'pconvert', 'grbit']}"
+		},
+		"JetComputeStats": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid']}"
+		},
+		"JetConfigureProcessForCrashDump": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['grbit']}"
+		},
+		"JetCreateDatabase2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'cpgDatabaseSizeMax', 'pdbid', 'grbit']}"
+		},
+		"JetCreateDatabase2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'cpgDatabaseSizeMax', 'pdbid', 'grbit']}"
+		},
+		"JetCreateDatabaseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'szConnect', 'pdbid', 'grbit']}"
+		},
+		"JetCreateDatabaseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'szConnect', 'pdbid', 'grbit']}"
+		},
+		"JetCreateIndex2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndex2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndex3A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE2_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndex3W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE2_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndex4A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE3_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndex4W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXCREATE3_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pindexcreate', 'cIndexCreate']}"
+		},
+		"JetCreateIndexA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit', 'szKey', 'cbKey', 'lDensity']}"
+		},
+		"JetCreateIndexW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit', 'szKey', 'cbKey', 'lDensity']}"
+		},
+		"JetCreateInstance2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'szInstanceName', 'szDisplayName', 'grbit']}"
+		},
+		"JetCreateInstance2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'szInstanceName', 'szDisplayName', 'grbit']}"
+		},
+		"JetCreateInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'szInstanceName']}"
+		},
+		"JetCreateInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'szInstanceName']}"
+		},
+		"JetCreateTableA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'lPages', 'lDensity', 'ptableid']}"
+		},
+		"JetCreateTableColumnIndex2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE2_A', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndex2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE2_W', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndex3A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE3_A', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndex3W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE3_W', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndex4A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE4_A', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndex4W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE4_W', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndexA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE_A', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableColumnIndexW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLECREATE_W', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'ptablecreate']}"
+		},
+		"JetCreateTableW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'lPages', 'lDensity', 'ptableid']}"
+		},
+		"JetDefragment2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'tableid', 'cbtyp', 'pvArg1', 'pvArg2', 'pvContext', 'ulUnused']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pcPasses', 'pcSeconds', 'callback', 'grbit']}"
+		},
+		"JetDefragment2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'tableid', 'cbtyp', 'pvArg1', 'pvArg2', 'pvContext', 'ulUnused']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pcPasses', 'pcSeconds', 'callback', 'grbit']}"
+		},
+		"JetDefragment3A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'tableid', 'cbtyp', 'pvArg1', 'pvArg2', 'pvContext', 'ulUnused']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseName', 'szTableName', 'pcPasses', 'pcSeconds', 'callback', 'pvContext', 'grbit']}"
+		},
+		"JetDefragment3W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'tableid', 'cbtyp', 'pvArg1', 'pvArg2', 'pvContext', 'ulUnused']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseName', 'szTableName', 'pcPasses', 'pcSeconds', 'callback', 'pvContext', 'grbit']}"
+		},
+		"JetDefragmentA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pcPasses', 'pcSeconds', 'grbit']}"
+		},
+		"JetDefragmentW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pcPasses', 'pcSeconds', 'grbit']}"
+		},
+		"JetDelete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid']}"
+		},
+		"JetDeleteColumn2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'grbit']}"
+		},
+		"JetDeleteColumn2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'grbit']}"
+		},
+		"JetDeleteColumnA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName']}"
+		},
+		"JetDeleteColumnW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName']}"
+		},
+		"JetDeleteIndexA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName']}"
+		},
+		"JetDeleteIndexW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName']}"
+		},
+		"JetDeleteTableA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName']}"
+		},
+		"JetDeleteTableW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName']}"
+		},
+		"JetDetachDatabase2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'grbit']}"
+		},
+		"JetDetachDatabase2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'grbit']}"
+		},
+		"JetDetachDatabaseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename']}"
+		},
+		"JetDetachDatabaseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename']}"
+		},
+		"JetDupCursor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'ptableid', 'grbit']}"
+		},
+		"JetDupSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SESID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'psesid']}"
+		},
+		"JetEnableMultiInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SETSYSPARAM_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['psetsysparam', 'csetsysparam', 'pcsetsucceed']}"
+		},
+		"JetEnableMultiInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SETSYSPARAM_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['psetsysparam', 'csetsysparam', 'pcsetsucceed']}"
+		},
+		"JetEndExternalBackup": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"JetEndExternalBackupInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance']}"
+		},
+		"JetEndExternalBackupInstance2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'grbit']}"
+		},
+		"JetEndSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit']}"
+		},
+		"JetEnumerateColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_ENUMCOLUMNID', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_ENUMCOLUMN', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pvContext', 'pv', 'cb']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'cEnumColumnId', 'rgEnumColumnId', 'pcEnumColumn', 'prgEnumColumn', 'pfnRealloc', 'pvReallocContext', 'cbDataMost', 'grbit']}"
+		},
+		"JetEscrowUpdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'columnid', 'pv', 'cbMax', 'pvOld', 'cbOldMax', 'pcbOldActual', 'grbit']}"
+		},
+		"JetExternalRestore2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTMAP_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_LOGINFO_A', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szCheckpointFilePath', 'szLogPath', 'rgrstmap', 'crstfilemap', 'szBackupLogPath', 'pLogInfo', 'szTargetInstanceName', 'szTargetInstanceLogPath', 'szTargetInstanceCheckpointPath', 'pfn']}"
+		},
+		"JetExternalRestore2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTMAP_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_LOGINFO_W', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szCheckpointFilePath', 'szLogPath', 'rgrstmap', 'crstfilemap', 'szBackupLogPath', 'pLogInfo', 'szTargetInstanceName', 'szTargetInstanceLogPath', 'szTargetInstanceCheckpointPath', 'pfn']}"
+		},
+		"JetExternalRestoreA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTMAP_A', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szCheckpointFilePath', 'szLogPath', 'rgrstmap', 'crstfilemap', 'szBackupLogPath', 'genLow', 'genHigh', 'pfn']}"
+		},
+		"JetExternalRestoreW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTMAP_W', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szCheckpointFilePath', 'szLogPath', 'rgrstmap', 'crstfilemap', 'szBackupLogPath', 'genLow', 'genHigh', 'pfn']}"
+		},
+		"JetFreeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pbBuf']}"
+		},
+		"JetGetAttachInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szzDatabases', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetAttachInfoInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szzDatabases', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetAttachInfoInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szzDatabases', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetAttachInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['wszzDatabases', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvBookmark', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetColumnInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pColumnNameOrId', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetColumnInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pwColumnNameOrId', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetCurrentIndexA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'cbIndexName']}"
+		},
+		"JetGetCurrentIndexW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'cbIndexName']}"
+		},
+		"JetGetCursorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetDatabaseFileInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szDatabaseName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetDatabaseFileInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szDatabaseName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetDatabaseInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetDatabaseInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetErrorInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pvContext', 'pvResult', 'cbMax', 'InfoLevel', 'grbit']}"
+		},
+		"JetGetIndexInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'szIndexName', 'pvResult', 'cbResult', 'InfoLevel']}"
+		},
+		"JetGetIndexInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'szIndexName', 'pvResult', 'cbResult', 'InfoLevel']}"
+		},
+		"JetGetInstanceInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_A', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pcInstanceInfo', 'paInstanceInfo']}"
+		},
+		"JetGetInstanceInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_W', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pcInstanceInfo', 'paInstanceInfo']}"
+		},
+		"JetGetInstanceMiscInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetLS": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_LS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pls', 'grbit']}"
+		},
+		"JetGetLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'grbit']}"
+		},
+		"JetGetLogInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetLogInfoInstance2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_LOGINFO_A', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szzLogs', 'cbMax', 'pcbActual', 'pLogInfo']}"
+		},
+		"JetGetLogInfoInstance2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_LOGINFO_W', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'wszzLogs', 'cbMax', 'pcbActual', 'pLogInfo']}"
+		},
+		"JetGetLogInfoInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetLogInfoInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'wszzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetLogInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetObjectInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'objtyp', 'szContainerName', 'szObjectName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetObjectInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'objtyp', 'szContainerName', 'szObjectName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetRecordPosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RECPOS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'precpos', 'cbRecpos']}"
+		},
+		"JetGetRecordSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RECSIZE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'precsize', 'grbit']}"
+		},
+		"JetGetRecordSize2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RECSIZE2', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'precsize', 'grbit']}"
+		},
+		"JetGetSecondaryIndexBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvSecondaryKey', 'cbSecondaryKeyMax', 'pcbSecondaryKeyActual', 'pvPrimaryBookmark', 'cbPrimaryBookmarkMax', 'pcbPrimaryBookmarkActual', 'grbit']}"
+		},
+		"JetGetSessionParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'sesparamid', 'pvParam', 'cbParamMax', 'pcbParamActual']}"
+		},
+		"JetGetSystemParameterA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'sesid', 'paramid', 'plParam', 'szParam', 'cbMax']}"
+		},
+		"JetGetSystemParameterW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'sesid', 'paramid', 'plParam', 'szParam', 'cbMax']}"
+		},
+		"JetGetTableColumnInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetTableColumnInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szColumnName', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetTableIndexInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'pvResult', 'cbResult', 'InfoLevel']}"
+		},
+		"JetGetTableIndexInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'pvResult', 'cbResult', 'InfoLevel']}"
+		},
+		"JetGetTableInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetTableInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvResult', 'cbMax', 'InfoLevel']}"
+		},
+		"JetGetThreadStats": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pvResult', 'cbMax']}"
+		},
+		"JetGetTruncateLogInfoInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetTruncateLogInfoInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'wszzLogs', 'cbMax', 'pcbActual']}"
+		},
+		"JetGetVersion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'pwVersion']}"
+		},
+		"JetGotoBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvBookmark', 'cbBookmark']}"
+		},
+		"JetGotoPosition": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RECPOS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'precpos']}"
+		},
+		"JetGotoSecondaryIndexBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvSecondaryKey', 'cbSecondaryKey', 'pvPrimaryBookmark', 'cbPrimaryBookmark', 'grbit']}"
+		},
+		"JetGrowDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'cpg', 'pcpgReal']}"
+		},
+		"JetIdle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit']}"
+		},
+		"JetIndexRecordCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pcrec', 'crecMax']}"
+		},
+		"JetInit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance']}"
+		},
+		"JetInit2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'grbit']}"
+		},
+		"JetInit3A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTINFO_A', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'prstInfo', 'grbit']}"
+		},
+		"JetInit3W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RSTINFO_W', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'prstInfo', 'grbit']}"
+		},
+		"JetIntersectIndexes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXRANGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RECORDLIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'rgindexrange', 'cindexrange', 'precordlist', 'grbit']}"
+		},
+		"JetMakeKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvData', 'cbData', 'grbit']}"
+		},
+		"JetMove": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'cRow', 'grbit']}"
+		},
+		"JetOSSnapshotAbort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'grbit']}"
+		},
+		"JetOSSnapshotEnd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'grbit']}"
+		},
+		"JetOSSnapshotFreezeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_A', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'pcInstanceInfo', 'paInstanceInfo', 'grbit']}"
+		},
+		"JetOSSnapshotFreezeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_W', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'pcInstanceInfo', 'paInstanceInfo', 'grbit']}"
+		},
+		"JetOSSnapshotGetFreezeInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_A', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'pcInstanceInfo', 'paInstanceInfo', 'grbit']}"
+		},
+		"JetOSSnapshotGetFreezeInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE_INFO_W', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'pcInstanceInfo', 'paInstanceInfo', 'grbit']}"
+		},
+		"JetOSSnapshotPrepare": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['psnapId', 'grbit']}"
+		},
+		"JetOSSnapshotPrepareInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'instance', 'grbit']}"
+		},
+		"JetOSSnapshotThaw": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'grbit']}"
+		},
+		"JetOSSnapshotTruncateLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'grbit']}"
+		},
+		"JetOSSnapshotTruncateLogInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_OSSNAPID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['snapId', 'instance', 'grbit']}"
+		},
+		"JetOpenDatabaseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'szConnect', 'pdbid', 'grbit']}"
+		},
+		"JetOpenDatabaseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szFilename', 'szConnect', 'pdbid', 'grbit']}"
+		},
+		"JetOpenFileA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szFileName', 'phfFile', 'pulFileSizeLow', 'pulFileSizeHigh']}"
+		},
+		"JetOpenFileInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szFileName', 'phfFile', 'pulFileSizeLow', 'pulFileSizeHigh']}"
+		},
+		"JetOpenFileInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'szFileName', 'phfFile', 'pulFileSizeLow', 'pulFileSizeHigh']}"
+		},
+		"JetOpenFileW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szFileName', 'phfFile', 'pulFileSizeLow', 'pulFileSizeHigh']}"
+		},
+		"JetOpenTableA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pvParameters', 'cbParameters', 'grbit', 'ptableid']}"
+		},
+		"JetOpenTableW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'pvParameters', 'cbParameters', 'grbit', 'ptableid']}"
+		},
+		"JetOpenTempTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COLUMNDEF', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'prgcolumndef', 'ccolumn', 'grbit', 'ptableid', 'prgcolumnid']}"
+		},
+		"JetOpenTempTable2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COLUMNDEF', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'prgcolumndef', 'ccolumn', 'lcid', 'grbit', 'ptableid', 'prgcolumnid']}"
+		},
+		"JetOpenTempTable3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_COLUMNDEF', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_UNICODEINDEX', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'prgcolumndef', 'ccolumn', 'pidxunicode', 'grbit', 'ptableid', 'prgcolumnid']}"
+		},
+		"JetOpenTemporaryTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_OPENTEMPORARYTABLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'popentemporarytable']}"
+		},
+		"JetOpenTemporaryTable2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_OPENTEMPORARYTABLE2', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'popentemporarytable']}"
+		},
+		"JetPrepareUpdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'prep']}"
+		},
+		"JetPrereadIndexRanges": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEX_RANGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'rgIndexRanges', 'cIndexRanges', 'pcRangesPreread', 'rgcolumnidPreread', 'ccolumnidPreread', 'grbit']}"
+		},
+		"JetPrereadKeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'rgpvKeys', 'rgcbKeys', 'ckeys', 'pckeysPreread', 'grbit']}"
+		},
+		"JetReadFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hfFile', 'pv', 'cb', 'pcbActual']}"
+		},
+		"JetReadFileInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'hfFile', 'pv', 'cb', 'pcbActual']}"
+		},
+		"JetRegisterCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'tableid', 'cbtyp', 'pvArg1', 'pvArg2', 'pvContext', 'ulUnused']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'cbtyp', 'pCallback', 'pvContext', 'phCallbackId']}"
+		},
+		"JetRenameColumnA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szName', 'szNameNew', 'grbit']}"
+		},
+		"JetRenameColumnW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szName', 'szNameNew', 'grbit']}"
+		},
+		"JetRenameTableA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szName', 'szNameNew']}"
+		},
+		"JetRenameTableW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szName', 'szNameNew']}"
+		},
+		"JetResetSessionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid']}"
+		},
+		"JetResetTableSequential": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'grbit']}"
+		},
+		"JetResizeDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'cpgTarget', 'pcpgActual', 'grbit']}"
+		},
+		"JetRestore2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sz', 'szDest', 'pfn']}"
+		},
+		"JetRestore2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sz', 'szDest', 'pfn']}"
+		},
+		"JetRestoreA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szSource', 'pfn']}"
+		},
+		"JetRestoreInstanceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'sz', 'szDest', 'pfn']}"
+		},
+		"JetRestoreInstanceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'sz', 'szDest', 'pfn']}"
+		},
+		"JetRestoreW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'snp', 'snt', 'pv']}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['szSource', 'pfn']}"
+		},
+		"JetRetrieveColumn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RETINFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'columnid', 'pvData', 'cbData', 'pcbActual', 'grbit', 'pretinfo']}"
+		},
+		"JetRetrieveColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_RETRIEVECOLUMN', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pretrievecolumn', 'cretrievecolumn']}"
+		},
+		"JetRetrieveKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvKey', 'cbMax', 'pcbActual', 'grbit']}"
+		},
+		"JetRollback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'grbit']}"
+		},
+		"JetSeek": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'grbit']}"
+		},
+		"JetSetColumn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SETINFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'columnid', 'pvData', 'cbData', 'grbit', 'psetinfo']}"
+		},
+		"JetSetColumnDefaultValueA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'szColumnName', 'pvData', 'cbData', 'grbit']}"
+		},
+		"JetSetColumnDefaultValueW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'dbid', 'szTableName', 'szColumnName', 'pvData', 'cbData', 'grbit']}"
+		},
+		"JetSetColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_SETCOLUMN', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'psetcolumn', 'csetcolumn']}"
+		},
+		"JetSetCurrentIndex2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit']}"
+		},
+		"JetSetCurrentIndex2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit']}"
+		},
+		"JetSetCurrentIndex3A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit', 'itagSequence']}"
+		},
+		"JetSetCurrentIndex3W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'grbit', 'itagSequence']}"
+		},
+		"JetSetCurrentIndex4A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'pindexid', 'grbit', 'itagSequence']}"
+		},
+		"JetSetCurrentIndex4W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEXID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName', 'pindexid', 'grbit', 'itagSequence']}"
+		},
+		"JetSetCurrentIndexA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName']}"
+		},
+		"JetSetCurrentIndexW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'szIndexName']}"
+		},
+		"JetSetCursorFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INDEX_COLUMN', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'rgColumnFilters', 'cColumnFilters', 'grbit']}"
+		},
+		"JetSetDatabaseSizeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseName', 'cpg', 'pcpgReal']}"
+		},
+		"JetSetDatabaseSizeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'szDatabaseName', 'cpg', 'pcpgReal']}"
+		},
+		"JetSetIndexRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableidSrc', 'grbit']}"
+		},
+		"JetSetLS": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_LS', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'ls', 'grbit']}"
+		},
+		"JetSetSessionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'ulContext']}"
+		},
+		"JetSetSessionParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'sesparamid', 'pvParam', 'cbParam']}"
+		},
+		"JetSetSystemParameterA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'sesid', 'paramid', 'lParam', 'szParam']}"
+		},
+		"JetSetSystemParameterW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_API_PTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pinstance', 'sesid', 'paramid', 'lParam', 'szParam']}"
+		},
+		"JetSetTableSequential": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'grbit']}"
+		},
+		"JetStopBackup": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"JetStopBackupInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance']}"
+		},
+		"JetStopService": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"JetStopServiceInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance']}"
+		},
+		"JetStopServiceInstance2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'grbit']}"
+		},
+		"JetTerm": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance']}"
+		},
+		"JetTerm2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance', 'grbit']}"
+		},
+		"JetTruncateLog": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"JetTruncateLogInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['instance']}"
+		},
+		"JetUnregisterCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'JET_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'cbtyp', 'hCallbackId']}"
+		},
+		"JetUpdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvBookmark', 'cbBookmark', 'pcbActual']}"
+		},
+		"JetUpdate2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JET_SESID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'JET_TABLEID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['sesid', 'tableid', 'pvBookmark', 'cbBookmark', 'pcbActual', 'grbit']}"
+		}
+	}
+}

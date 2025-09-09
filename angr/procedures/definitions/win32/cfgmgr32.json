@@ -1,0 +1,732 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"cfgmgr32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CMP_WaitNoPendingInstallEvents": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwTimeout']}"
+		},
+		"CM_Add_Empty_Log_Conf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PRIORITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'dnDevInst', 'Priority', 'ulFlags']}"
+		},
+		"CM_Add_Empty_Log_Conf_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PRIORITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'dnDevInst', 'Priority', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Add_IDA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszID', 'ulFlags']}"
+		},
+		"CM_Add_IDW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszID', 'ulFlags']}"
+		},
+		"CM_Add_ID_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Add_ID_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Add_Range": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ullStartValue', 'ullEndValue', 'rlh', 'ulFlags']}"
+		},
+		"CM_Add_Res_Des": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'lcLogConf', 'ResourceID', 'ResourceData', 'ResourceLen', 'ulFlags']}"
+		},
+		"CM_Add_Res_Des_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'lcLogConf', 'ResourceID', 'ResourceData', 'ResourceLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Connect_MachineA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['UNCServerName', 'phMachine']}"
+		},
+		"CM_Connect_MachineW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['UNCServerName', 'phMachine']}"
+		},
+		"CM_Create_DevNodeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'dnParent', 'ulFlags']}"
+		},
+		"CM_Create_DevNodeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'dnParent', 'ulFlags']}"
+		},
+		"CM_Create_DevNode_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'dnParent', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Create_DevNode_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'dnParent', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Create_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prlh', 'ulFlags']}"
+		},
+		"CM_Delete_Class_Key": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulFlags']}"
+		},
+		"CM_Delete_Class_Key_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Delete_DevNode_Key": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevNode', 'ulHardwareProfile', 'ulFlags']}"
+		},
+		"CM_Delete_DevNode_Key_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevNode', 'ulHardwareProfile', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Delete_Device_Interface_KeyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Delete_Device_Interface_KeyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Delete_Device_Interface_Key_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Delete_Device_Interface_Key_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Delete_Range": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ullStartValue', 'ullEndValue', 'rlh', 'ulFlags']}"
+		},
+		"CM_Detect_Resource_Conflict": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ResourceID', 'ResourceData', 'ResourceLen', 'pbConflictDetected', 'ulFlags']}"
+		},
+		"CM_Detect_Resource_Conflict_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ResourceID', 'ResourceData', 'ResourceLen', 'pbConflictDetected', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Disable_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Disable_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Disconnect_Machine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['hMachine']}"
+		},
+		"CM_Dup_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlhOld', 'rlhNew', 'ulFlags']}"
+		},
+		"CM_Enable_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Enable_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Enumerate_Classes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'CM_ENUMERATE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulClassIndex', 'ClassGuid', 'ulFlags']}"
+		},
+		"CM_Enumerate_Classes_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'CM_ENUMERATE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulClassIndex', 'ClassGuid', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Enumerate_EnumeratorsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulEnumIndex', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Enumerate_EnumeratorsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulEnumIndex', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Enumerate_Enumerators_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulEnumIndex', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Enumerate_Enumerators_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulEnumIndex', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Find_Range": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pullStart', 'ullStart', 'ulLength', 'ullAlignment', 'ullEnd', 'rlh', 'ulFlags']}"
+		},
+		"CM_First_Range": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlh', 'pullStart', 'pullEnd', 'preElement', 'ulFlags']}"
+		},
+		"CM_Free_Log_Conf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['lcLogConfToBeFreed', 'ulFlags']}"
+		},
+		"CM_Free_Log_Conf_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['lcLogConfToBeFreed', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Free_Log_Conf_Handle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['lcLogConf']}"
+		},
+		"CM_Free_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlh', 'ulFlags']}"
+		},
+		"CM_Free_Res_Des": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ulFlags']}"
+		},
+		"CM_Free_Res_Des_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Free_Res_Des_Handle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rdResDes']}"
+		},
+		"CM_Free_Resource_Conflict_Handle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['clConflictList']}"
+		},
+		"CM_Get_Child": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_Child_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Key_NameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszKeyName', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Class_Key_NameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszKeyName', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Class_Key_Name_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszKeyName', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Key_Name_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszKeyName', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_NameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Class_NameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Class_Name_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Name_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Get_Class_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Property_Keys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags']}"
+		},
+		"CM_Get_Class_Property_Keys_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Registry_PropertyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Class_Registry_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Depth": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulDepth', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_Depth_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulDepth', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Custom_PropertyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszCustomPropertyName', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Custom_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszCustomPropertyName', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Custom_Property_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszCustomPropertyName', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Custom_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pszCustomPropertyName', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Property_Keys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Property_Keys_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Registry_PropertyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Registry_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Registry_Property_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Registry_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'pulRegDataType', 'Buffer', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_DevNode_Status": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_DEVNODE_STATUS_FLAGS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_PROB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulStatus', 'pulProblemNumber', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_DevNode_Status_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_DEVNODE_STATUS_FLAGS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_PROB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulStatus', 'pulProblemNumber', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_IDA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_IDW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_ListA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszFilter', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_ListW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszFilter', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_List_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszFilter', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_List_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszFilter', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_List_SizeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'pszFilter', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_List_SizeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'pszFilter', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_List_Size_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'pszFilter', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_List_Size_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'pszFilter', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_ID_Size": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_Device_ID_Size_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_AliasA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'AliasInterfaceGuid', 'pszAliasDeviceInterface', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_AliasW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'AliasInterfaceGuid', 'pszAliasDeviceInterface', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_Alias_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'AliasInterfaceGuid', 'pszAliasDeviceInterface', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_Alias_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'AliasInterfaceGuid', 'pszAliasDeviceInterface', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_ListA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['InterfaceClassGuid', 'pDeviceID', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_ListW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['InterfaceClassGuid', 'pDeviceID', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_List_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['InterfaceClassGuid', 'pDeviceID', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_List_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['InterfaceClassGuid', 'pDeviceID', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_List_SizeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'InterfaceClassGuid', 'pDeviceID', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_List_SizeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'InterfaceClassGuid', 'pDeviceID', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_List_Size_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'InterfaceClassGuid', 'pDeviceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_List_Size_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_GET_DEVICE_INTERFACE_LIST_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulLen', 'InterfaceClassGuid', 'pDeviceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Device_Interface_Property_KeysW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags']}"
+		},
+		"CM_Get_Device_Interface_Property_Keys_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKeyArray', 'PropertyKeyCount', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_First_Log_Conf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_LOG_CONF', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_First_Log_Conf_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_LOG_CONF', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Global_State": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulState', 'ulFlags']}"
+		},
+		"CM_Get_Global_State_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulState', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_HW_Prof_FlagsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulHardwareProfile', 'pulValue', 'ulFlags']}"
+		},
+		"CM_Get_HW_Prof_FlagsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulHardwareProfile', 'pulValue', 'ulFlags']}"
+		},
+		"CM_Get_HW_Prof_Flags_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulHardwareProfile', 'pulValue', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_HW_Prof_Flags_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulHardwareProfile', 'pulValue', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Hardware_Profile_InfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWPROFILEINFO_A', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulIndex', 'pHWProfileInfo', 'ulFlags']}"
+		},
+		"CM_Get_Hardware_Profile_InfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWPROFILEINFO_W', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulIndex', 'pHWProfileInfo', 'ulFlags']}"
+		},
+		"CM_Get_Hardware_Profile_Info_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWPROFILEINFO_A', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulIndex', 'pHWProfileInfo', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Hardware_Profile_Info_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWPROFILEINFO_W', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulIndex', 'pHWProfileInfo', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Log_Conf_Priority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['lcLogConf', 'pPriority', 'ulFlags']}"
+		},
+		"CM_Get_Log_Conf_Priority_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['lcLogConf', 'pPriority', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Next_Log_Conf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'lcLogConf', 'ulFlags']}"
+		},
+		"CM_Get_Next_Log_Conf_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['plcLogConf', 'lcLogConf', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Next_Res_Des": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CM_RESTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_RESTYPE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ForResource', 'pResourceID', 'ulFlags']}"
+		},
+		"CM_Get_Next_Res_Des_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CM_RESTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_RESTYPE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ForResource', 'pResourceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Parent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_Parent_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Res_Des_Data": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rdResDes', 'Buffer', 'BufferLen', 'ulFlags']}"
+		},
+		"CM_Get_Res_Des_Data_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rdResDes', 'Buffer', 'BufferLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Res_Des_Data_Size": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulSize', 'rdResDes', 'ulFlags']}"
+		},
+		"CM_Get_Res_Des_Data_Size_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulSize', 'rdResDes', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Resource_Conflict_Count": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['clConflictList', 'pulCount']}"
+		},
+		"CM_Get_Resource_Conflict_DetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CONFLICT_DETAILS_A', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['clConflictList', 'ulIndex', 'pConflictDetails']}"
+		},
+		"CM_Get_Resource_Conflict_DetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CONFLICT_DETAILS_W', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['clConflictList', 'ulIndex', 'pConflictDetails']}"
+		},
+		"CM_Get_Sibling": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags']}"
+		},
+		"CM_Get_Sibling_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Get_Version": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': []}"
+		},
+		"CM_Get_Version_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': ['hMachine']}"
+		},
+		"CM_Intersect_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlhOld1', 'rlhOld2', 'rlhNew', 'ulFlags']}"
+		},
+		"CM_Invert_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlhOld', 'rlhNew', 'ullMaxValue', 'ulFlags']}"
+		},
+		"CM_Is_Dock_Station_Present": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pbPresent']}"
+		},
+		"CM_Is_Dock_Station_Present_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pbPresent', 'hMachine']}"
+		},
+		"CM_Is_Version_Available": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['wVersion']}"
+		},
+		"CM_Is_Version_Available_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['wVersion', 'hMachine']}"
+		},
+		"CM_Locate_DevNodeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_LOCATE_DEVNODE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'ulFlags']}"
+		},
+		"CM_Locate_DevNodeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CM_LOCATE_DEVNODE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'ulFlags']}"
+		},
+		"CM_Locate_DevNode_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Locate_DevNode_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pdnDevInst', 'pDeviceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_MapCrToWin32Err": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CmReturnCode', 'DefaultErr']}"
+		},
+		"CM_Merge_Range_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['rlhOld1', 'rlhOld2', 'rlhNew', 'ulFlags']}"
+		},
+		"CM_Modify_Res_Des": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ResourceID', 'ResourceData', 'ResourceLen', 'ulFlags']}"
+		},
+		"CM_Modify_Res_Des_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['prdResDes', 'rdResDes', 'ResourceID', 'ResourceData', 'ResourceLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Move_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnFromDevInst', 'dnToDevInst', 'ulFlags']}"
+		},
+		"CM_Move_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnFromDevInst', 'dnToDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Next_Range": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['preElement', 'pullStart', 'pullEnd', 'ulFlags']}"
+		},
+		"CM_Open_Class_KeyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszClassName', 'samDesired', 'Disposition', 'phkClass', 'ulFlags']}"
+		},
+		"CM_Open_Class_KeyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszClassName', 'samDesired', 'Disposition', 'phkClass', 'ulFlags']}"
+		},
+		"CM_Open_Class_Key_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszClassName', 'samDesired', 'Disposition', 'phkClass', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Open_Class_Key_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'pszClassName', 'samDesired', 'Disposition', 'phkClass', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Open_DevNode_Key": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevNode', 'samDesired', 'ulHardwareProfile', 'Disposition', 'phkDevice', 'ulFlags']}"
+		},
+		"CM_Open_DevNode_Key_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevNode', 'samDesired', 'ulHardwareProfile', 'Disposition', 'phkDevice', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Open_Device_Interface_KeyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'samDesired', 'Disposition', 'phkDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Open_Device_Interface_KeyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'samDesired', 'Disposition', 'phkDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Open_Device_Interface_Key_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'samDesired', 'Disposition', 'phkDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Open_Device_Interface_Key_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'samDesired', 'Disposition', 'phkDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_And_Remove_SubTreeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags']}"
+		},
+		"CM_Query_And_Remove_SubTreeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags']}"
+		},
+		"CM_Query_And_Remove_SubTree_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_And_Remove_SubTree_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_Arbitrator_Free_Data": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pData', 'DataLen', 'dnDevInst', 'ResourceID', 'ulFlags']}"
+		},
+		"CM_Query_Arbitrator_Free_Data_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pData', 'DataLen', 'dnDevInst', 'ResourceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_Arbitrator_Free_Size": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulSize', 'dnDevInst', 'ResourceID', 'ulFlags']}"
+		},
+		"CM_Query_Arbitrator_Free_Size_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pulSize', 'dnDevInst', 'ResourceID', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_Remove_SubTree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'ulFlags']}"
+		},
+		"CM_Query_Remove_SubTree_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Query_Resource_Conflict_List": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_RESTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pclConflictList', 'dnDevInst', 'ResourceID', 'ResourceData', 'ResourceLen', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Reenumerate_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CM_REENUMERATE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Reenumerate_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Register_Device_Driver": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Register_Device_Driver_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Register_Device_InterfaceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'InterfaceClassGuid', 'pszReference', 'pszDeviceInterface', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Register_Device_InterfaceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'InterfaceClassGuid', 'pszReference', 'pszDeviceInterface', 'pulLength', 'ulFlags']}"
+		},
+		"CM_Register_Device_Interface_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'InterfaceClassGuid', 'pszReference', 'pszDeviceInterface', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Register_Device_Interface_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'InterfaceClassGuid', 'pszReference', 'pszDeviceInterface', 'pulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Register_Notification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_NOTIFY_FILTER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCMNOTIFICATION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CM_NOTIFY_ACTION', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CM_NOTIFY_EVENT_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNotify', 'Context', 'Action', 'EventData', 'EventDataSize']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCMNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pFilter', 'pContext', 'pCallback', 'pNotifyContext']}"
+		},
+		"CM_Remove_SubTree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'ulFlags']}"
+		},
+		"CM_Remove_SubTree_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnAncestor', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Request_Device_EjectA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags']}"
+		},
+		"CM_Request_Device_EjectW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags']}"
+		},
+		"CM_Request_Device_Eject_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Request_Device_Eject_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PNP_VETO_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'pVetoType', 'pszVetoName', 'ulNameLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Request_Eject_PC": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"CM_Request_Eject_PC_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['hMachine']}"
+		},
+		"CM_Run_Detection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulFlags']}"
+		},
+		"CM_Run_Detection_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulFlags', 'hMachine']}"
+		},
+		"CM_Set_Class_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Set_Class_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGUID', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_Class_Registry_PropertyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_Class_Registry_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ClassGuid', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_DevNode_Problem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProblem', 'ulFlags']}"
+		},
+		"CM_Set_DevNode_Problem_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProblem', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_DevNode_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Set_DevNode_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_DevNode_Registry_PropertyA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags']}"
+		},
+		"CM_Set_DevNode_Registry_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags']}"
+		},
+		"CM_Set_DevNode_Registry_Property_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_DevNode_Registry_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulProperty', 'Buffer', 'ulLength', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_Device_Interface_PropertyW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags']}"
+		},
+		"CM_Set_Device_Interface_Property_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'PropertyKey', 'PropertyType', 'PropertyBuffer', 'PropertyBufferSize', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_HW_Prof": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulHardwareProfile', 'ulFlags']}"
+		},
+		"CM_Set_HW_Prof_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ulHardwareProfile', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_HW_Prof_FlagsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulConfig', 'ulValue', 'ulFlags']}"
+		},
+		"CM_Set_HW_Prof_FlagsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulConfig', 'ulValue', 'ulFlags']}"
+		},
+		"CM_Set_HW_Prof_Flags_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulConfig', 'ulValue', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Set_HW_Prof_Flags_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pDeviceID', 'ulConfig', 'ulValue', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Setup_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Setup_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Test_Range_Available": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['ullStartValue', 'ullEndValue', 'rlh', 'ulFlags']}"
+		},
+		"CM_Uninstall_DevNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags']}"
+		},
+		"CM_Uninstall_DevNode_Ex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['dnDevInst', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Unregister_Device_InterfaceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Unregister_Device_InterfaceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags']}"
+		},
+		"CM_Unregister_Device_Interface_ExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Unregister_Device_Interface_ExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['pszDeviceInterface', 'ulFlags', 'hMachine']}"
+		},
+		"CM_Unregister_Notification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCMNOTIFICATION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'CONFIGRET', 'ot': 'int'}, 'arg_names': ['NotifyContext']}"
+		},
+		"SwDeviceClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hSwDevice']}"
+		},
+		"SwDeviceCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SW_DEVICE_CREATE_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hSwDevice', 'CreateResult', 'pContext', 'pszDeviceInstanceId']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HSWDEVICE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszEnumeratorName', 'pszParentDeviceInstance', 'pCreateInfo', 'cPropertyCount', 'pProperties', 'pCallback', 'pContext', 'phSwDevice']}"
+		},
+		"SwDeviceGetLifetime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SW_DEVICE_LIFETIME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'pLifetime']}"
+		},
+		"SwDeviceInterfacePropertySet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'pszDeviceInterfaceId', 'cPropertyCount', 'pProperties']}"
+		},
+		"SwDeviceInterfaceRegister": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'pInterfaceClassGuid', 'pszReferenceString', 'cPropertyCount', 'pProperties', 'fEnabled', 'ppszDeviceInterfaceId']}"
+		},
+		"SwDeviceInterfaceSetState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'pszDeviceInterfaceId', 'fEnabled']}"
+		},
+		"SwDevicePropertySet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'cPropertyCount', 'pProperties']}"
+		},
+		"SwDeviceSetLifetime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HSWDEVICE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SW_DEVICE_LIFETIME', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSwDevice', 'Lifetime']}"
+		},
+		"SwMemFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pMem']}"
+		}
+	}
+}

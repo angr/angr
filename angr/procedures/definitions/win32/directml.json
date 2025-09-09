@@ -1,0 +1,21 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"directml.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DMLCreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'riid', 'ppv']}"
+		},
+		"DMLCreateDevice1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'DML_FEATURE_LEVEL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'minimumFeatureLevel', 'riid', 'ppv']}"
+		}
+	}
+}

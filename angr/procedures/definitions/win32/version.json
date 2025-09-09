@@ -1,0 +1,57 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"version.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GetFileVersionInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lptstrFilename', 'dwHandle', 'dwLen', 'lpData']}"
+		},
+		"GetFileVersionInfoExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GET_FILE_VERSION_INFO_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'lpwstrFilename', 'dwHandle', 'dwLen', 'lpData']}"
+		},
+		"GetFileVersionInfoExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GET_FILE_VERSION_INFO_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'lpwstrFilename', 'dwHandle', 'dwLen', 'lpData']}"
+		},
+		"GetFileVersionInfoSizeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lptstrFilename', 'lpdwHandle']}"
+		},
+		"GetFileVersionInfoSizeExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GET_FILE_VERSION_INFO_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwFlags', 'lpwstrFilename', 'lpdwHandle']}"
+		},
+		"GetFileVersionInfoSizeExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GET_FILE_VERSION_INFO_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwFlags', 'lpwstrFilename', 'lpdwHandle']}"
+		},
+		"GetFileVersionInfoSizeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lptstrFilename', 'lpdwHandle']}"
+		},
+		"GetFileVersionInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lptstrFilename', 'dwHandle', 'dwLen', 'lpData']}"
+		},
+		"VerFindFileA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VER_FIND_FILE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'VER_FIND_FILE_STATUS', 'ot': 'int'}, 'arg_names': ['uFlags', 'szFileName', 'szWinDir', 'szAppDir', 'szCurDir', 'puCurDirLen', 'szDestDir', 'puDestDirLen']}"
+		},
+		"VerFindFileW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VER_FIND_FILE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'VER_FIND_FILE_STATUS', 'ot': 'int'}, 'arg_names': ['uFlags', 'szFileName', 'szWinDir', 'szAppDir', 'szCurDir', 'puCurDirLen', 'szDestDir', 'puDestDirLen']}"
+		},
+		"VerInstallFileA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VER_INSTALL_FILE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'VER_INSTALL_FILE_STATUS', 'ot': 'int'}, 'arg_names': ['uFlags', 'szSrcFileName', 'szDestFileName', 'szSrcDir', 'szDestDir', 'szCurDir', 'szTmpFile', 'puTmpFileLen']}"
+		},
+		"VerInstallFileW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VER_INSTALL_FILE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'VER_INSTALL_FILE_STATUS', 'ot': 'int'}, 'arg_names': ['uFlags', 'szSrcFileName', 'szDestFileName', 'szSrcDir', 'szDestDir', 'szCurDir', 'szTmpFile', 'puTmpFileLen']}"
+		},
+		"VerQueryValueA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pBlock', 'lpSubBlock', 'lplpBuffer', 'puLen']}"
+		},
+		"VerQueryValueW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pBlock', 'lpSubBlock', 'lplpBuffer', 'puLen']}"
+		}
+	}
+}

@@ -1,0 +1,102 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"virtdisk.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AddVirtualDiskParent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'ParentPath']}"
+		},
+		"ApplySnapshotVhdSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'APPLY_SNAPSHOT_VHDSET_PARAMETERS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'APPLY_SNAPSHOT_VHDSET_FLAG', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Parameters', 'Flags']}"
+		},
+		"AttachVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ATTACH_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ATTACH_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'SecurityDescriptor', 'Flags', 'ProviderSpecificFlags', 'Parameters', 'Overlapped']}"
+		},
+		"BreakMirrorVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle']}"
+		},
+		"CompactVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'COMPACT_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COMPACT_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"CompleteForkVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle']}"
+		},
+		"CreateVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VIRTUAL_STORAGE_TYPE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'VIRTUAL_DISK_ACCESS_MASK', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CREATE_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CREATE_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualStorageType', 'Path', 'VirtualDiskAccessMask', 'SecurityDescriptor', 'Flags', 'ProviderSpecificFlags', 'Parameters', 'Overlapped', 'Handle']}"
+		},
+		"DeleteSnapshotVhdSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DELETE_SNAPSHOT_VHDSET_PARAMETERS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DELETE_SNAPSHOT_VHDSET_FLAG', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Parameters', 'Flags']}"
+		},
+		"DeleteVirtualDiskMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Item']}"
+		},
+		"DetachVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DETACH_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'ProviderSpecificFlags']}"
+		},
+		"EnumerateVirtualDiskMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'NumberOfItems', 'Items']}"
+		},
+		"ExpandVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EXPAND_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EXPAND_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"ForkVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'FORK_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FORK_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"GetAllAttachedVirtualDiskPhysicalPaths": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['PathsBufferSizeInBytes', 'PathsBuffer']}"
+		},
+		"GetStorageDependencyInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'GET_STORAGE_DEPENDENCY_FLAG', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STORAGE_DEPENDENCY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['ObjectHandle', 'Flags', 'StorageDependencyInfoSize', 'StorageDependencyInfo', 'SizeUsed']}"
+		},
+		"GetVirtualDiskInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GET_VIRTUAL_DISK_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'VirtualDiskInfoSize', 'VirtualDiskInfo', 'SizeUsed']}"
+		},
+		"GetVirtualDiskMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Item', 'MetaDataSize', 'MetaData']}"
+		},
+		"GetVirtualDiskOperationProgress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VIRTUAL_DISK_PROGRESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Overlapped', 'Progress']}"
+		},
+		"GetVirtualDiskPhysicalPath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'DiskPathSizeInBytes', 'DiskPath']}"
+		},
+		"MergeVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MERGE_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MERGE_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"MirrorVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MIRROR_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIRROR_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"ModifyVhdSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MODIFY_VHDSET_PARAMETERS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'MODIFY_VHDSET_FLAG', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Parameters', 'Flags']}"
+		},
+		"OpenVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VIRTUAL_STORAGE_TYPE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'VIRTUAL_DISK_ACCESS_MASK', 'ot': 'int'}, {'_t': '_ref', 'name': 'OPEN_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPEN_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualStorageType', 'Path', 'VirtualDiskAccessMask', 'Flags', 'Parameters', 'Handle']}"
+		},
+		"QueryChangesVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'QUERY_CHANGES_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'QUERY_CHANGES_VIRTUAL_DISK_RANGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'ChangeTrackingId', 'ByteOffset', 'ByteLength', 'Flags', 'Ranges', 'RangeCount', 'ProcessedLength']}"
+		},
+		"RawSCSIVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RAW_SCSI_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'RAW_SCSI_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RAW_SCSI_VIRTUAL_DISK_RESPONSE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Parameters', 'Flags', 'Response']}"
+		},
+		"ResizeVirtualDisk": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'RESIZE_VIRTUAL_DISK_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RESIZE_VIRTUAL_DISK_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Flags', 'Parameters', 'Overlapped']}"
+		},
+		"SetVirtualDiskInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SET_VIRTUAL_DISK_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'VirtualDiskInfo']}"
+		},
+		"SetVirtualDiskMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Item', 'MetaDataSize', 'MetaData']}"
+		},
+		"TakeSnapshotVhdSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TAKE_SNAPSHOT_VHDSET_PARAMETERS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'TAKE_SNAPSHOT_VHDSET_FLAG', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['VirtualDiskHandle', 'Parameters', 'Flags']}"
+		}
+	}
+}

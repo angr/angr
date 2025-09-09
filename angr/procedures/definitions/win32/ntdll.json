@@ -1,0 +1,228 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ntdll.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"RtlAddGrowableFunctionTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGE_RUNTIME_FUNCTION_ENTRY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DynamicTable', 'FunctionTable', 'EntryCount', 'MaximumEntryCount', 'RangeBase', 'RangeEnd']}"
+		},
+		"RtlAnsiStringToUnicodeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DestinationString', 'SourceString', 'AllocateDestinationString']}"
+		},
+		"RtlCharToInteger": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['String', 'Base', 'Value']}"
+		},
+		"RtlConvertDeviceFamilyInfoToString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pulDeviceFamilyBufferSize', 'pulDeviceFormBufferSize', 'DeviceFamily', 'DeviceForm']}"
+		},
+		"RtlConvertSidToUnicodeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['UnicodeString', 'Sid', 'AllocateDestinationString']}"
+		},
+		"RtlCrc32": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Buffer', 'Size', 'InitialCrc']}"
+		},
+		"RtlCrc64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'arg_names': ['Buffer', 'Size', 'InitialCrc']}"
+		},
+		"RtlDeleteGrowableFunctionTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DynamicTable']}"
+		},
+		"RtlDrainNonVolatileFlush": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken']}"
+		},
+		"RtlEthernetAddressToStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 6}, 'Anonymous': {'_t': 'struct', 'fields': {'Oui': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}, 'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'Ei48': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}}, 'name': '<anon>'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlEthernetAddressToStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 6}, 'Anonymous': {'_t': 'struct', 'fields': {'Oui': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}, 'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'Ei48': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}}, 'name': '<anon>'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlEthernetStringToAddressA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 6}, 'Anonymous': {'_t': 'struct', 'fields': {'Oui': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}, 'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'Ei48': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}}, 'name': '<anon>'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Terminator', 'Addr']}"
+		},
+		"RtlEthernetStringToAddressW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 6}, 'Anonymous': {'_t': 'struct', 'fields': {'Oui': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}, 'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'Ei48': {'_t': 'union', 'members': {'Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 3}}, 'name': '<anon>'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Terminator', 'Addr']}"
+		},
+		"RtlExtendCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CorrelationVector']}"
+		},
+		"RtlFillNonVolatileMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken', 'NvDestination', 'Size', 'Value', 'Flags']}"
+		},
+		"RtlFirstEntrySList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, 'arg_names': ['ListHead']}"
+		},
+		"RtlFlushNonVolatileMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken', 'NvBuffer', 'Size', 'Flags']}"
+		},
+		"RtlFlushNonVolatileMemoryRanges": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NV_MEMORY_RANGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken', 'NvRanges', 'NumRanges', 'Flags']}"
+		},
+		"RtlFreeAnsiString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['AnsiString']}"
+		},
+		"RtlFreeNonVolatileToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken']}"
+		},
+		"RtlFreeOemString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['OemString']}"
+		},
+		"RtlFreeUnicodeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['UnicodeString']}"
+		},
+		"RtlGetDeviceFamilyInfoEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICEFAMILYINFOENUM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICEFAMILYDEVICEFORM', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pullUAPInfo', 'pulDeviceFamily', 'pulDeviceForm']}"
+		},
+		"RtlGetNonVolatileToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvBuffer', 'Size', 'NvToken']}"
+		},
+		"RtlGetProductInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['OSMajorVersion', 'OSMinorVersion', 'SpMajorVersion', 'SpMinorVersion', 'ReturnedProductType']}"
+		},
+		"RtlGetReturnAddressHijackTarget": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': []}"
+		},
+		"RtlGrowFunctionTable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DynamicTable', 'NewEntryCount']}"
+		},
+		"RtlIncrementCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CorrelationVector']}"
+		},
+		"RtlInitAnsiString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DestinationString', 'SourceString']}"
+		},
+		"RtlInitAnsiStringEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DestinationString', 'SourceString']}"
+		},
+		"RtlInitString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DestinationString', 'SourceString']}"
+		},
+		"RtlInitStringEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DestinationString', 'SourceString']}"
+		},
+		"RtlInitUnicodeString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DestinationString', 'SourceString']}"
+		},
+		"RtlInitializeCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CorrelationVector', 'Version', 'Guid']}"
+		},
+		"RtlInitializeSListHead": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ListHead']}"
+		},
+		"RtlInterlockedFlushSList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, 'arg_names': ['ListHead']}"
+		},
+		"RtlInterlockedPopEntrySList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, 'arg_names': ['ListHead']}"
+		},
+		"RtlInterlockedPushEntrySList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, 'arg_names': ['ListHead', 'ListEntry']}"
+		},
+		"RtlInterlockedPushListSListEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SLIST_ENTRY', 'ot': '_ref'}}, 'arg_names': ['ListHead', 'List', 'ListEnd', 'Count']}"
+		},
+		"RtlIpv4AddressToStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlIpv4AddressToStringExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Address', 'Port', 'AddressString', 'AddressStringLength']}"
+		},
+		"RtlIpv4AddressToStringExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Address', 'Port', 'AddressString', 'AddressStringLength']}"
+		},
+		"RtlIpv4AddressToStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlIpv4StringToAddressA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Strict', 'Terminator', 'Addr']}"
+		},
+		"RtlIpv4StringToAddressExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['AddressString', 'Strict', 'Address', 'Port']}"
+		},
+		"RtlIpv4StringToAddressExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['AddressString', 'Strict', 'Address', 'Port']}"
+		},
+		"RtlIpv4StringToAddressW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN_ADDR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Strict', 'Terminator', 'Addr']}"
+		},
+		"RtlIpv6AddressToStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlIpv6AddressToStringExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Address', 'ScopeId', 'Port', 'AddressString', 'AddressStringLength']}"
+		},
+		"RtlIpv6AddressToStringExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Address', 'ScopeId', 'Port', 'AddressString', 'AddressStringLength']}"
+		},
+		"RtlIpv6AddressToStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['Addr', 'S']}"
+		},
+		"RtlIpv6StringToAddressA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Terminator', 'Addr']}"
+		},
+		"RtlIpv6StringToAddressExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['AddressString', 'Address', 'ScopeId', 'Port']}"
+		},
+		"RtlIpv6StringToAddressExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['AddressString', 'Address', 'ScopeId', 'Port']}"
+		},
+		"RtlIpv6StringToAddressW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IN6_ADDR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['S', 'Terminator', 'Addr']}"
+		},
+		"RtlIsNameLegalDOS8Dot3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Name', 'OemName', 'NameContainsSpaces']}"
+		},
+		"RtlIsZeroMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Buffer', 'Length']}"
+		},
+		"RtlLocalTimeToSystemTime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LocalTime', 'SystemTime']}"
+		},
+		"RtlNormalizeSecurityDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['SecurityDescriptor', 'SecurityDescriptorLength', 'NewSecurityDescriptor', 'NewSecurityDescriptorLength', 'CheckOnly']}"
+		},
+		"RtlNtStatusToDosError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Status']}"
+		},
+		"RtlOsDeploymentState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'OS_DEPLOYEMENT_STATE_VALUES', 'ot': 'int'}, 'arg_names': ['Flags']}"
+		},
+		"RtlQueryDepthSList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': ['ListHead']}"
+		},
+		"RtlRaiseCustomSystemEventTrigger": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CUSTOM_SYSTEM_EVENT_TRIGGER_CONFIG', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TriggerConfig']}"
+		},
+		"RtlSwitchedVVI": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OSVERSIONINFOEXW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['VersionInfo', 'TypeMask', 'ConditionMask']}"
+		},
+		"RtlTimeToSecondsSince1970": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Time', 'ElapsedSeconds']}"
+		},
+		"RtlUnicodeStringToAnsiString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DestinationString', 'SourceString', 'AllocateDestinationString']}"
+		},
+		"RtlUnicodeStringToOemString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DestinationString', 'SourceString', 'AllocateDestinationString']}"
+		},
+		"RtlUnicodeToMultiByteSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['BytesInMultiByteString', 'UnicodeString', 'BytesInUnicodeString']}"
+		},
+		"RtlUniform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Seed']}"
+		},
+		"RtlValidateCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Vector']}"
+		},
+		"RtlWriteNonVolatileMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NvToken', 'NvDestination', 'Source', 'Size', 'Flags']}"
+		}
+	}
+}

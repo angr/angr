@@ -1,0 +1,528 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"gdi32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"D3DKMTAcquireKeyedMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ACQUIREKEYEDMUTEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTAcquireKeyedMutex2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ACQUIREKEYEDMUTEX2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTAdjustFullscreenGamma": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ADJUSTFULLSCREENGAMMA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCancelPresents": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CANCEL_PRESENTS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTChangeSurfacePointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHANGESURFACEPOINTER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTChangeVideoMemoryReservation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHANGEVIDEOMEMORYRESERVATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckExclusiveOwnership": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': []}"
+		},
+		"D3DKMTCheckMonitorPowerState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKMONITORPOWERSTATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckMultiPlaneOverlaySupport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckMultiPlaneOverlaySupport2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckMultiPlaneOverlaySupport3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKMULTIPLANEOVERLAYSUPPORT3', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckOcclusion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKOCCLUSION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckSharedResourceAccess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKSHAREDRESOURCEACCESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCheckVidPnExclusiveOwnership": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CHECKVIDPNEXCLUSIVEOWNERSHIP', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCloseAdapter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CLOSEADAPTER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTConfigureSharedResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CONFIGURESHAREDRESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateAllocation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEALLOCATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateAllocation2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEALLOCATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATECONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateContextVirtual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATECONTEXTVIRTUAL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateDCFromMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEDCFROMMEMORY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEDEVICE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateHwContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEHWCONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateHwQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEHWQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateKeyedMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEKEYEDMUTEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateKeyedMutex2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEKEYEDMUTEX2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateOutputDupl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATE_OUTPUTDUPL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateOverlay": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEOVERLAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreatePagingQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEPAGINGQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateProtectedSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATEPROTECTEDSESSION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateSynchronizationObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATESYNCHRONIZATIONOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTCreateSynchronizationObject2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_CREATESYNCHRONIZATIONOBJECT2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyAllocation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYALLOCATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyAllocation2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYALLOCATION2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYCONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyDCFromMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYDCFROMMEMORY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyDevice": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYDEVICE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyHwContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYHWCONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyHwQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYHWQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyKeyedMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYKEYEDMUTEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyOutputDupl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROY_OUTPUTDUPL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyOverlay": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYOVERLAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyPagingQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_DESTROYPAGINGQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroyProtectedSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYPROTECTEDSESSION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTDestroySynchronizationObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_DESTROYSYNCHRONIZATIONOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTEnumAdapters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ENUMADAPTERS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTEnumAdapters2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ENUMADAPTERS2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTEscape": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ESCAPE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTEvict": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_EVICT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTFlipOverlay": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_FLIPOVERLAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTFlushHeapTransitions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_FLUSHHEAPTRANSITIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTFreeGpuVirtualAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_FREEGPUVIRTUALADDRESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetAllocationPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETALLOCATIONPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetContextInProcessSchedulingPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETCONTEXTINPROCESSSCHEDULINGPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetContextSchedulingPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETCONTEXTSCHEDULINGPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetDWMVerticalBlankEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETVERTICALBLANKEVENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetDeviceState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETDEVICESTATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetDisplayModeList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETDISPLAYMODELIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetMultiPlaneOverlayCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GET_MULTIPLANE_OVERLAY_CAPS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetMultisampleMethodList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETMULTISAMPLEMETHODLIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetOverlayState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETOVERLAYSTATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetPostCompositionCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GET_POST_COMPOSITION_CAPS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetPresentHistory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETPRESENTHISTORY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetPresentQueueEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['hAdapter', 'param1']}"
+		},
+		"D3DKMTGetProcessDeviceRemovalSupport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETPROCESSDEVICEREMOVALSUPPORT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetProcessSchedulingPriorityClass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SCHEDULINGPRIORITYCLASS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"D3DKMTGetResourcePresentPrivateDriverData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_GETRESOURCEPRESENTPRIVATEDRIVERDATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetRuntimeData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETRUNTIMEDATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetScanLine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETSCANLINE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetSharedPrimaryHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETSHAREDPRIMARYHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTGetSharedResourceAdapterLuid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_GETSHAREDRESOURCEADAPTERLUID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTInvalidateActiveVidPn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_INVALIDATEACTIVEVIDPN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTInvalidateCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_INVALIDATECACHE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_LOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTLock2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_LOCK2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTMakeResident": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_MAKERESIDENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTMapGpuVirtualAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_MAPGPUVIRTUALADDRESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTMarkDeviceAsError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_MARKDEVICEASERROR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOfferAllocations": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OFFERALLOCATIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenAdapterFromDeviceName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENADAPTERFROMDEVICENAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenAdapterFromGdiDisplayName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENADAPTERFROMGDIDISPLAYNAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenAdapterFromHdc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENADAPTERFROMHDC', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenAdapterFromLuid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENADAPTERFROMLUID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenKeyedMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENKEYEDMUTEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenKeyedMutex2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENKEYEDMUTEX2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenKeyedMutexFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENKEYEDMUTEXFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenNtHandleFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENNTHANDLEFROMNAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenProtectedSessionFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENPROTECTEDSESSIONFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENRESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenResource2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENRESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenResourceFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENRESOURCEFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenSyncObjectFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENSYNCOBJECTFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenSyncObjectFromNtHandle2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENSYNCOBJECTFROMNTHANDLE2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenSyncObjectNtHandleFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENSYNCOBJECTNTHANDLEFROMNAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOpenSynchronizationObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OPENSYNCHRONIZATIONOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOutputDuplGetFrameInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPL_GET_FRAMEINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOutputDuplGetMetaData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPL_METADATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOutputDuplGetPointerShapeData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPL_GET_POINTER_SHAPE_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOutputDuplPresent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPLPRESENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTOutputDuplReleaseFrame": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_OUTPUTDUPL_RELEASE_FRAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPollDisplayChildren": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_POLLDISPLAYCHILDREN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPresent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_PRESENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPresentMultiPlaneOverlay": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_PRESENT_MULTIPLANE_OVERLAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPresentMultiPlaneOverlay2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_PRESENT_MULTIPLANE_OVERLAY2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPresentMultiPlaneOverlay3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_PRESENT_MULTIPLANE_OVERLAY3', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTPresentRedirected": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_PRESENT_REDIRECTED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryAdapterInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYADAPTERINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryAllocationResidency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYALLOCATIONRESIDENCY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryClockCalibration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYCLOCKCALIBRATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryFSEBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYFSEBLOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryProcessOfferInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYPROCESSOFFERINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryProtectedSessionInfoFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYPROTECTEDSESSIONINFOFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryProtectedSessionStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYPROTECTEDSESSIONSTATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryRemoteVidPnSourceFromGdiDisplayName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYREMOTEVIDPNSOURCEFROMGDIDISPLAYNAME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryResourceInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYRESOURCEINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryResourceInfoFromNtHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYRESOURCEINFOFROMNTHANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryStatistics": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYSTATISTICS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryVidPnExclusiveOwnership": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYVIDPNEXCLUSIVEOWNERSHIP', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTQueryVideoMemoryInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_QUERYVIDEOMEMORYINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReclaimAllocations": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_RECLAIMALLOCATIONS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReclaimAllocations2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_RECLAIMALLOCATIONS2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTRegisterTrimNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_REGISTERTRIMNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTRegisterVailProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReleaseKeyedMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_RELEASEKEYEDMUTEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReleaseKeyedMutex2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_RELEASEKEYEDMUTEX2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReleaseProcessVidPnSourceOwners": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTRender": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_RENDER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTReserveGpuVirtualAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_RESERVEGPUVIRTUALADDRESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetAllocationPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETALLOCATIONPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetContextInProcessSchedulingPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETCONTEXTINPROCESSSCHEDULINGPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetContextSchedulingPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETCONTEXTSCHEDULINGPRIORITY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetDisplayMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETDISPLAYMODE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetDisplayPrivateDriverFormat": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETDISPLAYPRIVATEDRIVERFORMAT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetFSEBlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETFSEBLOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetGammaRamp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETGAMMARAMP', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetHwProtectionTeardownRecovery": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETHWPROTECTIONTEARDOWNRECOVERY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetMonitorColorSpaceTransform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SET_COLORSPACE_TRANSFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetProcessSchedulingPriorityClass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'D3DKMT_SCHEDULINGPRIORITYCLASS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"D3DKMTSetQueuedLimit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETQUEUEDLIMIT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetStablePowerState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETSTABLEPOWERSTATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetSyncRefreshCountWaitTarget": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETSYNCREFRESHCOUNTWAITTARGET', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetVidPnSourceHwProtection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETVIDPNSOURCEHWPROTECTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetVidPnSourceOwner": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETVIDPNSOURCEOWNER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetVidPnSourceOwner1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETVIDPNSOURCEOWNER1', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSetVidPnSourceOwner2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SETVIDPNSOURCEOWNER2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTShareObjects": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['cObjects', 'hObjects', 'pObjectAttributes', 'dwDesiredAccess', 'phSharedNtHandle']}"
+		},
+		"D3DKMTSharedPrimaryLockNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SHAREDPRIMARYLOCKNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSharedPrimaryUnLockNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SHAREDPRIMARYUNLOCKNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSignalSynchronizationObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SIGNALSYNCHRONIZATIONOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSignalSynchronizationObject2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SIGNALSYNCHRONIZATIONOBJECT2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSignalSynchronizationObjectFromCpu": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMCPU', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSignalSynchronizationObjectFromGpu": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMGPU', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSignalSynchronizationObjectFromGpu2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SIGNALSYNCHRONIZATIONOBJECTFROMGPU2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSubmitCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITCOMMAND', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSubmitCommandToHwQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITCOMMANDTOHWQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSubmitSignalSyncObjectsToHwQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITSIGNALSYNCOBJECTSTOHWQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTSubmitWaitForSyncObjectsToHwQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_SUBMITWAITFORSYNCOBJECTSTOHWQUEUE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTTrimProcessCommitment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_TRIMPROCESSCOMMITMENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUnlock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_UNLOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUnlock2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_UNLOCK2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUnregisterTrimNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_UNREGISTERTRIMNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUpdateAllocationProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DDDI_UPDATEALLOCPROPERTY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUpdateGpuVirtualAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_UPDATEGPUVIRTUALADDRESS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTUpdateOverlay": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_UPDATEOVERLAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForIdle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORIDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForSynchronizationObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORSYNCHRONIZATIONOBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForSynchronizationObject2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORSYNCHRONIZATIONOBJECT2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForSynchronizationObjectFromCpu": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORSYNCHRONIZATIONOBJECTFROMCPU', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForSynchronizationObjectFromGpu": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORSYNCHRONIZATIONOBJECTFROMGPU', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForVerticalBlankEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORVERTICALBLANKEVENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"D3DKMTWaitForVerticalBlankEvent2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_WAITFORVERTICALBLANKEVENT2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+		}
+	}
+}

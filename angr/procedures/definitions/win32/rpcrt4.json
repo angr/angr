@@ -1,0 +1,1356 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"rpcrt4.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DceErrorInqTextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['RpcStatus', 'ErrorText']}"
+		},
+		"DceErrorInqTextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['RpcStatus', 'ErrorText']}"
+		},
+		"IUnknown_AddRef_Proxy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['This']}"
+		},
+		"IUnknown_QueryInterface_Proxy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['This', 'riid', 'ppvObject']}"
+		},
+		"IUnknown_Release_Proxy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['This']}"
+		},
+		"I_RpcAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}"
+		},
+		"I_RpcAsyncAbortCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'ExceptionCode']}"
+		},
+		"I_RpcAsyncSetHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message', 'pAsync']}"
+		},
+		"I_RpcBindingCopy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['SourceBinding', 'DestinationBinding']}"
+		},
+		"I_RpcBindingCreateNP": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ServerName', 'ServiceName', 'NetworkOptions', 'Binding']}"
+		},
+		"I_RpcBindingHandleToAsyncHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'AsyncHandle']}"
+		},
+		"I_RpcBindingInqClientTokenAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'TokenId', 'AuthenticationId', 'ModifiedId']}"
+		},
+		"I_RpcBindingInqDynamicEndpointA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'DynamicEndpoint']}"
+		},
+		"I_RpcBindingInqDynamicEndpointW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'DynamicEndpoint']}"
+		},
+		"I_RpcBindingInqLocalClientPID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Pid']}"
+		},
+		"I_RpcBindingInqMarshalledTargetInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'MarshalledTargetInfoSize', 'MarshalledTargetInfo']}"
+		},
+		"I_RpcBindingInqSecurityContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'SecurityContextHandle']}"
+		},
+		"I_RpcBindingInqSecurityContextKeyInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'KeyInfo']}"
+		},
+		"I_RpcBindingInqTransportType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Type']}"
+		},
+		"I_RpcBindingInqWireIdForSnego": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'WireId']}"
+		},
+		"I_RpcBindingIsClientLocal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle', 'ClientLocalFlag']}"
+		},
+		"I_RpcBindingIsServerLocal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerLocalFlag']}"
+		},
+		"I_RpcBindingSetPrivateOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['hBinding', 'option', 'optionValue']}"
+		},
+		"I_RpcBindingToStaticStringBindingW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'StringBinding']}"
+		},
+		"I_RpcClearMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Mutex']}"
+		},
+		"I_RpcDeleteMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Mutex']}"
+		},
+		"I_RpcExceptionFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['ExceptionCode']}"
+		},
+		"I_RpcFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Object']}"
+		},
+		"I_RpcFreeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcFreePipeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcGetBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcGetBufferWithObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message', 'ObjectUuid']}"
+		},
+		"I_RpcGetCurrentCallHandle": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': []}"
+		},
+		"I_RpcGetDefaultSD": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ppSecurityDescriptor']}"
+		},
+		"I_RpcGetExtendedError": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"I_RpcIfInqTransferSyntaxes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_TRANSFER_SYNTAX', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['RpcIfHandle', 'TransferSyntaxes', 'TransferSyntaxSize', 'TransferSyntaxCount']}"
+		},
+		"I_RpcMapWin32Status": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Status']}"
+		},
+		"I_RpcMgmtEnableDedicatedThreadPool": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"I_RpcNegotiateTransferSyntax": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcNsBindingSetEntryNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'EntryNameSyntax', 'EntryName']}"
+		},
+		"I_RpcNsBindingSetEntryNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'EntryNameSyntax', 'EntryName']}"
+		},
+		"I_RpcNsInterfaceExported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SERVER_INTERFACE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'RpcInterfaceInformation']}"
+		},
+		"I_RpcNsInterfaceUnexported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SERVER_INTERFACE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'RpcInterfaceInformation']}"
+		},
+		"I_RpcOpenClientProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'DesiredAccess', 'ClientProcess']}"
+		},
+		"I_RpcPauseExecution": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Milliseconds']}"
+		},
+		"I_RpcReallocPipeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message', 'NewSize']}"
+		},
+		"I_RpcReceive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message', 'Size']}"
+		},
+		"I_RpcRecordCalloutFailure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RDR_CALLOUT_STATE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['RpcStatus', 'CallOutState', 'DllName']}"
+		},
+		"I_RpcRequestMutex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Mutex']}"
+		},
+		"I_RpcSend": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcSendReceive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcServerCheckClientRestriction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Context']}"
+		},
+		"I_RpcServerDisableExceptionFilter": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"I_RpcServerGetAssociationID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'AssociationID']}"
+		},
+		"I_RpcServerInqAddressChangeFn": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}}}, 'arg_names': []}"
+		},
+		"I_RpcServerInqLocalConnAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Buffer', 'BufferSize', 'AddressFormat']}"
+		},
+		"I_RpcServerInqRemoteConnAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Buffer', 'BufferSize', 'AddressFormat']}"
+		},
+		"I_RpcServerInqTransportType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Type']}"
+		},
+		"I_RpcServerRegisterForwardFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_VERSION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InterfaceId', 'InterfaceVersion', 'ObjectId', 'Rpcpro', 'ppDestEndpoint']}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pForwardFunction']}"
+		},
+		"I_RpcServerSetAddressChangeFn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAddressChangeFn']}"
+		},
+		"I_RpcServerStartService": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'Endpoint', 'IfSpec']}"
+		},
+		"I_RpcServerSubscribeForDisconnectNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'hEvent']}"
+		},
+		"I_RpcServerSubscribeForDisconnectNotification2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'hEvent', 'SubscriptionId']}"
+		},
+		"I_RpcServerUnsubscribeForDisconnectNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'bot', 'label': 'Guid'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'SubscriptionId']}"
+		},
+		"I_RpcServerUseProtseq2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NetworkAddress', 'Protseq', 'MaxCalls', 'SecurityDescriptor', 'Policy']}"
+		},
+		"I_RpcServerUseProtseq2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NetworkAddress', 'Protseq', 'MaxCalls', 'SecurityDescriptor', 'Policy']}"
+		},
+		"I_RpcServerUseProtseqEp2A": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NetworkAddress', 'Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor', 'Policy']}"
+		},
+		"I_RpcServerUseProtseqEp2W": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NetworkAddress', 'Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor', 'Policy']}"
+		},
+		"I_RpcSessionStrictContextHandle": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"I_RpcSsDontSerializeContext": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"I_RpcSystemHandleTypeSpecificWork": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'LRPC_SYSTEM_HANDLE_MARSHAL_DIRECTION', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Handle', 'ActualType', 'IdlType', 'MarshalDirection']}"
+		},
+		"I_RpcTurnOnEEInfoPropagation": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"I_UuidCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Uuid']}"
+		},
+		"MesBufferHandleReset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'MIDL_ES_CODE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Handle', 'HandleStyle', 'Operation', 'pBuffer', 'BufferSize', 'pEncodedSize']}"
+		},
+		"MesDecodeBufferHandleCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Buffer', 'BufferSize', 'pHandle']}"
+		},
+		"MesDecodeIncrementalHandleCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'pbuffer', 'psize']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['UserState', 'ReadFn', 'pHandle']}"
+		},
+		"MesEncodeDynBufferHandleCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pBuffer', 'pEncodedSize', 'pHandle']}"
+		},
+		"MesEncodeFixedBufferHandleCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pBuffer', 'BufferSize', 'pEncodedSize', 'pHandle']}"
+		},
+		"MesEncodeIncrementalHandleCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'pbuffer', 'psize']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'buffer', 'size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['UserState', 'AllocFn', 'WriteFn', 'pHandle']}"
+		},
+		"MesHandleFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Handle']}"
+		},
+		"MesIncrementalHandleReset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'pbuffer', 'psize']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'buffer', 'size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['state', 'pbuffer', 'psize']}}, {'_t': '_ref', 'name': 'MIDL_ES_CODE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Handle', 'UserState', 'AllocFn', 'WriteFn', 'ReadFn', 'Operation']}"
+		},
+		"MesInqProcEncodingId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SYNTAX_IDENTIFIER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Handle', 'pInterfaceId', 'pProcNum']}"
+		},
+		"NDRCContextBinding": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['CContext']}"
+		},
+		"NDRCContextMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CContext', 'pBuff']}"
+		},
+		"NDRCContextUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pCContext', 'hBinding', 'pBuff', 'DataRepresentation']}"
+		},
+		"NDRSContextMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CContext', 'pBuff', 'userRunDownIn']}"
+		},
+		"NDRSContextMarshall2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['BindingHandle', 'CContext', 'pBuff', 'userRunDownIn', 'CtxGuard', 'Flags']}"
+		},
+		"NDRSContextMarshallEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['BindingHandle', 'CContext', 'pBuff', 'userRunDownIn']}"
+		},
+		"NDRSContextUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['pBuff', 'DataRepresentation']}"
+		},
+		"NDRSContextUnmarshall2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['BindingHandle', 'pBuff', 'DataRepresentation', 'CtxGuard', 'Flags']}"
+		},
+		"NDRSContextUnmarshallEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['BindingHandle', 'pBuff', 'DataRepresentation']}"
+		},
+		"Ndr64AsyncClientCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pProxyInfo', 'nProcNum', 'pReturnValue']}"
+		},
+		"Ndr64AsyncServerCall64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"Ndr64AsyncServerCallAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"Ndr64DcomAsyncClientCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pProxyInfo', 'nProcNum', 'pReturnValue']}"
+		},
+		"Ndr64DcomAsyncStubCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRpcStubBuffer', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IRpcChannelBuffer', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pThis', 'pChannel', 'pRpcMsg', 'pdwStubPhase']}"
+		},
+		"NdrAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pStubMsg', 'Len']}"
+		},
+		"NdrAsyncClientCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pStubDescriptor', 'pFormat']}"
+		},
+		"NdrAsyncServerCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"NdrByteCountPointerBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrByteCountPointerFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrByteCountPointerMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrByteCountPointerUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrClearOutParameters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pFormat', 'ArgAddr']}"
+		},
+		"NdrClientCall2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pStubDescriptor', 'pFormat']}"
+		},
+		"NdrClientCall3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pProxyInfo', 'nProcNum', 'pReturnValue']}"
+		},
+		"NdrClientContextMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'ContextHandle', 'fCheck']}"
+		},
+		"NdrClientContextUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pContextHandle', 'BindHandle']}"
+		},
+		"NdrClientInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg', 'pStubMsg', 'pStubDescriptor', 'ProcNum']}"
+		},
+		"NdrClientInitializeNew": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg', 'pStubMsg', 'pStubDescriptor', 'ProcNum']}"
+		},
+		"NdrComplexArrayBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexArrayFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexArrayMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexArrayMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrComplexArrayUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrComplexStructBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexStructFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexStructMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrComplexStructMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrComplexStructUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrConformantArrayBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantArrayFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantArrayMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantArrayMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConformantArrayUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrConformantStringBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantStringMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantStringMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConformantStringUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrConformantStructBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantStructFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantStructMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantStructMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConformantStructUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrConformantVaryingArrayBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingArrayFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingArrayMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingArrayMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConformantVaryingArrayUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrConformantVaryingStructBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingStructFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingStructMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConformantVaryingStructMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConformantVaryingStructUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrContextHandleInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrContextHandleSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrConvert": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrConvert2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pFormat', 'NumberParams']}"
+		},
+		"NdrCorrelationFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg']}"
+		},
+		"NdrCorrelationInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'CacheSize', 'flags']}"
+		},
+		"NdrCorrelationPass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg']}"
+		},
+		"NdrCreateServerInterfaceFromStub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRpcStubBuffer', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SERVER_INTERFACE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pStub', 'pServerIf']}"
+		},
+		"NdrDcomAsyncClientCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['pStubDescriptor', 'pFormat']}"
+		},
+		"NdrDcomAsyncStubCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IRpcStubBuffer', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IRpcChannelBuffer', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pThis', 'pChannel', 'pRpcMsg', 'pdwStubPhase']}"
+		},
+		"NdrEncapsulatedUnionBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrEncapsulatedUnionFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrEncapsulatedUnionMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrEncapsulatedUnionMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrEncapsulatedUnionUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrFixedArrayBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrFixedArrayFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrFixedArrayMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrFixedArrayMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrFixedArrayUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrFreeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg']}"
+		},
+		"NdrFullPointerXlatFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FULL_PTR_XLAT_TABLES', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pXlatTables']}"
+		},
+		"NdrFullPointerXlatInit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'XLAT_SIDE', 'ot': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FULL_PTR_XLAT_TABLES', 'ot': '_ref'}}, 'arg_names': ['NumberOfPointers', 'XlatSide']}"
+		},
+		"NdrGetBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'BufferLength', 'Handle']}"
+		},
+		"NdrGetDcomProtocolVersion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_VERSION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pStubMsg', 'pVersion']}"
+		},
+		"NdrGetUserMarshalInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_USER_MARSHAL_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pFlags', 'InformationLevel', 'pMarshalInfo']}"
+		},
+		"NdrInterfacePointerBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrInterfacePointerFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrInterfacePointerMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrInterfacePointerMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrInterfacePointerUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrMapCommAndFaultStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pStubMsg', 'pCommStatus', 'pFaultStatus', 'Status']}"
+		},
+		"NdrMesProcEncodeDecode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pStubDesc', 'pFormatString']}"
+		},
+		"NdrMesProcEncodeDecode2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['Handle', 'pStubDesc', 'pFormatString']}"
+		},
+		"NdrMesProcEncodeDecode3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'union', 'members': {'Pointer': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'Simple': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, 'name': '<anon>'}, 'arg_names': ['Handle', 'pProxyInfo', 'nProcNum', 'pReturnValue']}"
+		},
+		"NdrMesSimpleTypeAlignSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['param0']}"
+		},
+		"NdrMesSimpleTypeAlignSizeAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['Handle', 'pProxyInfo']}"
+		},
+		"NdrMesSimpleTypeDecode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pObject', 'Size']}"
+		},
+		"NdrMesSimpleTypeDecodeAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pProxyInfo', 'pObject', 'Size']}"
+		},
+		"NdrMesSimpleTypeEncode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pStubDesc', 'pObject', 'Size']}"
+		},
+		"NdrMesSimpleTypeEncodeAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pProxyInfo', 'pObject', 'Size']}"
+		},
+		"NdrMesTypeAlignSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['Handle', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeAlignSize2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeAlignSize3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pProxyInfo', 'ArrTypeOffset', 'nTypeIndex', 'pObject']}"
+		},
+		"NdrMesTypeDecode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeDecode2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeDecode3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pProxyInfo', 'ArrTypeOffset', 'nTypeIndex', 'pObject']}"
+		},
+		"NdrMesTypeEncode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeEncode2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeEncode3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pProxyInfo', 'ArrTypeOffset', 'nTypeIndex', 'pObject']}"
+		},
+		"NdrMesTypeFree2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pStubDesc', 'pFormatString', 'pObject']}"
+		},
+		"NdrMesTypeFree3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_TYPE_PICKLING_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUBLESS_PROXY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Handle', 'pPicklingInfo', 'pProxyInfo', 'ArrTypeOffset', 'nTypeIndex', 'pObject']}"
+		},
+		"NdrNonConformantStringBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrNonConformantStringMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrNonConformantStringMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrNonConformantStringUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrNonEncapsulatedUnionBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrNonEncapsulatedUnionFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrNonEncapsulatedUnionMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrNonEncapsulatedUnionMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrNonEncapsulatedUnionUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrNsGetBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'BufferLength', 'Handle']}"
+		},
+		"NdrNsSendReceive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pBufferEnd', 'pAutoHandle']}"
+		},
+		"NdrOleAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}"
+		},
+		"NdrOleFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NodeToFree']}"
+		},
+		"NdrPartialIgnoreClientBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory']}"
+		},
+		"NdrPartialIgnoreClientMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory']}"
+		},
+		"NdrPartialIgnoreServerInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat']}"
+		},
+		"NdrPartialIgnoreServerUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'ppMemory']}"
+		},
+		"NdrPointerBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrPointerFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrPointerMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrPointerMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrPointerUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrRangeUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrRpcSmClientAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}"
+		},
+		"NdrRpcSmClientFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NodeToFree']}"
+		},
+		"NdrRpcSmSetClientToOsf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pMessage']}"
+		},
+		"NdrRpcSsDefaultAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}"
+		},
+		"NdrRpcSsDefaultFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NodeToFree']}"
+		},
+		"NdrRpcSsDisableAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pMessage']}"
+		},
+		"NdrRpcSsEnableAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pMessage']}"
+		},
+		"NdrSendReceive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pBufferEnd']}"
+		},
+		"NdrServerCall2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"NdrServerCallAll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"NdrServerCallNdr64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg']}"
+		},
+		"NdrServerContextMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'ContextHandle', 'RundownRoutine']}"
+		},
+		"NdrServerContextNewMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'ContextHandle', 'RundownRoutine', 'pFormat']}"
+		},
+		"NdrServerContextNewUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrServerContextUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NDR_SCONTEXT', 'ot': '_ref'}}, 'arg_names': ['pStubMsg']}"
+		},
+		"NdrServerInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pRpcMsg', 'pStubMsg', 'pStubDescriptor']}"
+		},
+		"NdrServerInitializeMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg', 'pStubMsg']}"
+		},
+		"NdrServerInitializeNew": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pRpcMsg', 'pStubMsg', 'pStubDescriptor']}"
+		},
+		"NdrServerInitializePartial": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pRpcMsg', 'pStubMsg', 'pStubDescriptor', 'RequestedBufferSize']}"
+		},
+		"NdrServerInitializeUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_DESC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pStubDescriptor', 'pRpcMsg']}"
+		},
+		"NdrSimpleStructBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrSimpleStructFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrSimpleStructMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrSimpleStructMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrSimpleStructUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrSimpleTypeMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'FormatChar']}"
+		},
+		"NdrSimpleTypeUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'FormatChar']}"
+		},
+		"NdrStubCall2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pThis', 'pChannel', 'pRpcMsg', 'pdwStubPhase']}"
+		},
+		"NdrStubCall3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pThis', 'pChannel', 'pRpcMsg', 'pdwStubPhase']}"
+		},
+		"NdrUserMarshalBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrUserMarshalFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrUserMarshalMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrUserMarshalMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrUserMarshalSimpleTypeConvert": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pFlags', 'pBuffer', 'FormatChar']}"
+		},
+		"NdrUserMarshalUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrVaryingArrayBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrVaryingArrayFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrVaryingArrayMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrVaryingArrayMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrVaryingArrayUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"NdrXmitOrRepAsBufferSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrXmitOrRepAsFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrXmitOrRepAsMarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'pMemory', 'pFormat']}"
+		},
+		"NdrXmitOrRepAsMemorySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pStubMsg', 'pFormat']}"
+		},
+		"NdrXmitOrRepAsUnmarshall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIDL_STUB_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['pStubMsg', 'ppMemory', 'pFormat', 'fMustAlloc']}"
+		},
+		"RpcAsyncAbortCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'ExceptionCode']}"
+		},
+		"RpcAsyncCancelCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'fAbort']}"
+		},
+		"RpcAsyncCompleteCall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'Reply']}"
+		},
+		"RpcAsyncGetCallStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync']}"
+		},
+		"RpcAsyncInitializeHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'Size']}"
+		},
+		"RpcAsyncRegisterInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync']}"
+		},
+		"RpcBindingBind": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAsync', 'Binding', 'IfSpec']}"
+		},
+		"RpcBindingCopy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['SourceBinding', 'DestinationBinding']}"
+		},
+		"RpcBindingCreateA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_TEMPLATE_V1_A', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_SECURITY_V1_A', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_OPTIONS_V1', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Template', 'Security', 'Options', 'Binding']}"
+		},
+		"RpcBindingCreateW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_TEMPLATE_V1_W', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_SECURITY_V1_W', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_HANDLE_OPTIONS_V1', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Template', 'Security', 'Options', 'Binding']}"
+		},
+		"RpcBindingFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcBindingFromStringBindingA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringBinding', 'Binding']}"
+		},
+		"RpcBindingFromStringBindingW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringBinding', 'Binding']}"
+		},
+		"RpcBindingInqAuthClientA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'Privs', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthzSvc']}"
+		},
+		"RpcBindingInqAuthClientExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'Privs', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthzSvc', 'Flags']}"
+		},
+		"RpcBindingInqAuthClientExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'Privs', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthzSvc', 'Flags']}"
+		},
+		"RpcBindingInqAuthClientW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'Privs', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthzSvc']}"
+		},
+		"RpcBindingInqAuthInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc']}"
+		},
+		"RpcBindingInqAuthInfoExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SECURITY_QOS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc', 'RpcQosVersion', 'SecurityQOS']}"
+		},
+		"RpcBindingInqAuthInfoExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SECURITY_QOS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc', 'RpcQosVersion', 'SecurityQOS']}"
+		},
+		"RpcBindingInqAuthInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc']}"
+		},
+		"RpcBindingInqMaxCalls": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'MaxCalls']}"
+		},
+		"RpcBindingInqObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ObjectUuid']}"
+		},
+		"RpcBindingInqOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['hBinding', 'option', 'pOptionValue']}"
+		},
+		"RpcBindingReset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcBindingServerFromClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'ServerBinding']}"
+		},
+		"RpcBindingSetAuthInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc']}"
+		},
+		"RpcBindingSetAuthInfoExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SECURITY_QOS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc', 'SecurityQos']}"
+		},
+		"RpcBindingSetAuthInfoExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_SECURITY_QOS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc', 'SecurityQOS']}"
+		},
+		"RpcBindingSetAuthInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ServerPrincName', 'AuthnLevel', 'AuthnSvc', 'AuthIdentity', 'AuthzSvc']}"
+		},
+		"RpcBindingSetObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'ObjectUuid']}"
+		},
+		"RpcBindingSetOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['hBinding', 'option', 'optionValue']}"
+		},
+		"RpcBindingToStringBindingA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'StringBinding']}"
+		},
+		"RpcBindingToStringBindingW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'StringBinding']}"
+		},
+		"RpcBindingUnbind": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcBindingVectorFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingVector']}"
+		},
+		"RpcCancelThread": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Thread']}"
+		},
+		"RpcCancelThreadEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Thread', 'Timeout']}"
+		},
+		"RpcCertGeneratePrincipalNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Context', 'Flags', 'pBuffer']}"
+		},
+		"RpcCertGeneratePrincipalNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Context', 'Flags', 'pBuffer']}"
+		},
+		"RpcEpRegisterA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'BindingVector', 'UuidVector', 'Annotation']}"
+		},
+		"RpcEpRegisterNoReplaceA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'BindingVector', 'UuidVector', 'Annotation']}"
+		},
+		"RpcEpRegisterNoReplaceW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'BindingVector', 'UuidVector', 'Annotation']}"
+		},
+		"RpcEpRegisterW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'BindingVector', 'UuidVector', 'Annotation']}"
+		},
+		"RpcEpResolveBinding": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'IfSpec']}"
+		},
+		"RpcEpUnregister": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'BindingVector', 'UuidVector']}"
+		},
+		"RpcErrorAddRecord": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_EXTENDED_ERROR_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ErrorInfo']}"
+		},
+		"RpcErrorClearInformation": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"RpcErrorEndEnumeration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle']}"
+		},
+		"RpcErrorGetNextRecord": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_EXTENDED_ERROR_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle', 'CopyStrings', 'ErrorInfo']}"
+		},
+		"RpcErrorGetNumberOfRecords": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle', 'Records']}"
+		},
+		"RpcErrorLoadErrorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ErrorBlob', 'BlobSize', 'EnumHandle']}"
+		},
+		"RpcErrorResetEnumeration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle']}"
+		},
+		"RpcErrorSaveErrorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle', 'ErrorBlob', 'BlobSize']}"
+		},
+		"RpcErrorStartEnumeration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ERROR_ENUM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EnumHandle']}"
+		},
+		"RpcExceptionFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['ExceptionCode']}"
+		},
+		"RpcFreeAuthorizationContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pAuthzClientContext']}"
+		},
+		"RpcGetAuthorizationContextForClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'ImpersonateOnReturn', 'Reserved1', 'pExpirationTime', 'Reserved2', 'Reserved3', 'Reserved4', 'pAuthzClientContext']}"
+		},
+		"RpcIfInqId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['RpcIfHandle', 'RpcIfId']}"
+		},
+		"RpcImpersonateClient": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle']}"
+		},
+		"RpcImpersonateClient2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle']}"
+		},
+		"RpcImpersonateClientContainer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle']}"
+		},
+		"RpcMgmtEnableIdleCleanup": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcMgmtEpEltInqBegin": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EpBinding', 'InquiryType', 'IfId', 'VersOption', 'ObjectUuid', 'InquiryContext']}"
+		},
+		"RpcMgmtEpEltInqDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext']}"
+		},
+		"RpcMgmtEpEltInqNextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'IfId', 'Binding', 'ObjectUuid', 'Annotation']}"
+		},
+		"RpcMgmtEpEltInqNextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'IfId', 'Binding', 'ObjectUuid', 'Annotation']}"
+		},
+		"RpcMgmtEpUnregister": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EpBinding', 'IfId', 'Binding', 'ObjectUuid']}"
+		},
+		"RpcMgmtInqComTimeout": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Timeout']}"
+		},
+		"RpcMgmtInqDefaultProtectLevel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['AuthnSvc', 'AuthnLevel']}"
+		},
+		"RpcMgmtInqIfIds": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'IfIdVector']}"
+		},
+		"RpcMgmtInqServerPrincNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'AuthnSvc', 'ServerPrincName']}"
+		},
+		"RpcMgmtInqServerPrincNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'AuthnSvc', 'ServerPrincName']}"
+		},
+		"RpcMgmtInqStats": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATS_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Statistics']}"
+		},
+		"RpcMgmtIsServerListening": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcMgmtSetAuthorizationFn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['ClientBinding', 'RequestedMgmtOperation', 'Status']}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['AuthorizationFn']}"
+		},
+		"RpcMgmtSetCancelTimeout": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Timeout']}"
+		},
+		"RpcMgmtSetComTimeout": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Timeout']}"
+		},
+		"RpcMgmtSetServerStackSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ThreadStackSize']}"
+		},
+		"RpcMgmtStatsVectorFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATS_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StatsVector']}"
+		},
+		"RpcMgmtStopServerListening": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcMgmtWaitServerListen": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcNetworkInqProtseqsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_PROTSEQ_VECTORA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProtseqVector']}"
+		},
+		"RpcNetworkInqProtseqsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_PROTSEQ_VECTORW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProtseqVector']}"
+		},
+		"RpcNetworkIsProtseqValidA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq']}"
+		},
+		"RpcNetworkIsProtseqValidW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq']}"
+		},
+		"RpcNsBindingInqEntryNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcNsBindingInqEntryNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcObjectInqType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ObjUuid', 'TypeUuid']}"
+		},
+		"RpcObjectSetInqFn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ObjectUuid', 'TypeUuid', 'Status']}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryFn']}"
+		},
+		"RpcObjectSetType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ObjUuid', 'TypeUuid']}"
+		},
+		"RpcProtseqVectorFreeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_PROTSEQ_VECTORA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProtseqVector']}"
+		},
+		"RpcProtseqVectorFreeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_PROTSEQ_VECTORW', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProtseqVector']}"
+		},
+		"RpcRaiseException": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['exception']}"
+		},
+		"RpcRevertContainerImpersonation": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcRevertToSelf": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcRevertToSelfEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle']}"
+		},
+		"RpcServerCompleteSecurityCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle', 'Status']}"
+		},
+		"RpcServerInqBindingHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding']}"
+		},
+		"RpcServerInqBindings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingVector']}"
+		},
+		"RpcServerInqBindingsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['SecurityDescriptor', 'BindingVector']}"
+		},
+		"RpcServerInqCallAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'RpcCallAttributes']}"
+		},
+		"RpcServerInqCallAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientBinding', 'RpcCallAttributes']}"
+		},
+		"RpcServerInqDefaultPrincNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['AuthnSvc', 'PrincName']}"
+		},
+		"RpcServerInqDefaultPrincNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['AuthnSvc', 'PrincName']}"
+		},
+		"RpcServerInqIf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'MgrEpv']}"
+		},
+		"RpcServerInterfaceGroupActivate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfGroup']}"
+		},
+		"RpcServerInterfaceGroupClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfGroup']}"
+		},
+		"RpcServerInterfaceGroupCreateA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_INTERFACE_TEMPLATEA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ENDPOINT_TEMPLATEA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['IfGroup', 'IdleCallbackContext', 'IsGroupIdle']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Interfaces', 'NumIfs', 'Endpoints', 'NumEndpoints', 'IdlePeriod', 'IdleCallbackFn', 'IdleCallbackContext', 'IfGroup']}"
+		},
+		"RpcServerInterfaceGroupCreateW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_INTERFACE_TEMPLATEW', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ENDPOINT_TEMPLATEW', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['IfGroup', 'IdleCallbackContext', 'IsGroupIdle']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Interfaces', 'NumIfs', 'Endpoints', 'NumEndpoints', 'IdlePeriod', 'IdleCallbackFn', 'IdleCallbackContext', 'IfGroup']}"
+		},
+		"RpcServerInterfaceGroupDeactivate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfGroup', 'ForceDeactivation']}"
+		},
+		"RpcServerInterfaceGroupInqBindings": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfGroup', 'BindingVector']}"
+		},
+		"RpcServerListen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['MinimumCallThreads', 'MaxCalls', 'DontWait']}"
+		},
+		"RpcServerRegisterAuthInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'ServerPrincName', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ServerPrincName', 'AuthnSvc', 'GetKeyFn', 'Arg']}"
+		},
+		"RpcServerRegisterAuthInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Arg', 'ServerPrincName', 'KeyVer', 'Key', 'Status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ServerPrincName', 'AuthnSvc', 'GetKeyFn', 'Arg']}"
+		},
+		"RpcServerRegisterIf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'MgrEpv']}"
+		},
+		"RpcServerRegisterIf2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InterfaceUuid', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'MgrEpv', 'Flags', 'MaxCalls', 'MaxRpcSize', 'IfCallbackFn']}"
+		},
+		"RpcServerRegisterIf3": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InterfaceUuid', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'MgrEpv', 'Flags', 'MaxCalls', 'MaxRpcSize', 'IfCallback', 'SecurityDescriptor']}"
+		},
+		"RpcServerRegisterIfEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InterfaceUuid', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'MgrEpv', 'Flags', 'MaxCalls', 'IfCallback']}"
+		},
+		"RpcServerSubscribeForNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'RPC_NOTIFICATIONS', 'ot': 'int'}, {'_t': '_ref', 'name': 'RPC_NOTIFICATION_TYPES', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'APC': {'_t': '_ref', 'name': '_APC_e__Struct', 'ot': '_ref'}, 'IOC': {'_t': '_ref', 'name': '_IOC_e__Struct', 'ot': '_ref'}, 'IntPtr': {'_t': '_ref', 'name': '_IntPtr_e__Struct', 'ot': '_ref'}, 'hEvent': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}, 'NotificationRoutine': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_ASYNC_STATE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'RPC_ASYNC_EVENT', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAsync', 'Context', 'Event']}}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Notification', 'NotificationType', 'NotificationInfo']}"
+		},
+		"RpcServerTestCancel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingHandle']}"
+		},
+		"RpcServerUnregisterIf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'WaitForCallsToComplete']}"
+		},
+		"RpcServerUnregisterIfEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfSpec', 'MgrTypeUuid', 'RundownContextHandles']}"
+		},
+		"RpcServerUnsubscribeForNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'RPC_NOTIFICATIONS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Binding', 'Notification', 'NotificationsQueued']}"
+		},
+		"RpcServerUseAllProtseqs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['MaxCalls', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseAllProtseqsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['MaxCalls', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseAllProtseqsIf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['MaxCalls', 'IfSpec', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseAllProtseqsIfEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['MaxCalls', 'IfSpec', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseProtseqEpA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseProtseqEpExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqEpExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqEpW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'Endpoint', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseProtseqExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqIfA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'IfSpec', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseProtseqIfExA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'IfSpec', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqIfExW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_POLICY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'IfSpec', 'SecurityDescriptor', 'Policy']}"
+		},
+		"RpcServerUseProtseqIfW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'IfSpec', 'SecurityDescriptor']}"
+		},
+		"RpcServerUseProtseqW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Protseq', 'MaxCalls', 'SecurityDescriptor']}"
+		},
+		"RpcServerYield": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"RpcSmAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size', 'pStatus']}"
+		},
+		"RpcSmClientFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['pNodeToFree']}"
+		},
+		"RpcSmDestroyClientContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ContextHandle']}"
+		},
+		"RpcSmDisableAllocate": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcSmEnableAllocate": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcSmFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NodeToFree']}"
+		},
+		"RpcSmGetThreadHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pStatus']}"
+		},
+		"RpcSmSetClientAllocFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientAlloc', 'ClientFree']}"
+		},
+		"RpcSmSetThreadHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Id']}"
+		},
+		"RpcSmSwapClientAllocFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ClientAlloc', 'ClientFree', 'OldClientAlloc', 'OldClientFree']}"
+		},
+		"RpcSsAllocate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}"
+		},
+		"RpcSsContextLockExclusive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ServerBindingHandle', 'UserContext']}"
+		},
+		"RpcSsContextLockShared": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ServerBindingHandle', 'UserContext']}"
+		},
+		"RpcSsDestroyClientContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ContextHandle']}"
+		},
+		"RpcSsDisableAllocate": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"RpcSsDontSerializeContext": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"RpcSsEnableAllocate": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"RpcSsFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NodeToFree']}"
+		},
+		"RpcSsGetContextBinding": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ContextHandle', 'Binding']}"
+		},
+		"RpcSsGetThreadHandle": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': []}"
+		},
+		"RpcSsSetClientAllocFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ClientAlloc', 'ClientFree']}"
+		},
+		"RpcSsSetThreadHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Id']}"
+		},
+		"RpcSsSwapClientAllocFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Size']}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Ptr']}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ClientAlloc', 'ClientFree', 'OldClientAlloc', 'OldClientFree']}"
+		},
+		"RpcStringBindingComposeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ObjUuid', 'ProtSeq', 'NetworkAddr', 'Endpoint', 'Options', 'StringBinding']}"
+		},
+		"RpcStringBindingComposeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ObjUuid', 'ProtSeq', 'NetworkAddr', 'Endpoint', 'Options', 'StringBinding']}"
+		},
+		"RpcStringBindingParseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringBinding', 'ObjUuid', 'Protseq', 'NetworkAddr', 'Endpoint', 'NetworkOptions']}"
+		},
+		"RpcStringBindingParseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringBinding', 'ObjUuid', 'Protseq', 'NetworkAddr', 'Endpoint', 'NetworkOptions']}"
+		},
+		"RpcStringFreeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['String']}"
+		},
+		"RpcStringFreeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['String']}"
+		},
+		"RpcTestCancel": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"RpcUserFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['AsyncHandle', 'pBuffer']}"
+		},
+		"UuidCompare": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Uuid1', 'Uuid2', 'Status']}"
+		},
+		"UuidCreate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Uuid']}"
+		},
+		"UuidCreateNil": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NilUuid']}"
+		},
+		"UuidCreateSequential": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Uuid']}"
+		},
+		"UuidEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Uuid1', 'Uuid2', 'Status']}"
+		},
+		"UuidFromStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringUuid', 'Uuid']}"
+		},
+		"UuidFromStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['StringUuid', 'Uuid']}"
+		},
+		"UuidHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': ['Uuid', 'Status']}"
+		},
+		"UuidIsNil": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Uuid', 'Status']}"
+		},
+		"UuidToStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Uuid', 'StringUuid']}"
+		},
+		"UuidToStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Uuid', 'StringUuid']}"
+		}
+	}
+}

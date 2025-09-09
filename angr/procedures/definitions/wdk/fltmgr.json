@@ -1,0 +1,813 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"fltmgr.sys"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"FltAcknowledgeEcp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'EcpContext']}"
+		},
+		"FltAcquirePushLockExclusive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock']}"
+		},
+		"FltAcquirePushLockExclusiveEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock', 'Flags']}"
+		},
+		"FltAcquirePushLockShared": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock']}"
+		},
+		"FltAcquirePushLockSharedEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock', 'Flags']}"
+		},
+		"FltAcquireResourceExclusive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ERESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Resource']}"
+		},
+		"FltAcquireResourceShared": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ERESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Resource']}"
+		},
+		"FltAddOpenReparseEntry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPEN_REPARSE_LIST_ENTRY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Data', 'OpenReparseEntry']}"
+		},
+		"FltAdjustDeviceStackSizeForIoRedirection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceInstance', 'TargetInstance', 'SourceDeviceStackSizeModified']}"
+		},
+		"FltAllocateCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'RetNewCallbackData']}"
+		},
+		"FltAllocateCallbackDataEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Flags', 'RetNewCallbackData']}"
+		},
+		"FltAllocateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'POOL_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'ContextType', 'ContextSize', 'PoolType', 'ReturnedContext']}"
+		},
+		"FltAllocateDeferredIoWorkItem": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'PFLT_DEFERRED_IO_WORKITEM', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"FltAllocateExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['EcpContext', 'EcpType']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpType', 'SizeOfContext', 'Flags', 'CleanupCallback', 'PoolTag', 'EcpContext']}"
+		},
+		"FltAllocateExtraCreateParameterFromLookasideList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['EcpContext', 'EcpType']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpType', 'SizeOfContext', 'Flags', 'CleanupCallback', 'LookasideList', 'EcpContext']}"
+		},
+		"FltAllocateExtraCreateParameterList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Flags', 'EcpList']}"
+		},
+		"FltAllocateFileLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Context', 'CallbackData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Context', 'FileLockInfo']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}, 'arg_names': ['CompleteLockCallbackDataRoutine', 'UnlockRoutine']}"
+		},
+		"FltAllocateGenericWorkItem": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'PFLT_GENERIC_WORKITEM', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"FltAllocatePoolAlignedWithTag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'POOL_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Instance', 'PoolType', 'NumberOfBytes', 'Tag']}"
+		},
+		"FltApplyPriorityInfoThread": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_PRIORITY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_PRIORITY_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PETHREAD', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InputPriorityInfo', 'OutputPriorityInfo', 'Thread']}"
+		},
+		"FltAttachVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'InstanceName', 'RetInstance']}"
+		},
+		"FltAttachVolumeAtAltitude": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'Altitude', 'InstanceName', 'RetInstance']}"
+		},
+		"FltBuildDefaultSecurityDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SecurityDescriptor', 'DesiredAccess']}"
+		},
+		"FltCancelFileOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Instance', 'FileObject']}"
+		},
+		"FltCancelIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltCancellableWaitForMultipleObjects": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'WAIT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KWAIT_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Count', 'ObjectArray', 'WaitType', 'Timeout', 'WaitBlockArray', 'CallbackData']}"
+		},
+		"FltCancellableWaitForSingleObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Object', 'Timeout', 'CallbackData']}"
+		},
+		"FltCbdqDisable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq']}"
+		},
+		"FltCbdqEnable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq']}"
+		},
+		"FltCbdqInitialize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Cbdq', 'Cbd', 'InsertContext']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq', 'Cbd']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, 'arg_names': ['Cbdq', 'Cbd', 'PeekContext']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq', 'Irql']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq', 'Irql']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Cbdq', 'Cbd']}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Cbdq', 'CbdqInsertIo', 'CbdqRemoveIo', 'CbdqPeekNextIo', 'CbdqAcquire', 'CbdqRelease', 'CbdqCompleteCanceledIo']}"
+		},
+		"FltCbdqInsertIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_CSQ_IRP_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Cbdq', 'Cbd', 'Context', 'InsertContext']}"
+		},
+		"FltCbdqRemoveIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_CSQ_IRP_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, 'arg_names': ['Cbdq', 'Context']}"
+		},
+		"FltCbdqRemoveNextIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA_QUEUE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, 'arg_names': ['Cbdq', 'PeekContext']}"
+		},
+		"FltCheckAndGrowNameControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_NAME_CONTROL', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['NameCtrl', 'NewSize']}"
+		},
+		"FltCheckLockForReadAccess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileLock', 'CallbackData']}"
+		},
+		"FltCheckLockForWriteAccess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileLock', 'CallbackData']}"
+		},
+		"FltCheckOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'Context', 'WaitCompletionRoutine', 'PrePostCallbackDataRoutine']}"
+		},
+		"FltCheckOplockEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'Flags', 'Context', 'WaitCompletionRoutine', 'PrePostCallbackDataRoutine']}"
+		},
+		"FltClearCallbackDataDirty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Data']}"
+		},
+		"FltClearCancelCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileHandle']}"
+		},
+		"FltCloseClientPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_PORT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'ClientPort']}"
+		},
+		"FltCloseCommunicationPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_PORT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ServerPort']}"
+		},
+		"FltCloseSectionForDataScan": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SectionContext']}"
+		},
+		"FltCommitComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltCommitFinalizeComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltCompareInstanceAltitudes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Instance1', 'Instance2']}"
+		},
+		"FltCompletePendedPostOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltCompletePendedPreOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'CallbackStatus', 'Context']}"
+		},
+		"FltCopyOpenReparseList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Data', 'EcpList']}"
+		},
+		"FltCreateCommunicationPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_PORT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_PORT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ClientPort', 'ServerPortCookie', 'ConnectionContext', 'SizeOfContext', 'ConnectionPortCookie']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ConnectionCookie']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['PortCookie', 'InputBuffer', 'InputBufferLength', 'OutputBuffer', 'OutputBufferLength', 'ReturnOutputBufferLength']}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'ServerPort', 'ObjectAttributes', 'ServerPortCookie', 'ConnectNotifyCallback', 'DisconnectNotifyCallback', 'MessageNotifyCallback', 'MaxConnections']}"
+		},
+		"FltCreateFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'FileHandle', 'DesiredAccess', 'ObjectAttributes', 'IoStatusBlock', 'AllocationSize', 'FileAttributes', 'ShareAccess', 'CreateDisposition', 'CreateOptions', 'EaBuffer', 'EaLength', 'Flags']}"
+		},
+		"FltCreateFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'FileHandle', 'FileObject', 'DesiredAccess', 'ObjectAttributes', 'IoStatusBlock', 'AllocationSize', 'FileAttributes', 'ShareAccess', 'CreateDisposition', 'CreateOptions', 'EaBuffer', 'EaLength', 'Flags']}"
+		},
+		"FltCreateFileEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_DRIVER_CREATE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'FileHandle', 'FileObject', 'DesiredAccess', 'ObjectAttributes', 'IoStatusBlock', 'AllocationSize', 'FileAttributes', 'ShareAccess', 'CreateDisposition', 'CreateOptions', 'EaBuffer', 'EaLength', 'Flags', 'DriverContext']}"
+		},
+		"FltCreateMailslotFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_DRIVER_CREATE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'FileHandle', 'FileObject', 'DesiredAccess', 'ObjectAttributes', 'IoStatusBlock', 'CreateOptions', 'MailslotQuota', 'MaximumMessageSize', 'ReadTimeout', 'DriverContext']}"
+		},
+		"FltCreateNamedPipeFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_DRIVER_CREATE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'FileHandle', 'FileObject', 'DesiredAccess', 'ObjectAttributes', 'IoStatusBlock', 'ShareAccess', 'CreateDisposition', 'CreateOptions', 'NamedPipeType', 'ReadMode', 'CompletionMode', 'MaximumInstances', 'InboundQuota', 'OutboundQuota', 'DefaultTimeout', 'DriverContext']}"
+		},
+		"FltCreateSectionForDataScan": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'SectionContext', 'DesiredAccess', 'ObjectAttributes', 'MaximumSize', 'SectionPageProtection', 'AllocationAttributes', 'Flags', 'SectionHandle', 'SectionObject', 'SectionFileSize']}"
+		},
+		"FltCreateSystemVolumeInformationFolder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance']}"
+		},
+		"FltCurrentBatchOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Oplock']}"
+		},
+		"FltCurrentOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Oplock']}"
+		},
+		"FltCurrentOplockH": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Oplock']}"
+		},
+		"FltDecodeParameters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOCK_OPERATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'MdlAddressPointer', 'Buffer', 'Length', 'DesiredAccess']}"
+		},
+		"FltDeleteContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Context']}"
+		},
+		"FltDeleteExtraCreateParameterLookasideList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'Lookaside', 'Flags']}"
+		},
+		"FltDeleteFileContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'OldContext']}"
+		},
+		"FltDeleteInstanceContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'OldContext']}"
+		},
+		"FltDeletePushLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock']}"
+		},
+		"FltDeleteStreamContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'OldContext']}"
+		},
+		"FltDeleteStreamHandleContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'OldContext']}"
+		},
+		"FltDeleteTransactionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'OldContext']}"
+		},
+		"FltDeleteVolumeContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'OldContext']}"
+		},
+		"FltDetachVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'InstanceName']}"
+		},
+		"FltDeviceIoControlFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'IoControlCode', 'InputBuffer', 'InputBufferLength', 'OutputBuffer', 'OutputBufferLength', 'LengthReturned']}"
+		},
+		"FltDoCompletionProcessingWhenSafe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'FLT_POSTOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Data', 'FltObjects', 'CompletionContext', 'Flags']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_POSTOP_CALLBACK_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Data', 'FltObjects', 'CompletionContext', 'Flags', 'SafePostCallback', 'RetPostOperationStatus']}"
+		},
+		"FltEnlistInTransaction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext', 'NotificationMask']}"
+		},
+		"FltEnumerateFilterInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILTER_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateFilters": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FilterList', 'FilterListSize', 'NumberFiltersReturned']}"
+		},
+		"FltEnumerateInstanceInformationByDeviceObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'INSTANCE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['DeviceObject', 'Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateInstanceInformationByFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'INSTANCE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateInstanceInformationByVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'INSTANCE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateInstanceInformationByVolumeName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'INSTANCE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['VolumeName', 'Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateInstances": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'Filter', 'InstanceList', 'InstanceListSize', 'NumberInstancesReturned']}"
+		},
+		"FltEnumerateVolumeInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILTER_VOLUME_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Index', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltEnumerateVolumes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'VolumeList', 'VolumeListSize', 'NumberVolumesReturned']}"
+		},
+		"FltFastIoMdlRead": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileOffset', 'Length', 'LockKey', 'MdlChain', 'IoStatus']}"
+		},
+		"FltFastIoMdlReadComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'MdlChain']}"
+		},
+		"FltFastIoMdlWriteComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileOffset', 'MdlChain']}"
+		},
+		"FltFastIoPrepareMdlWrite": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileOffset', 'Length', 'LockKey', 'MdlChain', 'IoStatus']}"
+		},
+		"FltFindExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpList', 'EcpType', 'EcpContext', 'EcpContextSize']}"
+		},
+		"FltFlushBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject']}"
+		},
+		"FltFlushBuffers2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FlushType', 'CallbackData']}"
+		},
+		"FltFreeCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltFreeDeferredIoWorkItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_DEFERRED_IO_WORKITEM', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltWorkItem']}"
+		},
+		"FltFreeExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'EcpContext']}"
+		},
+		"FltFreeExtraCreateParameterList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'EcpList']}"
+		},
+		"FltFreeFileLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileLock']}"
+		},
+		"FltFreeGenericWorkItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_GENERIC_WORKITEM', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltWorkItem']}"
+		},
+		"FltFreeOpenReparseList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'EcpList']}"
+		},
+		"FltFreePoolAlignedWithTag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Instance', 'Buffer', 'Tag']}"
+		},
+		"FltFreeSecurityDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['SecurityDescriptor']}"
+		},
+		"FltFsControlFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FsControlCode', 'InputBuffer', 'InputBufferLength', 'OutputBuffer', 'OutputBufferLength', 'LengthReturned']}"
+		},
+		"FltGetActivityIdCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'Guid']}"
+		},
+		"FltGetBottomInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'Instance']}"
+		},
+		"FltGetContexts": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_CONTEXTS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltObjects', 'DesiredContexts', 'Contexts']}"
+		},
+		"FltGetContextsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_CONTEXTS_EX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltObjects', 'DesiredContexts', 'ContextsSize', 'Contexts']}"
+		},
+		"FltGetDestinationFileNameInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'RootDirectory', 'FileName', 'FileNameLength', 'NameOptions', 'RetFileNameInformation']}"
+		},
+		"FltGetDeviceObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_OBJECT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'DeviceObject']}"
+		},
+		"FltGetDiskDeviceObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_OBJECT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'DiskDeviceObject']}"
+		},
+		"FltGetEcpListFromCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'CallbackData', 'EcpList']}"
+		},
+		"FltGetFileContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Context']}"
+		},
+		"FltGetFileNameInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'NameOptions', 'FileNameInformation']}"
+		},
+		"FltGetFileNameInformationUnsafe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileObject', 'Instance', 'NameOptions', 'FileNameInformation']}"
+		},
+		"FltGetFileSystemType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILESYSTEM_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltObject', 'FileSystemType']}"
+		},
+		"FltGetFilterFromInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'RetFilter']}"
+		},
+		"FltGetFilterFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FilterName', 'RetFilter']}"
+		},
+		"FltGetFilterInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'FILTER_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltGetFsZeroingOffset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'ZeroingOffset']}"
+		},
+		"FltGetInstanceContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Context']}"
+		},
+		"FltGetInstanceInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'INSTANCE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltGetIoAttributionHandleFromCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Data']}"
+		},
+		"FltGetIoPriorityHint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}, 'arg_names': ['Data']}"
+		},
+		"FltGetIoPriorityHintFromCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}, 'arg_names': ['Data']}"
+		},
+		"FltGetIoPriorityHintFromFileObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}, 'arg_names': ['FileObject']}"
+		},
+		"FltGetIoPriorityHintFromThread": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PETHREAD', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}, 'arg_names': ['Thread']}"
+		},
+		"FltGetIrpName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['IrpMajorCode']}"
+		},
+		"FltGetLowerInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CurrentInstance', 'LowerInstance']}"
+		},
+		"FltGetNewSystemBufferAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['CallbackData']}"
+		},
+		"FltGetNextExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpList', 'CurrentEcpContext', 'NextEcpType', 'NextEcpContext', 'NextEcpContextSize']}"
+		},
+		"FltGetRequestorProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'PEPROCESS', 'ot': 'ptr'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltGetRequestorProcessId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltGetRequestorProcessIdEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltGetRequestorSessionId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'SessionId']}"
+		},
+		"FltGetRoutineAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['FltMgrRoutineName']}"
+		},
+		"FltGetSectionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Context']}"
+		},
+		"FltGetStreamContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Context']}"
+		},
+		"FltGetStreamHandleContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Context']}"
+		},
+		"FltGetSwappedBufferMdlAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}, 'arg_names': ['CallbackData']}"
+		},
+		"FltGetTopInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'Instance']}"
+		},
+		"FltGetTransactionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'Context']}"
+		},
+		"FltGetTunneledName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'FileNameInformation', 'RetTunneledFileNameInformation']}"
+		},
+		"FltGetUpperInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CurrentInstance', 'UpperInstance']}"
+		},
+		"FltGetVolumeContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'Context']}"
+		},
+		"FltGetVolumeFromDeviceObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'DeviceObject', 'RetVolume']}"
+		},
+		"FltGetVolumeFromFileObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'FileObject', 'RetVolume']}"
+		},
+		"FltGetVolumeFromInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'RetVolume']}"
+		},
+		"FltGetVolumeFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'VolumeName', 'RetVolume']}"
+		},
+		"FltGetVolumeGuidName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'VolumeGuidName', 'BufferSizeNeeded']}"
+		},
+		"FltGetVolumeInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'FILTER_VOLUME_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'InformationClass', 'Buffer', 'BufferSize', 'BytesReturned']}"
+		},
+		"FltGetVolumeInstanceFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Volume', 'InstanceName', 'RetInstance']}"
+		},
+		"FltGetVolumeName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'VolumeName', 'BufferSizeNeeded']}"
+		},
+		"FltGetVolumeProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_VOLUME_PROPERTIES', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'VolumeProperties', 'VolumePropertiesLength', 'LengthReturned']}"
+		},
+		"FltInitExtraCreateParameterLookasideList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'Lookaside', 'Flags', 'Size', 'Tag']}"
+		},
+		"FltInitializeFileLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileLock']}"
+		},
+		"FltInitializeOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Oplock']}"
+		},
+		"FltInitializePushLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock']}"
+		},
+		"FltInsertExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpList', 'EcpContext']}"
+		},
+		"FltIs32bitProcess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltIsCallbackDataDirty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Data']}"
+		},
+		"FltIsDirectory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileObject', 'Instance', 'IsDirectory']}"
+		},
+		"FltIsEcpAcknowledged": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Filter', 'EcpContext']}"
+		},
+		"FltIsEcpFromUserMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Filter', 'EcpContext']}"
+		},
+		"FltIsFltMgrVolumeDeviceObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['DeviceObject']}"
+		},
+		"FltIsIoCanceled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltIsIoRedirectionAllowed": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceInstance', 'TargetInstance', 'RedirectionAllowed']}"
+		},
+		"FltIsIoRedirectionAllowedForOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'TargetInstance', 'RedirectionAllowedThisIo', 'RedirectionAllowedAllIo']}"
+		},
+		"FltIsOperationSynchronous": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltIsVolumeSnapshot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltObject', 'IsSnapshotVolume']}"
+		},
+		"FltIsVolumeWritable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltObject', 'IsWritable']}"
+		},
+		"FltLoadFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FilterName']}"
+		},
+		"FltLockUserBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltNotifyFilterChangeDirectory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PNOTIFY_SYNC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LIST_ENTRY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_SUBJECT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NotifyContext', 'TargetContext', 'SubjectContext']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_SUBJECT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['NotifyContext', 'FilterContext']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NotifySync', 'NotifyList', 'FsContext', 'FullDirectoryName', 'WatchTree', 'IgnoreBuffer', 'CompletionFilter', 'NotifyCallbackData', 'TraverseCallback', 'SubjectContext', 'FilterCallback']}"
+		},
+		"FltObjectDereference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltObject']}"
+		},
+		"FltObjectReference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltObject']}"
+		},
+		"FltOpenVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'VolumeHandle', 'VolumeFileObject']}"
+		},
+		"FltOplockBreakH": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'Flags', 'Context', 'WaitCompletionRoutine', 'PrePostCallbackDataRoutine']}"
+		},
+		"FltOplockBreakToNone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'Context', 'WaitCompletionRoutine', 'PrePostCallbackDataRoutine']}"
+		},
+		"FltOplockBreakToNoneEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'Flags', 'Context', 'WaitCompletionRoutine', 'PrePostCallbackDataRoutine']}"
+		},
+		"FltOplockFsctrl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'OpenCount']}"
+		},
+		"FltOplockFsctrlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['Oplock', 'CallbackData', 'OpenCount', 'Flags']}"
+		},
+		"FltOplockIsFastIoPossible": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Oplock']}"
+		},
+		"FltOplockIsSharedRequest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltOplockKeysEqual": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Fo1', 'Fo2']}"
+		},
+		"FltParseFileName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileName', 'Extension', 'Stream', 'FinalComponent']}"
+		},
+		"FltParseFileNameInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileNameInformation']}"
+		},
+		"FltPerformAsynchronousIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'CallbackRoutine', 'CallbackContext']}"
+		},
+		"FltPerformSynchronousIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltPrePrepareComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltPrepareComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltPrepareToReuseEcp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'EcpContext']}"
+		},
+		"FltProcessFileLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'FLT_PREOP_CALLBACK_STATUS', 'ot': 'int'}, 'arg_names': ['FileLock', 'CallbackData', 'Context']}"
+		},
+		"FltPropagateActivityIdToThread": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'PropagateId', 'OriginalId']}"
+		},
+		"FltPropagateIrpExtension": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['SourceData', 'TargetData', 'Flags']}"
+		},
+		"FltPurgeFileNameInformationCache": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject']}"
+		},
+		"FltQueryDirectoryFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FileInformation', 'Length', 'FileInformationClass', 'ReturnSingleEntry', 'FileName', 'RestartScan', 'LengthReturned']}"
+		},
+		"FltQueryDirectoryFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FileInformation', 'Length', 'FileInformationClass', 'QueryFlags', 'FileName', 'LengthReturned']}"
+		},
+		"FltQueryEaFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'ReturnedEaData', 'Length', 'ReturnSingleEntry', 'EaList', 'EaListLength', 'EaIndex', 'RestartScan', 'LengthReturned']}"
+		},
+		"FltQueryInformationByName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OBJECT_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_DRIVER_CREATE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Instance', 'ObjectAttributes', 'IoStatusBlock', 'FileInformation', 'Length', 'FileInformationClass', 'DriverContext']}"
+		},
+		"FltQueryInformationFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILE_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FileInformation', 'Length', 'FileInformationClass', 'LengthReturned']}"
+		},
+		"FltQueryQuotaInformationFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'IoStatusBlock', 'Buffer', 'Length', 'ReturnSingleEntry', 'SidList', 'SidListLength', 'StartSid', 'RestartScan', 'LengthReturned']}"
+		},
+		"FltQuerySecurityObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'SecurityInformation', 'SecurityDescriptor', 'Length', 'LengthNeeded']}"
+		},
+		"FltQueryVolumeInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FS_INFORMATION_CLASS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Iosb', 'FsInformation', 'Length', 'FsInformationClass']}"
+		},
+		"FltQueryVolumeInformationFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FS_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FsInformation', 'Length', 'FsInformationClass', 'LengthReturned']}"
+		},
+		"FltQueueDeferredIoWorkItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_DEFERRED_IO_WORKITEM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_DEFERRED_IO_WORKITEM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltWorkItem', 'CallbackData', 'Context']}}, {'_t': '_ref', 'name': 'WORK_QUEUE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltWorkItem', 'Data', 'WorkerRoutine', 'QueueType', 'Context']}"
+		},
+		"FltQueueGenericWorkItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_GENERIC_WORKITEM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_GENERIC_WORKITEM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltWorkItem', 'FltObject', 'Context']}}, {'_t': '_ref', 'name': 'WORK_QUEUE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FltWorkItem', 'FltObject', 'WorkerRoutine', 'QueueType', 'Context']}"
+		},
+		"FltReadFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'ByteOffset', 'Length', 'Buffer', 'Flags', 'BytesRead', 'CallbackRoutine', 'CallbackContext']}"
+		},
+		"FltReadFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'ByteOffset', 'Length', 'Buffer', 'Flags', 'BytesRead', 'CallbackRoutine', 'CallbackContext', 'Key', 'Mdl']}"
+		},
+		"FltReferenceContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Context']}"
+		},
+		"FltReferenceFileNameInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileNameInformation']}"
+		},
+		"FltRegisterFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DRIVER_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_REGISTRATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Driver', 'Registration', 'RetFilter']}"
+		},
+		"FltRegisterForDataScan": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance']}"
+		},
+		"FltReissueSynchronousIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['InitiatingInstance', 'CallbackData']}"
+		},
+		"FltReleaseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Context']}"
+		},
+		"FltReleaseContexts": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_CONTEXTS', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Contexts']}"
+		},
+		"FltReleaseContextsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_CONTEXTS_EX', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ContextsSize', 'Contexts']}"
+		},
+		"FltReleaseFileNameInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_FILE_NAME_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileNameInformation']}"
+		},
+		"FltReleasePushLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock']}"
+		},
+		"FltReleasePushLockEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['PushLock', 'Flags']}"
+		},
+		"FltReleaseResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ERESOURCE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Resource']}"
+		},
+		"FltRemoveExtraCreateParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'EcpList', 'EcpType', 'EcpContext', 'EcpContextSize']}"
+		},
+		"FltRemoveOpenReparseEntry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPEN_REPARSE_LIST_ENTRY', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter', 'Data', 'OpenReparseEntry']}"
+		},
+		"FltRequestFileInfoOnCreateCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Data', 'InfoClassFlags']}"
+		},
+		"FltRequestOperationStatusCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_IO_PARAMETER_BLOCK', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FltObjects', 'IopbSnapshot', 'OperationStatus', 'RequesterContext']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'CallbackRoutine', 'RequesterContext']}"
+		},
+		"FltRetainSwappedBufferMdlAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltRetrieveFileInfoOnCreateCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Filter', 'Data', 'InfoClass', 'Size']}"
+		},
+		"FltRetrieveFileInfoOnCreateCompletionEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'Data', 'InfoClass', 'RetInfoSize', 'RetInfoBuffer']}"
+		},
+		"FltRetrieveIoPriorityInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PETHREAD', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_PRIORITY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'FileObject', 'Thread', 'PriorityInfo']}"
+		},
+		"FltReuseCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}"
+		},
+		"FltRollbackComplete": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltRollbackEnlistment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'TransactionContext']}"
+		},
+		"FltSendMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_PORT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'ClientPort', 'SenderBuffer', 'SenderBufferLength', 'ReplyBuffer', 'ReplyLength', 'Timeout']}"
+		},
+		"FltSetActivityIdCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'Guid']}"
+		},
+		"FltSetCallbackDataDirty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Data']}"
+		},
+		"FltSetCancelCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData']}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'CanceledCallback']}"
+		},
+		"FltSetEaFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'EaBuffer', 'Length']}"
+		},
+		"FltSetEcpListIntoCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ECP_LIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter', 'CallbackData', 'EcpList']}"
+		},
+		"FltSetFileContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetFsZeroingOffset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'ZeroingOffset']}"
+		},
+		"FltSetFsZeroingOffsetRequired": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data']}"
+		},
+		"FltSetInformationFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FILE_INFORMATION_CLASS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'FileInformation', 'Length', 'FileInformationClass']}"
+		},
+		"FltSetInstanceContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetIoPriorityHintIntoCallbackData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Data', 'PriorityHint']}"
+		},
+		"FltSetIoPriorityHintIntoFileObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FileObject', 'PriorityHint']}"
+		},
+		"FltSetIoPriorityHintIntoThread": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PETHREAD', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IO_PRIORITY_HINT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Thread', 'PriorityHint']}"
+		},
+		"FltSetQuotaInformationFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Buffer', 'Length']}"
+		},
+		"FltSetSecurityObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'SecurityInformation', 'SecurityDescriptor']}"
+		},
+		"FltSetStreamContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetStreamHandleContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'FileObject', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetTransactionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KTRANSACTION', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Transaction', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetVolumeContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_VOLUME', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'FLT_SET_CONTEXT_OPERATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Volume', 'Operation', 'NewContext', 'OldContext']}"
+		},
+		"FltSetVolumeInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FS_INFORMATION_CLASS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Instance', 'Iosb', 'FsInformation', 'Length', 'FsInformationClass']}"
+		},
+		"FltStartFiltering": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['Filter']}"
+		},
+		"FltSupportsFileContexts": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileObject']}"
+		},
+		"FltSupportsFileContextsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileObject', 'Instance']}"
+		},
+		"FltSupportsStreamContexts": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileObject']}"
+		},
+		"FltSupportsStreamHandleContexts": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['FileObject']}"
+		},
+		"FltTagFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileTag', 'Guid', 'DataBuffer', 'DataBufferLength']}"
+		},
+		"FltTagFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileTag', 'Guid', 'DataBuffer', 'DataBufferLength', 'ExistingFileTag', 'ExistingGuid', 'Flags']}"
+		},
+		"FltUninitializeFileLock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_LOCK', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileLock']}"
+		},
+		"FltUninitializeOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Oplock']}"
+		},
+		"FltUnloadFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['FilterName']}"
+		},
+		"FltUnregisterFilter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_FILTER', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Filter']}"
+		},
+		"FltUntagFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'FileTag', 'Guid']}"
+		},
+		"FltVetoBypassIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_RELATED_OBJECTS', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['CallbackData', 'FltObjects', 'OperationStatus', 'FailureReason']}"
+		},
+		"FltWriteFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'ByteOffset', 'Length', 'Buffer', 'Flags', 'BytesWritten', 'CallbackRoutine', 'CallbackContext']}"
+		},
+		"FltWriteFileEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PFLT_INSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PFLT_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallbackData', 'Context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['InitiatingInstance', 'FileObject', 'ByteOffset', 'Length', 'Buffer', 'Flags', 'BytesWritten', 'CallbackRoutine', 'CallbackContext', 'Key', 'Mdl']}"
+		},
+		"FltpTraceRedirectedFileIo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILE_OBJECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FLT_CALLBACK_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['OriginatingFileObject', 'ChildCallbackData']}"
+		}
+	}
+}

@@ -1,0 +1,1656 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"msajapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AllJoynAcceptBusConnection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['serverBusHandle', 'abortEvent']}"
+		},
+		"AllJoynCloseBusHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['busHandle']}"
+		},
+		"AllJoynConnectToBus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['connectionSpec']}"
+		},
+		"AllJoynCreateBus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_ATTRIBUTES', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['outBufferSize', 'inBufferSize', 'lpSecurityAttributes']}"
+		},
+		"AllJoynEnumEvents": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['connectedBusHandle', 'eventToReset', 'eventTypes']}"
+		},
+		"AllJoynEventSelect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['connectedBusHandle', 'eventHandle', 'eventTypes']}"
+		},
+		"AllJoynReceiveFromBus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['connectedBusHandle', 'buffer', 'bytesToRead', 'bytesTransferred', 'reserved']}"
+		},
+		"AllJoynSendToBus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['connectedBusHandle', 'buffer', 'bytesToWrite', 'bytesTransferred', 'reserved']}"
+		},
+		"QCC_StatusText": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['status']}"
+		},
+		"alljoyn_aboutdata_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, 'arg_names': ['defaultLanguage']}"
+		},
+		"alljoyn_aboutdata_create_empty": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_aboutdata_create_full": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, 'arg_names': ['arg', 'language']}"
+		},
+		"alljoyn_aboutdata_createfrommsgarg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'arg', 'language']}"
+		},
+		"alljoyn_aboutdata_createfromxml": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'aboutDataXml']}"
+		},
+		"alljoyn_aboutdata_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['data']}"
+		},
+		"alljoyn_aboutdata_getaboutdata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'msgArg', 'language']}"
+		},
+		"alljoyn_aboutdata_getajsoftwareversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'ajSoftwareVersion']}"
+		},
+		"alljoyn_aboutdata_getannouncedaboutdata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'msgArg']}"
+		},
+		"alljoyn_aboutdata_getappid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'appId', 'num']}"
+		},
+		"alljoyn_aboutdata_getappname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'appName', 'language']}"
+		},
+		"alljoyn_aboutdata_getdateofmanufacture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'dateOfManufacture']}"
+		},
+		"alljoyn_aboutdata_getdefaultlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'defaultLanguage']}"
+		},
+		"alljoyn_aboutdata_getdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'description', 'language']}"
+		},
+		"alljoyn_aboutdata_getdeviceid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'deviceId']}"
+		},
+		"alljoyn_aboutdata_getdevicename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'deviceName', 'language']}"
+		},
+		"alljoyn_aboutdata_getfield": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'name', 'value', 'language']}"
+		},
+		"alljoyn_aboutdata_getfields": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['data', 'fields', 'num_fields']}"
+		},
+		"alljoyn_aboutdata_getfieldsignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['data', 'fieldName']}"
+		},
+		"alljoyn_aboutdata_gethardwareversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'hardwareVersion']}"
+		},
+		"alljoyn_aboutdata_getmanufacturer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'manufacturer', 'language']}"
+		},
+		"alljoyn_aboutdata_getmodelnumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'modelNumber']}"
+		},
+		"alljoyn_aboutdata_getsoftwareversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'softwareVersion']}"
+		},
+		"alljoyn_aboutdata_getsupportedlanguages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['data', 'languageTags', 'num']}"
+		},
+		"alljoyn_aboutdata_getsupporturl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'supportUrl']}"
+		},
+		"alljoyn_aboutdata_isfieldannounced": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['data', 'fieldName']}"
+		},
+		"alljoyn_aboutdata_isfieldlocalized": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['data', 'fieldName']}"
+		},
+		"alljoyn_aboutdata_isfieldrequired": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['data', 'fieldName']}"
+		},
+		"alljoyn_aboutdata_isvalid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['data', 'language']}"
+		},
+		"alljoyn_aboutdata_setappid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'appId', 'num']}"
+		},
+		"alljoyn_aboutdata_setappid_fromstring": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'appId']}"
+		},
+		"alljoyn_aboutdata_setappname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'appName', 'language']}"
+		},
+		"alljoyn_aboutdata_setdateofmanufacture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'dateOfManufacture']}"
+		},
+		"alljoyn_aboutdata_setdefaultlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'defaultLanguage']}"
+		},
+		"alljoyn_aboutdata_setdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'description', 'language']}"
+		},
+		"alljoyn_aboutdata_setdeviceid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'deviceId']}"
+		},
+		"alljoyn_aboutdata_setdevicename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'deviceName', 'language']}"
+		},
+		"alljoyn_aboutdata_setfield": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'name', 'value', 'language']}"
+		},
+		"alljoyn_aboutdata_sethardwareversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'hardwareVersion']}"
+		},
+		"alljoyn_aboutdata_setmanufacturer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'manufacturer', 'language']}"
+		},
+		"alljoyn_aboutdata_setmodelnumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'modelNumber']}"
+		},
+		"alljoyn_aboutdata_setsoftwareversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'softwareVersion']}"
+		},
+		"alljoyn_aboutdata_setsupportedlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'language']}"
+		},
+		"alljoyn_aboutdata_setsupporturl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['data', 'supportUrl']}"
+		},
+		"alljoyn_aboutdatalistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_aboutdatalistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutdatalistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_aboutdatalistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutdatalistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_abouticon_clear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['icon']}"
+		},
+		"alljoyn_abouticon_create": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_abouticon_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['icon']}"
+		},
+		"alljoyn_abouticon_getcontent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['icon', 'data', 'size']}"
+		},
+		"alljoyn_abouticon_geturl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['icon', 'type', 'url']}"
+		},
+		"alljoyn_abouticon_setcontent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['icon', 'type', 'data', 'csize', 'ownsData']}"
+		},
+		"alljoyn_abouticon_setcontent_frommsgarg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['icon', 'arg']}"
+		},
+		"alljoyn_abouticon_seturl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['icon', 'type', 'url']}"
+		},
+		"alljoyn_abouticonobj_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_abouticonobj', 'ot': 'ptr'}, 'arg_names': ['bus', 'icon']}"
+		},
+		"alljoyn_abouticonobj_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticonobj', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['icon']}"
+		},
+		"alljoyn_abouticonproxy_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_abouticonproxy', 'ot': 'ptr'}, 'arg_names': ['bus', 'busName', 'sessionId']}"
+		},
+		"alljoyn_abouticonproxy_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticonproxy', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_abouticonproxy_geticon": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticonproxy', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_abouticon', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'icon']}"
+		},
+		"alljoyn_abouticonproxy_getversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_abouticonproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'version']}"
+		},
+		"alljoyn_aboutlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_aboutlistener_callback', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutlistener', 'ot': 'ptr'}, 'arg_names': ['callback', 'context']}"
+		},
+		"alljoyn_aboutlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_aboutobj_announce": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobj', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'alljoyn_aboutdata', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['obj', 'sessionPort', 'aboutData']}"
+		},
+		"alljoyn_aboutobj_announce_using_datalistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobj', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'alljoyn_aboutdatalistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['obj', 'sessionPort', 'aboutListener']}"
+		},
+		"alljoyn_aboutobj_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_about_announceflag', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutobj', 'ot': 'ptr'}, 'arg_names': ['bus', 'isAnnounced']}"
+		},
+		"alljoyn_aboutobj_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobj', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['obj']}"
+		},
+		"alljoyn_aboutobj_unannounce": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobj', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['obj']}"
+		},
+		"alljoyn_aboutobjectdescription_clear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['description']}"
+		},
+		"alljoyn_aboutobjectdescription_create": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_aboutobjectdescription_create_full": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_aboutobjectdescription_createfrommsgarg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['description', 'arg']}"
+		},
+		"alljoyn_aboutobjectdescription_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['description']}"
+		},
+		"alljoyn_aboutobjectdescription_getinterfacepaths": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['description', 'interfaceName', 'paths', 'numPaths']}"
+		},
+		"alljoyn_aboutobjectdescription_getinterfaces": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['description', 'path', 'interfaces', 'numInterfaces']}"
+		},
+		"alljoyn_aboutobjectdescription_getmsgarg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['description', 'msgArg']}"
+		},
+		"alljoyn_aboutobjectdescription_getpaths": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['description', 'paths', 'numPaths']}"
+		},
+		"alljoyn_aboutobjectdescription_hasinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['description', 'interfaceName']}"
+		},
+		"alljoyn_aboutobjectdescription_hasinterfaceatpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['description', 'path', 'interfaceName']}"
+		},
+		"alljoyn_aboutobjectdescription_haspath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutobjectdescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['description', 'path']}"
+		},
+		"alljoyn_aboutproxy_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_aboutproxy', 'ot': 'ptr'}, 'arg_names': ['bus', 'busName', 'sessionId']}"
+		},
+		"alljoyn_aboutproxy_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutproxy', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_aboutproxy_getaboutdata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutproxy', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'language', 'data']}"
+		},
+		"alljoyn_aboutproxy_getobjectdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutproxy', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'objectDesc']}"
+		},
+		"alljoyn_aboutproxy_getversion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_aboutproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'version']}"
+		},
+		"alljoyn_applicationstatelistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_applicationstatelistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_applicationstatelistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_applicationstatelistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_applicationstatelistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_authlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_authlistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_authlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_authlistener_requestcredentialsresponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['listener', 'authContext', 'accept', 'credentials']}"
+		},
+		"alljoyn_authlistener_setsharedsecret": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['listener', 'sharedSecret', 'sharedSecretSize']}"
+		},
+		"alljoyn_authlistener_verifycredentialsresponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['listener', 'authContext', 'accept']}"
+		},
+		"alljoyn_authlistenerasync_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_authlistenerasync_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_authlistenerasync_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_autopinger_adddestination": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['autopinger', 'group', 'destination']}"
+		},
+		"alljoyn_autopinger_addpinggroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_pinglistener', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['autopinger', 'group', 'listener', 'pinginterval']}"
+		},
+		"alljoyn_autopinger_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_autopinger_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['autopinger']}"
+		},
+		"alljoyn_autopinger_pause": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['autopinger']}"
+		},
+		"alljoyn_autopinger_removedestination": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['autopinger', 'group', 'destination', 'removeall']}"
+		},
+		"alljoyn_autopinger_removepinggroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['autopinger', 'group']}"
+		},
+		"alljoyn_autopinger_resume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['autopinger']}"
+		},
+		"alljoyn_autopinger_setpinginterval": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_autopinger', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['autopinger', 'group', 'pinginterval']}"
+		},
+		"alljoyn_busattachment_addlogonentry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'authMechanism', 'userName', 'password']}"
+		},
+		"alljoyn_busattachment_addmatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'rule']}"
+		},
+		"alljoyn_busattachment_advertisename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'transports']}"
+		},
+		"alljoyn_busattachment_bindsessionport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_sessionportlistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionPort', 'opts', 'listener']}"
+		},
+		"alljoyn_busattachment_canceladvertisename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'transports']}"
+		},
+		"alljoyn_busattachment_cancelfindadvertisedname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'namePrefix']}"
+		},
+		"alljoyn_busattachment_cancelfindadvertisednamebytransport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'namePrefix', 'transports']}"
+		},
+		"alljoyn_busattachment_cancelwhoimplements_interface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'implementsInterface']}"
+		},
+		"alljoyn_busattachment_cancelwhoimplements_interfaces": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'implementsInterfaces', 'numberInterfaces']}"
+		},
+		"alljoyn_busattachment_clearkeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'guid']}"
+		},
+		"alljoyn_busattachment_clearkeystore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_connect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'connectSpec']}"
+		},
+		"alljoyn_busattachment_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, 'arg_names': ['applicationName', 'allowRemoteMessages']}"
+		},
+		"alljoyn_busattachment_create_concurrency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, 'arg_names': ['applicationName', 'allowRemoteMessages', 'concurrency']}"
+		},
+		"alljoyn_busattachment_createinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'iface']}"
+		},
+		"alljoyn_busattachment_createinterface_secure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_securitypolicy', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'iface', 'secPolicy']}"
+		},
+		"alljoyn_busattachment_createinterfacesfromxml": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'xml']}"
+		},
+		"alljoyn_busattachment_deletedefaultkeystore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['applicationName']}"
+		},
+		"alljoyn_busattachment_deleteinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'iface']}"
+		},
+		"alljoyn_busattachment_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_disconnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'unused']}"
+		},
+		"alljoyn_busattachment_enableconcurrentcallbacks": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_enablepeersecurity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'authMechanisms', 'listener', 'keyStoreFileName', 'isShared']}"
+		},
+		"alljoyn_busattachment_enablepeersecuritywithpermissionconfigurationlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_authlistener', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'alljoyn_permissionconfigurationlistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'authMechanisms', 'authListener', 'keyStoreFileName', 'isShared', 'permissionConfigurationListener']}"
+		},
+		"alljoyn_busattachment_findadvertisedname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'namePrefix']}"
+		},
+		"alljoyn_busattachment_findadvertisednamebytransport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'namePrefix', 'transports']}"
+		},
+		"alljoyn_busattachment_getalljoyndebugobj": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getalljoynproxyobj": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getconcurrency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getconnectspec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getdbusproxyobj": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getglobalguidstring": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_getinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, 'arg_names': ['bus', 'name']}"
+		},
+		"alljoyn_busattachment_getinterfaces": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['bus', 'ifaces', 'numIfaces']}"
+		},
+		"alljoyn_busattachment_getkeyexpiration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'guid', 'timeout']}"
+		},
+		"alljoyn_busattachment_getpeerguid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'guid', 'guidSz']}"
+		},
+		"alljoyn_busattachment_getpermissionconfigurator": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_gettimestamp": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"alljoyn_busattachment_getuniquename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_isconnected": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_ispeersecurityenabled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_isstarted": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_isstopping": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_join": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_joinsession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'alljoyn_sessionlistener', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionHost', 'sessionPort', 'listener', 'sessionId', 'opts']}"
+		},
+		"alljoyn_busattachment_joinsessionasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'alljoyn_sessionlistener', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'sessionId', 'opts', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionHost', 'sessionPort', 'listener', 'opts', 'callback', 'context']}"
+		},
+		"alljoyn_busattachment_leavesession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionId']}"
+		},
+		"alljoyn_busattachment_namehasowner": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'hasOwner']}"
+		},
+		"alljoyn_busattachment_ping": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'timeout']}"
+		},
+		"alljoyn_busattachment_registeraboutlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_aboutlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'aboutListener']}"
+		},
+		"alljoyn_busattachment_registerapplicationstatelistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_applicationstatelistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'listener']}"
+		},
+		"alljoyn_busattachment_registerbuslistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_buslistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'listener']}"
+		},
+		"alljoyn_busattachment_registerbusobject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'obj']}"
+		},
+		"alljoyn_busattachment_registerbusobject_secure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'obj']}"
+		},
+		"alljoyn_busattachment_registerkeystorelistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'listener']}"
+		},
+		"alljoyn_busattachment_registersignalhandler": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'srcPath', 'message']}}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'signal_handler', 'member', 'srcPath']}"
+		},
+		"alljoyn_busattachment_registersignalhandlerwithrule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'srcPath', 'message']}}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'signal_handler', 'member', 'matchRule']}"
+		},
+		"alljoyn_busattachment_releasename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name']}"
+		},
+		"alljoyn_busattachment_reloadkeystore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_removematch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'rule']}"
+		},
+		"alljoyn_busattachment_removesessionmember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionId', 'memberName']}"
+		},
+		"alljoyn_busattachment_requestname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'requestedName', 'flags']}"
+		},
+		"alljoyn_busattachment_secureconnection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'forceAuth']}"
+		},
+		"alljoyn_busattachment_secureconnectionasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'name', 'forceAuth']}"
+		},
+		"alljoyn_busattachment_setdaemondebug": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'module', 'level']}"
+		},
+		"alljoyn_busattachment_setkeyexpiration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'guid', 'timeout']}"
+		},
+		"alljoyn_busattachment_setlinktimeout": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionid', 'linkTimeout']}"
+		},
+		"alljoyn_busattachment_setlinktimeoutasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'timeout', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionid', 'linkTimeout', 'callback', 'context']}"
+		},
+		"alljoyn_busattachment_setsessionlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'alljoyn_sessionlistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionId', 'listener']}"
+		},
+		"alljoyn_busattachment_start": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_stop": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_unbindsessionport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'sessionPort']}"
+		},
+		"alljoyn_busattachment_unregisteraboutlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_aboutlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'aboutListener']}"
+		},
+		"alljoyn_busattachment_unregisterallaboutlisteners": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_unregisterallhandlers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busattachment_unregisterapplicationstatelistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_applicationstatelistener', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'listener']}"
+		},
+		"alljoyn_busattachment_unregisterbuslistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_buslistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'listener']}"
+		},
+		"alljoyn_busattachment_unregisterbusobject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'object']}"
+		},
+		"alljoyn_busattachment_unregistersignalhandler": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'srcPath', 'message']}}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'signal_handler', 'member', 'srcPath']}"
+		},
+		"alljoyn_busattachment_unregistersignalhandlerwithrule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'srcPath', 'message']}}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'signal_handler', 'member', 'matchRule']}"
+		},
+		"alljoyn_busattachment_whoimplements_interface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'implementsInterface']}"
+		},
+		"alljoyn_busattachment_whoimplements_interfaces": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'implementsInterfaces', 'numberInterfaces']}"
+		},
+		"alljoyn_buslistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_buslistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_buslistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_buslistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_buslistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_busobject_addinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'iface']}"
+		},
+		"alljoyn_busobject_addinterface_announced": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'iface']}"
+		},
+		"alljoyn_busobject_addmethodhandler": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'member', 'message']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'member', 'handler', 'context']}"
+		},
+		"alljoyn_busobject_addmethodhandlers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_busobject_methodentry', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'entries', 'numEntries']}"
+		},
+		"alljoyn_busobject_cancelsessionlessmessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'msg']}"
+		},
+		"alljoyn_busobject_cancelsessionlessmessage_serial": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'serialNumber']}"
+		},
+		"alljoyn_busobject_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_busobject_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, 'arg_names': ['path', 'isPlaceholder', 'callbacks_in', 'context_in']}"
+		},
+		"alljoyn_busobject_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busobject_emitpropertieschanged": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'ifcName', 'propNames', 'numProps', 'id']}"
+		},
+		"alljoyn_busobject_emitpropertychanged": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['bus', 'ifcName', 'propName', 'val', 'id']}"
+		},
+		"alljoyn_busobject_getannouncedinterfacenames": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['bus', 'interfaces', 'numInterfaces']}"
+		},
+		"alljoyn_busobject_getbusattachment": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busobject_getname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['bus', 'buffer', 'bufferSz']}"
+		},
+		"alljoyn_busobject_getpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busobject_issecure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_busobject_methodreply_args": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'msg', 'args', 'numArgs']}"
+		},
+		"alljoyn_busobject_methodreply_err": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'msg', 'error', 'errorMessage']}"
+		},
+		"alljoyn_busobject_methodreply_status": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'msg', 'status']}"
+		},
+		"alljoyn_busobject_setannounceflag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_about_announceflag', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'iface', 'isAnnounced']}"
+		},
+		"alljoyn_busobject_signal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['bus', 'destination', 'sessionId', 'signal', 'args', 'numArgs', 'timeToLive', 'flags', 'msg']}"
+		},
+		"alljoyn_credentials_clear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_create": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_credentials_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getcertchain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getexpiration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getlogonentry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getpassword": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getprivateKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_getusername": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['cred']}"
+		},
+		"alljoyn_credentials_isset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cred', 'creds']}"
+		},
+		"alljoyn_credentials_setcertchain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'certChain']}"
+		},
+		"alljoyn_credentials_setexpiration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'expiration']}"
+		},
+		"alljoyn_credentials_setlogonentry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'logonEntry']}"
+		},
+		"alljoyn_credentials_setpassword": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'pwd']}"
+		},
+		"alljoyn_credentials_setprivatekey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'pk']}"
+		},
+		"alljoyn_credentials_setusername": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_credentials', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cred', 'userName']}"
+		},
+		"alljoyn_getbuildinfo": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_getnumericversion": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"alljoyn_getversion": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_init": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"alljoyn_interfacedescription_activate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_addannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'value']}"
+		},
+		"alljoyn_interfacedescription_addargannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'argName', 'name', 'value']}"
+		},
+		"alljoyn_interfacedescription_addmember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_messagetype', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'type', 'name', 'inputSig', 'outSig', 'argNames', 'annotation']}"
+		},
+		"alljoyn_interfacedescription_addmemberannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'name', 'value']}"
+		},
+		"alljoyn_interfacedescription_addmethod": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'inputSig', 'outSig', 'argNames', 'annotation', 'accessPerms']}"
+		},
+		"alljoyn_interfacedescription_addproperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'signature', 'access']}"
+		},
+		"alljoyn_interfacedescription_addpropertyannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'property', 'name', 'value']}"
+		},
+		"alljoyn_interfacedescription_addsignal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'sig', 'argNames', 'annotation', 'accessPerms']}"
+		},
+		"alljoyn_interfacedescription_eql": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_interfacedescription_getannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_getannotationatindex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['iface', 'index', 'name', 'name_size', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_getannotationscount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_getargdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'member', 'arg', 'description', 'maxLanguageLength', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_getdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'description', 'maxLanguageLength', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_getdescriptionlanguages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'languages', 'size']}"
+		},
+		"alljoyn_interfacedescription_getdescriptionlanguages2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'languages', 'languagesSize']}"
+		},
+		"alljoyn_interfacedescription_getdescriptiontranslationcallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['sourceLanguage', 'targetLanguage', 'sourceText']}}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_getmember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'member']}"
+		},
+		"alljoyn_interfacedescription_getmemberannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'member', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_getmemberargannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'member', 'argName', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_getmemberdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'member', 'description', 'maxLanguageLength', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_getmembers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'members', 'numMembers']}"
+		},
+		"alljoyn_interfacedescription_getmethod": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'member']}"
+		},
+		"alljoyn_interfacedescription_getname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_getproperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'props', 'numProps']}"
+		},
+		"alljoyn_interfacedescription_getproperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'property']}"
+		},
+		"alljoyn_interfacedescription_getpropertyannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'property', 'name', 'value', 'str_size']}"
+		},
+		"alljoyn_interfacedescription_getpropertydescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'property', 'description', 'maxLanguageLength', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_getsecuritypolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_securitypolicy', 'ot': 'int'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_getsignal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'member']}"
+		},
+		"alljoyn_interfacedescription_hasdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_hasmember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name', 'inSig', 'outSig']}"
+		},
+		"alljoyn_interfacedescription_hasproperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_hasproperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface', 'name']}"
+		},
+		"alljoyn_interfacedescription_introspect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['iface', 'str', 'buf', 'indent']}"
+		},
+		"alljoyn_interfacedescription_issecure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['iface']}"
+		},
+		"alljoyn_interfacedescription_member_eql": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_interfacedescription_member_getannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['member', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_member_getannotationatindex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'index', 'name', 'name_size', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_member_getannotationscount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['member']}"
+		},
+		"alljoyn_interfacedescription_member_getargannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['member', 'argName', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_member_getargannotationatindex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['member', 'argName', 'index', 'name', 'name_size', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_member_getargannotationscount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['member', 'argName']}"
+		},
+		"alljoyn_interfacedescription_property_eql": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_interfacedescription_property_getannotation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['property', 'name', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_property_getannotationatindex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['property', 'index', 'name', 'name_size', 'value', 'value_size']}"
+		},
+		"alljoyn_interfacedescription_property_getannotationscount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription_property', 'ot': '_ref'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['property']}"
+		},
+		"alljoyn_interfacedescription_setargdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'argName', 'description']}"
+		},
+		"alljoyn_interfacedescription_setargdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'arg', 'description', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_setdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['iface', 'description']}"
+		},
+		"alljoyn_interfacedescription_setdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'description', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_setdescriptionlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['iface', 'language']}"
+		},
+		"alljoyn_interfacedescription_setdescriptiontranslationcallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['sourceLanguage', 'targetLanguage', 'sourceText']}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['iface', 'translationCallback']}"
+		},
+		"alljoyn_interfacedescription_setmemberdescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'description']}"
+		},
+		"alljoyn_interfacedescription_setmemberdescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'member', 'description', 'languageTag']}"
+		},
+		"alljoyn_interfacedescription_setpropertydescription": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'description']}"
+		},
+		"alljoyn_interfacedescription_setpropertydescriptionforlanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['iface', 'name', 'description', 'languageTag']}"
+		},
+		"alljoyn_keystorelistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_keystorelistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_keystorelistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_keystorelistener_getkeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_keystore', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['listener', 'keyStore', 'sink', 'sink_sz']}"
+		},
+		"alljoyn_keystorelistener_putkeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_keystore', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['listener', 'keyStore', 'source', 'password']}"
+		},
+		"alljoyn_keystorelistener_with_synchronization_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_keystorelistener_with_synchronization_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_keystorelistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_message_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, 'arg_names': ['bus']}"
+		},
+		"alljoyn_message_description": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['msg', 'str', 'buf']}"
+		},
+		"alljoyn_message_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_eql": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_message_getarg": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['msg', 'argN']}"
+		},
+		"alljoyn_message_getargs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['msg', 'numArgs', 'args']}"
+		},
+		"alljoyn_message_getauthmechanism": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getcallserial": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getcompressiontoken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getdestination": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_geterrorname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg', 'errorMessage', 'errorMessage_size']}"
+		},
+		"alljoyn_message_getflags": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getmembername": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getobjectpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getreceiveendpointname": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getreplyserial": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getsender": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getsessionid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_getsignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_gettimestamp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_gettype": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_messagetype', 'ot': 'int'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_isbroadcastsignal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_isencrypted": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_isexpired": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg', 'tillExpireMS']}"
+		},
+		"alljoyn_message_isglobalbroadcast": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_issessionless": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_isunreliable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
+		},
+		"alljoyn_message_parseargs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['msg', 'signature']}"
+		},
+		"alljoyn_message_setendianess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': true, 'label': 'SByte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['endian']}"
+		},
+		"alljoyn_message_tostring": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['msg', 'str', 'buf']}"
+		},
+		"alljoyn_msgarg_array_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['size']}"
+		},
+		"alljoyn_msgarg_array_element": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg', 'index']}"
+		},
+		"alljoyn_msgarg_array_get": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['args', 'numArgs', 'signature']}"
+		},
+		"alljoyn_msgarg_array_set": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['args', 'numArgs', 'signature']}"
+		},
+		"alljoyn_msgarg_array_set_offset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['args', 'argOffset', 'numArgs', 'signature']}"
+		},
+		"alljoyn_msgarg_array_signature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['values', 'numValues', 'str', 'buf']}"
+		},
+		"alljoyn_msgarg_array_tostring": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['args', 'numArgs', 'str', 'buf', 'indent']}"
+		},
+		"alljoyn_msgarg_clear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_clone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['destination', 'source']}"
+		},
+		"alljoyn_msgarg_copy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['source']}"
+		},
+		"alljoyn_msgarg_create": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"alljoyn_msgarg_create_and_set": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['signature']}"
+		},
+		"alljoyn_msgarg_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_equal": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lhv', 'rhv']}"
+		},
+		"alljoyn_msgarg_get": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'signature']}"
+		},
+		"alljoyn_msgarg_get_array_element": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg', 'index', 'element']}"
+		},
+		"alljoyn_msgarg_get_array_elementsignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['arg', 'index']}"
+		},
+		"alljoyn_msgarg_get_array_numberofelements": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_get_bool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'b']}"
+		},
+		"alljoyn_msgarg_get_bool_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ab']}"
+		},
+		"alljoyn_msgarg_get_double": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'd']}"
+		},
+		"alljoyn_msgarg_get_double_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ad']}"
+		},
+		"alljoyn_msgarg_get_int16": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'n']}"
+		},
+		"alljoyn_msgarg_get_int16_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'an']}"
+		},
+		"alljoyn_msgarg_get_int32": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'i']}"
+		},
+		"alljoyn_msgarg_get_int32_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ai']}"
+		},
+		"alljoyn_msgarg_get_int64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'x']}"
+		},
+		"alljoyn_msgarg_get_int64_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ax']}"
+		},
+		"alljoyn_msgarg_get_objectpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'o']}"
+		},
+		"alljoyn_msgarg_get_signature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'g']}"
+		},
+		"alljoyn_msgarg_get_string": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 's']}"
+		},
+		"alljoyn_msgarg_get_uint16": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'q']}"
+		},
+		"alljoyn_msgarg_get_uint16_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'aq']}"
+		},
+		"alljoyn_msgarg_get_uint32": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'u']}"
+		},
+		"alljoyn_msgarg_get_uint32_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'au']}"
+		},
+		"alljoyn_msgarg_get_uint64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 't']}"
+		},
+		"alljoyn_msgarg_get_uint64_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'at']}"
+		},
+		"alljoyn_msgarg_get_uint8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'y']}"
+		},
+		"alljoyn_msgarg_get_uint8_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ay']}"
+		},
+		"alljoyn_msgarg_get_variant": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'v']}"
+		},
+		"alljoyn_msgarg_get_variant_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'signature', 'length', 'av']}"
+		},
+		"alljoyn_msgarg_getdictelement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'elemSig']}"
+		},
+		"alljoyn_msgarg_getkey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_getmember": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg', 'index']}"
+		},
+		"alljoyn_msgarg_getnummembers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_gettype": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_typeid', 'ot': 'int'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_getvalue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_hassignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['arg', 'signature']}"
+		},
+		"alljoyn_msgarg_set": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'signature']}"
+		},
+		"alljoyn_msgarg_set_and_stabilize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'signature']}"
+		},
+		"alljoyn_msgarg_set_bool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'b']}"
+		},
+		"alljoyn_msgarg_set_bool_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ab']}"
+		},
+		"alljoyn_msgarg_set_double": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'd']}"
+		},
+		"alljoyn_msgarg_set_double_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ad']}"
+		},
+		"alljoyn_msgarg_set_int16": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'n']}"
+		},
+		"alljoyn_msgarg_set_int16_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'an']}"
+		},
+		"alljoyn_msgarg_set_int32": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'i']}"
+		},
+		"alljoyn_msgarg_set_int32_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ai']}"
+		},
+		"alljoyn_msgarg_set_int64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'x']}"
+		},
+		"alljoyn_msgarg_set_int64_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ax']}"
+		},
+		"alljoyn_msgarg_set_objectpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'o']}"
+		},
+		"alljoyn_msgarg_set_objectpath_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ao']}"
+		},
+		"alljoyn_msgarg_set_signature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'g']}"
+		},
+		"alljoyn_msgarg_set_signature_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ag']}"
+		},
+		"alljoyn_msgarg_set_string": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 's']}"
+		},
+		"alljoyn_msgarg_set_string_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'as']}"
+		},
+		"alljoyn_msgarg_set_uint16": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'q']}"
+		},
+		"alljoyn_msgarg_set_uint16_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'aq']}"
+		},
+		"alljoyn_msgarg_set_uint32": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'u']}"
+		},
+		"alljoyn_msgarg_set_uint32_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'au']}"
+		},
+		"alljoyn_msgarg_set_uint64": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 't']}"
+		},
+		"alljoyn_msgarg_set_uint64_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'at']}"
+		},
+		"alljoyn_msgarg_set_uint8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'y']}"
+		},
+		"alljoyn_msgarg_set_uint8_array": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'length', 'ay']}"
+		},
+		"alljoyn_msgarg_setdictentry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'key', 'value']}"
+		},
+		"alljoyn_msgarg_setstruct": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['arg', 'struct_members', 'num_members']}"
+		},
+		"alljoyn_msgarg_signature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['arg', 'str', 'buf']}"
+		},
+		"alljoyn_msgarg_stabilize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}"
+		},
+		"alljoyn_msgarg_tostring": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['arg', 'str', 'buf', 'indent']}"
+		},
+		"alljoyn_observer_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}, 'arg_names': ['bus', 'mandatoryInterfaces', 'numMandatoryInterfaces']}"
+		},
+		"alljoyn_observer_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['observer']}"
+		},
+		"alljoyn_observer_get": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}, 'arg_names': ['observer', 'uniqueBusName', 'objectPath']}"
+		},
+		"alljoyn_observer_getfirst": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}, 'arg_names': ['observer']}"
+		},
+		"alljoyn_observer_getnext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}, 'arg_names': ['observer', 'proxyref']}"
+		},
+		"alljoyn_observer_registerlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_observerlistener', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['observer', 'listener', 'triggerOnExisting']}"
+		},
+		"alljoyn_observer_unregisteralllisteners": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['observer']}"
+		},
+		"alljoyn_observer_unregisterlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observer', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_observerlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['observer', 'listener']}"
+		},
+		"alljoyn_observerlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_observerlistener_callback', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_observerlistener', 'ot': 'ptr'}, 'arg_names': ['callback', 'context']}"
+		},
+		"alljoyn_observerlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_observerlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_passwordmanager_setcredentials": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['authMechanism', 'password']}"
+		},
+		"alljoyn_permissionconfigurationlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_permissionconfigurationlistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_permissionconfigurationlistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_permissionconfigurationlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurationlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_permissionconfigurator_certificatechain_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['certificateChain']}"
+		},
+		"alljoyn_permissionconfigurator_certificateid_cleanup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_certificateid', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['certificateId']}"
+		},
+		"alljoyn_permissionconfigurator_certificateidarray_cleanup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_certificateidarray', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['certificateIdArray']}"
+		},
+		"alljoyn_permissionconfigurator_claim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'caKey', 'identityCertificateChain', 'groupId', 'groupSize', 'groupAuthority', 'manifestsXmls', 'manifestsCount']}"
+		},
+		"alljoyn_permissionconfigurator_endmanagement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator']}"
+		},
+		"alljoyn_permissionconfigurator_getapplicationstate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_applicationstate', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'state']}"
+		},
+		"alljoyn_permissionconfigurator_getclaimcapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'claimCapabilities']}"
+		},
+		"alljoyn_permissionconfigurator_getclaimcapabilitiesadditionalinfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'additionalInfo']}"
+		},
+		"alljoyn_permissionconfigurator_getdefaultclaimcapabilities": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': []}"
+		},
+		"alljoyn_permissionconfigurator_getdefaultpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'policyXml']}"
+		},
+		"alljoyn_permissionconfigurator_getidentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'identityCertificateChain']}"
+		},
+		"alljoyn_permissionconfigurator_getidentitycertificateid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_certificateid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'certificateId']}"
+		},
+		"alljoyn_permissionconfigurator_getmanifests": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_manifestarray', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'manifestArray']}"
+		},
+		"alljoyn_permissionconfigurator_getmanifesttemplate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'manifestTemplateXml']}"
+		},
+		"alljoyn_permissionconfigurator_getmembershipsummaries": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_certificateidarray', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'certificateIds']}"
+		},
+		"alljoyn_permissionconfigurator_getpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'policyXml']}"
+		},
+		"alljoyn_permissionconfigurator_getpublickey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'publicKey']}"
+		},
+		"alljoyn_permissionconfigurator_installmanifests": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'manifestsXmls', 'manifestsCount', 'append']}"
+		},
+		"alljoyn_permissionconfigurator_installmembership": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'membershipCertificateChain']}"
+		},
+		"alljoyn_permissionconfigurator_manifestarray_cleanup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_manifestarray', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['manifestArray']}"
+		},
+		"alljoyn_permissionconfigurator_manifesttemplate_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['manifestTemplateXml']}"
+		},
+		"alljoyn_permissionconfigurator_policy_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['policyXml']}"
+		},
+		"alljoyn_permissionconfigurator_publickey_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['publicKey']}"
+		},
+		"alljoyn_permissionconfigurator_removemembership": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'serial', 'serialLen', 'issuerPublicKey', 'issuerAki', 'issuerAkiLen']}"
+		},
+		"alljoyn_permissionconfigurator_reset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator']}"
+		},
+		"alljoyn_permissionconfigurator_resetpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator']}"
+		},
+		"alljoyn_permissionconfigurator_setapplicationstate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_applicationstate', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'state']}"
+		},
+		"alljoyn_permissionconfigurator_setclaimcapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'claimCapabilities']}"
+		},
+		"alljoyn_permissionconfigurator_setclaimcapabilitiesadditionalinfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'additionalInfo']}"
+		},
+		"alljoyn_permissionconfigurator_setmanifesttemplatefromxml": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'manifestTemplateXml']}"
+		},
+		"alljoyn_permissionconfigurator_startmanagement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator']}"
+		},
+		"alljoyn_permissionconfigurator_updateidentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'identityCertificateChain', 'manifestsXmls', 'manifestsCount']}"
+		},
+		"alljoyn_permissionconfigurator_updatepolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_permissionconfigurator', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configurator', 'policyXml']}"
+		},
+		"alljoyn_pinglistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_pinglistener_callback', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_pinglistener', 'ot': 'ptr'}, 'arg_names': ['callback', 'context']}"
+		},
+		"alljoyn_pinglistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_pinglistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_proxybusobject_addchild": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'child']}"
+		},
+		"alljoyn_proxybusobject_addinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface']}"
+		},
+		"alljoyn_proxybusobject_addinterface_by_name": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'name']}"
+		},
+		"alljoyn_proxybusobject_copy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['source']}"
+		},
+		"alljoyn_proxybusobject_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['bus', 'service', 'path', 'sessionId']}"
+		},
+		"alljoyn_proxybusobject_create_secure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['bus', 'service', 'path', 'sessionId']}"
+		},
+		"alljoyn_proxybusobject_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_enablepropertycaching": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_getallproperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'values']}"
+		},
+		"alljoyn_proxybusobject_getallpropertiesasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'obj', 'values', 'context']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'callback', 'timeout', 'context']}"
+		},
+		"alljoyn_proxybusobject_getchild": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['proxyObj', 'path']}"
+		},
+		"alljoyn_proxybusobject_getchildren": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['proxyObj', 'children', 'numChildren']}"
+		},
+		"alljoyn_proxybusobject_getinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': 'ptr'}, 'arg_names': ['proxyObj', 'iface']}"
+		},
+		"alljoyn_proxybusobject_getinterfaces": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_interfacedescription', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['proxyObj', 'ifaces', 'numIfaces']}"
+		},
+		"alljoyn_proxybusobject_getpath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_getproperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'property', 'value']}"
+		},
+		"alljoyn_proxybusobject_getpropertyasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'obj', 'value', 'context']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'property', 'callback', 'timeout', 'context']}"
+		},
+		"alljoyn_proxybusobject_getservicename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_getsessionid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_getuniquename": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_implementsinterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['proxyObj', 'iface']}"
+		},
+		"alljoyn_proxybusobject_introspectremoteobject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_introspectremoteobjectasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'obj', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'callback', 'context']}"
+		},
+		"alljoyn_proxybusobject_issecure": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_isvalid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['proxyObj']}"
+		},
+		"alljoyn_proxybusobject_methodcall": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'ifaceName', 'methodName', 'args', 'numArgs', 'replyMsg', 'timeout', 'flags']}"
+		},
+		"alljoyn_proxybusobject_methodcall_member": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'method', 'args', 'numArgs', 'replyMsg', 'timeout', 'flags']}"
+		},
+		"alljoyn_proxybusobject_methodcall_member_noreply": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'method', 'args', 'numArgs', 'flags']}"
+		},
+		"alljoyn_proxybusobject_methodcall_noreply": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'ifaceName', 'methodName', 'args', 'numArgs', 'flags']}"
+		},
+		"alljoyn_proxybusobject_methodcallasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['message', 'context']}}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'ifaceName', 'methodName', 'replyFunc', 'args', 'numArgs', 'context', 'timeout', 'flags']}"
+		},
+		"alljoyn_proxybusobject_methodcallasync_member": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_interfacedescription_member', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['message', 'context']}}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'method', 'replyFunc', 'args', 'numArgs', 'context', 'timeout', 'flags']}"
+		},
+		"alljoyn_proxybusobject_parsexml": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'xml', 'identifier']}"
+		},
+		"alljoyn_proxybusobject_ref_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_proxybusobject_ref_decref": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ref']}"
+		},
+		"alljoyn_proxybusobject_ref_get": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, 'arg_names': ['ref']}"
+		},
+		"alljoyn_proxybusobject_ref_incref": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject_ref', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ref']}"
+		},
+		"alljoyn_proxybusobject_registerpropertieschangedlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['obj', 'ifaceName', 'changed', 'invalidated', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'properties', 'numProperties', 'callback', 'context']}"
+		},
+		"alljoyn_proxybusobject_removechild": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'path']}"
+		},
+		"alljoyn_proxybusobject_secureconnection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'forceAuth']}"
+		},
+		"alljoyn_proxybusobject_secureconnectionasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'forceAuth']}"
+		},
+		"alljoyn_proxybusobject_setproperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'property', 'value']}"
+		},
+		"alljoyn_proxybusobject_setpropertyasync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, {'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['status', 'obj', 'context']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'property', 'value', 'callback', 'timeout', 'context']}"
+		},
+		"alljoyn_proxybusobject_unregisterpropertieschangedlistener": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_proxybusobject', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['obj', 'ifaceName', 'changed', 'invalidated', 'context']}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxyObj', 'iface', 'callback']}"
+		},
+		"alljoyn_routerinit": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"alljoyn_routerinitwithconfig": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['configXml']}"
+		},
+		"alljoyn_routershutdown": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"alljoyn_securityapplicationproxy_claim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'caKey', 'identityCertificateChain', 'groupId', 'groupSize', 'groupAuthority', 'manifestsXmls', 'manifestsCount']}"
+		},
+		"alljoyn_securityapplicationproxy_computemanifestdigest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['unsignedManifestXml', 'identityCertificatePem', 'digest', 'digestSize']}"
+		},
+		"alljoyn_securityapplicationproxy_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_busattachment', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, 'arg_names': ['bus', 'appBusName', 'sessionId']}"
+		},
+		"alljoyn_securityapplicationproxy_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_securityapplicationproxy_digest_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['digest']}"
+		},
+		"alljoyn_securityapplicationproxy_eccpublickey_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['eccPublicKey']}"
+		},
+		"alljoyn_securityapplicationproxy_endmanagement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_securityapplicationproxy_getapplicationstate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_applicationstate', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'applicationState']}"
+		},
+		"alljoyn_securityapplicationproxy_getclaimcapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'capabilities']}"
+		},
+		"alljoyn_securityapplicationproxy_getclaimcapabilitiesadditionalinfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'additionalInfo']}"
+		},
+		"alljoyn_securityapplicationproxy_getdefaultpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'policyXml']}"
+		},
+		"alljoyn_securityapplicationproxy_geteccpublickey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'eccPublicKey']}"
+		},
+		"alljoyn_securityapplicationproxy_getmanifesttemplate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'manifestTemplateXml']}"
+		},
+		"alljoyn_securityapplicationproxy_getpermissionmanagementsessionport": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': []}"
+		},
+		"alljoyn_securityapplicationproxy_getpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'policyXml']}"
+		},
+		"alljoyn_securityapplicationproxy_installmembership": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'membershipCertificateChain']}"
+		},
+		"alljoyn_securityapplicationproxy_manifest_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['signedManifestXml']}"
+		},
+		"alljoyn_securityapplicationproxy_manifesttemplate_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['manifestTemplateXml']}"
+		},
+		"alljoyn_securityapplicationproxy_policy_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['policyXml']}"
+		},
+		"alljoyn_securityapplicationproxy_reset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_securityapplicationproxy_resetpolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_securityapplicationproxy_setmanifestsignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['unsignedManifestXml', 'identityCertificatePem', 'signature', 'signatureSize', 'signedManifestXml']}"
+		},
+		"alljoyn_securityapplicationproxy_signmanifest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['unsignedManifestXml', 'identityCertificatePem', 'signingPrivateKeyPem', 'signedManifestXml']}"
+		},
+		"alljoyn_securityapplicationproxy_startmanagement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy']}"
+		},
+		"alljoyn_securityapplicationproxy_updateidentity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'identityCertificateChain', 'manifestsXmls', 'manifestsCount']}"
+		},
+		"alljoyn_securityapplicationproxy_updatepolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_securityapplicationproxy', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': ['proxy', 'policyXml']}"
+		},
+		"alljoyn_sessionlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_sessionlistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_sessionlistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_sessionlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_sessionopts_cmp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_sessionopts_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, 'arg_names': ['traffic', 'isMultipoint', 'proximity', 'transports']}"
+		},
+		"alljoyn_sessionopts_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opts']}"
+		},
+		"alljoyn_sessionopts_get_multipoint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['opts']}"
+		},
+		"alljoyn_sessionopts_get_proximity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['opts']}"
+		},
+		"alljoyn_sessionopts_get_traffic": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['opts']}"
+		},
+		"alljoyn_sessionopts_get_transports": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': ['opts']}"
+		},
+		"alljoyn_sessionopts_iscompatible": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['one', 'other']}"
+		},
+		"alljoyn_sessionopts_set_multipoint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opts', 'isMultipoint']}"
+		},
+		"alljoyn_sessionopts_set_proximity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opts', 'proximity']}"
+		},
+		"alljoyn_sessionopts_set_traffic": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opts', 'traffic']}"
+		},
+		"alljoyn_sessionopts_set_transports": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionopts', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opts', 'transports']}"
+		},
+		"alljoyn_sessionportlistener_create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_sessionportlistener_callbacks', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_sessionportlistener', 'ot': 'ptr'}, 'arg_names': ['callbacks', 'context']}"
+		},
+		"alljoyn_sessionportlistener_destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_sessionportlistener', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['listener']}"
+		},
+		"alljoyn_shutdown": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"alljoyn_unity_deferred_callbacks_process": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
+		},
+		"alljoyn_unity_set_deferred_callback_mainthread_only": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mainthread_only']}"
+		}
+	}
+}

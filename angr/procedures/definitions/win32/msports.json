@@ -1,0 +1,36 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"msports.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ComDBClaimNextFreePort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB', 'ComNumber']}"
+		},
+		"ComDBClaimPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB', 'ComNumber', 'ForceClaim', 'Forced']}"
+		},
+		"ComDBClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB']}"
+		},
+		"ComDBGetCurrentPortUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB', 'Buffer', 'BufferSize', 'ReportType', 'MaxPortsReported']}"
+		},
+		"ComDBOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCOMDB', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['PHComDB']}"
+		},
+		"ComDBReleasePort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB', 'ComNumber']}"
+		},
+		"ComDBResizeDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCOMDB', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['HComDB', 'NewSize']}"
+		}
+	}
+}

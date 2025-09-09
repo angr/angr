@@ -1,0 +1,150 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"hid.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"HidD_FlushQueue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject']}"
+		},
+		"HidD_FreePreparsedData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['PreparsedData']}"
+		},
+		"HidD_GetAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDD_ATTRIBUTES', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Attributes']}"
+		},
+		"HidD_GetConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDD_CONFIGURATION', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Configuration', 'ConfigurationLength']}"
+		},
+		"HidD_GetFeature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'ReportBuffer', 'ReportBufferLength']}"
+		},
+		"HidD_GetHidGuid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['HidGuid']}"
+		},
+		"HidD_GetIndexedString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'StringIndex', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_GetInputReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'ReportBuffer', 'ReportBufferLength']}"
+		},
+		"HidD_GetManufacturerString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_GetMsGenreDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_GetNumInputBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'NumberBuffers']}"
+		},
+		"HidD_GetPhysicalDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_GetPreparsedData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'PreparsedData']}"
+		},
+		"HidD_GetProductString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_GetSerialNumberString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Buffer', 'BufferLength']}"
+		},
+		"HidD_SetConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDD_CONFIGURATION', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'Configuration', 'ConfigurationLength']}"
+		},
+		"HidD_SetFeature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'ReportBuffer', 'ReportBufferLength']}"
+		},
+		"HidD_SetNumInputBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'NumberBuffers']}"
+		},
+		"HidD_SetOutputReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['HidDeviceObject', 'ReportBuffer', 'ReportBufferLength']}"
+		},
+		"HidP_GetButtonArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_BUTTON_ARRAY_DATA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'ButtonData', 'ButtonDataLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetButtonCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_BUTTON_CAPS', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'ButtonCaps', 'ButtonCapsLength', 'PreparsedData']}"
+		},
+		"HidP_GetCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_CAPS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['PreparsedData', 'Capabilities']}"
+		},
+		"HidP_GetData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_DATA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'DataList', 'DataLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetExtendedAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_EXTENDED_ATTRIBUTES', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'DataIndex', 'PreparsedData', 'Attributes', 'LengthAttributes']}"
+		},
+		"HidP_GetLinkCollectionNodes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_LINK_COLLECTION_NODE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['LinkCollectionNodes', 'LinkCollectionNodesLength', 'PreparsedData']}"
+		},
+		"HidP_GetScaledUsageValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetSpecificButtonCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_BUTTON_CAPS', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'ButtonCaps', 'ButtonCapsLength', 'PreparsedData']}"
+		},
+		"HidP_GetSpecificValueCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_VALUE_CAPS', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'ValueCaps', 'ValueCapsLength', 'PreparsedData']}"
+		},
+		"HidP_GetUsageValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetUsageValueArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'UsageValueByteLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetUsages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'UsageList', 'UsageLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetUsagesEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'USAGE_AND_PAGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'LinkCollection', 'ButtonList', 'UsageLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_GetValueCaps": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_VALUE_CAPS', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'ValueCaps', 'ValueCapsLength', 'PreparsedData']}"
+		},
+		"HidP_InitializeReportForID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'ReportID', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_MaxDataListLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReportType', 'PreparsedData']}"
+		},
+		"HidP_MaxUsageListLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReportType', 'UsagePage', 'PreparsedData']}"
+		},
+		"HidP_SetButtonArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_BUTTON_ARRAY_DATA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'ButtonData', 'ButtonDataLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_SetData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_DATA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'DataList', 'DataLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_SetScaledUsageValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_SetUsageValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_SetUsageValueArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'Usage', 'UsageValue', 'UsageValueByteLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_SetUsages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'UsageList', 'UsageLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_TranslateUsagesToI8042ScanCodes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HIDP_KEYBOARD_DIRECTION', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIDP_KEYBOARD_MODIFIER_STATE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['Context', 'NewScanCodes', 'Length']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ChangedUsageList', 'UsageListLength', 'KeyAction', 'ModifierState', 'InsertCodesProcedure', 'InsertCodesContext']}"
+		},
+		"HidP_UnsetUsages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIDP_REPORT_TYPE', 'ot': 'int'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PHIDP_PREPARSED_DATA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['ReportType', 'UsagePage', 'LinkCollection', 'UsageList', 'UsageLength', 'PreparsedData', 'Report', 'ReportLength']}"
+		},
+		"HidP_UsageListDifference": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['PreviousUsageList', 'CurrentUsageList', 'BreakUsageList', 'MakeUsageList', 'UsageListLength']}"
+		}
+	}
+}

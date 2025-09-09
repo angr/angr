@@ -1,0 +1,855 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"clusapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AddClusterGroupDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroup', 'hProviderGroup']}"
+		},
+		"AddClusterGroupDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroup', 'hProviderGroup', 'lpszReason']}"
+		},
+		"AddClusterGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroupSet', 'hProviderGroupSet']}"
+		},
+		"AddClusterGroupSetDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroupSet', 'hProviderGroupSet', 'lpszReason']}"
+		},
+		"AddClusterGroupToGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroup', 'hProviderGroupSet']}"
+		},
+		"AddClusterGroupToGroupSetDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroup', 'hProviderGroupSet', 'lpszReason']}"
+		},
+		"AddClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNodeName', 'pfnProgressCallback', 'pvCallbackArg']}"
+		},
+		"AddClusterNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNodeName', 'dwFlags', 'pfnProgressCallback', 'pvCallbackArg']}"
+		},
+		"AddClusterResourceDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hDependsOn']}"
+		},
+		"AddClusterResourceDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hDependsOn', 'lpszReason']}"
+		},
+		"AddClusterResourceNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hNode']}"
+		},
+		"AddClusterResourceNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hNode', 'lpszReason']}"
+		},
+		"AddClusterStorageNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszNodeName', 'pfnProgressCallback', 'pvCallbackArg', 'lpszClusterStorageNodeDescription', 'lpszClusterStorageNodeLocation']}"
+		},
+		"AddCrossClusterGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroupSet', 'lpRemoteClusterName', 'lpRemoteGroupSetName']}"
+		},
+		"AddResourceToClusterSharedVolumes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"BackupClusterDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszPathName']}"
+		},
+		"CanResourceBeDependent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hResource', 'hResourceDependent']}"
+		},
+		"CancelClusterGroupOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'dwCancelFlags_RESERVED']}"
+		},
+		"ChangeClusterResourceGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hGroup']}"
+		},
+		"ChangeClusterResourceGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hGroup', 'Flags']}"
+		},
+		"ChangeClusterResourceGroupEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hGroup', 'Flags', 'lpszReason']}"
+		},
+		"CloseCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCluster']}"
+		},
+		"CloseClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hGroup']}"
+		},
+		"CloseClusterGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hGroupSet']}"
+		},
+		"CloseClusterNetInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hNetInterface']}"
+		},
+		"CloseClusterNetwork": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hNetwork']}"
+		},
+		"CloseClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hNode']}"
+		},
+		"CloseClusterNotifyPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hChange']}"
+		},
+		"CloseClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hResource']}"
+		},
+		"ClusapiSetReasonHandler": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSAPI_REASON_HANDLER', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSAPI_REASON_HANDLER', 'ot': '_ref'}}, 'arg_names': ['lpHandler']}"
+		},
+		"ClusterAddGroupToAffinityRule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'ruleName', 'hGroup']}"
+		},
+		"ClusterAddGroupToGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hGroup']}"
+		},
+		"ClusterAddGroupToGroupSetWithDomains": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hGroup', 'faultDomain', 'updateDomain']}"
+		},
+		"ClusterAddGroupToGroupSetWithDomainsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hGroup', 'faultDomain', 'updateDomain', 'lpszReason']}"
+		},
+		"ClusterAffinityRuleControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'affinityRuleName', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hEnum']}"
+		},
+		"ClusterCloseEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusterEnum']}"
+		},
+		"ClusterControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterCreateAffinityRule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUS_AFFINITY_RULE_TYPE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'ruleName', 'ruleType']}"
+		},
+		"ClusterEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hEnum', 'dwIndex', 'lpdwType', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUMEX', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_ENUM_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusterEnum', 'dwIndex', 'pItem', 'cbItem']}"
+		},
+		"ClusterGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hEnum']}"
+		},
+		"ClusterGetEnumCountEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hClusterEnum']}"
+		},
+		"ClusterGroupCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnum']}"
+		},
+		"ClusterGroupCloseEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnumEx']}"
+		},
+		"ClusterGroupControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterGroupControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterGroupEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnum', 'dwIndex', 'lpdwType', 'lpszResourceName', 'lpcchName']}"
+		},
+		"ClusterGroupEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUMEX', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_GROUP_ENUM_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnumEx', 'dwIndex', 'pItem', 'cbItem']}"
+		},
+		"ClusterGroupGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnum']}"
+		},
+		"ClusterGroupGetEnumCountEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupEnumEx']}"
+		},
+		"ClusterGroupOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HGROUPENUM', 'ot': 'ptr'}, 'arg_names': ['hGroup', 'dwType']}"
+		},
+		"ClusterGroupOpenEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HGROUPENUMEX', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszProperties', 'cbProperties', 'lpszRoProperties', 'cbRoProperties', 'dwFlags']}"
+		},
+		"ClusterGroupSetCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSETENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSetEnum']}"
+		},
+		"ClusterGroupSetControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterGroupSetControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterGroupSetEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSETENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSetEnum', 'dwIndex', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterGroupSetGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSETENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSetEnum']}"
+		},
+		"ClusterGroupSetOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUPSETENUM', 'ot': 'ptr'}, 'arg_names': ['hCluster']}"
+		},
+		"ClusterNetInterfaceCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACEENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetInterfaceEnum']}"
+		},
+		"ClusterNetInterfaceControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetInterface', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterNetInterfaceControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetInterface', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterNetInterfaceEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACEENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetInterfaceEnum', 'dwIndex', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterNetInterfaceOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HNETINTERFACEENUM', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNodeName', 'lpszNetworkName']}"
+		},
+		"ClusterNetworkCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORKENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetworkEnum']}"
+		},
+		"ClusterNetworkControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetwork', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterNetworkControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetwork', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterNetworkEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORKENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetworkEnum', 'dwIndex', 'lpdwType', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterNetworkGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORKENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetworkEnum']}"
+		},
+		"ClusterNetworkOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HNETWORKENUM', 'ot': 'ptr'}, 'arg_names': ['hNetwork', 'dwType']}"
+		},
+		"ClusterNodeCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum']}"
+		},
+		"ClusterNodeCloseEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum']}"
+		},
+		"ClusterNodeControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterNodeControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterNodeEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum', 'dwIndex', 'lpdwType', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterNodeEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUMEX', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_ENUM_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum', 'dwIndex', 'pItem', 'cbItem']}"
+		},
+		"ClusterNodeGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum']}"
+		},
+		"ClusterNodeGetEnumCountEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODEENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNodeEnum']}"
+		},
+		"ClusterNodeOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HNODEENUM', 'ot': 'ptr'}, 'arg_names': ['hNode', 'dwType']}"
+		},
+		"ClusterNodeOpenEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HNODEENUMEX', 'ot': 'ptr'}, 'arg_names': ['hNode', 'dwType', 'pOptions']}"
+		},
+		"ClusterNodeReplacement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszNodeNameCurrent', 'lpszNodeNameNew']}"
+		},
+		"ClusterOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSENUM', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'dwType']}"
+		},
+		"ClusterOpenEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HCLUSENUMEX', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'dwType', 'pOptions']}"
+		},
+		"ClusterRegBatchAddCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCH', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_REG_COMMAND', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegBatch', 'dwCommand', 'wzName', 'dwOptions', 'lpData', 'cbData']}"
+		},
+		"ClusterRegBatchCloseNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCHNOTIFICATION', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hBatchNotification']}"
+		},
+		"ClusterRegBatchReadCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCHNOTIFICATION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_BATCH_COMMAND', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hBatchNotification', 'pBatchCommand']}"
+		},
+		"ClusterRegCloseBatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCH', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegBatch', 'bCommit', 'failedCommandNumber']}"
+		},
+		"ClusterRegCloseBatchEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCH', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegBatch', 'flags', 'failedCommandNumber']}"
+		},
+		"ClusterRegCloseBatchNotifyPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCHPORT', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hBatchNotifyPort']}"
+		},
+		"ClusterRegCloseKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey']}"
+		},
+		"ClusterRegCloseReadBatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGREADBATCH', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGREADBATCHREPLY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegReadBatch', 'phRegReadBatchReply']}"
+		},
+		"ClusterRegCloseReadBatchEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGREADBATCH', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGREADBATCHREPLY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegReadBatch', 'flags', 'phRegReadBatchReply']}"
+		},
+		"ClusterRegCloseReadBatchReply": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGREADBATCHREPLY', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegReadBatchReply']}"
+		},
+		"ClusterRegCreateBatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGBATCH', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'pHREGBATCH']}"
+		},
+		"ClusterRegCreateBatchNotifyPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGBATCHPORT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'phBatchNotifyPort']}"
+		},
+		"ClusterRegCreateKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpszSubKey', 'dwOptions', 'samDesired', 'lpSecurityAttributes', 'phkResult', 'lpdwDisposition']}"
+		},
+		"ClusterRegCreateKeyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpSubKey', 'dwOptions', 'samDesired', 'lpSecurityAttributes', 'phkResult', 'lpdwDisposition', 'lpszReason']}"
+		},
+		"ClusterRegCreateReadBatch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGREADBATCH', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'phRegReadBatch']}"
+		},
+		"ClusterRegDeleteKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpszSubKey']}"
+		},
+		"ClusterRegDeleteKeyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpSubKey', 'lpszReason']}"
+		},
+		"ClusterRegDeleteValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hKey', 'lpszValueName']}"
+		},
+		"ClusterRegDeleteValueEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hKey', 'lpszValueName', 'lpszReason']}"
+		},
+		"ClusterRegEnumKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'dwIndex', 'lpszName', 'lpcchName', 'lpftLastWriteTime']}"
+		},
+		"ClusterRegEnumValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hKey', 'dwIndex', 'lpszValueName', 'lpcchValueName', 'lpdwType', 'lpData', 'lpcbData']}"
+		},
+		"ClusterRegGetBatchNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGBATCHPORT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREGBATCHNOTIFICATION', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hBatchNotify', 'phBatchNotification']}"
+		},
+		"ClusterRegGetKeySecurity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'RequestedInformation', 'pSecurityDescriptor', 'lpcbSecurityDescriptor']}"
+		},
+		"ClusterRegOpenKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpszSubKey', 'samDesired', 'phkResult']}"
+		},
+		"ClusterRegQueryInfoKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpcSubKeys', 'lpcchMaxSubKeyLen', 'lpcValues', 'lpcchMaxValueNameLen', 'lpcbMaxValueLen', 'lpcbSecurityDescriptor', 'lpftLastWriteTime']}"
+		},
+		"ClusterRegQueryValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'lpszValueName', 'lpdwValueType', 'lpData', 'lpcbData']}"
+		},
+		"ClusterRegReadBatchAddCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGREADBATCH', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegReadBatch', 'wzSubkeyName', 'wzValueName']}"
+		},
+		"ClusterRegReadBatchReplyNextCommand": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREGREADBATCHREPLY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_READ_BATCH_COMMAND', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hRegReadBatchReply', 'pBatchCommand']}"
+		},
+		"ClusterRegSetKeySecurity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'SecurityInformation', 'pSecurityDescriptor']}"
+		},
+		"ClusterRegSetKeySecurityEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'OBJECT_SECURITY_INFORMATION', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hKey', 'SecurityInformation', 'pSecurityDescriptor', 'lpszReason']}"
+		},
+		"ClusterRegSetValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hKey', 'lpszValueName', 'dwType', 'lpData', 'cbData']}"
+		},
+		"ClusterRegSetValueEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hKey', 'lpszValueName', 'dwType', 'lpData', 'cbData', 'lpszReason']}"
+		},
+		"ClusterRegSyncDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hCluster', 'flags']}"
+		},
+		"ClusterRemoveAffinityRule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'ruleName']}"
+		},
+		"ClusterRemoveGroupFromAffinityRule": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'ruleName', 'hGroup']}"
+		},
+		"ClusterRemoveGroupFromGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup']}"
+		},
+		"ClusterRemoveGroupFromGroupSetEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszReason']}"
+		},
+		"ClusterResourceCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResEnum']}"
+		},
+		"ClusterResourceCloseEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResourceEnumEx']}"
+		},
+		"ClusterResourceControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterResourceControlAsUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterResourceControlAsUserEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterResourceControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'cbInBufferSize', 'lpOutBuffer', 'cbOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterResourceEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResEnum', 'dwIndex', 'lpdwType', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterResourceEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUMEX', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_RESOURCE_ENUM_ITEM', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResourceEnumEx', 'dwIndex', 'pItem', 'cbItem']}"
+		},
+		"ClusterResourceGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResEnum']}"
+		},
+		"ClusterResourceGetEnumCountEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESENUMEX', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResourceEnumEx']}"
+		},
+		"ClusterResourceOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESENUM', 'ot': 'ptr'}, 'arg_names': ['hResource', 'dwType']}"
+		},
+		"ClusterResourceOpenEnumEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESENUMEX', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszProperties', 'cbProperties', 'lpszRoProperties', 'cbRoProperties', 'dwFlags']}"
+		},
+		"ClusterResourceTypeCloseEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESTYPEENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResTypeEnum']}"
+		},
+		"ClusterResourceTypeControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterResourceTypeControlAsUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned']}"
+		},
+		"ClusterResourceTypeControlAsUserEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterResourceTypeControlEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'hHostNode', 'dwControlCode', 'lpInBuffer', 'nInBufferSize', 'lpOutBuffer', 'nOutBufferSize', 'lpBytesReturned', 'lpszReason']}"
+		},
+		"ClusterResourceTypeEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESTYPEENUM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResTypeEnum', 'dwIndex', 'lpdwType', 'lpszName', 'lpcchName']}"
+		},
+		"ClusterResourceTypeGetEnumCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESTYPEENUM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResTypeEnum']}"
+		},
+		"ClusterResourceTypeOpenEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESTYPEENUM', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'dwType']}"
+		},
+		"ClusterSetAccountAccess": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'szAccountSID', 'dwAccess', 'dwControlType']}"
+		},
+		"ClusterSharedVolumeSetSnapshotState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'Guid'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_SHARED_VOLUME_SNAPSHOT_STATE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['guidSnapshotSet', 'lpszVolumeName', 'state']}"
+		},
+		"ClusterUpgradeFunctionalLevel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_UPGRADE_PHASE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eUpgradePhase']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'perform', 'pfnProgressCallback', 'pvCallbackArg']}"
+		},
+		"CreateCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CREATE_CLUSTER_CONFIG', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['pConfig', 'pfnProgressCallback', 'pvCallbackArg']}"
+		},
+		"CreateClusterAvailabilitySet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_AVAILABILITY_SET_CONFIG', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpAvailabilitySetName', 'pAvailabilitySetConfig']}"
+		},
+		"CreateClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszGroupName']}"
+		},
+		"CreateClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_CREATE_GROUP_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszGroupName', 'pGroupInfo']}"
+		},
+		"CreateClusterGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'groupSetName']}"
+		},
+		"CreateClusterNameAccount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CREATE_CLUSTER_NAME_ACCOUNT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'pConfig', 'pfnProgressCallback', 'pvCallbackArg']}"
+		},
+		"CreateClusterNotifyPort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, 'arg_names': ['hChange', 'hCluster', 'dwFilter', 'dwNotifyKey']}"
+		},
+		"CreateClusterNotifyPortV2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFY_FILTER_AND_TYPE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, 'arg_names': ['hChange', 'hCluster', 'Filters', 'dwFilterCount', 'dwNotifyKey']}"
+		},
+		"CreateClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hGroup', 'lpszResourceName', 'lpszResourceType', 'dwFlags']}"
+		},
+		"CreateClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hGroup', 'lpszResourceName', 'lpszResourceType', 'dwFlags', 'lpszReason']}"
+		},
+		"CreateClusterResourceType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'lpszDisplayName', 'lpszResourceTypeDll', 'dwLooksAlivePollInterval', 'dwIsAlivePollInterval']}"
+		},
+		"CreateClusterResourceTypeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName', 'lpszDisplayName', 'lpszResourceTypeDll', 'dwLooksAlivePollInterval', 'dwIsAlivePollInterval', 'lpszReason']}"
+		},
+		"DeleteClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup']}"
+		},
+		"DeleteClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszReason']}"
+		},
+		"DeleteClusterGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet']}"
+		},
+		"DeleteClusterGroupSetEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'lpszReason']}"
+		},
+		"DeleteClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"DeleteClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszReason']}"
+		},
+		"DeleteClusterResourceType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceTypeName']}"
+		},
+		"DeleteClusterResourceTypeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszTypeName', 'lpszReason']}"
+		},
+		"DestroyCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CLUSTER_SETUP_PHASE_SEVERITY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eSetupPhase', 'ePhaseType', 'ePhaseSeverity', 'dwPercentComplete', 'lpszObjectName', 'dwStatus']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'pfnProgressCallback', 'pvCallbackArg', 'fdeleteVirtualComputerObjects']}"
+		},
+		"DestroyClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup']}"
+		},
+		"DestroyClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszReason']}"
+		},
+		"DetermineCNOResTypeFromCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_MGMT_POINT_RESTYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'pCNOResType']}"
+		},
+		"DetermineCNOResTypeFromNodelist": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_MGMT_POINT_RESTYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['cNodes', 'ppszNodeNames', 'pCNOResType']}"
+		},
+		"DetermineClusterCloudTypeFromCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_CLOUD_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'pCloudType']}"
+		},
+		"DetermineClusterCloudTypeFromNodelist": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_CLOUD_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['cNodes', 'ppszNodeNames', 'pCloudType']}"
+		},
+		"EvictClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode']}"
+		},
+		"EvictClusterNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'dwTimeOut', 'phrCleanupStatus']}"
+		},
+		"EvictClusterNodeEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRESULT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'dwTimeout', 'phrCleanupStatus', 'lpszReason']}"
+		},
+		"FailClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"FailClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszReason']}"
+		},
+		"GetClusterFromGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['hGroup']}"
+		},
+		"GetClusterFromNetInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['hNetInterface']}"
+		},
+		"GetClusterFromNetwork": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['hNetwork']}"
+		},
+		"GetClusterFromNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['hNode']}"
+		},
+		"GetClusterFromResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['hResource']}"
+		},
+		"GetClusterGroupKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hGroup', 'samDesired']}"
+		},
+		"GetClusterGroupState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_GROUP_STATE', 'ot': 'int'}, 'arg_names': ['hGroup', 'lpszNodeName', 'lpcchNodeName']}"
+		},
+		"GetClusterInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTERVERSIONINFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszClusterName', 'lpcchClusterName', 'lpClusterInfo']}"
+		},
+		"GetClusterKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'samDesired']}"
+		},
+		"GetClusterNetInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszNodeName', 'lpszNetworkName', 'lpszInterfaceName', 'lpcchInterfaceName']}"
+		},
+		"GetClusterNetInterfaceKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hNetInterface', 'samDesired']}"
+		},
+		"GetClusterNetInterfaceState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_NETINTERFACE_STATE', 'ot': 'int'}, 'arg_names': ['hNetInterface']}"
+		},
+		"GetClusterNetworkId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetwork', 'lpszNetworkId', 'lpcchName']}"
+		},
+		"GetClusterNetworkKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hNetwork', 'samDesired']}"
+		},
+		"GetClusterNetworkState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_NETWORK_STATE', 'ot': 'int'}, 'arg_names': ['hNetwork']}"
+		},
+		"GetClusterNodeId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'lpszNodeId', 'lpcchName']}"
+		},
+		"GetClusterNodeKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hNode', 'samDesired']}"
+		},
+		"GetClusterNodeState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_NODE_STATE', 'ot': 'int'}, 'arg_names': ['hNode']}"
+		},
+		"GetClusterNotify": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'lpdwNotifyKey', 'lpdwFilterType', 'lpszName', 'lpcchName', 'dwMilliseconds']}"
+		},
+		"GetClusterNotifyV2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NOTIFY_FILTER_AND_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'lpdwNotifyKey', 'pFilterAndType', 'buffer', 'lpbBufferSize', 'lpszObjectId', 'lpcchObjectId', 'lpszParentId', 'lpcchParentId', 'lpszName', 'lpcchName', 'lpszType', 'lpcchType', 'dwMilliseconds']}"
+		},
+		"GetClusterQuorumResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszResourceName', 'lpcchResourceName', 'lpszDeviceName', 'lpcchDeviceName', 'lpdwMaxQuorumLogSize']}"
+		},
+		"GetClusterResourceDependencyExpression": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszDependencyExpression', 'lpcchDependencyExpression']}"
+		},
+		"GetClusterResourceKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hResource', 'samDesired']}"
+		},
+		"GetClusterResourceNetworkName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hResource', 'lpBuffer', 'nSize']}"
+		},
+		"GetClusterResourceState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_RESOURCE_STATE', 'ot': 'int'}, 'arg_names': ['hResource', 'lpszNodeName', 'lpcchNodeName', 'lpszGroupName', 'lpcchGroupName']}"
+		},
+		"GetClusterResourceTypeKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszTypeName', 'samDesired']}"
+		},
+		"GetNodeCloudTypeDW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppszNodeName', 'NodeCloudType']}"
+		},
+		"GetNodeClusterState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszNodeName', 'pdwClusterState']}"
+		},
+		"GetNotifyEventHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'lphTargetEvent']}"
+		},
+		"IsFileOnClusterSharedVolume": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszPathName', 'pbFileIsOnSharedVolume']}"
+		},
+		"MoveClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode']}"
+		},
+		"MoveClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode', 'dwMoveFlags', 'lpInBuffer', 'cbInBufferSize']}"
+		},
+		"MoveClusterGroupEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode', 'dwMoveFlags', 'lpInBuffer', 'cbInBufferSize', 'lpszReason']}"
+		},
+		"OfflineClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup']}"
+		},
+		"OfflineClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'dwOfflineFlags', 'lpInBuffer', 'cbInBufferSize']}"
+		},
+		"OfflineClusterGroupEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'dwOfflineFlags', 'lpInBuffer', 'cbInBufferSize', 'lpszReason']}"
+		},
+		"OfflineClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"OfflineClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwOfflineFlags', 'lpInBuffer', 'cbInBufferSize']}"
+		},
+		"OfflineClusterResourceEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwOfflineFlags', 'lpInBuffer', 'cbInBufferSize', 'lpszReason']}"
+		},
+		"OnlineClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode']}"
+		},
+		"OnlineClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode', 'dwOnlineFlags', 'lpInBuffer', 'cbInBufferSize']}"
+		},
+		"OnlineClusterGroupEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDestinationNode', 'dwOnlineFlags', 'lpInBuffer', 'cbInBufferSize', 'lpszReason']}"
+		},
+		"OnlineClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"OnlineClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwOnlineFlags', 'lpInBuffer', 'cbInBufferSize']}"
+		},
+		"OnlineClusterResourceEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwOnlineFlags', 'lpInBuffer', 'cbInBufferSize', 'lpszReason']}"
+		},
+		"OpenCluster": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['lpszClusterName']}"
+		},
+		"OpenClusterEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, 'arg_names': ['lpszClusterName', 'DesiredAccess', 'GrantedAccess']}"
+		},
+		"OpenClusterGroup": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszGroupName']}"
+		},
+		"OpenClusterGroupEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszGroupName', 'dwDesiredAccess', 'lpdwGrantedAccess']}"
+		},
+		"OpenClusterGroupSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszGroupSetName']}"
+		},
+		"OpenClusterNetInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszInterfaceName']}"
+		},
+		"OpenClusterNetInterfaceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HNETINTERFACE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszInterfaceName', 'dwDesiredAccess', 'lpdwGrantedAccess']}"
+		},
+		"OpenClusterNetwork": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNetworkName']}"
+		},
+		"OpenClusterNetworkEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNetworkName', 'dwDesiredAccess', 'lpdwGrantedAccess']}"
+		},
+		"OpenClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNodeName']}"
+		},
+		"OpenClusterNodeById": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'nodeId']}"
+		},
+		"OpenClusterNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszNodeName', 'dwDesiredAccess', 'lpdwGrantedAccess']}"
+		},
+		"OpenClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszResourceName']}"
+		},
+		"OpenClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, 'arg_names': ['hCluster', 'lpszResourceName', 'dwDesiredAccess', 'lpdwGrantedAccess']}"
+		},
+		"PauseClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode']}"
+		},
+		"PauseClusterNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'bDrainNode', 'dwPauseFlags', 'hNodeDrainTarget']}"
+		},
+		"PauseClusterNodeEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'bDrainNode', 'dwPauseFlags', 'hNodeDrainTarget', 'lpszReason']}"
+		},
+		"RegisterClusterNotify": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'dwFilterType', 'hObject', 'dwNotifyKey']}"
+		},
+		"RegisterClusterNotifyV2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NOTIFY_FILTER_AND_TYPE', 'ot': '_ref'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'Filter', 'hObject', 'dwNotifyKey']}"
+		},
+		"RegisterClusterResourceTypeNotifyV2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCHANGE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hChange', 'hCluster', 'Flags', 'resTypeName', 'dwNotifyKey']}"
+		},
+		"RemoveClusterGroupDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDependsOn']}"
+		},
+		"RemoveClusterGroupDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDependsOn', 'lpszReason']}"
+		},
+		"RemoveClusterGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hDependsOn']}"
+		},
+		"RemoveClusterGroupSetDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'hDependsOn', 'lpszReason']}"
+		},
+		"RemoveClusterGroupToGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDependsOn']}"
+		},
+		"RemoveClusterGroupToGroupSetDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'hDependsOn', 'lpszReason']}"
+		},
+		"RemoveClusterNameAccount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'bDeleteComputerObjects']}"
+		},
+		"RemoveClusterResourceDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hDependsOn']}"
+		},
+		"RemoveClusterResourceDependencyEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hDependsOn', 'lpszReason']}"
+		},
+		"RemoveClusterResourceNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hNode']}"
+		},
+		"RemoveClusterResourceNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'hNode', 'lpszReason']}"
+		},
+		"RemoveClusterStorageNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszClusterStorageEnclosureName', 'dwTimeout', 'dwFlags']}"
+		},
+		"RemoveCrossClusterGroupSetDependency": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hDependentGroupSet', 'lpRemoteClusterName', 'lpRemoteGroupSetName']}"
+		},
+		"RemoveResourceFromClusterSharedVolumes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource']}"
+		},
+		"RestartClusterResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwFlags']}"
+		},
+		"RestartClusterResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'dwFlags', 'lpszReason']}"
+		},
+		"RestoreClusterDatabase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszPathName', 'bForce', 'lpszQuorumDriveLetter']}"
+		},
+		"ResumeClusterNode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode']}"
+		},
+		"ResumeClusterNodeEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_NODE_RESUME_FAILBACK_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'eResumeFailbackType', 'dwResumeFlagsReserved']}"
+		},
+		"ResumeClusterNodeEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNODE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_NODE_RESUME_FAILBACK_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNode', 'eResumeFailbackType', 'dwResumeFlagsReserved', 'lpszReason']}"
+		},
+		"SetClusterGroupName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszGroupName']}"
+		},
+		"SetClusterGroupNameEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszGroupName', 'lpszReason']}"
+		},
+		"SetClusterGroupNodeList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HNODE', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'NodeCount', 'NodeList']}"
+		},
+		"SetClusterGroupNodeListEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HNODE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'NodeCount', 'NodeList', 'lpszReason']}"
+		},
+		"SetClusterGroupSetDependencyExpression": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'lpszDependencyExprssion']}"
+		},
+		"SetClusterGroupSetDependencyExpressionEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUPSET', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroupSet', 'lpszDependencyExpression', 'lpszReason']}"
+		},
+		"SetClusterName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszNewClusterName']}"
+		},
+		"SetClusterNameEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'lpszNewClusterName', 'lpszReason']}"
+		},
+		"SetClusterNetworkName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetwork', 'lpszName']}"
+		},
+		"SetClusterNetworkNameEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HNETWORK', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hNetwork', 'lpszName', 'lpszReason']}"
+		},
+		"SetClusterNetworkPriorityOrder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HNETWORK', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'NetworkCount', 'NetworkList']}"
+		},
+		"SetClusterQuorumResource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszDeviceName', 'dwMaxQuoLogSize']}"
+		},
+		"SetClusterQuorumResourceEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszDeviceName', 'dwMaxQuorumLogSize', 'lpszReason']}"
+		},
+		"SetClusterResourceDependencyExpression": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszDependencyExpression']}"
+		},
+		"SetClusterResourceName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszResourceName']}"
+		},
+		"SetClusterResourceNameEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESOURCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hResource', 'lpszResourceName', 'lpszReason']}"
+		},
+		"SetClusterServiceAccountPassword": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSTER_SET_PASSWORD_STATUS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpszClusterName', 'lpszNewPassword', 'dwFlags', 'lpReturnStatusBuffer', 'lpcbReturnStatusBufferSize']}"
+		},
+		"SetGroupDependencyExpression": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszDependencyExpression']}"
+		},
+		"SetGroupDependencyExpressionEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'lpszDependencyExpression', 'lpszReason']}"
+		}
+	}
+}

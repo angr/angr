@@ -1,0 +1,198 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"rpcns4.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"I_RpcNsGetBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"I_RpcNsRaiseException": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Message', 'Status']}"
+		},
+		"I_RpcNsSendReceive": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message', 'Handle']}"
+		},
+		"I_RpcReBindBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_MESSAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['Message']}"
+		},
+		"RpcIfIdVectorFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['IfIdVector']}"
+		},
+		"RpcNsBindingExportA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'BindingVec', 'ObjectUuidVec']}"
+		},
+		"RpcNsBindingExportPnPA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectVector']}"
+		},
+		"RpcNsBindingExportPnPW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectVector']}"
+		},
+		"RpcNsBindingExportW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'BindingVec', 'ObjectUuidVec']}"
+		},
+		"RpcNsBindingImportBeginA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
+		},
+		"RpcNsBindingImportBeginW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
+		},
+		"RpcNsBindingImportDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ImportContext']}"
+		},
+		"RpcNsBindingImportNext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ImportContext', 'Binding']}"
+		},
+		"RpcNsBindingLookupBeginA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
+		},
+		"RpcNsBindingLookupBeginW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
+		},
+		"RpcNsBindingLookupDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['LookupContext']}"
+		},
+		"RpcNsBindingLookupNext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['LookupContext', 'BindingVec']}"
+		},
+		"RpcNsBindingSelect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['BindingVec', 'Binding']}"
+		},
+		"RpcNsBindingUnexportA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectUuidVec']}"
+		},
+		"RpcNsBindingUnexportPnPA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectVector']}"
+		},
+		"RpcNsBindingUnexportPnPW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectVector']}"
+		},
+		"RpcNsBindingUnexportW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjectUuidVec']}"
+		},
+		"RpcNsEntryExpandNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'ExpandedName']}"
+		},
+		"RpcNsEntryExpandNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'ExpandedName']}"
+		},
+		"RpcNsEntryObjectInqBeginA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'InquiryContext']}"
+		},
+		"RpcNsEntryObjectInqBeginW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'InquiryContext']}"
+		},
+		"RpcNsEntryObjectInqDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext']}"
+		},
+		"RpcNsEntryObjectInqNext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'ObjUuid']}"
+		},
+		"RpcNsGroupDeleteA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GROUP_NAME_SYNTAX', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName']}"
+		},
+		"RpcNsGroupDeleteW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GROUP_NAME_SYNTAX', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName']}"
+		},
+		"RpcNsGroupMbrAddA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'MemberName']}"
+		},
+		"RpcNsGroupMbrAddW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'MemberName']}"
+		},
+		"RpcNsGroupMbrInqBeginA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'InquiryContext']}"
+		},
+		"RpcNsGroupMbrInqBeginW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'InquiryContext']}"
+		},
+		"RpcNsGroupMbrInqDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext']}"
+		},
+		"RpcNsGroupMbrInqNextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'MemberName']}"
+		},
+		"RpcNsGroupMbrInqNextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'MemberName']}"
+		},
+		"RpcNsGroupMbrRemoveA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'MemberName']}"
+		},
+		"RpcNsGroupMbrRemoveW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName', 'MemberNameSyntax', 'MemberName']}"
+		},
+		"RpcNsMgmtBindingUnexportA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfId', 'VersOption', 'ObjectUuidVec']}"
+		},
+		"RpcNsMgmtBindingUnexportW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfId', 'VersOption', 'ObjectUuidVec']}"
+		},
+		"RpcNsMgmtEntryCreateA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcNsMgmtEntryCreateW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcNsMgmtEntryDeleteA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcNsMgmtEntryDeleteW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName']}"
+		},
+		"RpcNsMgmtEntryInqIfIdsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfIdVec']}"
+		},
+		"RpcNsMgmtEntryInqIfIdsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID_VECTOR', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfIdVec']}"
+		},
+		"RpcNsMgmtHandleSetExpAge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['NsHandle', 'ExpirationAge']}"
+		},
+		"RpcNsMgmtInqExpAge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ExpirationAge']}"
+		},
+		"RpcNsMgmtSetExpAge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ExpirationAge']}"
+		},
+		"RpcNsProfileDeleteA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName']}"
+		},
+		"RpcNsProfileDeleteW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName']}"
+		},
+		"RpcNsProfileEltAddA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'IfId', 'MemberNameSyntax', 'MemberName', 'Priority', 'Annotation']}"
+		},
+		"RpcNsProfileEltAddW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'IfId', 'MemberNameSyntax', 'MemberName', 'Priority', 'Annotation']}"
+		},
+		"RpcNsProfileEltInqBeginA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'InquiryType', 'IfId', 'VersOption', 'MemberNameSyntax', 'MemberName', 'InquiryContext']}"
+		},
+		"RpcNsProfileEltInqBeginW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'InquiryType', 'IfId', 'VersOption', 'MemberNameSyntax', 'MemberName', 'InquiryContext']}"
+		},
+		"RpcNsProfileEltInqDone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext']}"
+		},
+		"RpcNsProfileEltInqNextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'IfId', 'MemberName', 'Priority', 'Annotation']}"
+		},
+		"RpcNsProfileEltInqNextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'IfId', 'MemberName', 'Priority', 'Annotation']}"
+		},
+		"RpcNsProfileEltRemoveA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'IfId', 'MemberNameSyntax', 'MemberName']}"
+		},
+		"RpcNsProfileEltRemoveW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_IF_ID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ProfileNameSyntax', 'ProfileName', 'IfId', 'MemberNameSyntax', 'MemberName']}"
+		}
+	}
+}

@@ -1,0 +1,114 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"authz.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AuthzAccessCheck": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_ACCESS_CHECK_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REQUEST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REPLY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_CHECK_RESULTS_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAuthzClientContext', 'pRequest', 'hAuditEvent', 'pSecurityDescriptor', 'OptionalSecurityDescriptorArray', 'OptionalSecurityDescriptorCount', 'pReply', 'phAccessCheckResults']}"
+		},
+		"AuthzAddSidsToContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'Sids', 'SidCount', 'RestrictedSids', 'RestrictedSidCount', 'phNewAuthzClientContext']}"
+		},
+		"AuthzCachedAccessCheck": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_ACCESS_CHECK_RESULTS_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REQUEST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REPLY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAccessCheckResults', 'pRequest', 'hAuditEvent', 'pReply']}"
+		},
+		"AuthzEnumerateSecurityEventSources": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SOURCE_SCHEMA_REGISTRATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'Buffer', 'pdwCount', 'pdwLength']}"
+		},
+		"AuthzEvaluateSacl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACL', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['AuthzClientContext', 'pRequest', 'Sacl', 'GrantedAccess', 'AccessGranted', 'pbGenerateAudit']}"
+		},
+		"AuthzFreeAuditEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuditEvent']}"
+		},
+		"AuthzFreeCentralAccessPolicyCache": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
+		},
+		"AuthzFreeContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext']}"
+		},
+		"AuthzFreeHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_ACCESS_CHECK_RESULTS_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAccessCheckResults']}"
+		},
+		"AuthzFreeResourceManager": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzResourceManager']}"
+		},
+		"AuthzGetInformationFromContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_CONTEXT_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'InfoClass', 'BufferSize', 'pSizeRequired', 'Buffer']}"
+		},
+		"AuthzInitializeCompoundContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['UserContext', 'DeviceContext', 'phCompoundContext']}"
+		},
+		"AuthzInitializeContextFromAuthzContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAuthzClientContext', 'pExpirationTime', 'Identifier', 'DynamicGroupArgs', 'phNewAuthzClientContext']}"
+		},
+		"AuthzInitializeContextFromSid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'UserSid', 'hAuthzResourceManager', 'pExpirationTime', 'Identifier', 'DynamicGroupArgs', 'phAuthzClientContext']}"
+		},
+		"AuthzInitializeContextFromToken": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': '_ref', 'name': 'LUID', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'TokenHandle', 'hAuthzResourceManager', 'pExpirationTime', 'Identifier', 'DynamicGroupArgs', 'phAuthzClientContext']}"
+		},
+		"AuthzInitializeObjectAccessAuditEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_INITIALIZE_OBJECT_ACCESS_AUDIT_EVENT_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_TYPE_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAuditEventType', 'szOperationType', 'szObjectType', 'szObjectName', 'szAdditionalInfo', 'phAuditEvent', 'dwAdditionalParameterCount']}"
+		},
+		"AuthzInitializeObjectAccessAuditEvent2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_TYPE_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAuditEventType', 'szOperationType', 'szObjectType', 'szObjectName', 'szAdditionalInfo', 'szAdditionalInfo2', 'phAuditEvent', 'dwAdditionalParameterCount']}"
+		},
+		"AuthzInitializeRemoteResourceManager": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_RPC_INIT_INFO_CLIENT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRpcInitInfo', 'phAuthzResourceManager']}"
+		},
+		"AuthzInitializeResourceManager": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACE_HEADER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'pAce', 'pArgs', 'pbAceApplicable']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'Args', 'pSidAttrArray', 'pSidCount', 'pRestrictedSidAttrArray', 'pRestrictedSidCount']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pSidAttrArray']}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'pfnDynamicAccessCheck', 'pfnComputeDynamicGroups', 'pfnFreeDynamicGroups', 'szResourceManagerName', 'phAuthzResourceManager']}"
+		},
+		"AuthzInitializeResourceManagerEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_INIT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_RESOURCE_MANAGER_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'pAuthzInitInfo', 'phAuthzResourceManager']}"
+		},
+		"AuthzInstallSecurityEventSource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SOURCE_SCHEMA_REGISTRATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'pRegistration']}"
+		},
+		"AuthzModifyClaims": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_CONTEXT_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_ATTRIBUTE_OPERATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_ATTRIBUTES_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'ClaimClass', 'pClaimOperations', 'pClaims']}"
+		},
+		"AuthzModifySecurityAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_ATTRIBUTE_OPERATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_ATTRIBUTES_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'pOperations', 'pAttributes']}"
+		},
+		"AuthzModifySids": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'AUTHZ_CONTEXT_INFORMATION_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SID_OPERATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TOKEN_GROUPS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'SidClass', 'pSidOperations', 'pSids']}"
+		},
+		"AuthzOpenObjectAudit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REQUEST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'AUTHZ_AUDIT_EVENT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSECURITY_DESCRIPTOR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_ACCESS_REPLY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Flags', 'hAuthzClientContext', 'pRequest', 'hAuditEvent', 'pSecurityDescriptor', 'OptionalSecurityDescriptorArray', 'OptionalSecurityDescriptorCount', 'pReply']}"
+		},
+		"AuthzRegisterCapChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_CAP_CHANGE_SUBSCRIPTION_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['phCapChangeSubscription', 'pfnCapChangeCallback', 'pCallbackContext']}"
+		},
+		"AuthzRegisterSecurityEventSource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'szEventSourceName', 'phEventProvider']}"
+		},
+		"AuthzReportSecurityEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'hEventProvider', 'dwAuditId', 'pUserSid', 'dwCount']}"
+		},
+		"AuthzReportSecurityEventFromParams": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUDIT_PARAMS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'hEventProvider', 'dwAuditId', 'pUserSid', 'pParams']}"
+		},
+		"AuthzSetAppContainerInformation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CLIENT_CONTEXT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SID_AND_ATTRIBUTES', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAuthzClientContext', 'pAppContainerSid', 'CapabilityCount', 'pCapabilitySids']}"
+		},
+		"AuthzUninstallSecurityEventSource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'szEventSourceName']}"
+		},
+		"AuthzUnregisterCapChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUTHZ_CAP_CHANGE_SUBSCRIPTION_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCapChangeSubscription']}"
+		},
+		"AuthzUnregisterSecurityEventSource": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AUTHZ_SECURITY_EVENT_PROVIDER_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'phEventProvider']}"
+		}
+	}
+}

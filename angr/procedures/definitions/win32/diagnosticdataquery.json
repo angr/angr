@@ -1,0 +1,120 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"diagnosticdataquery.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DdqCancelDiagnosticRecordOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession']}"
+		},
+		"DdqCloseSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession']}"
+		},
+		"DdqCreateSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DdqAccessLevel', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['accessLevel', 'hSession']}"
+		},
+		"DdqExtractDiagnosticReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'reportStoreType', 'reportKey', 'destinationPath']}"
+		},
+		"DdqFreeDiagnosticRecordLocaleTags": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_TAG_DESCRIPTION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTagDescription']}"
+		},
+		"DdqFreeDiagnosticRecordPage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_RECORD', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hRecord']}"
+		},
+		"DdqFreeDiagnosticRecordProducerCategories": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_CATEGORY_DESCRIPTION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hCategoryDescription']}"
+		},
+		"DdqFreeDiagnosticRecordProducers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_PRODUCER_DESCRIPTION', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProducerDescription']}"
+		},
+		"DdqFreeDiagnosticReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_REPORT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReport']}"
+		},
+		"DdqGetDiagnosticDataAccessLevelAllowed": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DdqAccessLevel', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['accessLevel']}"
+		},
+		"DdqGetDiagnosticRecordAtIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_RECORD', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_RECORD', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hRecord', 'index', 'record']}"
+		},
+		"DdqGetDiagnosticRecordBinaryDistribution": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_BINARY_STATS', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'producerNames', 'producerNameCount', 'topNBinaries', 'binaryStats', 'statCount']}"
+		},
+		"DdqGetDiagnosticRecordCategoryAtIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_CATEGORY_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_CATEGORY_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hCategoryDescription', 'index', 'categoryDescription']}"
+		},
+		"DdqGetDiagnosticRecordCategoryCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_CATEGORY_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hCategoryDescription', 'categoryDescriptionCount']}"
+		},
+		"DdqGetDiagnosticRecordCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_RECORD', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hRecord', 'recordCount']}"
+		},
+		"DdqGetDiagnosticRecordLocaleTagAtIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_TAG_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_TAG_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTagDescription', 'index', 'tagDescription']}"
+		},
+		"DdqGetDiagnosticRecordLocaleTagCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_TAG_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hTagDescription', 'tagDescriptionCount']}"
+		},
+		"DdqGetDiagnosticRecordLocaleTags": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_TAG_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'locale', 'hTagDescription']}"
+		},
+		"DdqGetDiagnosticRecordPage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_SEARCH_CRITERIA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_RECORD', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'searchCriteria', 'offset', 'pageRecordCount', 'baseRowId', 'hRecord']}"
+		},
+		"DdqGetDiagnosticRecordPayload": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'rowId', 'payload']}"
+		},
+		"DdqGetDiagnosticRecordProducerAtIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_PRODUCER_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_PRODUCER_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProducerDescription', 'index', 'producerDescription']}"
+		},
+		"DdqGetDiagnosticRecordProducerCategories": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_CATEGORY_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'producerName', 'hCategoryDescription']}"
+		},
+		"DdqGetDiagnosticRecordProducerCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_PRODUCER_DESCRIPTION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProducerDescription', 'producerDescriptionCount']}"
+		},
+		"DdqGetDiagnosticRecordProducers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_EVENT_PRODUCER_DESCRIPTION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'hProducerDescription']}"
+		},
+		"DdqGetDiagnosticRecordStats": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_SEARCH_CRITERIA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'searchCriteria', 'recordCount', 'minRowId', 'maxRowId']}"
+		},
+		"DdqGetDiagnosticRecordSummary": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_GENERAL_STATS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'producerNames', 'producerNameCount', 'generalStats']}"
+		},
+		"DdqGetDiagnosticRecordTagDistribution": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_TAG_STATS', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'producerNames', 'producerNameCount', 'tagStats', 'statCount']}"
+		},
+		"DdqGetDiagnosticReport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDIAGNOSTIC_REPORT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'reportStoreType', 'hReport']}"
+		},
+		"DdqGetDiagnosticReportAtIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_REPORT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_REPORT_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReport', 'index', 'report']}"
+		},
+		"DdqGetDiagnosticReportCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_REPORT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReport', 'reportCount']}"
+		},
+		"DdqGetDiagnosticReportStoreReportCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'reportStoreType', 'reportCount']}"
+		},
+		"DdqGetSessionAccessLevel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DdqAccessLevel', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'accessLevel']}"
+		},
+		"DdqGetTranscriptConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_TRANSCRIPT_CONFIGURATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'currentConfig']}"
+		},
+		"DdqIsDiagnosticRecordSampledIn": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'providerGroup', 'providerId', 'providerName', 'eventId', 'eventName', 'eventVersion', 'eventKeywords', 'isSampledIn']}"
+		},
+		"DdqSetTranscriptConfiguration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDIAGNOSTIC_DATA_QUERY_SESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DIAGNOSTIC_DATA_EVENT_TRANSCRIPT_CONFIGURATION', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSession', 'desiredConfig']}"
+		}
+	}
+}

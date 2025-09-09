@@ -1,0 +1,360 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"comctl32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CreateMappedBitmap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COLORMAP', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}, 'arg_names': ['hInstance', 'idBitmap', 'wFlags', 'lpColorMap', 'iNumMaps']}"
+		},
+		"CreatePropertySheetPageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETPAGEA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HPROPSHEETPAGE', 'ot': 'ptr'}, 'arg_names': ['constPropSheetPagePointer']}"
+		},
+		"CreatePropertySheetPageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETPAGEW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HPROPSHEETPAGE', 'ot': 'ptr'}, 'arg_names': ['constPropSheetPagePointer']}"
+		},
+		"CreateStatusWindowA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['style', 'lpszText', 'hwndParent', 'wID']}"
+		},
+		"CreateStatusWindowW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['style', 'lpszText', 'hwndParent', 'wID']}"
+		},
+		"CreateToolbarEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TBBUTTON', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['hwnd', 'ws', 'wID', 'nBitmaps', 'hBMInst', 'wBMID', 'lpButtons', 'iNumButtons', 'dxButton', 'dyButton', 'dxBitmap', 'dyBitmap', 'uStructSize']}"
+		},
+		"CreateUpDownControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, 'arg_names': ['dwStyle', 'x', 'y', 'cx', 'cy', 'hParent', 'nID', 'hInst', 'hBuddy', 'nUpper', 'nLower', 'nPos']}"
+		},
+		"DPA_Clone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, 'arg_names': ['hdpa', 'hdpaNew']}"
+		},
+		"DPA_Create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, 'arg_names': ['cItemGrow']}"
+		},
+		"DPA_CreateEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, 'arg_names': ['cpGrow', 'hheap']}"
+		},
+		"DPA_DeleteAllPtrs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdpa']}"
+		},
+		"DPA_DeletePtr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['hdpa', 'i']}"
+		},
+		"DPA_Destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdpa']}"
+		},
+		"DPA_DestroyCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p', 'pData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hdpa', 'pfnCB', 'pData']}"
+		},
+		"DPA_EnumCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p', 'pData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hdpa', 'pfnCB', 'pData']}"
+		},
+		"DPA_GetPtr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['hdpa', 'i']}"
+		},
+		"DPA_GetPtrIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hdpa', 'p']}"
+		},
+		"DPA_GetSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}], 'returnty': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'arg_names': ['hdpa']}"
+		},
+		"DPA_Grow": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pdpa', 'cp']}"
+		},
+		"DPA_InsertPtr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hdpa', 'i', 'p']}"
+		},
+		"DPA_LoadStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDPA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DPASTREAMINFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pinfo', 'pstream', 'pvInstData']}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phdpa', 'pfn', 'pstream', 'pvInstData']}"
+		},
+		"DPA_Merge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p1', 'p2', 'lParam']}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DPAMM_MESSAGE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['uMsg', 'pvDest', 'pvSrc', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdpaDest', 'hdpaSrc', 'dwFlags', 'pfnCompare', 'pfnMerge', 'lParam']}"
+		},
+		"DPA_SaveStream": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DPASTREAMINFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pinfo', 'pstream', 'pvInstData']}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hdpa', 'pfn', 'pstream', 'pvInstData']}"
+		},
+		"DPA_Search": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p1', 'p2', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hdpa', 'pFind', 'iStart', 'pfnCompare', 'lParam', 'options']}"
+		},
+		"DPA_SetPtr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdpa', 'i', 'p']}"
+		},
+		"DPA_Sort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDPA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p1', 'p2', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdpa', 'pfnCompare', 'lParam']}"
+		},
+		"DSA_Clone": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, 'arg_names': ['hdsa']}"
+		},
+		"DSA_Create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, 'arg_names': ['cbItem', 'cItemGrow']}"
+		},
+		"DSA_DeleteAllItems": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdsa']}"
+		},
+		"DSA_DeleteItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdsa', 'i']}"
+		},
+		"DSA_Destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdsa']}"
+		},
+		"DSA_DestroyCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p', 'pData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hdsa', 'pfnCB', 'pData']}"
+		},
+		"DSA_EnumCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p', 'pData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hdsa', 'pfnCB', 'pData']}"
+		},
+		"DSA_GetItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdsa', 'i', 'pitem']}"
+		},
+		"DSA_GetItemPtr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['hdsa', 'i']}"
+		},
+		"DSA_GetSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}], 'returnty': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'arg_names': ['hdsa']}"
+		},
+		"DSA_InsertItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hdsa', 'i', 'pitem']}"
+		},
+		"DSA_SetItem": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hdsa', 'i', 'pitem']}"
+		},
+		"DSA_Sort": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDSA', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['p1', 'p2', 'lParam']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pdsa', 'pfnCompare', 'lParam']}"
+		},
+		"DefSubclassProc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['hWnd', 'uMsg', 'wParam', 'lParam']}"
+		},
+		"DestroyPropertySheetPage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPROPSHEETPAGE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"DrawInsert": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['handParent', 'hLB', 'nItem']}"
+		},
+		"DrawShadowText": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hdc', 'pszText', 'cch', 'prc', 'dwFlags', 'crText', 'crShadow', 'ixOffset', 'iyOffset']}"
+		},
+		"DrawStatusTextA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDC', 'lprc', 'pszText', 'uFlags']}"
+		},
+		"DrawStatusTextW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDC', 'lprc', 'pszText', 'uFlags']}"
+		},
+		"FlatSB_EnableScrollBar": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"FlatSB_GetScrollInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SCROLLINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'code', 'param2']}"
+		},
+		"FlatSB_GetScrollPos": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'code']}"
+		},
+		"FlatSB_GetScrollProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WSB_PROP', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'propIndex', 'param2']}"
+		},
+		"FlatSB_GetScrollRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'code', 'param2', 'param3']}"
+		},
+		"FlatSB_SetScrollInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SCROLLINFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'code', 'psi', 'fRedraw']}"
+		},
+		"FlatSB_SetScrollPos": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'code', 'pos', 'fRedraw']}"
+		},
+		"FlatSB_SetScrollProp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'index', 'newValue', 'param3']}"
+		},
+		"FlatSB_SetScrollRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'code', 'min', 'max', 'fRedraw']}"
+		},
+		"FlatSB_ShowScrollBar": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SCROLLBAR_CONSTANTS', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'code', 'param2']}"
+		},
+		"GetEffectiveClientRect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hWnd', 'lprc', 'lpInfo']}"
+		},
+		"GetMUILanguage": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'arg_names': []}"
+		},
+		"GetWindowSubclass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['hWnd', 'uMsg', 'wParam', 'lParam', 'uIdSubclass', 'dwRefData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hWnd', 'pfnSubclass', 'uIdSubclass', 'pdwRefData']}"
+		},
+		"HIMAGELIST_QueryInterface": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['himl', 'riid', 'ppv']}"
+		},
+		"ImageList_Add": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['himl', 'hbmImage', 'hbmMask']}"
+		},
+		"ImageList_AddMasked": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['himl', 'hbmImage', 'crMask']}"
+		},
+		"ImageList_BeginDrag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himlTrack', 'iTrack', 'dxHotspot', 'dyHotspot']}"
+		},
+		"ImageList_CoCreateInstance": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rclsid', 'punkOuter', 'riid', 'ppv']}"
+		},
+		"ImageList_Copy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IMAGE_LIST_COPY_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himlDst', 'iDst', 'himlSrc', 'iSrc', 'uFlags']}"
+		},
+		"ImageList_Create": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IMAGELIST_CREATION_FLAGS', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['cx', 'cy', 'flags', 'cInitial', 'cGrow']}"
+		},
+		"ImageList_Destroy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl']}"
+		},
+		"ImageList_DragEnter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwndLock', 'x', 'y']}"
+		},
+		"ImageList_DragLeave": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwndLock']}"
+		},
+		"ImageList_DragMove": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['x', 'y']}"
+		},
+		"ImageList_DragShowNolock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['fShow']}"
+		},
+		"ImageList_Draw": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IMAGE_LIST_DRAW_STYLE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'i', 'hdcDst', 'x', 'y', 'fStyle']}"
+		},
+		"ImageList_DrawEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': '_ref', 'name': 'IMAGE_LIST_DRAW_STYLE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'i', 'hdcDst', 'x', 'y', 'dx', 'dy', 'rgbBk', 'rgbFg', 'fStyle']}"
+		},
+		"ImageList_DrawIndirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGELISTDRAWPARAMS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pimldp']}"
+		},
+		"ImageList_Duplicate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['himl']}"
+		},
+		"ImageList_EndDrag": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"ImageList_GetBkColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, 'arg_names': ['himl']}"
+		},
+		"ImageList_GetDragImage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['ppt', 'pptHotspot']}"
+		},
+		"ImageList_GetIcon": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'IMAGE_LIST_DRAW_STYLE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HICON', 'ot': 'ptr'}, 'arg_names': ['himl', 'i', 'flags']}"
+		},
+		"ImageList_GetIconSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'cx', 'cy']}"
+		},
+		"ImageList_GetImageCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['himl']}"
+		},
+		"ImageList_GetImageInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGEINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'i', 'pImageInfo']}"
+		},
+		"ImageList_LoadImageA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMAGE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['hi', 'lpbmp', 'cx', 'cGrow', 'crMask', 'uType', 'uFlags']}"
+		},
+		"ImageList_LoadImageW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMAGE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['hi', 'lpbmp', 'cx', 'cGrow', 'crMask', 'uType', 'uFlags']}"
+		},
+		"ImageList_Merge": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['himl1', 'i1', 'himl2', 'i2', 'dx', 'dy']}"
+		},
+		"ImageList_Read": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, 'arg_names': ['pstm']}"
+		},
+		"ImageList_ReadEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwFlags', 'pstm', 'riid', 'ppv']}"
+		},
+		"ImageList_Remove": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'i']}"
+		},
+		"ImageList_Replace": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HBITMAP', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'i', 'hbmImage', 'hbmMask']}"
+		},
+		"ImageList_ReplaceIcon": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'HICON', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['himl', 'i', 'hicon']}"
+		},
+		"ImageList_SetBkColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, 'arg_names': ['himl', 'clrBk']}"
+		},
+		"ImageList_SetDragCursorImage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himlDrag', 'iDrag', 'dxHotspot', 'dyHotspot']}"
+		},
+		"ImageList_SetIconSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'cx', 'cy']}"
+		},
+		"ImageList_SetImageCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'uNewCount']}"
+		},
+		"ImageList_SetOverlayImage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'iImage', 'iOverlay']}"
+		},
+		"ImageList_Write": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['himl', 'pstm']}"
+		},
+		"ImageList_WriteEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIMAGELIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMAGE_LIST_WRITE_STREAM_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['himl', 'dwFlags', 'pstm']}"
+		},
+		"InitCommonControls": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"InitCommonControlsEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INITCOMMONCONTROLSEX', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['picce']}"
+		},
+		"InitMUILanguage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['uiLang']}"
+		},
+		"InitializeFlatSB": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"LBItemFromPt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'POINT', 'ot': '_ref'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hLB', 'pt', 'bAutoScroll']}"
+		},
+		"LoadIconMetric": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': '_LI_METRIC', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HICON', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hinst', 'pszName', 'lims', 'phico']}"
+		},
+		"LoadIconWithScaleDown": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HICON', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hinst', 'pszName', 'cx', 'cy', 'phico']}"
+		},
+		"MakeDragList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hLB']}"
+		},
+		"MenuHelp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HMENU', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['uMsg', 'wParam', 'lParam', 'hMainMenu', 'hInst', 'hwndStatus', 'lpwIDs']}"
+		},
+		"PropertySheetA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETHEADERA_V2', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['param0']}"
+		},
+		"PropertySheetW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSHEETHEADERW_V2', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['param0']}"
+		},
+		"RemoveWindowSubclass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['hWnd', 'uMsg', 'wParam', 'lParam', 'uIdSubclass', 'dwRefData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hWnd', 'pfnSubclass', 'uIdSubclass']}"
+		},
+		"SetWindowSubclass": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'WPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['hWnd', 'uMsg', 'wParam', 'lParam', 'uIdSubclass', 'dwRefData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hWnd', 'pfnSubclass', 'uIdSubclass', 'dwRefData']}"
+		},
+		"ShowHideMenuCtl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hWnd', 'uFlags', 'lpInfo']}"
+		},
+		"Str_SetPtrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ppsz', 'psz']}"
+		},
+		"TaskDialog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TASKDIALOG_COMMON_BUTTON_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndOwner', 'hInstance', 'pszWindowTitle', 'pszMainInstruction', 'pszContent', 'dwCommonButtons', 'pszIcon', 'pnButton']}"
+		},
+		"TaskDialogIndirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TASKDIALOGCONFIG', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTaskConfig', 'pnButton', 'pnRadioButton', 'pfVerificationFlagChecked']}"
+		},
+		"UninitializeFlatSB": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"_TrackMouseEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TRACKMOUSEEVENT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpEventTrack']}"
+		}
+	}
+}

@@ -1,0 +1,48 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"prntvpt.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"PTCloseProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider']}"
+		},
+		"PTConvertDevModeToPrintTicket": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'EPrintTicketScope', 'ot': 'int'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'cbDevmode', 'pDevmode', 'scope', 'pPrintTicket']}"
+		},
+		"PTConvertPrintTicketToDevMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'EDefaultDevmodeType', 'ot': 'int'}, {'_t': '_ref', 'name': 'EPrintTicketScope', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEA', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pPrintTicket', 'baseDevmodeType', 'scope', 'pcbDevmode', 'ppDevmode', 'pbstrErrorMessage']}"
+		},
+		"PTGetPrintCapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pPrintTicket', 'pCapabilities', 'pbstrErrorMessage']}"
+		},
+		"PTGetPrintDeviceCapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pPrintTicket', 'pDeviceCapabilities', 'pbstrErrorMessage']}"
+		},
+		"PTGetPrintDeviceResources": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pszLocaleName', 'pPrintTicket', 'pDeviceResources', 'pbstrErrorMessage']}"
+		},
+		"PTMergeAndValidatePrintTicket": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'EPrintTicketScope', 'ot': 'int'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pBaseTicket', 'pDeltaTicket', 'scope', 'pResultTicket', 'pbstrErrorMessage']}"
+		},
+		"PTOpenProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPrinterName', 'dwVersion', 'phProvider']}"
+		},
+		"PTOpenProviderEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HPTPROVIDER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPrinterName', 'dwMaxVersion', 'dwPrefVersion', 'phProvider', 'pUsedVersion']}"
+		},
+		"PTQuerySchemaVersionSupport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPrinterName', 'pMaxVersion']}"
+		},
+		"PTReleaseMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pBuffer']}"
+		}
+	}
+}

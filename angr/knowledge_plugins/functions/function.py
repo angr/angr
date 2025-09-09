@@ -118,16 +118,16 @@ class Function(Serializable):
         self.normalized = False
 
         # block nodes at whose ends the function returns
-        self._ret_sites: set[BlockNode] = set()
+        self._ret_sites: set[CodeNode] = set()
         # block nodes at whose ends the function jumps out to another function (jumps outside)
-        self._jumpout_sites: set[BlockNode] = set()
+        self._jumpout_sites: set[CodeNode] = set()
         # block nodes at whose ends the function calls out to another non-returning function
-        self._callout_sites: set[BlockNode] = set()
+        self._callout_sites: set[CodeNode] = set()
         # block nodes that ends the function by returning out to another function (returns outside). This is rare.
-        self._retout_sites: set[BlockNode] = set()
+        self._retout_sites: set[CodeNode] = set()
         # block nodes (basic block nodes) at whose ends the function terminates
         # in theory, if everything works fine, endpoints == ret_sites | jumpout_sites | callout_sites
-        self._endpoints: defaultdict[str, set[BlockNode]] = defaultdict(set)
+        self._endpoints: defaultdict[str, set[CodeNode]] = defaultdict(set)
 
         self._call_sites = {}
         self.addr = addr
@@ -642,6 +642,9 @@ class Function(Serializable):
         """
         :return: the function's pseudocode
         """
+        if self.project is None:
+            l.error("Cannot generate pseudocode because the function is not associated with any angr project.")
+            return None
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text if dec.codegen else None
 
@@ -748,6 +751,7 @@ class Function(Serializable):
         """
 
         hooker = None
+        assert self.project is not None
         if self.is_syscall:
             hooker = self.project.simos.syscall_from_addr(self.addr)
         elif self.is_simprocedure:
@@ -944,7 +948,7 @@ class Function(Serializable):
             return node
 
         # this is either a new node or a different node at the same address
-        node._graph = self.transition_graph
+        node.set_graph(self.transition_graph)
         if self._block_sizes.get(node.addr, 0) == 0:
             self._block_sizes[node.addr] = node.size
         if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
@@ -1229,6 +1233,7 @@ class Function(Serializable):
 
         # subgraph = networkx.subgraph(self.graph, blocks)
         subgraph = self.graph.subgraph(blocks).copy()
+        assert isinstance(subgraph, networkx.DiGraph)
         g = networkx.classes.digraph.DiGraph()
 
         for n in subgraph.nodes():
@@ -1577,13 +1582,16 @@ class Function(Serializable):
 
                 # update self.calling_convention if necessary
                 if self.calling_convention is None:
-                    if self.project.arch.name in library.default_ccs:
+                    if self.project.arch.name in library.default_ccs and self.is_syscall is False:
                         self.calling_convention = library.default_ccs[self.project.arch.name](self.project.arch)
                     elif self.project.arch.name in DEFAULT_CC:
-                        self.calling_convention = default_cc(
+                        cc_cls = default_cc(
                             self.project.arch.name,
                             platform=self.project.simos.name if self.project.simos is not None else None,
-                        )(self.project.arch)
+                            syscall=self.is_syscall is True,
+                        )
+                        if cc_cls is not None:
+                            self.calling_convention = cc_cls(self.project.arch)
 
                 return True
 
@@ -1777,4 +1785,5 @@ class Function(Serializable):
         """
         Pretty-print the function disassembly.
         """
+        assert self.project is not None
         print(self.project.analyses.Disassembly(self).render(**kwargs))

@@ -1,0 +1,51 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-core-ioring-l1-1-0.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"BuildIoRingCancelRequest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IORING_HANDLE_REF', 'ot': '_ref'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'file', 'opToCancel', 'userData']}"
+		},
+		"BuildIoRingReadFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IORING_HANDLE_REF', 'ot': '_ref'}, {'_t': '_ref', 'name': 'IORING_BUFFER_REF', 'ot': '_ref'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'IORING_SQE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'fileRef', 'dataRef', 'numberOfBytesToRead', 'fileOffset', 'userData', 'sqeFlags']}"
+		},
+		"BuildIoRingRegisterBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IORING_BUFFER_INFO', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'count', 'buffers', 'userData']}"
+		},
+		"BuildIoRingRegisterFileHandles": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'count', 'handles', 'userData']}"
+		},
+		"CloseIoRing": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing']}"
+		},
+		"CreateIoRing": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IORING_VERSION', 'ot': 'int'}, {'_t': '_ref', 'name': 'IORING_CREATE_FLAGS', 'ot': '_ref'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIORING', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioringVersion', 'flags', 'submissionQueueSize', 'completionQueueSize', 'h']}"
+		},
+		"GetIoRingInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IORING_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'info']}"
+		},
+		"IsIoRingOpSupported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IORING_OP_CODE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ioRing', 'op']}"
+		},
+		"PopIoRingCompletion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IORING_CQE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'cqe']}"
+		},
+		"QueryIoRingCapabilities": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IORING_CAPABILITIES', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['capabilities']}"
+		},
+		"SetIoRingCompletionEvent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'hEvent']}"
+		},
+		"SubmitIoRing": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIORING', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ioRing', 'waitOperations', 'milliseconds', 'submittedEntries']}"
+		}
+	}
+}

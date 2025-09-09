@@ -1,0 +1,123 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"cldapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CfCloseHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileHandle']}"
+		},
+		"CfConnectSyncRoot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_CALLBACK_REGISTRATION', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CF_CONNECT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['SyncRootPath', 'CallbackTable', 'CallbackContext', 'ConnectFlags', 'ConnectionKey']}"
+		},
+		"CfConvertToPlaceholder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CF_CONVERT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'FileIdentity', 'FileIdentityLength', 'ConvertFlags', 'ConvertUsn', 'Overlapped']}"
+		},
+		"CfCreatePlaceholders": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_PLACEHOLDER_CREATE_INFO', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CF_CREATE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['BaseDirectoryPath', 'PlaceholderArray', 'PlaceholderCount', 'CreateFlags', 'EntriesProcessed']}"
+		},
+		"CfDehydratePlaceholder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'CF_DEHYDRATE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'StartingOffset', 'Length', 'DehydrateFlags', 'Overlapped']}"
+		},
+		"CfDisconnectSyncRoot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey']}"
+		},
+		"CfExecute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_OPERATION_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_OPERATION_PARAMETERS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['OpInfo', 'OpParams']}"
+		},
+		"CfGetCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'CorrelationVector']}"
+		},
+		"CfGetPlaceholderInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_PLACEHOLDER_INFO_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'InfoClass', 'InfoBuffer', 'InfoBufferLength', 'ReturnedLength']}"
+		},
+		"CfGetPlaceholderRangeInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_PLACEHOLDER_RANGE_INFO_CLASS', 'ot': 'int'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'InfoClass', 'StartingOffset', 'Length', 'InfoBuffer', 'InfoBufferLength', 'ReturnedLength']}"
+		},
+		"CfGetPlaceholderRangeInfoForHydration": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'CF_PLACEHOLDER_RANGE_INFO_CLASS', 'ot': 'int'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey', 'TransferKey', 'FileId', 'InfoClass', 'StartingOffset', 'RangeLength', 'InfoBuffer', 'InfoBufferSize', 'InfoBufferWritten']}"
+		},
+		"CfGetPlaceholderStateFromAttributeTag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'CF_PLACEHOLDER_STATE', 'ot': 'int'}, 'arg_names': ['FileAttributes', 'ReparseTag']}"
+		},
+		"CfGetPlaceholderStateFromFileInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'FILE_INFO_BY_HANDLE_CLASS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CF_PLACEHOLDER_STATE', 'ot': 'int'}, 'arg_names': ['InfoBuffer', 'InfoClass']}"
+		},
+		"CfGetPlaceholderStateFromFindData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WIN32_FIND_DATAA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'CF_PLACEHOLDER_STATE', 'ot': 'int'}, 'arg_names': ['FindData']}"
+		},
+		"CfGetPlatformInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_PLATFORM_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['PlatformVersion']}"
+		},
+		"CfGetSyncRootInfoByHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_SYNC_ROOT_INFO_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'InfoClass', 'InfoBuffer', 'InfoBufferLength', 'ReturnedLength']}"
+		},
+		"CfGetSyncRootInfoByPath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_SYNC_ROOT_INFO_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FilePath', 'InfoClass', 'InfoBuffer', 'InfoBufferLength', 'ReturnedLength']}"
+		},
+		"CfGetTransferKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'TransferKey']}"
+		},
+		"CfGetWin32HandleFromProtectedHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['ProtectedHandle']}"
+		},
+		"CfHydratePlaceholder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'CF_HYDRATE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'StartingOffset', 'Length', 'HydrateFlags', 'Overlapped']}"
+		},
+		"CfOpenFileWithOplock": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_OPEN_FILE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FilePath', 'Flags', 'ProtectedHandle']}"
+		},
+		"CfQuerySyncProviderStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_SYNC_PROVIDER_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey', 'ProviderStatus']}"
+		},
+		"CfReferenceProtectedHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, 'arg_names': ['ProtectedHandle']}"
+		},
+		"CfRegisterSyncRoot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_SYNC_REGISTRATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_SYNC_POLICIES', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CF_REGISTER_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['SyncRootPath', 'Registration', 'Policies', 'RegisterFlags']}"
+		},
+		"CfReleaseProtectedHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ProtectedHandle']}"
+		},
+		"CfReleaseTransferKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['FileHandle', 'TransferKey']}"
+		},
+		"CfReportProviderProgress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey', 'TransferKey', 'ProviderProgressTotal', 'ProviderProgressCompleted']}"
+		},
+		"CfReportProviderProgress2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey', 'TransferKey', 'RequestKey', 'ProviderProgressTotal', 'ProviderProgressCompleted', 'TargetSessionId']}"
+		},
+		"CfReportSyncStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_SYNC_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['SyncRootPath', 'SyncStatus']}"
+		},
+		"CfRevertPlaceholder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_REVERT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'RevertFlags', 'Overlapped']}"
+		},
+		"CfSetCorrelationVector": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'CorrelationVector']}"
+		},
+		"CfSetInSyncState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_IN_SYNC_STATE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CF_SET_IN_SYNC_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'InSyncState', 'InSyncFlags', 'InSyncUsn']}"
+		},
+		"CfSetPinState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CF_PIN_STATE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CF_SET_PIN_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'PinState', 'PinFlags', 'Overlapped']}"
+		},
+		"CfUnregisterSyncRoot": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['SyncRootPath']}"
+		},
+		"CfUpdatePlaceholder": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_FS_METADATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CF_FILE_RANGE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CF_UPDATE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'label': 'Int64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['FileHandle', 'FsMetadata', 'FileIdentity', 'FileIdentityLength', 'DehydrateRangeArray', 'DehydrateRangeCount', 'UpdateFlags', 'UpdateUsn', 'Overlapped']}"
+		},
+		"CfUpdateSyncProviderStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CF_CONNECTION_KEY', 'ot': 'llong'}, {'_t': '_ref', 'name': 'CF_SYNC_PROVIDER_STATUS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ConnectionKey', 'ProviderStatus']}"
+		}
+	}
+}

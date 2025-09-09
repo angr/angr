@@ -1,0 +1,132 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ncrypt.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"NCryptCloseProtectionDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hDescriptor']}"
+		},
+		"NCryptCreateClaim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSubjectKey', 'hAuthorityKey', 'dwClaimType', 'pParameterList', 'pbClaimBlob', 'cbClaimBlob', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptCreatePersistedKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_KEY_SPEC', 'ot': 'int'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'phKey', 'pszAlgId', 'pszKeyName', 'dwLegacyKeySpec', 'dwFlags']}"
+		},
+		"NCryptCreateProtectionDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszDescriptorString', 'dwFlags', 'phDescriptor']}"
+		},
+		"NCryptDecrypt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'pbInput', 'cbInput', 'pPaddingInfo', 'pbOutput', 'cbOutput', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptDeleteKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'dwFlags']}"
+		},
+		"NCryptDeriveKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_SECRET_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSharedSecret', 'pwszKDF', 'pParameterList', 'pbDerivedKey', 'cbDerivedKey', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptEncrypt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'pbInput', 'cbInput', 'pPaddingInfo', 'pbOutput', 'cbOutput', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptEnumAlgorithms": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_OPERATION', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCryptAlgorithmName', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'dwAlgOperations', 'pdwAlgCount', 'ppAlgList', 'dwFlags']}"
+		},
+		"NCryptEnumKeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCryptKeyName', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pszScope', 'ppKeyName', 'ppEnumState', 'dwFlags']}"
+		},
+		"NCryptEnumStorageProviders": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCryptProviderName', 'ot': '_ref'}}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdwProviderCount', 'ppProviderList', 'dwFlags']}"
+		},
+		"NCryptExportKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'hExportKey', 'pszBlobType', 'pParameterList', 'pbOutput', 'cbOutput', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptFinalizeKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'dwFlags']}"
+		},
+		"NCryptFreeBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvInput']}"
+		},
+		"NCryptFreeObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hObject']}"
+		},
+		"NCryptGetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'OBJECT_SECURITY_INFORMATION', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hObject', 'pszProperty', 'pbOutput', 'cbOutput', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptGetProtectionDescriptorInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_ALLOC_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hDescriptor', 'pMemPara', 'dwInfoType', 'ppvInfo']}"
+		},
+		"NCryptImportKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'hImportKey', 'pszBlobType', 'pParameterList', 'phKey', 'pbData', 'cbData', 'dwFlags']}"
+		},
+		"NCryptIsAlgSupported": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'pszAlgId', 'dwFlags']}"
+		},
+		"NCryptIsKeyHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hKey']}"
+		},
+		"NCryptKeyDerivation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'pParameterList', 'pbDerivedKey', 'cbDerivedKey', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptNotifyChangeKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'phEvent', 'dwFlags']}"
+		},
+		"NCryptOpenKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_KEY_SPEC', 'ot': 'int'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hProvider', 'phKey', 'pszKeyName', 'dwLegacyKeySpec', 'dwFlags']}"
+		},
+		"NCryptOpenStorageProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phProvider', 'pszProviderName', 'dwFlags']}"
+		},
+		"NCryptProtectSecret": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_ALLOC_PARA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hDescriptor', 'dwFlags', 'pbData', 'cbData', 'pMemPara', 'hWnd', 'ppbProtectedBlob', 'pcbProtectedBlob']}"
+		},
+		"NCryptQueryProtectionDescriptorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszName', 'pwszDescriptorString', 'pcDescriptorString', 'dwFlags']}"
+		},
+		"NCryptRegisterProtectionDescriptorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszName', 'pwszDescriptorString', 'dwFlags']}"
+		},
+		"NCryptSecretAgreement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_SECRET_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hPrivKey', 'hPubKey', 'phAgreedSecret', 'dwFlags']}"
+		},
+		"NCryptSetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hObject', 'pszProperty', 'pbInput', 'cbInput', 'dwFlags']}"
+		},
+		"NCryptSignHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'pPaddingInfo', 'pbHashValue', 'cbHashValue', 'pbSignature', 'cbSignature', 'pcbResult', 'dwFlags']}"
+		},
+		"NCryptStreamClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_STREAM_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hStream']}"
+		},
+		"NCryptStreamOpenToProtect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_PROTECT_STREAM_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_STREAM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hDescriptor', 'dwFlags', 'hWnd', 'pStreamInfo', 'phStream']}"
+		},
+		"NCryptStreamOpenToUnprotect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_PROTECT_STREAM_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_STREAM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pStreamInfo', 'dwFlags', 'hWnd', 'phStream']}"
+		},
+		"NCryptStreamOpenToUnprotectEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_PROTECT_STREAM_INFO_EX', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_STREAM_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pStreamInfo', 'dwFlags', 'hWnd', 'phStream']}"
+		},
+		"NCryptStreamUpdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_STREAM_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hStream', 'pbData', 'cbData', 'fFinal']}"
+		},
+		"NCryptTranslateHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_PROV_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CERT_KEY_SPEC', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phProvider', 'phKey', 'hLegacyProv', 'hLegacyKey', 'dwLegacyKeySpec', 'dwFlags']}"
+		},
+		"NCryptUnprotectSecret": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_DESCRIPTOR_HANDLE', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NCRYPT_ALLOC_PARA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['phDescriptor', 'dwFlags', 'pbProtectedBlob', 'cbProtectedBlob', 'pMemPara', 'hWnd', 'ppbData', 'pcbData']}"
+		},
+		"NCryptVerifyClaim": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCryptBufferDesc', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hSubjectKey', 'hAuthorityKey', 'dwClaimType', 'pParameterList', 'pbClaimBlob', 'cbClaimBlob', 'pOutput', 'dwFlags']}"
+		},
+		"NCryptVerifySignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'NCRYPT_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hKey', 'pPaddingInfo', 'pbHashValue', 'cbHashValue', 'pbSignature', 'cbSignature', 'dwFlags']}"
+		}
+	}
+}

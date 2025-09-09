@@ -1,0 +1,702 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"crypt32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CertAddCRLContextToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCrlContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddCRLLinkToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCrlContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddCTLContextToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCtlContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddCTLLinkToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCtlContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddCertificateContextToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCertContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddCertificateLinkToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pCertContext', 'dwAddDisposition', 'ppStoreContext']}"
+		},
+		"CertAddEncodedCRLToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'pbCrlEncoded', 'cbCrlEncoded', 'dwAddDisposition', 'ppCrlContext']}"
+		},
+		"CertAddEncodedCTLToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwMsgAndCertEncodingType', 'pbCtlEncoded', 'cbCtlEncoded', 'dwAddDisposition', 'ppCtlContext']}"
+		},
+		"CertAddEncodedCertificateToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'pbCertEncoded', 'cbCertEncoded', 'dwAddDisposition', 'ppCertContext']}"
+		},
+		"CertAddEncodedCertificateToSystemStoreA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['szCertStoreName', 'pbCertEncoded', 'cbCertEncoded']}"
+		},
+		"CertAddEncodedCertificateToSystemStoreW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['szCertStoreName', 'pbCertEncoded', 'cbCertEncoded']}"
+		},
+		"CertAddEnhancedKeyUsageIdentifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'pszUsageIdentifier']}"
+		},
+		"CertAddRefServerOcspResponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hServerOcspResponse']}"
+		},
+		"CertAddRefServerOcspResponseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SERVER_OCSP_RESPONSE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pServerOcspResponseContext']}"
+		},
+		"CertAddSerializedElementToStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'pbElement', 'cbElement', 'dwAddDisposition', 'dwFlags', 'dwContextTypeFlags', 'pdwContextType', 'ppvContext']}"
+		},
+		"CertAddStoreToCollection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCollectionStore', 'hSiblingStore', 'dwUpdateFlags', 'dwPriority']}"
+		},
+		"CertAlgIdToOID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['dwAlgId']}"
+		},
+		"CertCloseServerOcspResponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hServerOcspResponse', 'dwFlags']}"
+		},
+		"CertCloseStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwFlags']}"
+		},
+		"CertCompareCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pCertId1', 'pCertId2']}"
+		},
+		"CertCompareCertificateName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pCertName1', 'pCertName2']}"
+		},
+		"CertCompareIntegerBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInt1', 'pInt2']}"
+		},
+		"CertComparePublicKeyInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pPublicKey1', 'pPublicKey2']}"
+		},
+		"CertControlStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_CONTROL_STORE_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwFlags', 'dwCtrlType', 'pvCtrlPara']}"
+		},
+		"CertCreateCRLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['dwCertEncodingType', 'pbCrlEncoded', 'cbCrlEncoded']}"
+		},
+		"CertCreateCTLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['dwMsgAndCertEncodingType', 'pbCtlEncoded', 'cbCtlEncoded']}"
+		},
+		"CertCreateCTLEntryFromCertificateContextProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ATTRIBUTE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_ENTRY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'cOptAttr', 'rgOptAttr', 'dwFlags', 'pvReserved', 'pCtlEntry', 'pcbCtlEntry']}"
+		},
+		"CertCreateCertificateChainEngine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_ENGINE_CONFIG', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCERTCHAINENGINE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pConfig', 'phChainEngine']}"
+		},
+		"CertCreateCertificateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['dwCertEncodingType', 'pbCertEncoded', 'cbCertEncoded']}"
+		},
+		"CertCreateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CREATE_CONTEXT_PARA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['dwContextType', 'dwEncodingType', 'pbEncoded', 'cbEncoded', 'dwFlags', 'pCreatePara']}"
+		},
+		"CertCreateSelfSignCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CERT_CREATE_SELFSIGN_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_KEY_PROV_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ALGORITHM_IDENTIFIER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SYSTEMTIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SYSTEMTIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_EXTENSIONS', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCryptProvOrNCryptKey', 'pSubjectIssuerBlob', 'dwFlags', 'pKeyProvInfo', 'pSignatureAlgorithm', 'pStartTime', 'pEndTime', 'pExtensions']}"
+		},
+		"CertDeleteCRLFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCrlContext']}"
+		},
+		"CertDeleteCTLFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext']}"
+		},
+		"CertDeleteCertificateFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext']}"
+		},
+		"CertDuplicateCRLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['pCrlContext']}"
+		},
+		"CertDuplicateCTLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['pCtlContext']}"
+		},
+		"CertDuplicateCertificateChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['pChainContext']}"
+		},
+		"CertDuplicateCertificateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['pCertContext']}"
+		},
+		"CertDuplicateStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['hCertStore']}"
+		},
+		"CertEnumCRLContextProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCrlContext', 'dwPropId']}"
+		},
+		"CertEnumCRLsInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'pPrevCrlContext']}"
+		},
+		"CertEnumCTLContextProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCtlContext', 'dwPropId']}"
+		},
+		"CertEnumCTLsInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'pPrevCtlContext']}"
+		},
+		"CertEnumCertificateContextProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCertContext', 'dwPropId']}"
+		},
+		"CertEnumCertificatesInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'pPrevCertContext']}"
+		},
+		"CertEnumPhysicalStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PHYSICAL_STORE_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pwszStoreName', 'pStoreInfo', 'pvReserved', 'pvArg']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pvArg', 'pfnEnum']}"
+		},
+		"CertEnumSubjectInSortedCTL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext', 'ppvNextSubject', 'pSubjectIdentifier', 'pEncodedAttributes']}"
+		},
+		"CertEnumSystemStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CERT_SYSTEM_STORE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SYSTEM_STORE_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pStoreInfo', 'pvReserved', 'pvArg']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'pvSystemStoreLocationPara', 'pvArg', 'pfnEnum']}"
+		},
+		"CertEnumSystemStoreLocation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pwszStoreLocation', 'dwFlags', 'pvReserved', 'pvArg']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'pvArg', 'pfnEnum']}"
+		},
+		"CertFindAttribute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ATTRIBUTE', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ATTRIBUTE', 'ot': '_ref'}}, 'arg_names': ['pszObjId', 'cAttr', 'rgAttr']}"
+		},
+		"CertFindCRLInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'dwFindFlags', 'dwFindType', 'pvFindPara', 'pPrevCrlContext']}"
+		},
+		"CertFindCTLInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_FIND_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'dwMsgAndCertEncodingType', 'dwFindFlags', 'dwFindType', 'pvFindPara', 'pPrevCtlContext']}"
+		},
+		"CertFindCertificateInCRL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_ENTRY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCert', 'pCrlContext', 'dwFlags', 'pvReserved', 'ppCrlEntry']}"
+		},
+		"CertFindCertificateInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_FIND_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'dwFindFlags', 'dwFindType', 'pvFindPara', 'pPrevCertContext']}"
+		},
+		"CertFindChainInStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CERT_FIND_CHAIN_IN_STORE_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'dwFindFlags', 'dwFindType', 'pvFindPara', 'pPrevChainContext']}"
+		},
+		"CertFindExtension": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_EXTENSION', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_EXTENSION', 'ot': '_ref'}}, 'arg_names': ['pszObjId', 'cExtensions', 'rgExtensions']}"
+		},
+		"CertFindRDNAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_NAME_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_RDN_ATTR', 'ot': '_ref'}}, 'arg_names': ['pszObjId', 'pName']}"
+		},
+		"CertFindSubjectInCTL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_ENTRY', 'ot': '_ref'}}, 'arg_names': ['dwEncodingType', 'dwSubjectType', 'pvSubject', 'pCtlContext', 'dwFlags']}"
+		},
+		"CertFindSubjectInSortedCTL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectIdentifier', 'pCtlContext', 'dwFlags', 'pvReserved', 'pEncodedAttributes']}"
+		},
+		"CertFreeCRLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCrlContext']}"
+		},
+		"CertFreeCTLContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext']}"
+		},
+		"CertFreeCertificateChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pChainContext']}"
+		},
+		"CertFreeCertificateChainEngine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTCHAINENGINE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hChainEngine']}"
+		},
+		"CertFreeCertificateChainList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['prgpSelection']}"
+		},
+		"CertFreeCertificateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext']}"
+		},
+		"CertFreeServerOcspResponseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SERVER_OCSP_RESPONSE_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pServerOcspResponseContext']}"
+		},
+		"CertGetCRLContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCrlContext', 'dwPropId', 'pvData', 'pcbData']}"
+		},
+		"CertGetCRLFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'pIssuerContext', 'pPrevCrlContext', 'pdwFlags']}"
+		},
+		"CertGetCTLContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext', 'dwPropId', 'pvData', 'pcbData']}"
+		},
+		"CertGetCertificateChain": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTCHAINENGINE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hChainEngine', 'pCertContext', 'pTime', 'hAdditionalStore', 'pChainPara', 'dwFlags', 'pvReserved', 'ppChainContext']}"
+		},
+		"CertGetCertificateContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'dwPropId', 'pvData', 'pcbData']}"
+		},
+		"CertGetEnhancedKeyUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_USAGE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'dwFlags', 'pUsage', 'pcbUsage']}"
+		},
+		"CertGetIntendedKeyUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pCertInfo', 'pbKeyUsage', 'cbKeyUsage']}"
+		},
+		"CertGetIssuerCertificateFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'pSubjectContext', 'pPrevIssuerContext', 'pdwFlags']}"
+		},
+		"CertGetNameStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCertContext', 'dwType', 'dwFlags', 'pvTypePara', 'pszNameString', 'cchNameString']}"
+		},
+		"CertGetNameStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCertContext', 'dwType', 'dwFlags', 'pvTypePara', 'pszNameString', 'cchNameString']}"
+		},
+		"CertGetPublicKeyLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwCertEncodingType', 'pPublicKey']}"
+		},
+		"CertGetServerOcspResponseContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SERVER_OCSP_RESPONSE_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hServerOcspResponse', 'dwFlags', 'pvReserved']}"
+		},
+		"CertGetStoreProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwPropId', 'pvData', 'pcbData']}"
+		},
+		"CertGetSubjectCertificateFromStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'arg_names': ['hCertStore', 'dwCertEncodingType', 'pCertId']}"
+		},
+		"CertGetValidUsages": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['cCerts', 'rghCerts', 'cNumOIDs', 'rghOIDs', 'pcbOIDs']}"
+		},
+		"CertIsRDNAttrsInCertificateName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_RDN', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'dwFlags', 'pCertName', 'pRDN']}"
+		},
+		"CertIsStrongHashToSign": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_STRONG_SIGN_PARA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pStrongSignPara', 'pwszCNGHashAlgid', 'pSigningCert']}"
+		},
+		"CertIsValidCRLForCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCert', 'pCrl', 'dwFlags', 'pvReserved']}"
+		},
+		"CertIsWeakHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwHashUseType', 'pwszCNGHashAlgid', 'dwChainFlags', 'pSignerChainContext', 'pTimeStamp', 'pwszFileName']}"
+		},
+		"CertNameToStrA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CERT_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwCertEncodingType', 'pName', 'dwStrType', 'psz', 'csz']}"
+		},
+		"CertNameToStrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CERT_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwCertEncodingType', 'pName', 'dwStrType', 'psz', 'csz']}"
+		},
+		"CertOIDToAlgId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pszObjId']}"
+		},
+		"CertOpenServerOcspResponse": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SERVER_OCSP_RESPONSE_OPEN_PARA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pChainContext', 'dwFlags', 'pOpenPara']}"
+		},
+		"CertOpenStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_OPEN_STORE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['lpszStoreProvider', 'dwEncodingType', 'hCryptProv', 'dwFlags', 'pvPara']}"
+		},
+		"CertOpenSystemStoreA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['hProv', 'szSubsystemProtocol']}"
+		},
+		"CertOpenSystemStoreW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['hProv', 'szSubsystemProtocol']}"
+		},
+		"CertRDNValueToStrA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwValueType', 'pValue', 'psz', 'csz']}"
+		},
+		"CertRDNValueToStrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwValueType', 'pValue', 'psz', 'csz']}"
+		},
+		"CertRegisterPhysicalStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PHYSICAL_STORE_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pwszStoreName', 'pStoreInfo', 'pvReserved']}"
+		},
+		"CertRegisterSystemStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SYSTEM_STORE_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pStoreInfo', 'pvReserved']}"
+		},
+		"CertRemoveEnhancedKeyUsageIdentifier": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'pszUsageIdentifier']}"
+		},
+		"CertRemoveStoreFromCollection": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hCollectionStore', 'hSiblingStore']}"
+		},
+		"CertResyncCertificateChainEngine": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTCHAINENGINE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hChainEngine']}"
+		},
+		"CertRetrieveLogoOrBiometricInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'lpszLogoOrBiometricType', 'dwRetrievalFlags', 'dwTimeout', 'dwFlags', 'pvReserved', 'ppbData', 'pcbData', 'ppwszMimeType']}"
+		},
+		"CertSaveStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'CERT_STORE_SAVE_AS', 'ot': 'int'}, {'_t': '_ref', 'name': 'CERT_STORE_SAVE_TO', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwEncodingType', 'dwSaveAs', 'dwSaveTo', 'pvSaveToPara', 'dwFlags']}"
+		},
+		"CertSelectCertificateChains": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SELECT_CHAIN_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_SELECT_CRITERIA', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSelectionContext', 'dwFlags', 'pChainParameters', 'cCriteria', 'rgpCriteria', 'hStore', 'pcSelection', 'pprgpSelection']}"
+		},
+		"CertSerializeCRLStoreElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCrlContext', 'dwFlags', 'pbElement', 'pcbElement']}"
+		},
+		"CertSerializeCTLStoreElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext', 'dwFlags', 'pbElement', 'pcbElement']}"
+		},
+		"CertSerializeCertificateStoreElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'dwFlags', 'pbElement', 'pcbElement']}"
+		},
+		"CertSetCRLContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCrlContext', 'dwPropId', 'dwFlags', 'pvData']}"
+		},
+		"CertSetCTLContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCtlContext', 'dwPropId', 'dwFlags', 'pvData']}"
+		},
+		"CertSetCertificateContextPropertiesFromCTLEntry": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_ENTRY', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'pCtlEntry', 'dwFlags']}"
+		},
+		"CertSetCertificateContextProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'dwPropId', 'dwFlags', 'pvData']}"
+		},
+		"CertSetEnhancedKeyUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_USAGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCertContext', 'pUsage']}"
+		},
+		"CertSetStoreProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCertStore', 'dwPropId', 'dwFlags', 'pvData']}"
+		},
+		"CertStrToNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pszX500', 'dwStrType', 'pvReserved', 'pbEncoded', 'pcbEncoded', 'ppszError']}"
+		},
+		"CertStrToNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_STRING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pszX500', 'dwStrType', 'pvReserved', 'pbEncoded', 'pcbEncoded', 'ppszError']}"
+		},
+		"CertUnregisterPhysicalStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags', 'pwszStoreName']}"
+		},
+		"CertUnregisterSystemStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvSystemStore', 'dwFlags']}"
+		},
+		"CertVerifyCRLRevocation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_INFO', 'ot': '_ref'}}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pCertId', 'cCrlInfo', 'rgpCrlInfo']}"
+		},
+		"CertVerifyCRLTimeValidity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRL_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pTimeToVerify', 'pCrlInfo']}"
+		},
+		"CertVerifyCTLUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_USAGE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_VERIFY_USAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_VERIFY_USAGE_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'dwSubjectType', 'pvSubject', 'pSubjectUsage', 'dwFlags', 'pVerifyUsagePara', 'pVerifyUsageStatus']}"
+		},
+		"CertVerifyCertificateChainPolicy": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_POLICY_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CHAIN_POLICY_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszPolicyOID', 'pChainContext', 'pPolicyPara', 'pPolicyStatus']}"
+		},
+		"CertVerifyRevocation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_REVOCATION_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_REVOCATION_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'dwRevType', 'cContext', 'rgpvContext', 'dwFlags', 'pRevPara', 'pRevStatus']}"
+		},
+		"CertVerifySubjectCertificateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubject', 'pIssuer', 'pdwFlags']}"
+		},
+		"CertVerifyTimeValidity": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pTimeToVerify', 'pCertInfo']}"
+		},
+		"CertVerifyValidityNesting": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSubjectInfo', 'pIssuerInfo']}"
+		},
+		"CryptAcquireCertificatePrivateKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CRYPT_ACQUIRE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_KEY_SPEC', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCert', 'dwFlags', 'pvParameters', 'phCryptProvOrNCryptKey', 'pdwKeySpec', 'pfCallerFreeProvOrNCryptKey']}"
+		},
+		"CryptBinaryToStringA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CRYPT_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbBinary', 'cbBinary', 'dwFlags', 'pszString', 'pcchString']}"
+		},
+		"CryptBinaryToStringW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CRYPT_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbBinary', 'cbBinary', 'dwFlags', 'pszString', 'pcchString']}"
+		},
+		"CryptCloseAsyncHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTASYNC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAsync']}"
+		},
+		"CryptCreateAsyncHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCRYPTASYNC', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwFlags', 'phAsync']}"
+		},
+		"CryptCreateKeyIdentifierFromCSP": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PUBLICKEYSTRUC', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pszPubKeyOID', 'pPubKeyStruc', 'cbPubKeyStruc', 'dwFlags', 'pvReserved', 'pbHash', 'pcbHash']}"
+		},
+		"CryptDecodeMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_DECRYPT_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_VERIFY_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwMsgTypeFlags', 'pDecryptPara', 'pVerifyPara', 'dwSignerIndex', 'pbEncodedBlob', 'cbEncodedBlob', 'dwPrevInnerContentType', 'pdwMsgType', 'pdwInnerContentType', 'pbDecoded', 'pcbDecoded', 'ppXchgCert', 'ppSignerCert']}"
+		},
+		"CryptDecodeObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'lpszStructType', 'pbEncoded', 'cbEncoded', 'dwFlags', 'pvStructInfo', 'pcbStructInfo']}"
+		},
+		"CryptDecodeObjectEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_DECODE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'lpszStructType', 'pbEncoded', 'cbEncoded', 'dwFlags', 'pDecodePara', 'pvStructInfo', 'pcbStructInfo']}"
+		},
+		"CryptDecryptAndVerifyMessageSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_DECRYPT_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_VERIFY_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDecryptPara', 'pVerifyPara', 'dwSignerIndex', 'pbEncryptedBlob', 'cbEncryptedBlob', 'pbDecrypted', 'pcbDecrypted', 'ppXchgCert', 'ppSignerCert']}"
+		},
+		"CryptDecryptMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_DECRYPT_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDecryptPara', 'pbEncryptedBlob', 'cbEncryptedBlob', 'pbDecrypted', 'pcbDecrypted', 'ppXchgCert']}"
+		},
+		"CryptEncodeObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'lpszStructType', 'pvStructInfo', 'pbEncoded', 'pcbEncoded']}"
+		},
+		"CryptEncodeObjectEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CRYPT_ENCODE_OBJECT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ENCODE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'lpszStructType', 'pvStructInfo', 'dwFlags', 'pEncodePara', 'pvEncoded', 'pcbEncoded']}"
+		},
+		"CryptEncryptMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ENCRYPT_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pEncryptPara', 'cRecipientCert', 'rgpRecipientCert', 'pbToBeEncrypted', 'cbToBeEncrypted', 'pbEncryptedBlob', 'pcbEncryptedBlob']}"
+		},
+		"CryptEnumKeyIdentifierProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pKeyIdentifier', 'dwFlags', 'pvReserved', 'pvArg', 'cProp', 'rgdwPropId', 'rgpvData', 'rgcbData']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pKeyIdentifier', 'dwPropId', 'dwFlags', 'pwszComputerName', 'pvReserved', 'pvArg', 'pfnEnum']}"
+		},
+		"CryptEnumOIDFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID', 'cValue', 'rgdwValueType', 'rgpwszValueName', 'rgpbValueData', 'rgcbValueData', 'pvArg']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID', 'dwFlags', 'pvArg', 'pfnEnumOIDFunc']}"
+		},
+		"CryptEnumOIDInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_OID_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfo', 'pvArg']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwGroupId', 'dwFlags', 'pvArg', 'pfnEnumOIDInfo']}"
+		},
+		"CryptExportPKCS8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwKeySpec', 'pszPrivateKeyObjId', 'dwFlags', 'pvAuxInfo', 'pbPrivateKeyBlob', 'pcbPrivateKeyBlob']}"
+		},
+		"CryptExportPublicKeyInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProvOrNCryptKey', 'dwKeySpec', 'dwCertEncodingType', 'pInfo', 'pcbInfo']}"
+		},
+		"CryptExportPublicKeyInfoEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProvOrNCryptKey', 'dwKeySpec', 'dwCertEncodingType', 'pszPublicKeyObjId', 'dwFlags', 'pvAuxInfo', 'pInfo', 'pcbInfo']}"
+		},
+		"CryptExportPublicKeyInfoFromBCryptKeyHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'BCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hBCryptKey', 'dwCertEncodingType', 'pszPublicKeyObjId', 'dwFlags', 'pvAuxInfo', 'pInfo', 'pcbInfo']}"
+		},
+		"CryptFindCertificateKeyProvInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CRYPT_FIND_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pCert', 'dwFlags', 'pvReserved']}"
+		},
+		"CryptFindLocalizedName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pwszCryptName']}"
+		},
+		"CryptFindOIDInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_OID_INFO', 'ot': '_ref'}}, 'arg_names': ['dwKeyType', 'pvKey', 'dwGroupId']}"
+		},
+		"CryptFormatObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'dwFormatType', 'dwFormatStrType', 'pFormatStruct', 'lpszStructType', 'pbEncoded', 'cbEncoded', 'pbFormat', 'pcbFormat']}"
+		},
+		"CryptFreeOIDFunctionAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFuncAddr', 'dwFlags']}"
+		},
+		"CryptGetAsyncParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTASYNC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pszParamOid', 'pvParam']}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAsync', 'pszParamOid', 'ppvParam', 'ppfnFree']}"
+		},
+		"CryptGetDefaultOIDDllList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFuncSet', 'dwEncodingType', 'pwszDllList', 'pcchDllList']}"
+		},
+		"CryptGetDefaultOIDFunctionAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFuncSet', 'dwEncodingType', 'pwszDll', 'dwFlags', 'ppvFuncAddr', 'phFuncAddr']}"
+		},
+		"CryptGetKeyIdentifierProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pKeyIdentifier', 'dwPropId', 'dwFlags', 'pwszComputerName', 'pvReserved', 'pvData', 'pcbData']}"
+		},
+		"CryptGetMessageCertificates": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['dwMsgAndCertEncodingType', 'hCryptProv', 'dwFlags', 'pbSignedBlob', 'cbSignedBlob']}"
+		},
+		"CryptGetMessageSignerCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['dwMsgEncodingType', 'pbSignedBlob', 'cbSignedBlob']}"
+		},
+		"CryptGetOIDFunctionAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hFuncSet', 'dwEncodingType', 'pszOID', 'dwFlags', 'ppvFuncAddr', 'phFuncAddr']}"
+		},
+		"CryptGetOIDFunctionValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID', 'pwszValueName', 'pdwValueType', 'pbValueData', 'pcbValueData']}"
+		},
+		"CryptHashCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ALG_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'Algid', 'dwFlags', 'pbEncoded', 'cbEncoded', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptHashCertificate2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pwszCNGHashAlgid', 'dwFlags', 'pvReserved', 'pbEncoded', 'cbEncoded', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptHashMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_HASH_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pHashPara', 'fDetachedHash', 'cToBeHashed', 'rgpbToBeHashed', 'rgcbToBeHashed', 'pbHashedBlob', 'pcbHashedBlob', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptHashPublicKeyInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ALG_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'Algid', 'dwFlags', 'dwCertEncodingType', 'pInfo', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptHashToBeSigned": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwCertEncodingType', 'pbEncoded', 'cbEncoded', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptImportPKCS8": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CRYPT_PKCS8_IMPORT_PARAMS', 'ot': '_ref'}, {'_t': '_ref', 'name': 'CRYPT_KEY_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['sPrivateKeyAndParams', 'dwFlags', 'phCryptProv', 'pvAuxInfo']}"
+		},
+		"CryptImportPublicKeyInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwCertEncodingType', 'pInfo', 'phKey']}"
+		},
+		"CryptImportPublicKeyInfoEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'ALG_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwCertEncodingType', 'pInfo', 'aiKeyAlg', 'dwFlags', 'pvAuxInfo', 'phKey']}"
+		},
+		"CryptImportPublicKeyInfoEx2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'CRYPT_IMPORT_PUBLIC_KEY_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BCRYPT_KEY_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwCertEncodingType', 'pInfo', 'dwFlags', 'pvAuxInfo', 'phKey']}"
+		},
+		"CryptInitOIDFunctionSet": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pszFuncName', 'dwFlags']}"
+		},
+		"CryptInstallDefaultContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CRYPT_DEFAULT_CONTEXT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CRYPT_DEFAULT_CONTEXT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwDefaultType', 'pvDefaultPara', 'dwFlags', 'pvReserved', 'phDefaultContext']}"
+		},
+		"CryptInstallOIDFunctionAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_OID_FUNC_ENTRY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hModule', 'dwEncodingType', 'pszFuncName', 'cFuncEntry', 'rgFuncEntry', 'dwFlags']}"
+		},
+		"CryptMemAlloc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['cbSize']}"
+		},
+		"CryptMemFree": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pv']}"
+		},
+		"CryptMemRealloc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pv', 'cbSize']}"
+		},
+		"CryptMsgCalculateEncodedLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwMsgEncodingType', 'dwFlags', 'dwMsgType', 'pvMsgEncodeInfo', 'pszInnerContentObjID', 'cbData']}"
+		},
+		"CryptMsgClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg']}"
+		},
+		"CryptMsgControl": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg', 'dwFlags', 'dwCtrlType', 'pvCtrlPara']}"
+		},
+		"CryptMsgCountersign": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_SIGNER_ENCODE_INFO', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg', 'dwIndex', 'cCountersigners', 'rgCountersigners']}"
+		},
+		"CryptMsgCountersignEncoded": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_SIGNER_ENCODE_INFO', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pbSignerInfo', 'cbSignerInfo', 'cCountersigners', 'rgCountersigners', 'pbCountersignature', 'pcbCountersignature']}"
+		},
+		"CryptMsgDuplicate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['hCryptMsg']}"
+		},
+		"CryptMsgEncodeAndSignCTL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CTL_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_SIGNED_ENCODE_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwMsgEncodingType', 'pCtlInfo', 'pSignInfo', 'dwFlags', 'pbEncoded', 'pcbEncoded']}"
+		},
+		"CryptMsgGetAndVerifySigner": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg', 'cSignerStore', 'rghSignerStore', 'dwFlags', 'ppSigner', 'pdwSignerIndex']}"
+		},
+		"CryptMsgGetParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg', 'dwParamType', 'dwIndex', 'pvData', 'pcbData']}"
+		},
+		"CryptMsgOpenToDecode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_STREAM_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['dwMsgEncodingType', 'dwFlags', 'dwMsgType', 'hCryptProv', 'pRecipientInfo', 'pStreamInfo']}"
+		},
+		"CryptMsgOpenToEncode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CRYPT_MSG_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_STREAM_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['dwMsgEncodingType', 'dwFlags', 'dwMsgType', 'pvMsgEncodeInfo', 'pszInnerContentObjID', 'pStreamInfo']}"
+		},
+		"CryptMsgSignCTL": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CMSG_SIGNED_ENCODE_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwMsgEncodingType', 'pbCtlContent', 'cbCtlContent', 'pSignInfo', 'dwFlags', 'pbEncoded', 'pcbEncoded']}"
+		},
+		"CryptMsgUpdate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptMsg', 'pbData', 'cbData', 'fFinal']}"
+		},
+		"CryptMsgVerifyCountersignatureEncoded": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwEncodingType', 'pbSignerInfo', 'cbSignerInfo', 'pbSignerInfoCountersignature', 'cbSignerInfoCountersignature', 'pciCountersigner']}"
+		},
+		"CryptMsgVerifyCountersignatureEncodedEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwEncodingType', 'pbSignerInfo', 'cbSignerInfo', 'pbSignerInfoCountersignature', 'cbSignerInfoCountersignature', 'dwSignerType', 'pvSigner', 'dwFlags', 'pvExtra']}"
+		},
+		"CryptProtectData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTPROTECT_PROMPTSTRUCT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDataIn', 'szDataDescr', 'pOptionalEntropy', 'pvReserved', 'pPromptStruct', 'dwFlags', 'pDataOut']}"
+		},
+		"CryptProtectMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDataIn', 'cbDataIn', 'dwFlags']}"
+		},
+		"CryptQueryObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'CERT_QUERY_OBJECT_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CERT_QUERY_CONTENT_TYPE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'CERT_QUERY_FORMAT_TYPE_FLAGS', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_QUERY_CONTENT_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_QUERY_FORMAT_TYPE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwObjectType', 'pvObject', 'dwExpectedContentTypeFlags', 'dwExpectedFormatTypeFlags', 'dwFlags', 'pdwMsgAndCertEncodingType', 'pdwContentType', 'pdwFormatType', 'phCertStore', 'phMsg', 'ppvContext']}"
+		},
+		"CryptRegisterDefaultOIDFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'dwIndex', 'pwszDll']}"
+		},
+		"CryptRegisterOIDFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID', 'pwszDll', 'pszOverrideFuncName']}"
+		},
+		"CryptRegisterOIDInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_OID_INFO', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfo', 'dwFlags']}"
+		},
+		"CryptRetrieveTimeStamp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_TIMESTAMP_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_TIMESTAMP_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['wszUrl', 'dwRetrievalFlags', 'dwTimeout', 'pszHashId', 'pPara', 'pbData', 'cbData', 'ppTsContext', 'ppTsSigner', 'phStore']}"
+		},
+		"CryptSIPAddProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_ADD_NEWPROVIDER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['psNewProv']}"
+		},
+		"CryptSIPLoad": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SIP_DISPATCH_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pgSubject', 'dwFlags', 'pSipDispatch']}"
+		},
+		"CryptSIPRemoveProvider": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pgProv']}"
+		},
+		"CryptSIPRetrieveSubjectGuid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['FileName', 'hFileIn', 'pgSubject']}"
+		},
+		"CryptSIPRetrieveSubjectGuidForCatalogFile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['FileName', 'hFileIn', 'pgSubject']}"
+		},
+		"CryptSetAsyncParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTASYNC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pszParamOid', 'pvParam']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hAsync', 'pszParamOid', 'pvParam', 'pfnFree']}"
+		},
+		"CryptSetKeyIdentifierProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pKeyIdentifier', 'dwPropId', 'dwFlags', 'pwszComputerName', 'pvReserved', 'pvData']}"
+		},
+		"CryptSetOIDFunctionValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'REG_VALUE_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID', 'pwszValueName', 'dwValueType', 'pbValueData', 'cbValueData']}"
+		},
+		"CryptSignAndEncodeCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_KEY_SPEC', 'ot': 'int'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ALGORITHM_IDENTIFIER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProvOrNCryptKey', 'dwKeySpec', 'dwCertEncodingType', 'lpszStructType', 'pvStructInfo', 'pSignatureAlgorithm', 'pvHashAuxInfo', 'pbEncoded', 'pcbEncoded']}"
+		},
+		"CryptSignAndEncryptMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_SIGN_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ENCRYPT_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSignPara', 'pEncryptPara', 'cRecipientCert', 'rgpRecipientCert', 'pbToBeSignedAndEncrypted', 'cbToBeSignedAndEncrypted', 'pbSignedAndEncryptedBlob', 'pcbSignedAndEncryptedBlob']}"
+		},
+		"CryptSignCertificate": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_OR_NCRYPT_KEY_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_ALGORITHM_IDENTIFIER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProvOrNCryptKey', 'dwKeySpec', 'dwCertEncodingType', 'pbEncodedToBeSigned', 'cbEncodedToBeSigned', 'pSignatureAlgorithm', 'pvHashAuxInfo', 'pbSignature', 'pcbSignature']}"
+		},
+		"CryptSignMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_SIGN_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSignPara', 'fDetachedSignature', 'cToBeSigned', 'rgpbToBeSigned', 'rgcbToBeSigned', 'pbSignedBlob', 'pcbSignedBlob']}"
+		},
+		"CryptSignMessageWithKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_KEY_SIGN_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pSignPara', 'pbToBeSigned', 'cbToBeSigned', 'pbSignedBlob', 'pcbSignedBlob']}"
+		},
+		"CryptStringToBinaryA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CRYPT_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszString', 'cchString', 'dwFlags', 'pbBinary', 'pcbBinary', 'pdwSkip', 'pdwFlags']}"
+		},
+		"CryptStringToBinaryW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'CRYPT_STRING', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszString', 'cchString', 'dwFlags', 'pbBinary', 'pcbBinary', 'pdwSkip', 'pdwFlags']}"
+		},
+		"CryptUninstallDefaultContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hDefaultContext', 'dwFlags', 'pvReserved']}"
+		},
+		"CryptUnprotectData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPTPROTECT_PROMPTSTRUCT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDataIn', 'ppszDataDescr', 'pOptionalEntropy', 'pvReserved', 'pPromptStruct', 'dwFlags', 'pDataOut']}"
+		},
+		"CryptUnprotectMemory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDataIn', 'cbDataIn', 'dwFlags']}"
+		},
+		"CryptUnregisterDefaultOIDFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pwszDll']}"
+		},
+		"CryptUnregisterOIDFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwEncodingType', 'pszFuncName', 'pszOID']}"
+		},
+		"CryptUnregisterOIDInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_OID_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfo']}"
+		},
+		"CryptUpdateProtectedState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pOldSid', 'pwszOldPassword', 'dwFlags', 'pdwSuccessCount', 'pdwFailureCount']}"
+		},
+		"CryptVerifyCertificateSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwCertEncodingType', 'pbEncoded', 'cbEncoded', 'pPublicKey']}"
+		},
+		"CryptVerifyCertificateSignatureEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCRYPTPROV_LEGACY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CERT_QUERY_ENCODING_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CRYPT_VERIFY_CERT_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hCryptProv', 'dwCertEncodingType', 'dwSubjectType', 'pvSubject', 'dwIssuerType', 'pvIssuer', 'dwFlags', 'pvExtra']}"
+		},
+		"CryptVerifyDetachedMessageHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_HASH_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pHashPara', 'pbDetachedHashBlob', 'cbDetachedHashBlob', 'cToBeHashed', 'rgpbToBeHashed', 'rgcbToBeHashed', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptVerifyDetachedMessageSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_VERIFY_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pVerifyPara', 'dwSignerIndex', 'pbDetachedSignBlob', 'cbDetachedSignBlob', 'cToBeSigned', 'rgpbToBeSigned', 'rgcbToBeSigned', 'ppSignerCert']}"
+		},
+		"CryptVerifyMessageHash": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_HASH_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pHashPara', 'pbHashedBlob', 'cbHashedBlob', 'pbToBeHashed', 'pcbToBeHashed', 'pbComputedHash', 'pcbComputedHash']}"
+		},
+		"CryptVerifyMessageSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_VERIFY_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pVerifyPara', 'dwSignerIndex', 'pbSignedBlob', 'cbSignedBlob', 'pbDecoded', 'pcbDecoded', 'ppSignerCert']}"
+		},
+		"CryptVerifyMessageSignatureWithKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_KEY_VERIFY_MESSAGE_PARA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_PUBLIC_KEY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pVerifyPara', 'pPublicKeyInfo', 'pbSignedBlob', 'cbSignedBlob', 'pbDecoded', 'pcbDecoded']}"
+		},
+		"CryptVerifyTimeStampSignature": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_TIMESTAMP_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CERT_CONTEXT', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbTSContentInfo', 'cbTSContentInfo', 'pbData', 'cbData', 'hAdditionalStore', 'ppTsContext', 'ppTsSigner', 'phStore']}"
+		},
+		"PFXExportCertStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hStore', 'pPFX', 'szPassword', 'dwFlags']}"
+		},
+		"PFXExportCertStoreEx": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hStore', 'pPFX', 'szPassword', 'pvPara', 'dwFlags']}"
+		},
+		"PFXImportCertStore": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CRYPT_KEY_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HCERTSTORE', 'ot': 'ptr'}, 'arg_names': ['pPFX', 'szPassword', 'dwFlags']}"
+		},
+		"PFXIsPFXBlob": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPFX']}"
+		},
+		"PFXVerifyPassword": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CRYPT_INTEGER_BLOB', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPFX', 'szPassword', 'dwFlags']}"
+		}
+	}
+}

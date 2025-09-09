@@ -24,6 +24,7 @@ dependencies = [
     "cffi>=1.14.0",
     "claripy==9.2.174.dev0",
     "cle==9.2.174.dev0",
+    "msgspec",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.0",
     "protobuf>=5.28.2",
@@ -82,7 +83,7 @@ exclude = ["tests*"]
 namespaces = false
 
 [tool.setuptools.package-data]
-angr = ["py.typed", "unicornlib.*", "rustylib.*"]
+angr = ["py.typed", "unicornlib.*", "rustylib.*", "*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }

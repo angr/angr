@@ -1,0 +1,54 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"webauthn.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"WebAuthNAuthenticatorGetAssertion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CLIENT_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_ASSERTION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hWnd', 'pwszRpId', 'pWebAuthNClientData', 'pWebAuthNGetAssertionOptions', 'ppWebAuthNAssertion']}"
+		},
+		"WebAuthNAuthenticatorMakeCredential": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_RP_ENTITY_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_USER_ENTITY_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_COSE_CREDENTIAL_PARAMETERS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CLIENT_DATA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CREDENTIAL_ATTESTATION', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hWnd', 'pRpInformation', 'pUserInformation', 'pPubKeyCredParams', 'pWebAuthNClientData', 'pWebAuthNMakeCredentialOptions', 'ppWebAuthNCredentialAttestation']}"
+		},
+		"WebAuthNCancelCurrentOperation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCancellationId']}"
+		},
+		"WebAuthNDeletePlatformCredential": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cbCredentialId', 'pbCredentialId']}"
+		},
+		"WebAuthNFreeAssertion": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_ASSERTION', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pWebAuthNAssertion']}"
+		},
+		"WebAuthNFreeCredentialAttestation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CREDENTIAL_ATTESTATION', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pWebAuthNCredentialAttestation']}"
+		},
+		"WebAuthNFreePlatformCredentialList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CREDENTIAL_DETAILS_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pCredentialDetailsList']}"
+		},
+		"WebAuthNGetApiVersionNumber": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"WebAuthNGetCancellationId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCancellationId']}"
+		},
+		"WebAuthNGetErrorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['hr']}"
+		},
+		"WebAuthNGetPlatformCredentialList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_GET_CREDENTIALS_OPTIONS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WEBAUTHN_CREDENTIAL_DETAILS_LIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pGetCredentialsOptions', 'ppCredentialDetailsList']}"
+		},
+		"WebAuthNGetW3CExceptionDOMError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hr']}"
+		},
+		"WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pbIsUserVerifyingPlatformAuthenticatorAvailable']}"
+		}
+	}
+}

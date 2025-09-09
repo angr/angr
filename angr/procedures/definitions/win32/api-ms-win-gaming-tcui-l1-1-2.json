@@ -1,0 +1,36 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-gaming-tcui-l1-1-2.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CheckGamingPrivilegeSilentlyForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'privilegeId', 'scope', 'policy', 'hasPrivilege']}"
+		},
+		"CheckGamingPrivilegeWithUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'privilegeId', 'scope', 'policy', 'friendlyMessage', 'completionRoutine', 'context']}"
+		},
+		"ShowChangeFriendRelationshipUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'targetUserXuid', 'completionRoutine', 'context']}"
+		},
+		"ShowGameInviteUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'serviceConfigurationId', 'sessionTemplateName', 'sessionId', 'invitationDisplayText', 'completionRoutine', 'context']}"
+		},
+		"ShowPlayerPickerUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'HSTRING'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'HSTRING'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'bot', 'label': 'PlayerPickerUICompletionRoutine'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'promptDisplayText', 'xuids', 'xuidsCount', 'preSelectedXuids', 'preSelectedXuidsCount', 'minSelectionCount', 'maxSelectionCount', 'completionRoutine', 'context']}"
+		},
+		"ShowProfileCardUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'targetUserXuid', 'completionRoutine', 'context']}"
+		},
+		"ShowTitleAchievementsUIForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'titleId', 'completionRoutine', 'context']}"
+		}
+	}
+}
