@@ -3833,14 +3833,41 @@ def _cpp_decl_to_type(
 
 
 def normalize_cpp_function_name(name: str) -> str:
-    # strip access specifiers
-    prefixes = ["public:", "protected:", "private:"]
-    for pre in prefixes:
-        name = name.removeprefix(pre)
+    stripped_any = True
+    while stripped_any:
+        stripped_any = False
+        # strip virtual/static/inline/friend keywords
+        prefixes = ["virtual", "static", "inline", "friend"]
+        for pre in prefixes:
+            new_name = name.removeprefix(pre + " ")
+            if new_name != name:
+                name = new_name
+                stripped_any = True
+
+        # strip access specifiers
+        prefixes = ["public:", "protected:", "private:", "[thunk]:"]
+        for pre in prefixes:
+            new_name = name.removeprefix(pre)
+            if new_name != name:
+                name = new_name
+                stripped_any = True
+
+        new_name = name.strip()
+        if new_name != name:
+            name = new_name
+            stripped_any = True
+
+    if "void (__cdecl *)" in name:
+        name = name.replace("void (__cdecl *)", "void ")
 
     if name.startswith("operator"):
         # the return type is missing; give it a default type
         name = "int " + name
+
+    if " __int" in name:
+        name = name.replace(" __int64 ", " long long ")
+        name = name.replace(" __int32 ", " int ")
+        name = name.replace(" __int16 ", " short ")
 
     return name.removesuffix(";")
 
