@@ -1663,7 +1663,7 @@ class Function(Serializable):
 
     @property
     def demangled_name(self):
-        ast = pydemumble.demangle(self.name)
+        ast = pydemumble.demangle(self.name).strip()
         if self.is_rust_function():
             nodes = ast.split("::")[:-1]
             ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
