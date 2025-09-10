@@ -22,6 +22,7 @@ angr_modules = [
     "archinfo",
     "claripy",
     "cle",
+    "pypcode",
     "pyvex",
     "unicorn",
     "z3",
