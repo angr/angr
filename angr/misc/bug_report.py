@@ -17,11 +17,19 @@ except ImportError:
     print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
 
-angr_modules = ["angr", "cle", "pyvex", "claripy", "archinfo", "z3", "unicorn"]
+angr_modules = [
+    "angr",
+    "archinfo",
+    "claripy",
+    "cle",
+    "pyvex",
+    "unicorn",
+    "z3",
+]
 native_modules = {
     "angr": lambda: angr.state_plugins.unicorn_engine._UC_NATIVE,  # pylint: disable=undefined-variable
-    "unicorn": lambda: unicorn.unicorn._uc,  # pylint: disable=undefined-variable
     "pyvex": lambda: pyvex.pvc,  # pylint: disable=undefined-variable
+    "unicorn": lambda: unicorn.unicorn._uc,  # pylint: disable=undefined-variable
     "z3": lambda: next(x for x in gc.get_objects() if type(x) is ctypes.CDLL and "z3" in str(x)),  # YIKES FOREVER
 }
 python_packages = {"z3": "z3-solver"}
