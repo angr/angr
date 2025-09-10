@@ -17,7 +17,7 @@ except ImportError:
     print("If you install gitpython (`pip install gitpython`), I can give you git info too!")
 
 
-angr_modules = ["angr", "ailment", "cle", "pyvex", "claripy", "archinfo", "z3", "unicorn"]
+angr_modules = ["angr", "cle", "pyvex", "claripy", "archinfo", "z3", "unicorn"]
 native_modules = {
     "angr": lambda: angr.state_plugins.unicorn_engine._UC_NATIVE,  # pylint: disable=undefined-variable
     "unicorn": lambda: unicorn.unicorn._uc,  # pylint: disable=undefined-variable
