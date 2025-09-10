@@ -937,7 +937,7 @@ class CFGBase(Analysis):
         """
 
         addrs = set()
-        if isinstance(self._binary, ELF) and self._binary.has_dwarf_info:
+        if (isinstance(self._binary, ELF) and self._binary.has_dwarf_info) or isinstance(self._binary, PE):
             for function_hint in self._binary.function_hints:
                 if function_hint.source == FunctionHintSource.EH_FRAME:
                     addrs.add(function_hint.addr)

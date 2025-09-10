@@ -612,7 +612,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         low_priority=False,
         cfb=None,
         model=None,
-        elf_eh_frame=True,
+        eh_frame=True,
         exceptions=True,
         skip_unmapped_addrs=True,
         nodecode_window_size=512,
@@ -625,6 +625,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
         extra_cross_references=None,  # deprecated
+        elf_eh_frame=True,  # deprecated
         **extra_arch_options,
     ):
         """
@@ -664,8 +665,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                                              types will be loaded.
         :param base_state:              A state to use as a backer for all memory loads
         :param bool detect_tail_calls:  Enable aggressive tail-call optimization detection.
-        :param bool elf_eh_frame:       Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
-                                        binaries.
+        :param bool eh_frame:           Retrieve function starts (and maybe sizes later) from the .eh_frame of ELF
+                                        binaries or exception records of PE binaries.
         :param skip_unmapped_addrs:     Ignore all branches into unmapped regions. True by default. You may want to set
                                         it to False if you are analyzing manually patched binaries or malware samples.
         :param indirect_calls_always_return:    Should CFG assume indirect calls must return or not. Assuming indirect
@@ -784,7 +785,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._use_function_prologues = function_prologues
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
-        self._use_elf_eh_frame = elf_eh_frame
+        self._use_eh_frame = eh_frame or elf_eh_frame
         self._use_exceptions = exceptions
         self._check_funcret_max_job = check_funcret_max_job
 
@@ -1440,7 +1441,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
 
-        if self._use_elf_eh_frame:
+        if self._use_eh_frame:
             starting_points |= self._function_addresses_from_eh_frame
 
         if self._extra_function_starts:
