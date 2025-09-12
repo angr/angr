@@ -110,11 +110,9 @@ class TestCommandLineInterface(unittest.TestCase):
             assert s in disasm
 
     def test_syntax_highlighting_no_colors_flag(self):
-        """Test that --no-colors flag disables syntax highlighting"""
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "main"
 
-        # Test with --no-colors flag - should get plain text output
         no_colors_output = run_cli(bin_path, "decompile", "--functions", f1, "--no-colors")
         expected_output = decompile_functions(bin_path, [f1]) + "\n"
 
@@ -124,7 +122,6 @@ class TestCommandLineInterface(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "main"
 
-        # Test with --no-colors flag - should get plain text output
         colors_output = run_cli(bin_path, "decompile", "--functions", f1)
         expected_output = decompile_functions(bin_path, [f1]) + "\n"
 
