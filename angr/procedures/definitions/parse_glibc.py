@@ -13,7 +13,7 @@ l = logging.getLogger(name="parse_glibc")
 
 def main():
 
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         glibc_decls = f.readlines()
 
     protos = {}
@@ -27,7 +27,7 @@ def main():
 
         try:
             parsed = parse_file(c_decl, predefined_types=ALL_TYPES)
-        except Exception as ex:
+        except Exception as ex:  # pylint: disable=broad-exception-caught
             l.warning("Cannot parse the function prototype for %s: %s.", c_decl, str(ex))
             continue
         parsed_decl = parsed[0]
