@@ -63,17 +63,6 @@ def main():
             "__longjmp_chk",
             "__siglongjmp_chk",
         ],
-        "aliases": {
-            "abort": ["__assert_fail", "__stack_chk_fail"],
-            "memcpy": ["memmove", "bcopy"],
-            "getc": ["_IO_getc"],
-            "putc": ["_IO_putc"],
-            "gets": ["_IO_gets"],
-            "puts": ["_IO_puts"],
-            "exit": ["_exit", "_Exit"],
-            "sprintf": ["siprintf"],
-            "snprintf": ["sniprintf"],
-        },
         "functions": OrderedDict(),
     }
     for func_name in sorted(protos):

@@ -161,9 +161,6 @@ class SimLibrary:
             for arch_name, cc_name in d["default_cc"].items():
                 cc = CC_NAMES[cc_name]
                 lib.set_default_cc(arch_name, cc)
-        if "aliases" in d:
-            for name, alt_names in d["aliases"].items():
-                lib.add_alias(name, *alt_names)
         if "library_names" in d:
             lib.set_library_names(*d["library_names"])
         else:
@@ -927,6 +924,17 @@ def _update_glibc(libc: SimLibrary):
     # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming
     # conflicts in the functions.
     libc.add_all_from_dict(P["uclibc"])
+
+    # aliases for SimProcedures
+    libc.add_alias("abort", "__assert_fail", "__stack_chk_fail")
+    libc.add_alias("memcpy", "memmove", "bcopy")
+    libc.add_alias("getc", "_IO_getc")
+    libc.add_alias("putc", "_IO_putc")
+    libc.add_alias("gets", "_IO_gets")
+    libc.add_alias("puts", "_IO_puts")
+    libc.add_alias("exit", "_exit", "_Exit")
+    libc.add_alias("sprintf", "siprintf")
+    libc.add_alias("snprintf", "sniprintf")
 
 
 def load_win32api_definitions():
