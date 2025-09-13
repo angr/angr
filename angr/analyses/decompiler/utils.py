@@ -989,7 +989,7 @@ def decompile_functions(
     show_casts: bool = True,
     base_address: int | None = None,
     preset: str | None = None,
-) -> str | None:
+) -> str:
     """
     Decompile a binary into a set of functions.
 

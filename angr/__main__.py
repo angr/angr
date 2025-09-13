@@ -12,14 +12,8 @@ from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STR
 from angr.analyses.decompiler.utils import decompile_functions
 from angr.utils.formatting import ansi_color_enabled
 
-try:
-    from rich.syntax import Syntax
-    from rich.console import Console
-
-    HAS_RICH_SYNTAX = True
-except ImportError:
-    HAS_RICH_SYNTAX = False
-
+from rich.syntax import Syntax
+from rich.console import Console
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -93,7 +87,7 @@ def decompile(args):
     )
 
     # Determine if we should use syntax highlighting
-    should_highlight = HAS_RICH_SYNTAX and ansi_color_enabled and not getattr(args, "no_colors", False)
+    should_highlight = ansi_color_enabled and not args.no_colors
 
     if should_highlight:
         try:
