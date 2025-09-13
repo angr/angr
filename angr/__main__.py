@@ -100,7 +100,9 @@ def decompile(args):
             console = Console()
             syntax = Syntax(decompilation, "c", theme=args.theme, line_numbers=False)
             console.print(syntax)
-        except Exception:
+        # pylint: disable=broad-exception-caught
+        except Exception as e:
+            log.warning("Syntax highlighting failed: %s", e)
             # Fall back to plain text if syntax highlighting fails
             print(decompilation)
     else:

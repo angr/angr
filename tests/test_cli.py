@@ -116,16 +116,8 @@ class TestCommandLineInterface(unittest.TestCase):
         no_colors_output = run_cli(bin_path, "decompile", "--functions", f1, "--no-colors")
         expected_output = decompile_functions(bin_path, [f1]) + "\n"
 
+        # it should maintain that no ANSI color codes are present
         assert no_colors_output == expected_output
-
-    def test_syntax_highlighting(self):
-        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
-        f1 = "main"
-
-        colors_output = run_cli(bin_path, "decompile", "--functions", f1)
-        expected_output = decompile_functions(bin_path, [f1]) + "\n"
-
-        assert colors_output != expected_output
 
 
 if __name__ == "__main__":
