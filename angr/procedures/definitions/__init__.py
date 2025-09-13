@@ -393,6 +393,7 @@ class SimLibrary:
             from angr.utils.types import dereference_simtype_by_lib  # pylint:disable=import-outside-toplevel
 
             proto = dereference_simtype_by_lib(proto, self.name)
+            assert isinstance(proto, SimTypeFunction)
         if arch is not None:
             return proto.with_arch(arch)
         return proto
@@ -670,7 +671,9 @@ class SimSyscallLibrary(SimLibrary):
         name = proc.display_name
         if self.has_prototype(abi, name):
             proc.guessed_prototype = False
-            proc.prototype = self.get_prototype(abi, name, deref=True).with_arch(arch)
+            proto = self.get_prototype(abi, name, deref=True)
+            assert proto is not None
+            proc.prototype = proto.with_arch(arch)
 
     def add_alias(self, name, *alt_names):
         """
@@ -734,9 +737,9 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
-    def get_prototype(
+    def get_prototype(  # type:ignore
         self, abi: str, name: str, arch=None, deref: bool = False
-    ) -> SimTypeFunction | None:  # type:ignore
+    ) -> SimTypeFunction | None:
         """
         Get a prototype of the given syscall name and its ABI, optionally specialize the prototype to a given
         architecture.
@@ -756,6 +759,7 @@ class SimSyscallLibrary(SimLibrary):
             from angr.utils.types import dereference_simtype_by_lib  # pylint:disable=import-outside-toplevel
 
             proto = dereference_simtype_by_lib(proto, self.name)
+            assert isinstance(proto, SimTypeFunction)
         return proto.with_arch(arch=arch)
 
     def has_metadata(self, number, arch, abi_list=()):  # type:ignore
