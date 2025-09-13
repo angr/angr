@@ -306,8 +306,8 @@ class SimLibrary:
             new_procedure = copy.deepcopy(old_procedure)
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
-            if name in self.prototypes:
-                self.prototypes[alt] = self.prototypes[name]
+            if self.has_prototype(name):
+                self.prototypes[alt] = self.get_prototype(name)
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
@@ -316,8 +316,8 @@ class SimLibrary:
             proc.cc = self.default_ccs[arch.name](arch)
         if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
-        if proc.display_name in self.prototypes:
-            proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
+        if self.has_prototype(proc.display_name):
+            proc.prototype = self.get_prototype(proc.display_name).with_arch(arch)
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
@@ -399,7 +399,7 @@ class SimLibrary:
         :param name:    The name of the function as a string
         :return:        A bool indicating if anything is known about the function
         """
-        return self.has_implementation(name) or name in self.non_returning or name in self.prototypes
+        return self.has_implementation(name) or name in self.non_returning or self.has_prototype(name)
 
     def has_implementation(self, name):
         """
@@ -664,6 +664,30 @@ class SimSyscallLibrary(SimLibrary):
             proc.guessed_prototype = False
             proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
 
+    def add_alias(self, name, *alt_names):
+        """
+        Add some duplicate names for a given function. The original function's implementation must already be
+        registered.
+
+        :param name:        The name of the function for which an implementation is already present
+        :param alt_names:   Any number of alternate names may be passed as varargs
+        """
+        old_procedure = self.procedures[name]
+        for alt in alt_names:
+            new_procedure = copy.deepcopy(old_procedure)
+            new_procedure.display_name = alt
+            self.procedures[alt] = new_procedure
+            for abi in self.syscall_prototypes:
+                if self.has_prototype(abi, name):
+                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)
+            if name in self.non_returning:
+                self.non_returning.add(alt)
+
+    def _apply_metadata(self, proc, arch):
+        raise NotImplementedError(
+            "SimSyscallLibrary does not implement _apply_metadata(); use " "_apply_numerical_metadata() instead"
+        )
+
     # pylint: disable=arguments-differ
     def get(self, number, arch, abi_list=()):  # type:ignore
         """
@@ -728,8 +752,8 @@ class SimSyscallLibrary(SimLibrary):
         :param abi_list:    A list of ABI names that could be used
         :return:            A bool of whether or not any implementation or metadata is known about the given syscall
         """
-        name, _, _ = self._canonicalize(number, arch, abi_list)
-        return super().has_metadata(name)
+        name, _, abi = self._canonicalize(number, arch, abi_list)
+        return name in self.procedures or name in self.non_returning or self.has_prototype(abi, name)
 
     def has_implementation(self, number, arch, abi_list=()):  # type:ignore
         """
