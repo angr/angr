@@ -307,7 +307,7 @@ class SimLibrary:
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
             if self.has_prototype(name):
-                self.prototypes[alt] = self.get_prototype(name)
+                self.prototypes[alt] = self.get_prototype(name)  # type:ignore
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
@@ -317,7 +317,7 @@ class SimLibrary:
         if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
-            proc.prototype = self.get_prototype(proc.display_name).with_arch(arch)
+            proc.prototype = self.get_prototype(proc.display_name).with_arch(arch)  # type:ignore
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
@@ -679,13 +679,13 @@ class SimSyscallLibrary(SimLibrary):
             self.procedures[alt] = new_procedure
             for abi in self.syscall_prototypes:
                 if self.has_prototype(abi, name):
-                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)
+                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)  # type:ignore
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
         raise NotImplementedError(
-            "SimSyscallLibrary does not implement _apply_metadata(); use " "_apply_numerical_metadata() instead"
+            "SimSyscallLibrary does not implement _apply_metadata(); use _apply_numerical_metadata() instead"
         )
 
     # pylint: disable=arguments-differ
@@ -753,7 +753,9 @@ class SimSyscallLibrary(SimLibrary):
         :return:            A bool of whether or not any implementation or metadata is known about the given syscall
         """
         name, _, abi = self._canonicalize(number, arch, abi_list)
-        return name in self.procedures or name in self.non_returning or self.has_prototype(abi, name)
+        return (
+            name in self.procedures or name in self.non_returning or (abi is not None and self.has_prototype(abi, name))
+        )
 
     def has_implementation(self, number, arch, abi_list=()):  # type:ignore
         """
