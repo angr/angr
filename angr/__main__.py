@@ -6,14 +6,14 @@ import re
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 
+from rich.syntax import Syntax
+from rich.console import Console
+
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
 from angr.analyses.decompiler.utils import decompile_functions
 from angr.utils.formatting import ansi_color_enabled
-
-from rich.syntax import Syntax
-from rich.console import Console
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
