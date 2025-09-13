@@ -684,9 +684,9 @@ class SimSyscallLibrary(SimLibrary):
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
-        raise NotImplementedError(
-            "SimSyscallLibrary does not implement _apply_metadata(); use _apply_numerical_metadata() instead"
-        )
+        # this function is a no-op in SimSyscallLibrary; users are supposed to explicitly call
+        # _apply_numerical_metadata instead.
+        pass
 
     # pylint: disable=arguments-differ
     def get(self, number, arch, abi_list=()):  # type:ignore
