@@ -3599,6 +3599,15 @@ def _decl_to_type(
                 if struct is not None:
                     from_global = True
                     struct = struct.with_arch(arch)
+            if struct is None:
+                # fallback to using decl.name as key directly
+                struct = ALL_TYPES.get(decl.name)
+                if struct is not None and isinstance(struct, SimStruct):
+                    from_global = True
+                    struct = struct.with_arch(arch)
+                else:
+                    # give up
+                    struct = None
             if struct is not None and not isinstance(struct, SimStruct):
                 raise AngrTypeError("Provided a non-SimStruct value for a type that must be a struct")
 
