@@ -6,11 +6,14 @@ import re
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 
+from rich.syntax import Syntax
+from rich.console import Console
+
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
 from angr.analyses.decompiler.utils import decompile_functions
-
+from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
@@ -82,7 +85,22 @@ def decompile(args):
         base_address=args.base_addr,
         preset=args.preset,
     )
-    print(decompilation)
+
+    # Determine if we should use syntax highlighting
+    should_highlight = ansi_color_enabled and not args.no_colors
+
+    if should_highlight:
+        try:
+            console = Console()
+            syntax = Syntax(decompilation, "c", theme=args.theme, line_numbers=False)
+            console.print(syntax)
+        # pylint: disable=broad-exception-caught
+        except Exception as e:
+            log.warning("Syntax highlighting failed: %s", e)
+            # Fall back to plain text if syntax highlighting fails
+            print(decompilation)
+    else:
+        print(decompilation)
 
 
 def main():
@@ -133,6 +151,17 @@ def main():
         The functions to decompile. Functions can either be expressed as names found in the
         symbols of the binary or as addresses like: 0x401000.""",
         nargs="+",
+    )
+    decompile_cmd_parser.add_argument(
+        "--no-colors",
+        help="Disable syntax highlighting in the decompiled output.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "--theme",
+        help="The syntax highlighting theme to use (only if rich is installed and colors are enabled).",
+        default="dracula",
     )
 
     disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
