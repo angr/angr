@@ -658,6 +658,8 @@ class SimSyscallLibrary(SimLibrary):
         if abi in self.default_cc_mapping:
             cc = self.default_cc_mapping[abi](arch)
             proc.cc = cc
+        elif arch.name in self.default_ccs:
+            proc.cc = self.default_ccs[arch.name](arch)
         # a bit of a hack.
         name = proc.display_name
         if self.syscall_prototypes[abi].get(name, None) is not None:
