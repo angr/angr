@@ -345,7 +345,14 @@ class TestStructurer(unittest.TestCase):
             normalize=True,
             regions=[(0x1400326C0, 0x1400326C0 + 0x1000)],
             start_at_entry=False,
+            eh_frame=True,
         )
+
+        # let's test the CFG a bit and ensure we don't create incorrect functions using bogus information from the
+        # exception unwind table
+        assert not cfg.kb.functions.contains_addr(0x140032FD3)
+        assert not cfg.kb.functions.contains_addr(0x140032D1B)
+
         dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x1400326C0, cfg=cfg.model)
         # it should not raise any exceptions
         assert dec.codegen is not None and dec.codegen.text is not None

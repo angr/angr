@@ -435,6 +435,7 @@ class CFGJobType(Enum):
     COMPLETE_SCANNING = 2
     IFUNC_HINTS = 3
     DATAREF_HINTS = 4
+    EH_FRAME_HINTS = 5
 
 
 class CFGJob:
@@ -625,7 +626,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
         extra_cross_references=None,  # deprecated
-        elf_eh_frame=True,  # deprecated
+        elf_eh_frame=None,  # deprecated
         **extra_arch_options,
     ):
         """
@@ -779,13 +780,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             )
             force_complete_scan = False
 
+        if elf_eh_frame is not None:
+            l.warning('"elf_eh_frame" is deprecated and will be removed soon. Please use "eh_frame" instead.')
+            eh_frame = eh_frame or elf_eh_frame
+
         self._pickle_intermediate_results = pickle_intermediate_results
 
         self._use_symbols = symbols
         self._use_function_prologues = function_prologues
         self._force_smart_scan = force_smart_scan
         self._force_complete_scan = force_complete_scan
-        self._use_eh_frame = eh_frame or elf_eh_frame
+        self._use_eh_frame = eh_frame
         self._use_exceptions = exceptions
         self._check_funcret_max_job = check_funcret_max_job
 
@@ -842,7 +847,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._read_addr_to_run = defaultdict(list)
         self._write_addr_to_run = defaultdict(list)
 
-        self._remaining_function_prologue_addrs = None
+        self._remaining_eh_frame_addrs: list[int] | None = None
+        self._remaining_function_prologue_addrs: list[int] | None = None
 
         # exception handling
         self._exception_handling_by_endaddr = SortedDict()
@@ -1441,9 +1447,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
 
-        if self._use_eh_frame:
-            starting_points |= self._function_addresses_from_eh_frame
-
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
 
@@ -1467,6 +1470,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             self._register_analysis_job(sp, job)
 
         self._updated_nonreturning_functions = set()
+
+        if self._use_eh_frame:
+            self._remaining_eh_frame_addrs = sorted(self._function_addresses_from_eh_frame)
 
         if self._use_function_prologues and self.project.concrete_target is None:
             self._remaining_function_prologue_addrs = sorted(self._func_addrs_from_prologues())
@@ -1741,6 +1747,18 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             job = self._pop_pending_job(returning=False)
             if job is not None:
                 self._insert_job(job)
+                return
+
+        if self._use_eh_frame and self._remaining_eh_frame_addrs:
+            while self._remaining_eh_frame_addrs:
+                eh_addr = self._remaining_eh_frame_addrs[0]
+                self._remaining_eh_frame_addrs = self._remaining_eh_frame_addrs[1:]
+                if self._seg_list.is_occupied(eh_addr):
+                    continue
+
+                job = CFGJob(eh_addr, eh_addr, "Ijk_Boring", job_type=CFGJobType.EH_FRAME_HINTS)
+                self._insert_job(job)
+                self._register_analysis_job(eh_addr, job)
                 return
 
         if self._use_function_prologues and self._remaining_function_prologue_addrs:
