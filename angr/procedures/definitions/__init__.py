@@ -168,6 +168,8 @@ class SimLibrary:
             lib.set_library_names(*d["library_names"])
         else:
             raise KeyError("library_names is required")
+        if "non_returning" in d:
+            lib.set_non_returning(*d["non_returning"])
         if "functions" in d:
             lib.prototypes_json = {k: v["proto"] for k, v in d["functions"].items() if "proto" in v}
         return lib
@@ -879,7 +881,7 @@ def load_external_definitions():
 
 
 def _update_libkernel32(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win32"])
     lib.add_alias("EncodePointer", "DecodePointer")
@@ -895,7 +897,7 @@ def _update_libkernel32(lib: SimLibrary):
 
 
 def _update_libntdll(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add("RtlEncodePointer", P["win32"]["EncodePointer"])
     lib.add("RtlDecodePointer", P["win32"]["EncodePointer"])
@@ -903,7 +905,7 @@ def _update_libntdll(lib: SimLibrary):
 
 
 def _update_libuser32(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
     from angr.calling_conventions import SimCCCdecl  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win_user32"])
@@ -911,9 +913,20 @@ def _update_libuser32(lib: SimLibrary):
 
 
 def _update_libntoskrnl(lib: SimLibrary):
-    from angr import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win32_kernel"])
+
+
+def _update_glibc(libc: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    libc.add_all_from_dict(P["libc"])
+    libc.add_all_from_dict(P["posix"])
+    libc.add_all_from_dict(P["glibc"])
+    # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming
+    # conflicts in the functions.
+    libc.add_all_from_dict(P["uclibc"])
 
 
 def load_win32api_definitions():
@@ -961,4 +974,6 @@ load_type_collections(skip={"win32"})
 
 
 # Load common definitions
+_load_definitions(os.path.join(_DEFINITIONS_BASEDIR, "common"), only=COMMON_LIBRARIES)
 _load_definitions(_DEFINITIONS_BASEDIR, only=COMMON_LIBRARIES)
+_update_glibc(SIM_LIBRARIES["libc.so"][0])
