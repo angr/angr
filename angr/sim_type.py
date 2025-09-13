@@ -2289,7 +2289,10 @@ STDINT_TYPES = {
     "ssize_t": SimTypeLength(True),
     "ssize": SimTypeLength(False),
     "uintptr_t": SimTypeLong(False),
-    "wchar_t": SimTypeShort(True),
+    # wide-char types
+    "wchar_t": SimTypeShort(True, label="wchar_t"),
+    "wint_t": SimTypeInt(True, label="wint_t"),
+    "wctype_t": SimTypeInt(True, label="wctype_t"),
 }
 ALL_TYPES.update(STDINT_TYPES)
 
@@ -2313,6 +2316,8 @@ GLIBC_INTERNAL_BASIC_TYPES = {
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/sysdeps/unix/sysv/linux/x86/bits/siginfo-arch.h#L12
     "__clock_t": ALL_TYPES["uint32_t"],
     "__suseconds_t": ALL_TYPES["int64_t"],
+    "socklen_t": ALL_TYPES["uint32_t"],
+    "mode_t": ALL_TYPES["unsigned int"],
 }
 ALL_TYPES.update(GLIBC_INTERNAL_BASIC_TYPES)
 
@@ -2340,6 +2345,22 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
     "rlim64_t": ALL_TYPES["uint64_t"],
     # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/bits/types/error_t.h#L22
     "error_t": ALL_TYPES["int"],
+    "sigset_t": ALL_TYPES["int"],
+    "sem_t": ALL_TYPES["int"],
+    "sighandler_t": SimTypePointer(ALL_TYPES["void"], label="sighandler_t"),
+    "comparison_fn_t": SimTypePointer(ALL_TYPES["void"], label="comparison_fn_t"),
+    "DIR": SimStruct({}, name="DIR"),
+    "glob_t": SimStruct({}, name="glob_t"),
+    "glob64_t": SimStruct({}, name="glob64_t"),
+    "__free_fn_t": SimTypePointer(ALL_TYPES["void"], label="__free_fn_t"),
+    "__action_fn_t": SimTypePointer(ALL_TYPES["void"], label="__action_fn_t"),
+    "__ftw_func_t": SimTypePointer(ALL_TYPES["void"], label="__ftw_func_t"),
+    "mbstate_t": SimStruct({}, name="mbstate_t"),
+    "fpos_t": SimStruct({}, name="fpos_t"),
+    "fpos64_t": SimStruct({}, name="fpos64_t"),
+    "regex_t": SimStruct({}, name="regex_t"),
+    "fd_set": SimStruct({}, name="fd_set"),
+    "dev_t": ALL_TYPES["int"],
 }
 ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
 
@@ -3578,6 +3599,15 @@ def _decl_to_type(
                 if struct is not None:
                     from_global = True
                     struct = struct.with_arch(arch)
+            if struct is None:
+                # fallback to using decl.name as key directly
+                struct = ALL_TYPES.get(decl.name)
+                if struct is not None and isinstance(struct, SimStruct):
+                    from_global = True
+                    struct = struct.with_arch(arch)
+                else:
+                    # give up
+                    struct = None
             if struct is not None and not isinstance(struct, SimStruct):
                 raise AngrTypeError("Provided a non-SimStruct value for a type that must be a struct")
 
