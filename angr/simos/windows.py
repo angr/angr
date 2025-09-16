@@ -440,7 +440,7 @@ class SimWindows(SimOS):
         :param state:               The state to get the syscall number from
         :param allow_unsupported:   Whether to return a "dummy" sycall instead of raising an unsupported exception
         """
-        if state.block(state.history.jump_source).bytes.hex() == "cd29":  # int 29h
+        if state.history.jump_source and state.block(state.history.jump_source).bytes.hex() == "cd29":  # int 29h
             return self.fastfail
         return None
 
