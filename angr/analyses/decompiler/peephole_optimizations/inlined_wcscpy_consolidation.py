@@ -6,10 +6,10 @@ from angr.ailment.statement import Call, Store
 
 from angr.sim_type import SimTypePointer, SimTypeWideChar
 from .base import PeepholeOptimizationMultiStmtBase
-from .inlined_wstrcpy import InlinedWstrcpy
+from .inlined_wcscpy import InlinedWcscpy
 
 
-class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
+class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
     """
     Consolidate multiple inlined wstrcpy/wstrncpy calls.
     """
@@ -23,14 +23,14 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         self, stmts: list[Call], stmt_idx: int | None = None, block=None, **kwargs
     ):  # pylint:disable=unused-argument
         last_stmt, stmt = stmts
-        if InlinedWstrcpy.is_inlined_wstrncpy(last_stmt):
+        if InlinedWcscpy.is_inlined_wstrncpy(last_stmt):
             assert last_stmt.args is not None
             assert self.kb is not None
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedWstrcpy.is_inlined_wstrncpy(stmt):
+            if isinstance(stmt, Call) and InlinedWcscpy.is_inlined_wstrncpy(stmt):
                 assert stmt.args is not None
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
@@ -50,7 +50,7 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         # it's probably the terminating null byte
                         r, s = True, b"\x00\x00"
                     else:
-                        r, s = InlinedWstrcpy.is_integer_likely_a_wide_string(
+                        r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
                             stmt.data.value, stmt.size, stmt.endness, min_length=1  # type:ignore
                         )
                     if r and s is not None:
@@ -60,7 +60,7 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                 assert self.project is not None
                 wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
                 if new_str.endswith(b"\x00\x00"):
-                    call_name = "wstrcpy"
+                    call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
                     args = [
                         last_stmt.args[0],
@@ -68,7 +68,7 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     ]
                     prototype = None
                 else:
-                    call_name = "wstrncpy"
+                    call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
                     args = [
                         last_stmt.args[0],
@@ -96,18 +96,18 @@ class InlinedWstrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
             return StackBaseOffset(None, addr.bits, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
-                base_0, offset_0 = InlinedWstrcpyConsolidation._parse_addr(addr.operands[0])
+                base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr.operands[0])
                 return base_0, offset_0 + addr.operands[1].value
             if addr.op == "Sub" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
-                base_0, offset_0 = InlinedWstrcpyConsolidation._parse_addr(addr.operands[0])
+                base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr.operands[0])
                 return base_0, offset_0 - addr.operands[1].value
 
         return addr, 0
 
     @staticmethod
     def _get_delta(addr_0: Expression, addr_1: Expression) -> int | None:
-        base_0, offset_0 = InlinedWstrcpyConsolidation._parse_addr(addr_0)
-        base_1, offset_1 = InlinedWstrcpyConsolidation._parse_addr(addr_1)
+        base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr_0)
+        base_1, offset_1 = InlinedWcscpyConsolidation._parse_addr(addr_1)
         if base_0.likes(base_1):
             return offset_1 - offset_0
         return None

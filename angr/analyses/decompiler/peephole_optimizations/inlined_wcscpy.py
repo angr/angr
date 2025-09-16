@@ -17,7 +17,7 @@ ASCII_PRINTABLES = {ord(x) for x in string.printable}
 ASCII_DIGITS = {ord(x) for x in string.digits}
 
 
-class InlinedWstrcpy(PeepholeOptimizationStmtBase):
+class InlinedWcscpy(PeepholeOptimizationStmtBase):
     """
     Simplifies inlined wide string copying logic into calls to wstrcpy.
     """
@@ -52,7 +52,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
             return Call(
                 stmt.idx,
-                "wstrncpy",
+                "wcsncpy",
                 args=[
                     dst,
                     Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
@@ -94,7 +94,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
                     return Call(
                         stmt.idx,
-                        "wstrncpy",
+                        "wcsncpy",
                         args=[
                             dst,
                             Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
@@ -224,7 +224,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
             # unsupported endness
             return False, None
 
-        if not (InlinedWstrcpy.even_offsets_are_zero(chars) or InlinedWstrcpy.odd_offsets_are_zero(chars)):
+        if not (InlinedWcscpy.even_offsets_are_zero(chars) or InlinedWcscpy.odd_offsets_are_zero(chars)):
             return False, None
 
         if chars and len(chars) >= 2 and chars[-1] == 0 and chars[-2] == 0:

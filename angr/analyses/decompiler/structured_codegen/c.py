@@ -42,6 +42,7 @@ from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
 from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
+from angr.utils.strings import decode_utf16_string
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
@@ -2269,9 +2270,9 @@ class CConstant(CExpression):
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
                     v = (
-                        refval.content.decode("utf_16_le")
+                        decode_utf16_string(refval.content)
                         if isinstance(refval, MemoryData)
-                        else refval.decode("utf_16_le")
+                        else decode_utf16_string(refval)
                     )  # it's a string
                     yield CConstant.str_to_c_str(v, prefix="L"), self
                     return
