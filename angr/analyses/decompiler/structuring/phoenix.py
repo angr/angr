@@ -929,23 +929,54 @@ class PhoenixStructurer(StructurerBase):
                             )
                             break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
                         else:
-                            break_stmt = Jump(
-                                None,
-                                Const(None, None, successor.addr, self.project.arch.bits),
-                                target_idx=successor.idx if isinstance(successor, Block) else None,
-                                ins_addr=last_src_stmt.ins_addr,
+                            fallthrough_node = next(
+                                iter(succ for succ in fullgraph.successors(src) if succ is not dst), None
                             )
-                            break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
-                            fallthrough_node = next(iter(succ for succ in fullgraph.successors(src) if succ is not dst))
-                            fallthrough_stmt = Jump(
-                                None,
-                                Const(None, None, fallthrough_node.addr, self.project.arch.bits),
-                                target_idx=successor.idx if isinstance(successor, Block) else None,
-                                ins_addr=last_src_stmt.ins_addr,
-                            )
-                            break_node_inner_fallthrough = Block(
-                                last_src_stmt.ins_addr, None, statements=[fallthrough_stmt]
-                            )
+                            if fallthrough_node is not None:
+                                # we create a conditional jump that will be converted to a conditional break later
+                                break_stmt = Jump(
+                                    None,
+                                    Const(None, None, successor.addr, self.project.arch.bits),
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    ins_addr=last_src_stmt.ins_addr,
+                                )
+                                break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                                fallthrough_stmt = Jump(
+                                    None,
+                                    Const(None, None, fallthrough_node.addr, self.project.arch.bits),
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    ins_addr=last_src_stmt.ins_addr,
+                                )
+                                break_node_inner_fallthrough = Block(
+                                    last_src_stmt.ins_addr, None, statements=[fallthrough_stmt]
+                                )
+                            else:
+                                # the fallthrough node does not exist in the graph. we create a conditional jump that
+                                # jumps to an address
+                                if not isinstance(last_src_stmt, ConditionalJump):
+                                    raise TypeError(f"Unexpected last_src_stmt type {type(last_src_stmt)}")
+                                other_target = (
+                                    last_src_stmt.true_target
+                                    if isinstance(last_src_stmt.false_target, Const)
+                                    and last_src_stmt.false_target.value == successor.addr
+                                    else last_src_stmt.false_target
+                                )
+                                break_stmt = Jump(
+                                    None,
+                                    Const(None, None, successor.addr, self.project.arch.bits),
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    ins_addr=last_src_stmt.ins_addr,
+                                )
+                                break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                                fallthrough_stmt = Jump(
+                                    None,
+                                    other_target,
+                                    target_idx=successor.idx if isinstance(successor, Block) else None,
+                                    ins_addr=last_src_stmt.ins_addr,
+                                )
+                                break_node_inner_fallthrough = Block(
+                                    last_src_stmt.ins_addr, None, statements=[fallthrough_stmt]
+                                )
                             break_node = ConditionNode(
                                 last_src_stmt.ins_addr,
                                 None,
