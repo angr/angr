@@ -17,17 +17,20 @@ ASCII_PRINTABLES = {ord(x) for x in string.printable}
 ASCII_DIGITS = {ord(x) for x in string.digits}
 
 
-class InlinedWstrcpy(PeepholeOptimizationStmtBase):
+class InlinedWcscpy(PeepholeOptimizationStmtBase):
     """
-    Simplifies inlined wide string copying logic into calls to wstrcpy.
+    Simplifies inlined wide string copying logic into calls to wcscpy.
     """
 
     __slots__ = ()
 
-    NAME = "Simplifying inlined wstrcpy"
+    NAME = "Simplifying inlined wcscpy"
     stmt_classes = (Assignment, Store)
 
     def optimize(self, stmt: Assignment | Store, stmt_idx: int | None = None, block=None, **kwargs):
+        assert self.project is not None
+        assert self.kb is not None
+
         if (
             isinstance(stmt, Assignment)
             and isinstance(stmt.dst, VirtualVariable)
@@ -48,11 +51,12 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness)
         if r:
             # replace it with a call to strncpy
+            assert s is not None
             str_id = self.kb.custom_strings.allocate(s)
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
             return Call(
                 stmt.idx,
-                "wstrncpy",
+                "wcsncpy",
                 args=[
                     dst,
                     Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
@@ -83,6 +87,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
                 integer, size = self.stride_to_int(stride)
                 r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=3)
                 if r:
+                    assert s is not None
                     # we remove all involved statements whose statement IDs are greater than the current one
                     for _, stmt_idx_, _ in reversed(stride):
                         if stmt_idx_ <= stmt_idx:
@@ -94,7 +99,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
                     return Call(
                         stmt.idx,
-                        "wstrncpy",
+                        "wcsncpy",
                         args=[
                             dst,
                             Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
@@ -112,11 +117,14 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         size = 0
         for _, _, v in stride:
             size += v.size
+            assert isinstance(v.value, int)
             n <<= v.bits
             n |= v.value
         return n, size
 
     def collect_constant_stores(self, block, starting_stmt_idx: int) -> dict[int, tuple[int, Const | None]]:
+        assert self.project is not None
+
         r = {}
         expected_store_varid: int | None = None
         starting_stmt = block.statements[starting_stmt_idx]
@@ -224,7 +232,7 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
             # unsupported endness
             return False, None
 
-        if not (InlinedWstrcpy.even_offsets_are_zero(chars) or InlinedWstrcpy.odd_offsets_are_zero(chars)):
+        if not (InlinedWcscpy.even_offsets_are_zero(chars) or InlinedWcscpy.odd_offsets_are_zero(chars)):
             return False, None
 
         if chars and len(chars) >= 2 and chars[-1] == 0 and chars[-2] == 0:
@@ -236,11 +244,11 @@ class InlinedWstrcpy(PeepholeOptimizationStmtBase):
         return False, None
 
     @staticmethod
-    def is_inlined_wstrncpy(stmt: Statement) -> bool:
+    def is_inlined_wcsncpy(stmt: Statement) -> bool:
         return (
             isinstance(stmt, Call)
             and isinstance(stmt.target, str)
-            and stmt.target == "wstrncpy"
+            and stmt.target == "wcsncpy"
             and stmt.args is not None
             and len(stmt.args) == 3
             and isinstance(stmt.args[1], Const)

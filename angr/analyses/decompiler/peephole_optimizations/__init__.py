@@ -46,8 +46,8 @@ from .rol_ror import RolRorRewriter
 from .inlined_memcpy import InlinedMemcpy
 from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
-from .inlined_wstrcpy import InlinedWstrcpy
-from .inlined_wstrcpy_consolidation import InlinedWstrcpyConsolidation
+from .inlined_wcscpy import InlinedWcscpy
+from .inlined_wcscpy_consolidation import InlinedWcscpyConsolidation
 from .cmpord_rewriter import CmpORDRewriter
 from .coalesce_adjacent_shrs import CoalesceAdjacentShiftRights
 from .a_mul_const_sub_a import AMulConstSubA
@@ -104,8 +104,8 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     InlinedMemcpy,
     InlinedStrcpy,
     InlinedStrcpyConsolidation,
-    InlinedWstrcpy,
-    InlinedWstrcpyConsolidation,
+    InlinedWcscpy,
+    InlinedWcscpyConsolidation,
     CmpORDRewriter,
     CoalesceAdjacentShiftRights,
     ShlToMul,
