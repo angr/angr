@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing_extensions import override
 
 import pypcode
-from archinfo import Arch, Endness
+from archinfo import Arch, Endness, ArchARMCortexM
 
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
@@ -84,11 +84,11 @@ class IcicleEngine(ConcreteEngine):
         return icicle_arch.startswith(("arm", "thumb"))
 
     @staticmethod
-    def __is_thumb(icicle_arch: str, addr: int) -> bool:
+    def __is_thumb(angr_arch: Arch, icicle_arch: str, addr: int) -> bool:
         """
         Check if the architecture is thumb based on the address.
         """
-        return IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
+        return isinstance(angr_arch, ArchARMCortexM) or (IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1)
 
     @staticmethod
     def __get_pages(state: HeavyConcreteState) -> set[int]:
@@ -138,7 +138,7 @@ class IcicleEngine(ConcreteEngine):
                 log.debug("Register %s not found in icicle", register)
 
         # Unset the thumb bit if necessary
-        if IcicleEngine.__is_thumb(icicle_arch, state.addr):
+        if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
             emu.pc = state.addr & ~1
             emu.isa_mode = 1
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
