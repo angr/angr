@@ -221,7 +221,6 @@ class TestThumb(TestCase):
         assert successors[0].regs.pc.concrete_value == 0xD
         assert successors[0].regs.r2.concrete_value == 0x3
 
-
     def test_thumb_switching(self):
         """Test that the Icicle engine can handle switching between ARM and Thumb instructions."""
 
