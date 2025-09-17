@@ -3810,7 +3810,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert d.codegen is not None
         assert "IoDriverObjectType" in d.codegen.text
-        assert "wstrncpy(" in d.codegen.text
+        assert "wcsncpy(" in d.codegen.text
         assert "ObMakeTemporaryObject" in d.codegen.text
         # ensure the stack canary is removed
         assert "_security_check_cookie" not in d.codegen.text

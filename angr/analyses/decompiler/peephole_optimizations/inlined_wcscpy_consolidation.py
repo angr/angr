@@ -11,26 +11,26 @@ from .inlined_wcscpy import InlinedWcscpy
 
 class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
     """
-    Consolidate multiple inlined wstrcpy/wstrncpy calls.
+    Consolidate multiple inlined wcscpy/wcsncpy calls.
     """
 
     __slots__ = ()
 
-    NAME = "Consolidate multiple inlined wstrncpy calls"
+    NAME = "Consolidate multiple inlined wcsncpy calls"
     stmt_classes = ((Call, Call), (Call, Store))
 
     def optimize(  # type:ignore
         self, stmts: list[Call], stmt_idx: int | None = None, block=None, **kwargs
     ):  # pylint:disable=unused-argument
         last_stmt, stmt = stmts
-        if InlinedWcscpy.is_inlined_wstrncpy(last_stmt):
+        if InlinedWcscpy.is_inlined_wcsncpy(last_stmt):
             assert last_stmt.args is not None
             assert self.kb is not None
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedWcscpy.is_inlined_wstrncpy(stmt):
+            if isinstance(stmt, Call) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
                 assert stmt.args is not None
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]

@@ -18,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 l = logging.Logger(__name__)
 
 
-class TestPeepholeWstrcpy(unittest.TestCase):
+class TestPeepholeWcscpy(unittest.TestCase):
     def test_ipnathlp_IcsRegReadFromLocation(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)
