@@ -52,20 +52,20 @@ class pthread_cond_signal(angr.SimProcedure):
 
 class pthread_mutex_lock(angr.SimProcedure):
     """
-    A no-op.
+    Always returns 0 (SUCCESS).
     """
 
     def run(self, arg):
-        pass
+        return 0
 
 
 class pthread_mutex_unlock(angr.SimProcedure):
     """
-    A no-op.
+    Always returns 0 (SUCCESS).
     """
 
     def run(self, arg):
-        pass
+        return 0
 
 
 class pthread_once(angr.SimProcedure):
