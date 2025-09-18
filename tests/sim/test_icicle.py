@@ -203,6 +203,24 @@ class TestThumb(TestCase):
         assert successors[0].regs.pc.concrete_value == 0xD
         assert successors[0].regs.r2.concrete_value == 0x3
 
+    def test_cortex_m_thumb_only(self):
+        """Test that the Icicle engine automatically uses thumb mode for Cortex-M."""
+
+        # Shellcode to add 1 and 2 in Thumb mode
+        shellcode = "mov r0, 0x1; mov r1, 0x2; add r2, r0, r1;"
+        project = angr.load_shellcode(shellcode, archinfo.ArchARMCortexM())
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        successors = engine.process(init_state, num_inst=3)
+        assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0xD
+        assert successors[0].regs.r2.concrete_value == 0x3
+
     def test_thumb_switching(self):
         """Test that the Icicle engine can handle switching between ARM and Thumb instructions."""
 
