@@ -2179,19 +2179,52 @@ class PhoenixStructurer(StructurerBase):
                     jump_node = Block(out_src.addr, 0, statements=[jump_stmt])
                     case_node.nodes.append(jump_node)
 
-            if out_edges_to_head:  # noqa:SIM108
+            # out_dst_succ is the successor within the current region
+            # out_dst_succ_fullgraph is the successor outside the current region
+            if out_edges_to_head:
                 # add an edge from SwitchCaseNode to head so that a loop will be structured later
                 out_dst_succ = head
+                out_dst_succ_fullgraph = None
             else:
                 # add an edge from SwitchCaseNode to its most immediate successor (if there is one)
-                out_dst_succ = other_out_edges[0][1] if other_out_edges else None
+                # there might be an in-region successor and an out-of-region successor (especially due to the
+                # introduction of self.dowhile_known_tail_nodes)!
+                # example: 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 1400EF820
+                out_dst_succs = []
+                out_dst_succs_fullgraph = []
+                for _, o in other_out_edges:
+                    if o in graph:
+                        out_dst_succs.append(o)
+                    elif o in full_graph:
+                        out_dst_succs_fullgraph.append(o)
+                out_dst_succ = sorted(out_dst_succs, key=lambda o: o.addr)[0] if out_dst_succs else None
+                out_dst_succ_fullgraph = (
+                    sorted(out_dst_succs_fullgraph, key=lambda o: o.addr)[0] if out_dst_succs_fullgraph else None
+                )
+                if len(out_dst_succs) > 1:
+                    l.warning(
+                        "Multiple in-region successors detected for switch-case node at %#x. Picking %#x as the "
+                        "successor and dropping others.",
+                        scnode.addr,
+                        out_dst_succ.addr,
+                    )
+                if len(out_dst_succs_fullgraph) > 1:
+                    l.warning(
+                        "Multiple out-of-region successors detected for switch-case node at %#x. Picking %#x as the "
+                        "successor and dropping others.",
+                        scnode.addr,
+                        out_dst_succ_fullgraph.addr,
+                    )
 
             if out_dst_succ is not None:
-                if out_dst_succ in graph:
-                    graph.add_edge(scnode, out_dst_succ)
+                graph.add_edge(scnode, out_dst_succ)
                 full_graph.add_edge(scnode, out_dst_succ)
                 if full_graph.has_edge(head, out_dst_succ):
                     full_graph.remove_edge(head, out_dst_succ)
+            if out_dst_succ_fullgraph is not None:
+                full_graph.add_edge(scnode, out_dst_succ_fullgraph)
+                if full_graph.has_edge(head, out_dst_succ_fullgraph):
+                    full_graph.remove_edge(head, out_dst_succ_fullgraph)
 
             # fix full_graph if needed: remove successors that are no longer needed
             for _out_src, out_dst in other_out_edges:
@@ -2956,6 +2989,17 @@ class PhoenixStructurer(StructurerBase):
             ordered_nodes.remove(postorder_head)
             acyclic_graph.remove_node(postorder_head)
         node_seq = {nn: (len(ordered_nodes) - idx) for (idx, nn) in enumerate(ordered_nodes)}  # post-order
+        if len(node_seq) < len(acyclic_graph):
+            # some nodes are not reachable from head - add them to node_seq as well
+            # but this is usually the result of incorrect structuring, so we may still fail at a later point
+            l.warning("Adding %d unreachable nodes to node_seq", len(acyclic_graph) - len(node_seq))
+            unreachable_nodes = sorted(
+                (nn for nn in acyclic_graph if nn not in node_seq),
+                key=lambda n: (n.addr, (-1 if n.idx is None else n.idx) if hasattr(n, "idx") else 0),
+            )
+            max_seq = max(node_seq.values(), default=0)
+            for i, nn in enumerate(unreachable_nodes):
+                node_seq[nn] = max_seq + i
 
         if all_edges_wo_dominance:
             all_edges_wo_dominance = self._order_virtualizable_edges(full_graph, all_edges_wo_dominance, node_seq)
