@@ -787,9 +787,10 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
                                 ):
                                     sp_adjusted = True
                                     sp_v = state.regs[self.project.arch.sp_offset]
-                                    sp_v -= Constant(stmt.data.con.value)
-                                    state.put(self.project.arch.sp_offset, sp_v, force=True)  # sp -= OFFSET
-                                    state.put(stmt.offset, Constant(0), force=True)  # rax = 0
+                                    if sp_v is not None:
+                                        sp_v -= Constant(stmt.data.con.value)
+                                        state.put(self.project.arch.sp_offset, sp_v, force=True)  # sp -= OFFSET
+                                        state.put(stmt.offset, Constant(0), force=True)  # rax = 0
                                     break
 
                 callee_cleanups = [
