@@ -961,6 +961,7 @@ class PhoenixStructurer(StructurerBase):
                                     and last_src_stmt.false_target.value == successor.addr
                                     else last_src_stmt.false_target
                                 )
+                                assert other_target is not None
                                 break_stmt = Jump(
                                     None,
                                     Const(None, None, successor.addr, self.project.arch.bits),
@@ -2202,6 +2203,7 @@ class PhoenixStructurer(StructurerBase):
                     sorted(out_dst_succs_fullgraph, key=lambda o: o.addr)[0] if out_dst_succs_fullgraph else None
                 )
                 if len(out_dst_succs) > 1:
+                    assert out_dst_succ is not None
                     l.warning(
                         "Multiple in-region successors detected for switch-case node at %#x. Picking %#x as the "
                         "successor and dropping others.",
@@ -2209,6 +2211,7 @@ class PhoenixStructurer(StructurerBase):
                         out_dst_succ.addr,
                     )
                 if len(out_dst_succs_fullgraph) > 1:
+                    assert out_dst_succ_fullgraph is not None
                     l.warning(
                         "Multiple out-of-region successors detected for switch-case node at %#x. Picking %#x as the "
                         "successor and dropping others.",
