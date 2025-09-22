@@ -1486,7 +1486,7 @@ class PhoenixStructurer(StructurerBase):
                 )
                 if not cmp:
                     return False
-                cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+                cmp_expr, cmp_lb, _cmp_ub = cmp
 
                 assert cond_node.addr is not None
                 switch_head_addr = cond_node.addr
@@ -1509,7 +1509,7 @@ class PhoenixStructurer(StructurerBase):
             cmp = switch_extract_cmp_bounds(last_stmt)
             if not cmp:
                 return False
-            cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+            cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
 
             switch_head_addr = last_stmt.ins_addr
 
@@ -1881,7 +1881,7 @@ class PhoenixStructurer(StructurerBase):
         cmp = switch_extract_cmp_bounds(last_stmt)
         if not cmp:
             return False
-        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
 
         if isinstance(last_stmt.false_target, Const):
             default_addr = last_stmt.false_target.value

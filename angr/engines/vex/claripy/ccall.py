@@ -343,7 +343,7 @@ def pc_make_rdata_if_necessary(nbits, cf, pf, af, zf, sf, of, platform=None):
 
 
 def pc_actions_ADD(state, nbits, arg_l, arg_r, cc_ndep, platform=None):
-    data_mask, sign_mask = pc_preamble(nbits)
+    data_mask, _sign_mask = pc_preamble(nbits)
     res = arg_l + arg_r
 
     cf = claripy.If(claripy.ULT(res, arg_l), claripy.BVV(1, 1), claripy.BVV(0, 1))
@@ -701,7 +701,7 @@ def pc_calculate_rdata_all(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=Non
 def pc_calculate_condition(state, cond, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None):
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
     if isinstance(rdata_all, tuple):
-        cf, pf, af, zf, sf, of = rdata_all
+        cf, pf, _af, zf, sf, of = rdata_all
         v = op_concretize(cond)
 
         inv = v & 1
@@ -993,7 +993,7 @@ def pc_calculate_rdata_c(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=None)
     rdata_all = pc_calculate_rdata_all_WRK(state, cc_op, cc_dep1, cc_dep2, cc_ndep, platform=platform)
 
     if isinstance(rdata_all, tuple):
-        cf, pf, af, zf, sf, of = rdata_all
+        cf, _pf, _af, _zf, _sf, _of = rdata_all
         return claripy.Concat(claripy.BVV(0, data[platform]["size"] - 1), cf & 1)
     return claripy.LShR(rdata_all, data[platform]["CondBitOffsets"]["G_CC_SHIFT_C"]) & 1
 

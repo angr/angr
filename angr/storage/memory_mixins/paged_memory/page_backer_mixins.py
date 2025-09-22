@@ -192,7 +192,7 @@ class ConcreteBackerMixin(ClemoryBackerMixin):
 
         try:
             backer_iter = self._clemory_backer.backers(addr)
-            backer_start, backer = next(backer_iter)
+            backer_start, _backer = next(backer_iter)
         except StopIteration:
             return super()._initialize_page(pageno, permissions=permissions, **kwargs)
 
