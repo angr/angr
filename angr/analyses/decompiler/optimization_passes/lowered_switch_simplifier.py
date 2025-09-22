@@ -864,7 +864,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         next_node_addr = last_block.addr
 
         while next_node_addr is not None and next_node_addr in ca_others:
-            onode, value, target, target_idx, next_node_addr = ca_others[next_node_addr]
+            onode, _value, target, target_idx, next_node_addr = ca_others[next_node_addr]
             onode: Block
 
             if first_nonlabel_nonphi_statement(onode) is not onode.statements[-1]:
@@ -893,7 +893,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
         # default nodes
         if ca_default:
-            onode, value, target, target_idx, _ = ca_default[0]
+            onode, _value, target, target_idx, _ = ca_default[0]
             default_target = next(
                 iter(
                     nn
