@@ -1463,7 +1463,14 @@ class SimpleSolver:
             if repr_tv in self._solution_cache:
                 cached_results.add(self._solution_cache[repr_tv])
         if len(cached_results) == 1:
-            return next(iter(cached_results))
+            cached_result = next(iter(cached_results))
+            # set cached_result to solution
+            # note that self._solution_cache[repr_tv] might have been populated by another SCC, so even when repr_tv
+            # is in self._solution_cache, it may not be in the solution dict.
+            for node in nodes:
+                if node.typevar not in solution:
+                    solution[node.typevar] = cached_result
+            return cached_result
         if len(cached_results) > 1:
             # we get nodes for multiple type variables?
             raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")
@@ -1517,6 +1524,8 @@ class SimpleSolver:
             func_type.outputs = output_values
 
             for node in nodes:
+                repr_tv = equivalence_classes.get(node.typevar, node.typevar)
+                solution[repr_tv] = result
                 solution[node.typevar] = result
 
         elif path_and_successors:
@@ -1535,9 +1544,10 @@ class SimpleSolver:
                         else the_node.upper_bound
                     )
                     for node in nodes:
-                        solution[node.typevar] = result
                         repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                         self._solution_cache[repr_tv] = result
+                        solution[repr_tv] = result
+                        solution[node.typevar] = result
                     return result
 
             # create a dummy result and shove it into the cache
@@ -1624,12 +1634,14 @@ class SimpleSolver:
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
+                    solution[repr_tv] = result
                     solution[node.typevar] = result
             elif any(off < 0 for off in fields) or any(fld is Bottom_ for fld in fields.values()):
                 result = self._pointer_class()(Bottom_)
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
+                    solution[repr_tv] = result
                     solution[node.typevar] = result
             else:
                 # back-patch
@@ -1657,9 +1669,10 @@ class SimpleSolver:
                 result = lower_bound if not isinstance(lower_bound, BottomType) else upper_bound
 
             for node in nodes:
-                solution[node.typevar] = result
                 repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                 self._solution_cache[repr_tv] = result
+                solution[repr_tv] = result
+                solution[node.typevar] = result
 
         # import pprint
 
