@@ -8,7 +8,7 @@ import os
 import unittest
 
 import angr
-from angr.sim_type import SimTypeFloat
+from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -181,6 +181,42 @@ class TestTypehoon(unittest.TestCase):
 
         assert dec.clinic is not None and dec.clinic.typehoon is not None
         assert 0 < max(dec.clinic.typehoon.eqclass_constraints_count) < 350
+
+    def test_equivalence_class_computation_budgit_cgc_insert(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "decompiler", "BudgIT"), auto_load_libs=False)
+        cfg = p.analyses.CFG(data_references=True, normalize=True)
+        p.analyses.CompleteCallingConventions()
+        func = cfg.kb.functions[0x403140]
+        dec = p.analyses.Decompiler(func, cfg=cfg.model)
+        assert (
+            dec.codegen is not None
+            and dec.codegen.text is not None
+            and dec.clinic is not None
+            and dec.clinic.typehoon is not None
+        )
+
+        # it has exactly one struct class that looks like the following:
+        # struct struct_0 {
+        #     struct struct_0 *field_0;
+        #     struct struct_0 *field_8;
+        # };
+        sols = dec.clinic.typehoon.simtypes_solution
+        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
+        assert len(tvs) == 2
+        assert sols[tvs[0]] == sols[tvs[1]]
+        sol = sols[tvs[0]]
+        assert isinstance(sol, SimTypePointer)
+        assert isinstance(sol.pts_to, SimStruct)
+        assert len(sol.pts_to.fields) == 2
+        assert "field_0" in sol.pts_to.fields and "field_8" in sol.pts_to.fields
+        field_0 = sol.pts_to.fields["field_0"]
+        assert isinstance(field_0, SimTypePointer)
+        assert isinstance(field_0.pts_to, SimStruct)
+        assert field_0.pts_to == sol.pts_to
+        field_8 = sol.pts_to.fields["field_8"]
+        assert isinstance(field_8, SimTypePointer)
+        assert isinstance(field_8.pts_to, SimStruct)
+        assert field_8.pts_to == sol.pts_to
 
 
 class TestTypeTranslator(unittest.TestCase):

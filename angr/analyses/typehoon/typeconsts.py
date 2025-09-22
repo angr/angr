@@ -5,6 +5,7 @@ All type constants used in type inference. They can be mapped, translated, or re
 from __future__ import annotations
 
 import functools
+import itertools
 
 
 def memoize(f):
@@ -222,18 +223,22 @@ class Array(TypeConstant):
         return self._hash(set())
 
 
+_STRUCT_ID = itertools.count()
+
+
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False):
+    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False, idx: int = -1):
         self.fields = {} if fields is None else fields  # offset to type
         self.name = name
         self.field_names = field_names
         self.is_cppclass = is_cppclass
+        self.idx = idx if idx != -1 else next(_STRUCT_ID)
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self._hash_fields(visited)))
+        return hash((type(self), self.idx, self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
@@ -252,6 +257,7 @@ class Struct(TypeConstant):
     @memoize
     def __repr__(self, memo=None):
         prefix = "CppClass" if self.is_cppclass else "struct"
+        prefix += f"#{self.idx}"
         if self.name:
             prefix = f"{prefix} {self.name}"
         return (
@@ -262,7 +268,7 @@ class Struct(TypeConstant):
         )
 
     def __eq__(self, other):
-        return type(other) is type(self) and hash(self) == hash(other)
+        return type(other) is type(self) and self.idx == other.idx and hash(self) == hash(other)
 
     def __hash__(self):
         return self._hash(set())

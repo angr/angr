@@ -284,6 +284,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._unify_variables = unify_variables
 
         # handle type hints
+        self.type_lifter = TypeLifter(self.project.arch.bits)
         self.vvar_type_hints = {}
         if type_hints:
             self._parse_type_hints(type_hints)
@@ -294,6 +295,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             call_info=call_info,
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
+            type_lifter=self.type_lifter,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -654,7 +656,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         if ty is None:
             return None
         ty = ty.with_arch(self.project.arch)
-        lifted = TypeLifter(self.project.arch.bits).lift(ty)
+        lifted = self.type_lifter.lift(ty)
         return None if isinstance(lifted, (BottomType, TopType)) else lifted
 
 

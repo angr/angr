@@ -1040,7 +1040,9 @@ class TestDecompiler(unittest.TestCase):
         cfg = p.analyses[CFGFast].prep()(data_references=True, normalize=True)
         func = cfg.functions["main"]
 
-        dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
+        dec = p.analyses[Decompiler].prep(fail_fast=True)(
+            func, cfg=cfg.model, options=set_decompiler_option(decompiler_options, [("show_local_types", False)])
+        )
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         print_decompilation_result(dec)
         code = dec.codegen.text
@@ -4771,7 +4773,7 @@ class TestDecompiler(unittest.TestCase):
 
     def test_decompiling_rep_stosq(self, decompiler_options=None):
 
-        def _check_rep_stosq(lines: list[str], count: int, increment: int) -> bool:
+        def _check_rep_stosq(lines: list[str], count: int, increment: str) -> bool:
             """
             Example:
 
@@ -4803,7 +4805,7 @@ class TestDecompiler(unittest.TestCase):
                 return False
 
             # check header
-            m = re.match(f"for [^;]+; {count_var}; (v\\d+) \\+= {increment}\\)", for_loop_lines[0])
+            m = re.match(f"for [^;]+; {count_var}; (v\\d+) {increment}\\)", for_loop_lines[0])
             if m is None:
                 return False
             ptr_var = m.group(1)
@@ -4831,9 +4833,9 @@ class TestDecompiler(unittest.TestCase):
         # rep stosq are transformed into for-loops. check the existence of them
         lines = [line.strip() for line in dec.codegen.text.split("\n")]
         # first loop
-        assert _check_rep_stosq(lines, 48, 8) ^ _check_rep_stosq(lines, 48, 1)
+        assert _check_rep_stosq(lines, 48, r"= &v\d\->Anonymous")
         # second loop
-        assert _check_rep_stosq(lines, 32, 8) ^ _check_rep_stosq(lines, 32, 1)
+        assert _check_rep_stosq(lines, 32, r"\+= 8") ^ _check_rep_stosq(lines, 32, r"\+= 1")
 
     def test_decompiling_fprintf_multiple_format_string_args(self, decompiler_options=None):
         bin_path = os.path.join(
