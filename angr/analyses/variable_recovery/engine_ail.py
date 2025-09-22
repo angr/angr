@@ -34,6 +34,7 @@ class SimEngineVRAIL(
     def __init__(
         self,
         *args,
+        type_lifter: TypeLifter,
         call_info=None,
         vvar_to_vvar: dict[int, int] | None,
         vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
@@ -44,6 +45,7 @@ class SimEngineVRAIL(
         self._reference_spoffset: bool = False
         self.call_info = call_info or {}
         self.vvar_to_vvar = vvar_to_vvar
+        self.type_lifter = type_lifter
 
     def _mapped_vvarid(self, vvar_id: int) -> int | None:
         if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
@@ -195,7 +197,7 @@ class SimEngineVRAIL(
                     arg_type = (
                         dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
                     )
-                    arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    arg_ty = self.type_lifter.lift(arg_type)
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                     self.state.add_type_constraint(type_constraint)
 
@@ -282,7 +284,7 @@ class SimEngineVRAIL(
                     arg_type = (
                         dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
                     )
-                    arg_ty = TypeLifter(self.arch.bits).lift(arg_type)
+                    arg_ty = self.type_lifter.lift(arg_type)
                     if arg.typevar is not None and isinstance(
                         arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
                     ):

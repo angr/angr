@@ -1,4 +1,5 @@
 from __future__ import annotations
+import itertools
 from typing import TYPE_CHECKING
 
 from angr.sim_type import (
@@ -26,13 +27,15 @@ class TypeLifter:
     Lift SimTypes to type constants.
     """
 
-    __slots__ = ("bits", "memo")
+    __slots__ = ("bits", "memo", "named_struct_id_counter", "struct_name_to_idx")
 
     def __init__(self, bits: int):
         if bits not in (32, 64):
             raise ValueError("TypeLifter only supports 32-bit or 64-bit pointers.")
         self.bits = bits
         self.memo = {}
+        self.named_struct_id_counter = itertools.count(133337)
+        self.struct_name_to_idx = {}
 
     def lift(self, ty: SimType):
         handler = _mapping.get(type(ty), None)
@@ -64,7 +67,13 @@ class TypeLifter:
         if ty in self.memo:
             return BottomType()
 
-        obj = Struct(fields={}, name=ty.name)
+        struct_idx = {}
+        if ty.name:
+            if ty.name not in self.struct_name_to_idx:
+                self.struct_name_to_idx[ty.name] = next(self.named_struct_id_counter)
+            struct_idx["idx"] = self.struct_name_to_idx[ty.name]
+
+        obj = Struct(fields={}, name=ty.name, **struct_idx)
         self.memo[ty] = obj
         converted_fields = {}
         field_names = {}
@@ -76,6 +85,7 @@ class TypeLifter:
             field_names[ty_offsets[field_name]] = field_name
         obj.fields = converted_fields
         obj.field_names = field_names
+        del self.memo[ty]
         return obj
 
     def _lift_SimCppClass(self, ty: SimCppClass) -> TypeConstant | BottomType:
@@ -94,6 +104,7 @@ class TypeLifter:
             field_names[ty_offsets[field_name]] = field_name
         obj.fields = converted_fields
         obj.field_names = field_names
+        del self.memo[ty]
         return obj
 
     def _lift_SimTypeArray(self, ty: SimTypeArray) -> Array:
