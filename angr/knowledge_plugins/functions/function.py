@@ -1750,6 +1750,23 @@ class Function(Serializable):
         _find_called(self.addr)
         return {self._function_manager.function(a) for a in called}
 
+    def holes(self, min_size: int = 8) -> int:
+        """
+        Find the number of non-consecutive areas in the function that are at least `min_size` bytes large.
+        """
+
+        block_addrs = sorted(self._local_block_addrs)
+        if not block_addrs:
+            return 0
+        holes = 0
+        for i, addr in enumerate(block_addrs):
+            if i == len(block_addrs) - 1:
+                break
+            next_addr = block_addrs[i + 1]
+            if next_addr > addr + self._block_sizes[addr] and next_addr - (addr + self._block_sizes[addr]) >= min_size:
+                holes += 1
+        return holes
+
     def copy(self):
         func = Function(self._function_manager, self.addr, name=self.name, syscall=self.is_syscall)
         func.transition_graph = networkx.DiGraph(self.transition_graph)
