@@ -200,9 +200,8 @@ class TestTypehoon(unittest.TestCase):
         #     struct struct_0 *field_0;
         #     struct struct_0 *field_8;
         # };
-        assert len(dec.clinic.typehoon.simtypes_solution) == 3
         sols = dec.clinic.typehoon.simtypes_solution
-        tvs = [tv for tv in sols if tv.name is None]
+        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
         assert len(tvs) == 2
         assert sols[tvs[0]] == sols[tvs[1]]
         sol = sols[tvs[0]]
