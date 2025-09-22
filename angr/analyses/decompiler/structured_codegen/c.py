@@ -4077,9 +4077,9 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
 class FieldReferenceCleanup(CStructuredCodeWalker):
     def handle_CTypeCast(self, obj):
         if isinstance(obj.dst_type, SimTypePointer) and not isinstance(obj.dst_type.pts_to, SimTypeBottom):
-            obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
-            if not isinstance(obj, CTypeCast):
-                return self.handle(obj)
+            new_obj = obj.codegen._access_reference(obj.expr, obj.dst_type.pts_to)
+            if not isinstance(new_obj, CTypeCast):
+                return self.handle(new_obj)
         return super().handle_CTypeCast(obj)
 
 
