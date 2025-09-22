@@ -704,8 +704,8 @@ class SimpleSolver:
         out_graph = networkx.MultiDiGraph()  # there can be multiple edges between two nodes, each edge is associated
         # with a different label
         for src, dst, data in g.edges(data=True):
-            src_cls = equivalence_classes[src]
-            dst_cls = equivalence_classes[dst]
+            src_cls = equivalence_classes.get(src, src)
+            dst_cls = equivalence_classes.get(dst, dst)
             label = None if not data else data["label"]
             if label is not None and out_graph.has_edge(src_cls, dst_cls):
                 # do not add the same edge twice
@@ -808,8 +808,8 @@ class SimpleSolver:
         graph: networkx.DiGraph,
     ) -> None:
         # first convert cls0 and cls1 to their equivalence classes
-        cls0 = equivalence_classes[cls0]
-        cls1 = equivalence_classes[cls1]
+        cls0 = equivalence_classes.get(cls0, cls0)
+        cls1 = equivalence_classes.get(cls1, cls1)
 
         # unify if needed
         if cls0 != cls1:
@@ -837,7 +837,10 @@ class SimpleSolver:
                             isinstance(data0["label"], Load) and isinstance(data1["label"], Store)
                         ):
                             SimpleSolver._unify(
-                                equivalence_classes, equivalence_classes[dst0], equivalence_classes[dst1], graph
+                                equivalence_classes,
+                                equivalence_classes.get(dst0, dst0),
+                                equivalence_classes.get(dst1, dst1),
+                                graph,
                             )
 
     def _eq_constraints_from_add(self, typevar: TypeVariable):
