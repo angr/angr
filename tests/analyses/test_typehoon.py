@@ -188,7 +188,12 @@ class TestTypehoon(unittest.TestCase):
         p.analyses.CompleteCallingConventions()
         func = cfg.kb.functions[0x403140]
         dec = p.analyses.Decompiler(func, cfg=cfg.model)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        assert (
+            dec.codegen is not None
+            and dec.codegen.text is not None
+            and dec.clinic is not None
+            and dec.clinic.typehoon is not None
+        )
 
         # it has exactly one struct class that looks like the following:
         # struct struct_0 {
