@@ -1586,7 +1586,7 @@ class SimpleSolver:
 
                 child_nodes = node_by_offset[offset]
                 sol = self._determine(the_typevar, sketch, solution, nodes=child_nodes)
-                if isinstance(sol, TopType):
+                if isinstance(sol, TopType) and offset in offset_to_sizes:
                     # make it an array if possible
                     elem_size = min(offset_to_sizes[offset])
                     array_size = offset_to_maxsize[offset]
@@ -1602,7 +1602,7 @@ class SimpleSolver:
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
                     solution[node.typevar] = result
-            elif any(off < 0 for off in fields):
+            elif any(off < 0 for off in fields) or any(fld is Bottom_ for fld in fields.values()):
                 result = self._pointer_class()(Bottom_)
                 for node in nodes:
                     self._solution_cache[node.typevar] = result
