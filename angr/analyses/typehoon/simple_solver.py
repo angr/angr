@@ -630,7 +630,7 @@ class SimpleSolver:
         self.determine(sketches, set(sketches).difference(set(self.solution)), self.solution)
 
         # set solutions for non-representative type variables
-        for tv, reptv in tv_to_reptvs.items():
+        for tv, reptv in equiv_classes.items():
             if reptv in self.solution and tv not in self.solution:
                 self.solution[tv] = self.solution[reptv]
 
