@@ -40,27 +40,27 @@ class TypeLifter:
     def lift(self, ty: SimType):
         handler = _mapping.get(type(ty), None)
         if handler is None:
-            return BottomType()
+            return BottomType(name=ty.label)
 
         return handler(self, ty)
 
-    def _lift_SimTypeChar(self, ty):  # pylint:disable=unused-argument,no-self-use
-        return Int8()
+    def _lift_SimTypeChar(self, ty):  # pylint:disable=no-self-use
+        return Int8(name=ty.label)
 
-    def _lift_SimTypeShort(self, ty):  # pylint:disable=unused-argument,no-self-use
-        return Int16()
+    def _lift_SimTypeShort(self, ty):  # pylint:disable=no-self-use
+        return Int16(name=ty.label)
 
-    def _lift_SimTypeInt(self, ty):  # pylint:disable=unused-argument,no-self-use
-        return Int32()
+    def _lift_SimTypeInt(self, ty):  # pylint:disable=no-self-use
+        return Int32(name=ty.label)
 
-    def _lift_SimTypeLongLong(self, ty):  # pylint:disable=unused-argument,no-self-use
-        return Int64()
+    def _lift_SimTypeLongLong(self, ty):  # pylint:disable=no-self-use
+        return Int64(name=ty.label)
 
     def _lift_SimTypePointer(self, ty: SimTypePointer):
         if self.bits == 32:
-            return Pointer32(self.lift(ty.pts_to))
+            return Pointer32(self.lift(ty.pts_to), name=ty.label)
         if self.bits == 64:
-            return Pointer64(self.lift(ty.pts_to))
+            return Pointer64(self.lift(ty.pts_to), name=ty.label)
         raise ValueError(f"Unsupported bits {self.bits}.")
 
     def _lift_SimStruct(self, ty: SimStruct) -> TypeConstant | BottomType:
@@ -109,13 +109,13 @@ class TypeLifter:
 
     def _lift_SimTypeArray(self, ty: SimTypeArray) -> Array:
         elem_type = self.lift(ty.elem_type)
-        return Array(elem_type, count=ty.length)
+        return Array(elem_type, count=ty.length, name=ty.label)
 
-    def _lift_SimTypeFloat(self, ty: SimTypeFloat) -> Float32:  # pylint:disable=unused-argument,no-self-use
-        return Float32()
+    def _lift_SimTypeFloat(self, ty: SimTypeFloat) -> Float32:  # pylint:disable=no-self-use
+        return Float32(name=ty.label)
 
-    def _lift_SimTypeDouble(self, ty: SimTypeDouble) -> Float64:  # pylint:disable=unused-argument,no-self-use
-        return Float64()
+    def _lift_SimTypeDouble(self, ty: SimTypeDouble) -> Float64:  # pylint:disable=no-self-use
+        return Float64(name=ty.label)
 
 
 _mapping = {

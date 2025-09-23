@@ -179,8 +179,8 @@ class RecursiveRefNode(SketchNodeBase):
     This is equivalent to sketches.LabelNode in the reference implementation of retypd.
     """
 
-    def __init__(self, target: DerivedTypeVariable):
-        self.target: DerivedTypeVariable = target
+    def __init__(self, target: TypeVariable | DerivedTypeVariable):
+        self.target: TypeVariable | DerivedTypeVariable = target
 
     def __repr__(self):
         return f"Ref({self.target})"
@@ -331,7 +331,7 @@ class ConstraintGraphNode:
 
     def __init__(
         self,
-        typevar: TypeVariable | DerivedTypeVariable,
+        typevar: TypeVariable | DerivedTypeVariable | TypeConstant,
         variance: Variance,
         tag: ConstraintGraphTag,
         forgotten: FORGOTTEN,
@@ -654,8 +654,10 @@ class SimpleSolver:
             sketch_node = sketch.lookup(tv)
             graph_node = equivalence_classes.get(tv, None)
             # assert graph_node is not None
-            if graph_node is None:
+            if graph_node is None or sketch_node is None:
                 continue
+            assert isinstance(graph_node, TypeVariable)
+            assert isinstance(sketch_node, SketchNode)
             visited = {graph_node: sketch_node}
             self._get_all_paths(quotient_graph, sketch, graph_node, visited)
         return equivalence_classes, sketches
@@ -675,6 +677,7 @@ class SimpleSolver:
             last_node = tv
             prefix = tv
             while isinstance(prefix, DerivedTypeVariable) and prefix.labels:
+                assert isinstance(last_node, DerivedTypeVariable)
                 prefix = prefix.longest_prefix()
                 if prefix is None:
                     continue
@@ -768,7 +771,7 @@ class SimpleSolver:
     def _get_all_paths(
         graph: networkx.DiGraph[TypeVariable | DerivedTypeVariable],
         sketch: Sketch,
-        node: DerivedTypeVariable,
+        node: TypeVariable,
         visited: dict[TypeVariable | DerivedTypeVariable, SketchNode],
     ):
         if node not in graph:
@@ -937,7 +940,7 @@ class SimpleSolver:
 
     @staticmethod
     def _rewrite_constraints_with_replacements(
-        constraints: set[TypeConstraint], replacements: dict[TypeVariable, TypeVariable]
+        constraints: set[TypeConstraint], replacements: dict[TypeVariable, TypeVariable | TypeConstant]
     ) -> set[TypeConstraint]:
         # replace constraints according to a dictionary of type variable replacements
         if not replacements:
@@ -1008,9 +1011,9 @@ class SimpleSolver:
                 if isinstance(constraint.sub_type, TypeVariable):
                     sub_typevars[constraint.sub_type].add(constraint.super_type)
                 for tv in [constraint.sub_type, constraint.super_type]:
-                    if isinstance(tv, DerivedTypeVariable):
+                    if isinstance(tv, DerivedTypeVariable) and not isinstance(constraint.sub_type, TypeConstant):
                         tv_to_dtvs[tv.type_var].add(constraint.sub_type)
-                    elif isinstance(tv, TypeVariable):
+                    elif isinstance(tv, TypeVariable) and not isinstance(constraint.sub_type, TypeConstant):
                         tv_to_dtvs[tv].add(constraint.sub_type)
 
         ub_subtypes: dict[TypeVariable, TypeVariable] = {}
@@ -1178,9 +1181,9 @@ class SimpleSolver:
     def _constraint_graph_add_edges(
         self,
         graph: networkx.DiGraph,
-        subtype: TypeVariable | DerivedTypeVariable,
-        supertype: TypeVariable | DerivedTypeVariable,
-        interesting_variables: set[DerivedTypeVariable],
+        subtype: TypeVariable | DerivedTypeVariable | TypeConstant,
+        supertype: TypeVariable | DerivedTypeVariable | TypeConstant,
+        interesting_variables: set[TypeVariable | DerivedTypeVariable | TypeConstant],
     ):
         # left and right tags
         if self._typevar_inside_set(self._to_typevar_or_typeconst(subtype), interesting_variables):
@@ -1215,7 +1218,7 @@ class SimpleSolver:
 
         # initialize the reaching-push sets R(x)
         for x, y, data in graph.edges(data=True):
-            if "label" in data and data.get("label")[1] == "forget":
+            if "label" in data and data.get("label")[1] == "forget":  # type:ignore
                 d = data["label"][0], x
                 R[y].add(d)
 
@@ -1432,6 +1435,7 @@ class SimpleSolver:
         """
 
         for typevar in tvs:
+            self._solution_cache = {}
             self._determine(typevar, sketches[typevar], equivalence_classes, solution, nodes=nodes)
 
         for v, eq in self._equivalence.items():
@@ -1463,14 +1467,7 @@ class SimpleSolver:
             if repr_tv in self._solution_cache:
                 cached_results.add(self._solution_cache[repr_tv])
         if len(cached_results) == 1:
-            cached_result = next(iter(cached_results))
-            # set cached_result to solution
-            # note that self._solution_cache[repr_tv] might have been populated by another SCC, so even when repr_tv
-            # is in self._solution_cache, it may not be in the solution dict.
-            for node in nodes:
-                if node.typevar not in solution:
-                    solution[node.typevar] = cached_result
-            return cached_result
+            return next(iter(cached_results))
         if len(cached_results) > 1:
             # we get nodes for multiple type variables?
             raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")

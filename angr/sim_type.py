@@ -872,6 +872,8 @@ class SimTypePointer(SimTypeReg):
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
     ):  # pylint: disable=unused-argument
         # if pts_to is SimTypeBottom, we return a void*
+        if self.label is not None and name is not None:
+            return super().c_repr(name=name, full=full, memo=memo, indent=indent, name_parens=name_parens)
         if isinstance(self.pts_to, SimTypeBottom):
             out = "void*"
             if name is None:
@@ -2192,10 +2194,10 @@ class SimTypeRef(SimType):
     ) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
         if self.original_type is SimStruct:
-            prefix = "struct"
+            prefix = "struct "
         if name is None:
             name = ""
-        return f"{prefix}{name} {self.name}"
+        return f"{prefix}{self.label} {name}"
 
     def _init_str(self) -> str:
         original_type_name = self.original_type.__name__.split(".")[-1]
@@ -3752,7 +3754,7 @@ def _cpp_decl_to_type(
         for idx, param in enumerate(the_func.parameters):
             arg_type = param.type
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
-            arg_name = param.name if param.name is not None else f"unknown_{idx}"
+            arg_name = param.name if param.name is not None else f"arg_{idx}"
             arg_names.append(arg_name)
 
         args = tuple(args)
@@ -3799,7 +3801,7 @@ def _cpp_decl_to_type(
         for idx, param in enumerate(the_func.parameters):
             arg_type = param.type
             args.append(_cpp_decl_to_type(arg_type, extra_types, opaque_classes=opaque_classes))
-            arg_name = param.name if param.name is not None else f"unknown_{idx}"
+            arg_name = param.name if param.name is not None else f"arg_{idx}"
             arg_names.append(arg_name)
 
         args = tuple(args)
@@ -3821,8 +3823,11 @@ def _cpp_decl_to_type(
         elif lbl in ALL_TYPES:
             t = ALL_TYPES[lbl]
         elif opaque_classes is True:
-            # create a class without knowing the internal members
-            t = SimCppClass(unique_name=lbl, name=lbl, members={}, size=32)
+            # create a struct or a class without knowing the internal members
+            if decl.typename.classkey == "struct":
+                t = SimTypeRef(lbl.removeprefix("struct "), SimStruct)
+            else:
+                t = SimCppClass(unique_name=lbl, name=lbl, members={}, size=32)
         else:
             raise TypeError(f'Unknown type "{lbl}"')
 

@@ -277,7 +277,10 @@ class SimEngineVRBase(
         variable, _ = existing_vars[0]
 
         if not self.state.typevars.has_type_variable_for(variable):
-            variable_typevar = typevars.TypeVariable()
+            if isinstance(variable, SimStackVariable) and variable.offset in self.state.stack_offset_typevars:
+                variable_typevar = self.state.stack_offset_typevars[variable.offset]
+            else:
+                variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, variable_typevar)
         # we do not add any type constraint here because we are not sure if the given memory address will ever be
         # accessed or not
