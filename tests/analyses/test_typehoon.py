@@ -281,7 +281,12 @@ class TestTypehoon(unittest.TestCase):
         func = cfg.functions[0x18003CA70]
         assert func is not None
         dec = proj.analyses.Decompiler(func, cfg=cfg)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        assert (
+            dec.codegen is not None
+            and dec.codegen.text is not None
+            and dec.clinic is not None
+            and dec.clinic.typehoon is not None
+        )
         # print(dec.codegen.text)
         sols = dec.clinic.typehoon.simtypes_solution
         all_sols = {v.label for v in sols.values()}
