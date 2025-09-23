@@ -1432,6 +1432,7 @@ class SimpleSolver:
         """
 
         for typevar in tvs:
+            self._solution_cache = {}
             self._determine(typevar, sketches[typevar], equivalence_classes, solution, nodes=nodes)
 
         for v, eq in self._equivalence.items():
@@ -1463,14 +1464,7 @@ class SimpleSolver:
             if repr_tv in self._solution_cache:
                 cached_results.add(self._solution_cache[repr_tv])
         if len(cached_results) == 1:
-            cached_result = next(iter(cached_results))
-            # set cached_result to solution
-            # note that self._solution_cache[repr_tv] might have been populated by another SCC, so even when repr_tv
-            # is in self._solution_cache, it may not be in the solution dict.
-            for node in nodes:
-                if node.typevar not in solution:
-                    solution[node.typevar] = cached_result
-            return cached_result
+            return next(iter(cached_results))
         if len(cached_results) > 1:
             # we get nodes for multiple type variables?
             raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")
