@@ -272,6 +272,23 @@ class TestTypehoon(unittest.TestCase):
         assert field_0.pts_to == field_8_field_0.pts_to
         assert field_8.pts_to == field_0_field_8.pts_to
 
+    def test_type_inference_with_custom_label(self):
+        bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(fail_fast=True, normalize=True)
+
+        func = cfg.functions[0x18003CA70]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        # print(dec.codegen.text)
+        sols = dec.clinic.typehoon.simtypes_solution
+        all_sols = {v.label for v in sols.values()}
+        assert "HKEY" in all_sols
+        assert "PWSTR" in all_sols
+        assert "HANDLE" in all_sols
+
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
