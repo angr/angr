@@ -1236,7 +1236,7 @@ class SimpleSolver:
                 lbl = data.get("label")
                 if lbl and lbl[1] == "recall":
                     for _label, z in R[x]:
-                        if not graph.has_edge(z, y):
+                        if lbl[0] == _label and not graph.has_edge(z, y):
                             changed = True
                             graph.add_edge(z, y)
             v_contravariant = []
