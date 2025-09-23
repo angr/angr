@@ -594,7 +594,7 @@ class SimpleSolver:
                 primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
                 if len(tvs) > 1:
                     primitive_constraints |= self._generate_transitive_subtype_constraints(
-                        filtered_constraint_subset, primitive_constraints
+                        tvs, filtered_constraint_subset, primitive_constraints
                     )
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in primitive_constraints:
@@ -740,6 +740,7 @@ class SimpleSolver:
 
     @staticmethod
     def _generate_transitive_subtype_constraints(
+        typevars: set[TypeVariable | DerivedTypeVariable],
         constraints: set[TypeConstraint],
         primitive_constraints: set[TypeConstraint],
     ) -> set[TypeConstraint]:
@@ -758,7 +759,15 @@ class SimpleSolver:
 
         additional_constraints = set()
         for constraint in constraints:
-            if isinstance(constraint, Subtype) and constraint.super_type in tv_supertype:
+            if (
+                isinstance(constraint, Subtype)
+                and isinstance(constraint.sub_type, TypeVariable)
+                and (
+                    (isinstance(constraint.sub_type, DerivedTypeVariable) and constraint.sub_type.type_var in typevars)
+                    or (not isinstance(constraint.sub_type, DerivedTypeVariable) and constraint.sub_type in typevars)
+                )
+                and constraint.super_type in tv_supertype
+            ):
                 for supertype in tv_supertype[constraint.super_type]:
                     additional_constraints.add(Subtype(constraint.sub_type, supertype))
 
