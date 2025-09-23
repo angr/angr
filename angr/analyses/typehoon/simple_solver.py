@@ -592,6 +592,10 @@ class SimpleSolver:
                     filtered_constraint_subset, tvs | PRIMITIVE_TYPES
                 )
                 primitive_constraints = self._generate_primitive_constraints(tvs, base_constraint_graph)
+                if len(tvs) > 1:
+                    primitive_constraints |= self._generate_transitive_subtype_constraints(
+                        tvs, filtered_constraint_subset, primitive_constraints
+                    )
                 tvs_with_primitive_constraints = set()
                 for primitive_constraint in primitive_constraints:
                     tv = self._typevar_from_primitive_constraint(primitive_constraint)
@@ -599,7 +603,9 @@ class SimpleSolver:
                     assert tv is not None, f"Cannot find type variable in primitive constraint {primitive_constraint}"
                     sketches[tv].add_constraint(primitive_constraint)
                 solutions = {}
-                self.determine(sketches, tvs_with_primitive_constraints, equiv_classes, solutions)
+                self.determine(
+                    sketches, sorted(tvs_with_primitive_constraints, key=lambda x: x.idx), equiv_classes, solutions
+                )
                 _l.debug("Determined solutions for %d type variable(s).", len(tvs_with_primitive_constraints))
 
                 leaf_solutions = 0
@@ -731,6 +737,41 @@ class SimpleSolver:
         constraints_0 = self._solve_constraints_between(constraint_graph, non_primitive_endpoints, PRIMITIVE_TYPES)
         constraints_1 = self._solve_constraints_between(constraint_graph, PRIMITIVE_TYPES, non_primitive_endpoints)
         return constraints_0 | constraints_1
+
+    @staticmethod
+    def _generate_transitive_subtype_constraints(
+        typevars: set[TypeVariable | DerivedTypeVariable],
+        constraints: set[TypeConstraint],
+        primitive_constraints: set[TypeConstraint],
+    ) -> set[TypeConstraint]:
+        """
+        Handling multiple type variables at once means we may miss some subtyping relationships between a type variable
+        and a primitive type (e.g., tv_1 <: tv_2 and tv_2 <: int, we may not see tv_1 <: int). This method attempts to
+        recover some of these missing constraints.
+        """
+
+        tv_supertype = defaultdict(set)
+        for constraint in primitive_constraints:
+            if isinstance(constraint, Subtype) and SimpleSolver._typevar_inside_set(
+                constraint.super_type, PRIMITIVE_TYPES
+            ):
+                tv_supertype[constraint.sub_type].add(constraint.super_type)
+
+        additional_constraints = set()
+        for constraint in constraints:
+            if (
+                isinstance(constraint, Subtype)
+                and isinstance(constraint.sub_type, TypeVariable)
+                and (
+                    (isinstance(constraint.sub_type, DerivedTypeVariable) and constraint.sub_type.type_var in typevars)
+                    or (not isinstance(constraint.sub_type, DerivedTypeVariable) and constraint.sub_type in typevars)
+                )
+                and constraint.super_type in tv_supertype
+            ):
+                for supertype in tv_supertype[constraint.super_type]:
+                    additional_constraints.add(Subtype(constraint.sub_type, supertype))
+
+        return additional_constraints
 
     @staticmethod
     def _typevars_from_constraints(constraints: set[TypeConstraint]) -> set[TypeVariable | DerivedTypeVariable]:
@@ -1025,8 +1066,11 @@ class SimpleSolver:
 
         filtered_constraints = set()
         for constraint in constraints:
-            if isinstance(constraint, Subtype) and constraint.sub_type in ub_subtypes:
-                continue
+            if isinstance(constraint, Subtype):
+                if constraint.sub_type in ub_subtypes:
+                    continue
+                if constraint.sub_type == constraint.super_type:
+                    continue
             filtered_constraints.add(constraint)
 
         return filtered_constraints, ub_subtypes
