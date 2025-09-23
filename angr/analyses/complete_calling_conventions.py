@@ -198,7 +198,8 @@ class CompleteCallingConventionsAnalysis(Analysis):
         prototype_guessed: bool | None,
     ) -> None:
         if func.prototype is None or func.is_prototype_guessed or self._force:
-            func.is_prototype_guessed = prototype_guessed
+            if prototype_guessed is not None:
+                func.is_prototype_guessed = prototype_guessed
             func.prototype = prototype
             func.prototype_libname = prototype_libname
 
@@ -273,6 +274,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
             # update progress
             self._update_progress(0)
             idx = 0
+            assert self._results_lock is not None
             while idx < total_funcs:
                 try:
                     with self._results_lock:
@@ -323,6 +325,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
     def _worker_routine(self, worker_id: int, initializer: Initializer):
         initializer.initialize()
         idx = 0
+        assert self._remaining_funcs is not None and self._func_queue is not None and self._results_lock is not None
         while self._remaining_funcs.value > 0:
             try:
                 with self._func_queue_lock:
@@ -393,9 +396,11 @@ class CompleteCallingConventionsAnalysis(Analysis):
                 return None, None, None, None, None
 
         # determine the calling convention of each function
-        kwargs = {"collect_facts": self.mode == CallingConventionAnalysisMode.FAST}
         cc_analysis = self.project.analyses[CallingConventionAnalysis].prep(kb=self.kb)(
-            func, cfg=self._cfg, analyze_callsites=self._analyze_callsites, **kwargs
+            func,
+            cfg=self._cfg,
+            analyze_callsites=self._analyze_callsites,
+            collect_facts=self.mode == CallingConventionAnalysisMode.FAST,
         )
 
         if cc_analysis.cc is not None:
