@@ -177,6 +177,7 @@ class Pointer32(Pointer, Int32):
 
     def __init__(self, basetype=None, name: str | None = None):
         Pointer.__init__(self, basetype, name=name)
+        Int32.__init__(self, name=name)
 
     @memoize
     def __repr__(self, memo=None):
@@ -192,6 +193,7 @@ class Pointer64(Pointer, Int64):
 
     def __init__(self, basetype=None, name: str | None = None):
         Pointer.__init__(self, basetype, name=name)
+        Int64.__init__(self, name=name)
 
     @memoize
     def __repr__(self, memo=None):
