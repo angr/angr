@@ -1521,8 +1521,6 @@ class SimpleSolver:
             func_type.outputs = output_values
 
             for node in nodes:
-                repr_tv = equivalence_classes.get(node.typevar, node.typevar)
-                solution[repr_tv] = result
                 solution[node.typevar] = result
 
         elif path_and_successors:
@@ -1543,7 +1541,6 @@ class SimpleSolver:
                     for node in nodes:
                         repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                         self._solution_cache[repr_tv] = result
-                        solution[repr_tv] = result
                         solution[node.typevar] = result
                     return result
 
@@ -1631,14 +1628,12 @@ class SimpleSolver:
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
-                    solution[repr_tv] = result
                     solution[node.typevar] = result
             elif any(off < 0 for off in fields) or any(fld is Bottom_ for fld in fields.values()):
                 result = self._pointer_class()(Bottom_)
                 for node in nodes:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
-                    solution[repr_tv] = result
                     solution[node.typevar] = result
             else:
                 # back-patch
@@ -1668,7 +1663,6 @@ class SimpleSolver:
             for node in nodes:
                 repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                 self._solution_cache[repr_tv] = result
-                solution[repr_tv] = result
                 solution[node.typevar] = result
 
         # import pprint
