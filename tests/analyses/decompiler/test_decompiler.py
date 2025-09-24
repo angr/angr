@@ -5248,6 +5248,89 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         assert "InterlockedExchange(" in dec.codegen.text
 
+    def test_tail_calls(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "tail_calls.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=False)
+
+        # FIXME: Autodetect
+        proj.kb.functions["test_noreturn_tailcall_callee"].returning = False
+        proj.kb.functions["test_cond_noreturn_tailcall_jmp_callee"].returning = False
+        proj.kb.functions["test_cond_noreturn_tailcall_cjmp_callee"].returning = False
+
+        func = proj.kb.functions["test_tailcall"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "return test_tailcall_callee(a0 + 1);" in normalize_whitespace(dec.codegen.text)
+
+        func = proj.kb.functions["test_noreturn_tailcall"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert "test_noreturn_tailcall_callee(a0 + 1); /* do not return */" in normalize_whitespace(dec.codegen.text)
+
+        func = proj.kb.functions["test_cond_tailcall_jmp"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert (
+            normalize_whitespace(
+                """
+                if (a0)
+                    return test_cond_tailcall_jmp_callee(a0);
+                return a0 - 1;
+                """
+            )
+            in normalize_whitespace(dec.codegen.text)
+        )
+
+        func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert (
+            normalize_whitespace(
+                """
+                if (a0)
+                    test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
+                return a0 - 1;
+                """
+            )
+            in normalize_whitespace(dec.codegen.text)
+        )
+
+        func = proj.kb.functions["test_cond_tailcall_cjmp"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert (
+            normalize_whitespace(
+                """
+                if (a0)
+                    return test_cond_tailcall_cjmp_callee(a0);
+                return a0 - 1;
+                """
+            )
+            in normalize_whitespace(dec.codegen.text)
+        )
+
+        func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert (
+            normalize_whitespace(
+                """
+                if (a0)
+                    test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */
+                return a0 - 1;
+                """
+            )
+            in normalize_whitespace(dec.codegen.text)
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

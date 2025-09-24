@@ -1231,52 +1231,62 @@ class Clinic(Analysis):
     @timethis
     def _replace_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
-        Replace tail jumps them with a return statement and a call expression.
+        Rewrite tail jumps to functions as call statements.
         """
         for block in list(ail_graph.nodes()):
-            out_degree = ail_graph.out_degree[block]
-
-            if out_degree != 0:
+            if ail_graph.out_degree[block] > 1:
                 continue
 
             last_stmt = block.statements[-1]
             if isinstance(last_stmt, ailment.Stmt.Jump):
-                # jumping to somewhere outside the current function
-                # rewrite it as a call *if and only if* the target is identified as a function
-                target = last_stmt.target
-                if isinstance(target, ailment.Const):
-                    target_addr = target.value
-                    if self.kb.functions.contains_addr(target_addr):
-                        # replace the statement
-                        target_func = self.kb.functions.get_by_addr(target_addr)
-                        if target_func.returning and self.project.arch.ret_offset is not None:
-                            ret_reg_offset = self.project.arch.ret_offset
-                            ret_expr = ailment.Expr.Register(
-                                None,
-                                None,
-                                ret_reg_offset,
-                                self.project.arch.bits,
-                                reg_name=self.project.arch.translate_register_name(
-                                    ret_reg_offset, size=self.project.arch.bits
-                                ),
-                                **target.tags,
-                            )
-                            call_stmt = ailment.Stmt.Call(
-                                None,
-                                target,
-                                calling_convention=None,  # target_func.calling_convention,
-                                prototype=None,  # target_func.prototype,
-                                ret_expr=ret_expr,
-                                **last_stmt.tags,
-                            )
-                            block.statements[-1] = call_stmt
+                targets = [last_stmt.target]
+                replace_last_stmt = True
+            elif isinstance(last_stmt, ailment.Stmt.ConditionalJump):
+                targets = [last_stmt.true_target, last_stmt.false_target]
+                replace_last_stmt = False
+            else:
+                continue
 
-                            ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
-                            ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
-                            ail_graph.add_edge(block, ret_block, type="fake_return")
-                        else:
-                            stmt = ailment.Stmt.Call(None, target, **last_stmt.tags)
-                            block.statements[-1] = stmt
+            for target in targets:
+                if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
+                    continue
+
+                target_func = self.kb.functions.get_by_addr(target.value)
+
+                ret_reg_offset = self.project.arch.ret_offset
+                if target_func.returning and ret_reg_offset is not None:
+                    ret_expr = ailment.Expr.Register(
+                        None,
+                        None,
+                        ret_reg_offset,
+                        self.project.arch.bits,
+                        reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
+                        **target.tags,
+                    )
+                else:
+                    ret_expr = None
+
+                call_stmt = ailment.Stmt.Call(
+                    None,
+                    target.copy(),
+                    calling_convention=None,  # target_func.calling_convention,
+                    prototype=None,  # target_func.prototype,
+                    ret_expr=ret_expr,
+                    **last_stmt.tags,
+                )
+
+                if replace_last_stmt:
+                    call_block = block
+                    block.statements[-1] = call_stmt
+                else:
+                    call_block = ailment.Block(self.new_block_addr(), 1, statements=[call_stmt])
+                    ail_graph.add_edge(block, call_block)
+                    target.value = call_block.addr
+
+                if target_func.returning:
+                    ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
+                    ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
+                    ail_graph.add_edge(call_block, ret_block, type="fake_return")
 
         return ail_graph
 
