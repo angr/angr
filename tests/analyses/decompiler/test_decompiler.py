@@ -51,7 +51,7 @@ from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.sim_variable import SimStackVariable
 from angr.utils.library import convert_cproto_to_py
 
-from tests.common import bin_location, slow_test, print_decompilation_result, WORKER
+from tests.common import bin_location, slow_test, print_decompilation_result, set_decompiler_option, WORKER
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -64,18 +64,6 @@ def normalize_whitespace(s: str) -> str:
     Strips whitespace from start/end of lines, and replace newlines with space.
     """
     return " ".join([l for l in [s.strip() for s in s.splitlines()] if l])
-
-
-def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[tuple]) -> list[tuple]:
-    if decompiler_options is None:
-        decompiler_options = []
-
-    for param, value in params:
-        for option in angr.analyses.decompiler.decompilation_options.options:
-            if param == option.param:
-                decompiler_options.append((option, value))
-
-    return decompiler_options
 
 
 def options_to_structuring_algo(decompiler_options: list[tuple] | None) -> str | None:
