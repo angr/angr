@@ -1995,7 +1995,7 @@ class AILSimplifier(Analysis):
             v = False
 
         def _handle_VEXCCallExpression(
-            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
         ) -> Expression | None:
             r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             if r_expr is None:
