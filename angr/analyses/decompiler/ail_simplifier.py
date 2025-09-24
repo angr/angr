@@ -168,6 +168,7 @@ class AILSimplifier(Analysis):
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
         rewrite_ccalls=True,
+        rename_ccalls=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
@@ -188,6 +189,7 @@ class AILSimplifier(Analysis):
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._should_rewrite_ccalls = rewrite_ccalls
+        self._should_rename_ccalls = rename_ccalls
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
@@ -1992,20 +1994,20 @@ class AILSimplifier(Analysis):
 
             v = False
 
-        def _handle_expr(
-            expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
+        def _handle_VEXCCallExpression(
+            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ) -> Expression | None:
-            if isinstance(expr, VEXCCallExpression):
-                rewriter = rewriter_cls(expr, self.project.arch)
-                if rewriter.result is not None:
-                    _any_update.v = True
-                    return rewriter.result
-                return None
-
-            return AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
+            if r_expr is None:
+                r_expr = expr
+            rewriter = rewriter_cls(r_expr, self.project.arch, rename_ccalls=self._should_rename_ccalls)
+            if rewriter.result is not None:
+                _any_update.v = True
+                return rewriter.result
+            return r_expr if r_expr is not expr else None
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
-        walker._handle_expr = _handle_expr
+        walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
 
         updated = False
         for block in blocks_by_addr_and_idx.values():
