@@ -1250,11 +1250,11 @@ class Clinic(Analysis):
             for target in targets:
                 if not isinstance(target, ailment.Const) or not self.kb.functions.contains_addr(target.value):
                     continue
-                target_func = self.kb.functions.get_by_addr(target.value)
-                target_returns = target_func.returning and self.project.arch.ret_offset is not None
 
-                if target_returns:
-                    ret_reg_offset = self.project.arch.ret_offset
+                target_func = self.kb.functions.get_by_addr(target.value)
+
+                ret_reg_offset = self.project.arch.ret_offset
+                if target_func.returning and ret_reg_offset is not None:
                     ret_expr = ailment.Expr.Register(
                         None,
                         None,
@@ -1263,16 +1263,17 @@ class Clinic(Analysis):
                         reg_name=self.project.arch.translate_register_name(ret_reg_offset, size=self.project.arch.bits),
                         **target.tags,
                     )
-                    call_stmt = ailment.Stmt.Call(
-                        None,
-                        target.copy(),
-                        calling_convention=None,  # target_func.calling_convention,
-                        prototype=None,  # target_func.prototype,
-                        ret_expr=ret_expr,
-                        **last_stmt.tags,
-                    )
                 else:
-                    call_stmt = ailment.Stmt.Call(None, target.copy(), **last_stmt.tags)
+                    ret_expr = None
+
+                call_stmt = ailment.Stmt.Call(
+                    None,
+                    target.copy(),
+                    calling_convention=None,  # target_func.calling_convention,
+                    prototype=None,  # target_func.prototype,
+                    ret_expr=ret_expr,
+                    **last_stmt.tags,
+                )
 
                 if replace_last_stmt:
                     call_block = block
@@ -1282,7 +1283,7 @@ class Clinic(Analysis):
                     ail_graph.add_edge(block, call_block)
                     target.value = call_block.addr
 
-                if target_returns:
+                if ret_expr is not None:
                     ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
                     ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
