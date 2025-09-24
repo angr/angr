@@ -1234,8 +1234,7 @@ class Clinic(Analysis):
         Rewrite tail jumps to functions as call statements.
         """
         for block in list(ail_graph.nodes()):
-            out_degree = ail_graph.out_degree[block]
-            if out_degree > 1:
+            if ail_graph.out_degree[block] > 1:
                 continue
 
             last_stmt = block.statements[-1]
