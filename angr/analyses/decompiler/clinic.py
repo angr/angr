@@ -1231,7 +1231,7 @@ class Clinic(Analysis):
     @timethis
     def _replace_tail_jumps_with_calls(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
         """
-        Replace tail jumps them with a return statement and a call expression.
+        Rewrite tail jumps to functions as call statements.
         """
         for block in list(ail_graph.nodes()):
             out_degree = ail_graph.out_degree[block]
