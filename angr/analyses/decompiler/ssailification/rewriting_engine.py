@@ -98,6 +98,19 @@ class SimEngineSSARewriting(
         return self._current_vvar_id
 
     #
+    # Util functions
+    #
+
+    @staticmethod
+    def _is_head_controlled_loop_jump(block, jump_stmt: ConditionalJump) -> bool:
+        concrete_targets = []
+        if isinstance(jump_stmt.true_target, Const):
+            concrete_targets.append(jump_stmt.true_target.value)
+        if isinstance(jump_stmt.false_target, Const):
+            concrete_targets.append(jump_stmt.false_target.value)
+        return not all(block.addr <= t < block.addr + block.original_size for t in concrete_targets)
+
+    #
     # Handlers
     #
 
@@ -303,7 +316,7 @@ class SimEngineSSARewriting(
         new_true_target = self._expr(stmt.true_target) if stmt.true_target is not None else None
         new_false_target = self._expr(stmt.false_target) if stmt.false_target is not None else None
 
-        if self.stmt_idx != len(self.block.statements) - 1:
+        if self.stmt_idx != len(self.block.statements) - 1 and self._is_head_controlled_loop_jump(self.block, stmt):
             # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
             # we need to make a copy of the state and use the state of this point in its successor
             self.head_controlled_loop_outstate = self.state.copy()

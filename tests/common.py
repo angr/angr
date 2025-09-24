@@ -11,6 +11,7 @@ from unittest import skipIf, skipUnless, skip, SkipTest
 
 import pytest
 
+import angr
 from angr import load_shellcode, Project
 from angr.analyses import CongruencyCheck
 from angr.misc.testing import is_testing
@@ -168,3 +169,15 @@ def print_decompilation_result(dec):
     if not WORKER:
         print("Decompilation result:")
         print(dec.codegen.text)
+
+
+def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[tuple]) -> list[tuple]:
+    if decompiler_options is None:
+        decompiler_options = []
+
+    for param, value in params:
+        for option in angr.analyses.decompiler.decompilation_options.options:
+            if param == option.param:
+                decompiler_options.append((option, value))
+
+    return decompiler_options
