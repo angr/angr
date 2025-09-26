@@ -7,6 +7,7 @@ __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redef
 import logging
 import os
 import unittest
+import re
 
 import angr
 
@@ -23,7 +24,7 @@ class TestHeadControlledLoops(unittest.TestCase):
         # a bug in ssailification.RewritingEngine causes us to misinterpret an xchg (where VEX generates a conditional
         # jump to mimic CAS effects) as a head-controlled loop (e.g., for rep stosb). as a result of this bug, we will
         # see "12" or "0xc" in the decompilation result (for the instruction at 0x140003767), which is what we are
-        # testing here.
+        # testing here. Note that "v3 + 12" is intended, but "0 + 12" or "12" is not.
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
         )
@@ -37,7 +38,11 @@ class TestHeadControlledLoops(unittest.TestCase):
         )
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert "12" not in dec.codegen.text and "0xc" not in dec.codegen.text
+        t = dec.codegen.text
+        m = re.search(r"v\d+ \+ 12", t)
+        if m is not None:
+            t = dec.codegen.text.replace(m.group(0), "--REPLACED--")
+        assert "12" not in t and "0xc" not in t
 
 
 if __name__ == "__main__":

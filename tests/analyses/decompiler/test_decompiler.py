@@ -5234,7 +5234,7 @@ class TestDecompiler(unittest.TestCase):
 
         # BlockSimplifier should not remove statements with calls inside
         assert dec.codegen is not None and dec.codegen.text is not None
-        assert "InterlockedExchange(" in dec.codegen.text
+        assert "InterlockedExchange64(" in dec.codegen.text
 
     def test_tail_calls(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "tail_calls.o")
