@@ -95,7 +95,8 @@ class Emulator:
         num_inst_executed: int = 0
         while self._state.history.jumpkind != "Ijk_Exit":
             # Check if there is a breakpoint at the current address
-            if completed_engine_execs > 0 and self._state.addr in self._engine.get_breakpoints():
+            addr_with_lower_bit_cleared = self._state.addr & ~1
+            if completed_engine_execs > 0 and addr_with_lower_bit_cleared in self._engine.get_breakpoints():
                 return EmulatorStopReason.BREAKPOINT
 
             # Check if we've already executed the requested number of instructions

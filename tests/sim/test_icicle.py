@@ -290,6 +290,35 @@ class TestThumb(TestCase):
         assert successors[0].regs.pc.concrete_value == 0x1004
         assert successors[0].regs.r2.concrete_value == 0x3
 
+    def test_thumb_breakpoint(self):
+        """Test that breakpoints work in Thumb mode."""
+        # Shellcode to add 1 and 2 in Thumb mode
+        shellcode = "mov r0, 0x1; mov r1, 0x2; add r2, r0, r1;"
+        project = angr.load_shellcode(shellcode, "armel", thumb=True)
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Add a breakpoint at the second instruction (mov r1, 0x2)
+        breakpoint_addr = project.entry + 4
+        engine.add_breakpoint(breakpoint_addr)
+
+        # Process up to the breakpoint
+        successors = engine.process(init_state)
+        assert len(successors.successors) == 1
+        state_after_bp = successors.successors[0]
+        assert state_after_bp.addr == breakpoint_addr
+        assert state_after_bp.regs.r0.concrete_value == 1
+
+        # Continue execution
+        successors2 = engine.process(state_after_bp, num_inst=2)
+        assert len(successors2.successors) == 1
+        final_state = successors2.successors[0]
+        assert final_state.regs.r2.concrete_value == 3
+
 
 class TestFauxware(TestCase):
     """Integration tests executing the fauxware binary using the Icicle engine."""
