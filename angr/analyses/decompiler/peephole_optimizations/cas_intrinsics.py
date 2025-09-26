@@ -1,6 +1,7 @@
 # pylint:disable=arguments-differ,too-many-boolean-expressions
 from __future__ import annotations
 
+from angr.ailment import Const
 from angr.ailment.expression import BinaryOp, Load, Expression, Tmp
 from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
 
@@ -8,8 +9,22 @@ from .base import PeepholeOptimizationMultiStmtBase
 
 
 _INTRINSICS_NAMES = {
-    "xchg": {"Win32": "InterlockedExchange", "Linux": "atomic_exchange"},
-    "cmpxchg": {"Win32": "InterlockedCompareExchange", "Linux": "atomic_compare_exchange"},
+    "xchg8": {"Win32": "InterlockedExchange8", "Linux": "atomic_exchange"},
+    "xchg16": {"Win32": "InterlockedExchange16", "Linux": "atomic_exchange"},
+    "xchg32": {"Win32": "InterlockedExchange", "Linux": "atomic_exchange"},
+    "xchg64": {"Win32": "InterlockedExchange64", "Linux": "atomic_exchange"},
+    "cmpxchg16": {"Win32": "InterlockedCompareExchange16", "Linux": "atomic_compare_exchange"},
+    "cmpxchg32": {"Win32": "InterlockedCompareExchange", "Linux": "atomic_compare_exchange"},
+    "cmpxchg64": {"Win32": "InterlockedCompareExchange64", "Linux": "atomic_compare_exchange"},
+    "cmpxchg128": {"Win32": "InterlockedCompareExchange128", "Linux": "atomic_compare_exchange"},
+    "lock_inc16": {"Win32": "InterlockedIncrement16", "Linux": "atomic_fetch_add"},
+    "lock_inc32": {"Win32": "InterlockedIncrement", "Linux": "atomic_fetch_add"},
+    "lock_inc64": {"Win32": "InterlockedIncrement64", "Linux": "atomic_fetch_add"},
+    "lock_dec16": {"Win32": "InterlockedDecrement16", "Linux": "atomic_fetch_dec"},
+    "lock_dec32": {"Win32": "InterlockedDecrement", "Linux": "atomic_fetch_dec"},
+    "lock_dec64": {"Win32": "InterlockedDecrement64", "Linux": "atomic_fetch_dec"},
+    "lock_xadd32": {"Win32": "InterlockedExchangeAdd", "Linux": "atomic_exchange_add"},
+    "lock_xadd64": {"Win32": "InterlockedExchangeAdd64", "Linux": "atomic_exchange_add"},
 }
 
 
@@ -72,14 +87,54 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
             ):
                 # TODO: Support cases where cas_stmt.old_hi is not None
                 # Case 1
-                call_expr = Call(
-                    cas_stmt.idx,
-                    self._get_instrincs_name("xchg"),
-                    args=[addr, cas_stmt.data_lo],
-                    bits=cas_stmt.bits,
-                    ins_addr=cas_stmt.ins_addr,
-                )
-                stmt = Assignment(cas_stmt.idx, cas_stmt.old_lo, call_expr, **cas_stmt.tags)
+
+                call_expr = None
+                if isinstance(cas_stmt.data_lo, BinaryOp):
+                    if cas_stmt.data_lo.op == "Add" and cas_stmt.data_lo.operands[0].likes(cas_stmt.expd_lo):
+                        if isinstance(cas_stmt.data_lo.operands[1], Const) and cas_stmt.data_lo.operands[1].value == 1:
+                            # lock inc
+                            call_expr = Call(
+                                cas_stmt.idx,
+                                self._get_instrincs_name(f"lock_inc{cas_stmt.bits}"),
+                                args=[cas_stmt.addr],
+                                bits=cas_stmt.bits,
+                                ins_addr=cas_stmt.ins_addr,
+                            )
+                        else:
+                            # lock xadd
+                            call_expr = Call(
+                                cas_stmt.idx,
+                                self._get_instrincs_name(f"lock_xadd{cas_stmt.bits}"),
+                                args=[cas_stmt.addr, cas_stmt.data_lo.operands[1]],
+                                bits=cas_stmt.bits,
+                                ins_addr=cas_stmt.ins_addr,
+                            )
+                    elif (
+                        cas_stmt.data_lo.op == "Sub"
+                        and cas_stmt.data_lo.operands[0].likes(cas_stmt.expd_lo)
+                        and isinstance(cas_stmt.data_lo.operands[1], Const)
+                        and cas_stmt.data_lo.operands[1].value == 1
+                    ):
+                        # lock dec
+                        call_expr = Call(
+                            cas_stmt.idx,
+                            self._get_instrincs_name(f"lock_dec{cas_stmt.bits}"),
+                            args=[cas_stmt.addr],
+                            bits=cas_stmt.bits,
+                            ins_addr=cas_stmt.ins_addr,
+                        )
+
+                if call_expr is None:
+                    call_expr = Call(
+                        cas_stmt.idx,
+                        self._get_instrincs_name(f"xchg{cas_stmt.bits}"),
+                        args=[addr, cas_stmt.data_lo],
+                        bits=cas_stmt.bits,
+                        ins_addr=cas_stmt.ins_addr,
+                    )
+
+                assignment_dst = cas_stmt.expd_lo
+                stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
                 return [stmt]
 
         if next_stmt.ins_addr <= cas_stmt.ins_addr:
@@ -88,9 +143,10 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
 
         if cas_stmt.old_hi is None:
             # TODO: Support cases where cas_stmt.old_hi is not None
+            # Case 2
             call_expr = Call(
                 cas_stmt.idx,
-                self._get_instrincs_name("cmpxchg"),
+                self._get_instrincs_name(f"cmpxchg{cas_stmt.bits}"),
                 args=[
                     cas_stmt.addr,
                     cas_stmt.data_lo,
@@ -99,7 +155,8 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                 bits=cas_stmt.bits,
                 ins_addr=cas_stmt.ins_addr,
             )
-            stmt = Assignment(cas_stmt.idx, cas_stmt.old_lo, call_expr, **cas_stmt.tags)
+            assignment_dst = cas_stmt.expd_lo
+            stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
             return [stmt, next_stmt]
 
         return None

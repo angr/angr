@@ -1426,7 +1426,7 @@ class AILSimplifier(Analysis):
 
         for eq in equivalence:
             # register variable == Call
-            if isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
+            if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
                 if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1

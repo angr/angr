@@ -171,6 +171,45 @@ class SimEngineVRAIL(
             if isinstance(funcaddr_typevar, typevars.TypeVariable):
                 load_typevar = self._create_access_typevar(funcaddr_typevar, False, self.arch.bytes, 0)
                 self.state.add_type_constraint(typevars.Subtype(funcaddr_typevar, load_typevar))
+        elif isinstance(target, str):
+            # special handling for some intrinsics
+            match target:
+                case (
+                    "InterlockedExchange8"
+                    | "InterlockedExchange16"
+                    | "InterlockedExchange"
+                    | "InterlockedExchange64"
+                    | "InterlockedCompareExchange16"
+                    | "InterlockedCompareExchange"
+                    | "InterlockedCompareExchange64"
+                    | "InterlockedCompareExchange128"
+                    | "InterlockedExchangeAdd"
+                    | "InterlockedExchangeAdd64"
+                ):
+                    arg_tv = (
+                        args[0].typevar
+                        if args[0].typevar is not None
+                        else args[1].typevar if args[1].typevar is not None else None
+                    )
+                    if arg_tv is not None:
+                        ret_ty = self._create_access_typevar(
+                            arg_tv, False, args[0].data.size() // self.arch.byte_width, 0
+                        )
+                        return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
+                case (
+                    "InterlockedIncrement"
+                    | "InterlockedIncrement16"
+                    | "InterlockedIncrement64"
+                    | "InterlockedDecrement"
+                    | "InterlockedDecrement16"
+                    | "InterlockedDecrement64"
+                ):
+                    arg_tv = args[0].typevar if args[0].typevar is not None else None
+                    if arg_tv is not None:
+                        ret_ty = self._create_access_typevar(
+                            arg_tv, False, args[0].data.size() // self.arch.byte_width, 0
+                        )
+                        return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
         # discover the prototype
         prototype: SimTypeFunction | None = None
