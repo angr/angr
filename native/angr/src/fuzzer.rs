@@ -1,11 +1,12 @@
 pub mod corpus;
 pub mod executor;
+pub mod monitor;
 
 use std::time::Duration;
 
 use libafl::{
     NopInputFilter, StdFuzzer,
-    events::NopEventManager,
+    events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopBytesConverter},
     mutators::{HavocMutationsType, HavocScheduledMutator, havoc_mutations},
@@ -21,14 +22,15 @@ use libafl_bolts::{
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::fuzzer::{corpus::PyInMemoryCorpus, executor::PyExecutorInner};
+use crate::fuzzer::{corpus::PyInMemoryCorpus, executor::PyExecutorInner, monitor::DynMonitor};
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
 pub(crate) type C = PyInMemoryCorpus;
-pub(crate) type EM = NopEventManager;
 pub(crate) type I = BytesInput;
 pub(crate) type S = StdState<C, I, StdRand, C>;
+pub(crate) type MT = DynMonitor;
+pub(crate) type EM = SimpleEventManager<I, MT, S>;
 pub(crate) type O = OwnedMapObserver<u8>;
 pub(crate) type OT = tuple_list_type!(O);
 pub(crate) type Z = StdFuzzer<
@@ -105,13 +107,14 @@ impl Fuzzer {
         })
     }
 
-    fn run_once(&mut self) -> PyResult<usize> {
+    #[pyo3(signature = (monitor = None))]
+    fn run_once(&mut self, monitor: Option<DynMonitor>) -> PyResult<usize> {
         libafl::Fuzzer::fuzz_one(
             &mut self.fuzzer,
             &mut self.stages,
             &mut self.executor,
             &mut self.fuzzer_state,
-            &mut NopEventManager::new(),
+            &mut SimpleEventManager::new(monitor.unwrap_or_default()),
         )
         .map(|corpus_id| corpus_id.0)
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
@@ -122,5 +125,8 @@ impl Fuzzer {
 pub fn fuzzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Fuzzer>()?;
     m.add_class::<corpus::PyInMemoryCorpus>()?;
+    m.add_class::<monitor::PyMonitor>()?;
+    m.add_class::<monitor::NopMonitor>()?;
+    m.add_class::<monitor::StderrMonitor>()?;
     Ok(())
 }
