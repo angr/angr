@@ -13,7 +13,7 @@ use libafl::{
     observers::OwnedMapObserver,
     schedulers::QueueScheduler,
     stages::StdMutationalStage,
-    state::StdState,
+    state::{HasCorpus, HasSolutions, StdState},
 };
 use libafl_bolts::{
     rands::StdRand,
@@ -105,6 +105,14 @@ impl Fuzzer {
             stages,
             executor,
         })
+    }
+
+    fn corpus<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyInMemoryCorpus>> {
+        self.fuzzer_state.corpus().clone().into_pyobject(py)
+    }
+
+    fn solutions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyInMemoryCorpus>> {
+        self.fuzzer_state.solutions().clone().into_pyobject(py)
     }
 
     #[pyo3(signature = (monitor = None))]

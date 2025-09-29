@@ -38,6 +38,20 @@ impl PyInMemoryCorpus {
         Ok(PyInMemoryCorpus { inner: corpus })
     }
 
+    fn to_bytes_list(&self) -> Vec<Vec<u8>> {
+        let mut result = Vec::new();
+        for i in 0..self.inner.count() {
+            let corpus_id = CorpusId::from(i);
+            if let Ok(testcase_ref) = self.inner.get(corpus_id) {
+                let testcase = testcase_ref.borrow();
+                if let Some(input) = testcase.input() {
+                    result.push(input.as_ref().to_vec());
+                }
+            }
+        }
+        result
+    }
+
     fn __getitem__(&self, id: usize) -> PyResult<Vec<u8>> {
         let corpus_id = CorpusId::from(id);
         let testcase_ref = self
@@ -49,6 +63,10 @@ impl PyInMemoryCorpus {
             Some(input) => Ok(input.into_inner()),
             None => Err(PyRuntimeError::new_err("Testcase input is None")),
         }
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.count()
     }
 }
 
