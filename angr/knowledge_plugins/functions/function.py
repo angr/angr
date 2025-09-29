@@ -759,8 +759,7 @@ class Function(Serializable):
         if hooker:
             if hasattr(hooker, "DYNAMIC_RET") and hooker.DYNAMIC_RET:
                 return True
-            if hasattr(hooker, "NO_RET"):
-                return not hooker.NO_RET
+            return hooker.returns
 
         # Cannot determine
         return None
@@ -1579,6 +1578,7 @@ class Function(Serializable):
                     return False
                 self.prototype = proto.with_arch(self.project.arch)
                 self.prototype_libname = library.name
+                self.returning = library.is_returning(name)
 
                 # update self.calling_convention if necessary
                 if self.calling_convention is None:

@@ -2443,22 +2443,33 @@ def do_it(in_dir):
 
             parsed_cprotos[(prefix, lib, suffix)].append((func, proto, ""))
 
+    non_returning_functions = {
+        "KeBugCheck",
+        "KeBugCheckEx",
+    }
+
     # dump to JSON files
     for (prefix, libname, suffix), parsed_cprotos_per_lib in parsed_cprotos.items():
         filename = libname.replace(".", "_") + ".json"
         os.makedirs(prefix, exist_ok=True)
         logging.debug("Writing to file %s...", filename)
+        non_returning = []
         d = {
             "_t": "lib",
             "type_collection_names": ["win32"],
             "library_names": [libname if not suffix else f"{libname}.{suffix}"],
             "default_cc": {"X86": "SimCCStdcall", "AMD64": "SimCCMicrosoftAMD64"},
+            "non_returning": non_returning,
             "functions": OrderedDict(),
         }
         for func, cproto, doc in sorted(parsed_cprotos_per_lib, key=lambda x: x[0]):
             d["functions"][func] = {"proto": json.dumps(cproto.to_json()).replace('"', "'")}
             if doc:
                 d["functions"][func]["doc"] = doc
+            if func in non_returning_functions:
+                non_returning.append(func)
+        if not non_returning:
+            del d["non_returning"]
         with open(os.path.join(prefix, filename), "w") as f:
             f.write(json.dumps(d, indent="\t"))
 

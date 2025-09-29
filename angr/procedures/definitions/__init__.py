@@ -427,6 +427,15 @@ class SimLibrary:
 
         return func_name in self.prototypes or func_name in self.prototypes_json
 
+    def is_returning(self, name: str) -> bool:
+        """
+        Check if a function is known to return.
+
+        :param name:    The name of the function.
+        :return:        A bool indicating if the function is known to return or not.
+        """
+        return name not in self.non_returning
+
 
 class SimCppLibrary(SimLibrary):
     """
