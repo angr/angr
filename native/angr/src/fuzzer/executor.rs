@@ -69,7 +69,19 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
                 let emulator = py
                     .import("angr.emulator")?
                     .getattr("Emulator")?
-                    .call1((icicle_engine, copied_state))?;
+                    .call1((icicle_engine, &copied_state))?;
+
+                // Step 2.5: Set return address as breakpoint to detect normal returns
+                // FIXME: hardcoded for ARM/THUMB
+                let return_addr = copied_state
+                    .getattr("regs")?
+                    .getattr("lr")?
+                    .getattr("concrete_value")?
+                    .extract::<u64>()?;
+
+                emulator.call_method1("add_breakpoint", (return_addr,))?;
+                emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
+
                 let exit = emulator
                     .getattr("run")?
                     .call0()?
