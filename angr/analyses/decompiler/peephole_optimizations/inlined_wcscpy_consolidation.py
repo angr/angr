@@ -66,11 +66,11 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         while not stop:
             new_stmts = []
             stop = True
-            for i in range(len(reordered_stmts)):
+            for i, stmt0 in enumerate(reordered_stmts):
                 if i == len(reordered_stmts) - 1:
                     new_stmts.append(reordered_stmts[i])
                     break
-                stmt0, stmt1 = reordered_stmts[i], reordered_stmts[i + 1]
+                stmt1 = reordered_stmts[i + 1]
                 opt_stmts = self._optimize_pair(stmt0, stmt1)
                 if opt_stmts is None:
                     new_stmts.append(stmt0)
@@ -108,6 +108,12 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         known_base = None
         for stmt in stmts:
             if isinstance(stmt, Call):
+                assert (
+                    stmt.args is not None
+                    and len(stmt.args) == 3
+                    and stmt.args[0] is not None
+                    and stmt.args[2] is not None
+                )
                 base, off = self._parse_addr(stmt.args[0])
                 store_size = stmt.args[2].value * 2 if isinstance(stmt.args[2], Const) else None
             elif isinstance(stmt, Store):
@@ -130,6 +136,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             if off in offset_to_stmt:
                 # duplicate offset - bail
                 return None
+            assert isinstance(store_size, int)
             for i in range(store_size):
                 if off + i in updated_offsets:
                     # overlapping store - bail
@@ -147,6 +154,8 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         if (
             isinstance(stmt, Call)
             and InlinedWcscpy.is_inlined_wcsncpy(stmt)
+            and stmt.args is not None
+            and len(stmt.args) == 3
             and isinstance(stmt.args[2], Const)
             and isinstance(stmt.args[2].value, int)
             and isinstance(last_stmt, (Store, Assignment))
@@ -164,7 +173,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             wcsncpy_size = stmt.args[2].value * 2
             delta = self._get_delta(store_addr, wcsncpy_addr)
             if delta is not None:
-                if (delta >= 0 and delta <= store_size) or (delta < 0 and -delta <= wcsncpy_size):
+                if (0 <= delta <= store_size) or (delta < 0 and -delta <= wcsncpy_size):
                     # they overlap, do not switch
                     pass
                 else:
@@ -172,6 +181,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
 
         # swap two statements if they are out of order
         if InlinedWcscpy.is_inlined_wcsncpy(last_stmt) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
+            assert last_stmt.args is not None and stmt.args is not None
             delta = self._get_delta(last_stmt.args[0], stmt.args[0])
             if delta is not None and delta < 0:
                 last_stmt, stmt = stmt, last_stmt
