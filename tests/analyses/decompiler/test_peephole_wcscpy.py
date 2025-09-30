@@ -42,6 +42,22 @@ class TestPeepholeWcscpy(unittest.TestCase):
             in dec.codegen.text
         )
 
+    def test_snap_non_consecutive_wcscpy_consolidation(self):
+        bin_path = os.path.join(
+            test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
+        )
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(fail_fast=True, force_smart_scan=False, show_progressbar=not WORKER, normalize=True)
+        func = cfg.functions[0x14000FB60]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert 'L"Sub-layer for use by Sophos DNS Inspection"' in dec.codegen.text
+        assert 'L"Sophos NTP DNS Sublayer"' in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()

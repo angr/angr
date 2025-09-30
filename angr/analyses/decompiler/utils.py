@@ -2,6 +2,7 @@
 from __future__ import annotations
 import pathlib
 import copy
+from types import FunctionType
 from typing import Any
 from collections.abc import Iterable
 import logging
@@ -958,9 +959,15 @@ def peephole_optimize_multistmts(block, stmt_opts):
             for opt in stmt_opts:
                 matched = False
                 stmt_seq_len = None
-                for stmt_class_seq in opt.stmt_classes:
-                    if match_stmt_classes(statements, stmt_idx, stmt_class_seq):
-                        stmt_seq_len = len(stmt_class_seq)
+                for stmt_class_seq_or_method in opt.stmt_classes:
+                    if isinstance(stmt_class_seq_or_method, FunctionType):
+                        r = stmt_class_seq_or_method(statements, stmt_idx)
+                        if r > 0:
+                            stmt_seq_len = r
+                            matched = True
+                            break
+                    elif match_stmt_classes(statements, stmt_idx, stmt_class_seq_or_method):
+                        stmt_seq_len = len(stmt_class_seq_or_method)
                         matched = True
                         break
 
