@@ -781,6 +781,16 @@ class CFGBase(Analysis):
 
         return any(start <= addr < end for start, end in self._exec_mem_regions)
 
+    def _addr_in_middle_of_instruction(self, addr: int) -> bool:
+        # find the CFG node
+        existing_node = self.model.get_any_node(addr, anyaddr=True)
+        if existing_node is None:
+            return False
+        if existing_node.addr == addr:
+            # fast path
+            return False
+        return addr not in existing_node.instruction_addrs
+
     def _addrs_belong_to_same_section(self, addr_a, addr_b):
         """
         Test if two addresses belong to the same section.
