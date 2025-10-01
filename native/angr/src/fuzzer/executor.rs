@@ -160,15 +160,6 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
             ));
         }
         self.observers.0.as_slice_mut().copy_from_slice(&py_hitmap);
-        println!(
-            "Hitmap updated, {:?} bytes set, total {}",
-            self.observers.0.count_bytes(),
-            self.observers
-                .0
-                .to_vec()
-                .iter()
-                .fold(0u64, |acc, &x| acc + x as u64)
-        );
 
         result
     }
