@@ -57,6 +57,7 @@ from .ailgraph_walker import AILGraphWalker
 from .expression_narrower import ExprNarrowingInfo, NarrowingInfoExtractor, ExpressionNarrower
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
+from .dirty_rewriters import DIRTY_REWRITERS
 from .counters.expression_counters import SingleExpressionCounter
 
 if TYPE_CHECKING:
@@ -169,6 +170,7 @@ class AILSimplifier(Analysis):
         use_callee_saved_regs_at_return=True,
         rewrite_ccalls=True,
         rename_ccalls=True,
+        rewrite_dirty=True,
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
@@ -190,6 +192,7 @@ class AILSimplifier(Analysis):
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
         self._should_rewrite_ccalls = rewrite_ccalls
         self._should_rename_ccalls = rename_ccalls
+        self._should_rewrite_dirty = rewrite_dirty
         self._removed_vvar_ids = removed_vvar_ids if removed_vvar_ids is not None else set()
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
@@ -255,6 +258,15 @@ class AILSimplifier(Analysis):
             self.simplified |= ccalls_rewritten
             if ccalls_rewritten:
                 _l.debug("... ccalls rewritten")
+                self._rebuild_func_graph()
+                self._clear_cache()
+
+        if self._should_rewrite_dirty:
+            _l.debug("Rewriting dirty expressions/statements")
+            dirty_rewritten = self._rewrite_dirty_calls()
+            self.simplified |= dirty_rewritten
+            if dirty_rewritten:
+                _l.debug("... dirty expressions/statements rewritten")
                 self._rebuild_func_graph()
                 self._clear_cache()
 
@@ -2008,6 +2020,61 @@ class AILSimplifier(Analysis):
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
+
+        updated = False
+        for block in blocks_by_addr_and_idx.values():
+            _any_update.v = False
+            old_block = block.copy()
+            walker.walk(block)
+            if _any_update.v:
+                self.blocks[old_block] = block
+                updated = True
+
+        return updated
+
+    #
+    # Rewriting dirty calls
+    #
+
+    def _rewrite_dirty_calls(self):
+        rewriter_cls = DIRTY_REWRITERS.get(self.project.arch.name, None)
+        if rewriter_cls is None:
+            return False
+
+        walker = AILBlockWalker()
+
+        class _any_update:
+            """
+            Dummy class for storing if any result has been updated.
+            """
+
+            v = False
+
+        def _handle_DirtyStatement(
+            expr_idx: int, stmt_idx: int, stmt: DirtyStatement, block: Block | None
+        ) -> Expression | None:
+            # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
+            rewriter = rewriter_cls(stmt, self.project.arch)
+            if rewriter.result is not None:
+                _any_update.v = True
+                return rewriter.result
+            return None
+
+        def _handle_DirtyExpression(
+            expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        ):
+            r_expr = AILBlockWalker._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
+            if r_expr is None:
+                r_expr = expr
+            rewriter = rewriter_cls(r_expr, self.project.arch)
+            if rewriter.result is not None:
+                _any_update.v = True
+                return rewriter.result
+            return r_expr if r_expr is not expr else None
+
+        blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
+        walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
+        walker.stmt_handlers[DirtyStatement] = _handle_DirtyStatement
 
         updated = False
         for block in blocks_by_addr_and_idx.values():
