@@ -2050,14 +2050,14 @@ class AILSimplifier(Analysis):
 
             v = False
 
-        def _handle_DirtyStatement(
-            expr_idx: int, stmt_idx: int, stmt: DirtyStatement, block: Block | None
+        def _handle_DirtyStatement(  # pylint:disable=unused-argument
+            stmt_idx: int, stmt: DirtyStatement, block: Block | None
         ) -> Expression | None:
             # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
             rewriter = rewriter_cls(stmt, self.project.arch)
             if rewriter.result is not None:
                 _any_update.v = True
-                return rewriter.result
+                return rewriter.result  # type:ignore
             return None
 
         def _handle_DirtyExpression(
