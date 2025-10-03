@@ -386,9 +386,7 @@ def has_load_expr_in_between_stmts(
 def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
-    if vvar.was_stack and isinstance(def_stmt, Assignment):
-        if isinstance(def_stmt.src, Const):
-            return True
+    if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
         if (
             isinstance(def_stmt.src, VirtualVariable)
             and def_stmt.src.was_stack
