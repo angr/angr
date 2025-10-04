@@ -63,7 +63,9 @@ angr = "angr.__main__:main"
 [dependency-groups]
 dev = [
     "black>=25.1.0",
+    "coverage>=7.10.7",
     "pytest>=8.3.5",
+    "pytest-cov>=7.0.0",
     "pytest-durations>=1.4.0",
     "pytest-profiling>=1.8.1",
     "pytest-split>=0.10.0",
@@ -165,4 +167,17 @@ markers = [
 ]
 testpaths = [
     "tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = [ "angr" ]
+parallel = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:"
 ]

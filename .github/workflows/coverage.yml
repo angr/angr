@@ -1,0 +1,143 @@
+name: Test with coverage
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6
+        with:
+          python-version: "3.10"
+      - name: Restore test durations cache
+        uses: actions/cache/restore@v4
+        with:
+          path: test_durations.json
+          key: cov-test-durations-${{ github.sha }}
+          restore-keys: cov-test-durations-
+      - name: Build
+        run: uv sync -v -p 3.10 --all-groups
+      - name: Archive environment
+        run: tar -cpf /tmp/env.tzst --absolute-names --zstd $PWD $HOME/.local/share/uv
+      - name: Upload environment artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: env
+          path: /tmp/env.tzst
+          if-no-files-found: error
+          compression-level: 0
+
+  test:
+    needs: [build]
+    name: Test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runner_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    steps:
+      - uses: astral-sh/setup-uv@b75a909f75acd358c2196fb9a5f1299a9a8868a4 # v6
+        with:
+          python-version: "3.10"
+          enable-cache: false
+          ignore-empty-workdir: true
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: env
+          path: .
+      - name: Extract environment
+        run: |
+          tar -xpf $PWD/env.tzst -C /
+          rm env.tzst
+      - name: Download test binaries
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+        with:
+          repository: angr/binaries
+          path: binaries
+      - name: Relocate binaries directory
+        run: mv binaries ..
+      - name: Run tests
+        env:
+          SKIP_SLOW_TESTS: 1
+        run: |
+          source .venv/bin/activate
+          pytest -vv \
+            -n auto --splits 10 --group ${{ matrix.runner_id }} --splitting-algorithm=least_duration \
+            --cov=angr --cov=tests --cov-report=xml \
+            --junitxml=junit.xml -o junit_family=legacy \
+            --store-durations --clean-durations --durations-path=test_durations.json \
+            || [[ $? -lt 2 ]]  # Accept success and test failures, fail on infrastructure problems (exit codes >1)
+      - name: Check for results
+        run: |
+          [[ -e junit.xml && -e coverage.xml && -e test_durations.json ]]
+      - name: Upload results artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: results-${{ matrix.runner_id }}
+          if-no-files-found: error
+          path: |
+            ./junit.xml
+            ./coverage.xml
+            ./test_durations.json
+
+  report:
+      name: Report
+      runs-on: ubuntu-latest
+      permissions:
+        id-token: write
+        checks: write
+      needs: [test]
+      steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          pattern: "results-*"
+          path: results
+      - name: Collect results
+        id: files
+        run: |
+          coverage=$(find . -type f -name 'coverage.xml' -print | paste -sd, -)
+          echo "coverage=$coverage" >> "$GITHUB_OUTPUT"
+          junit=$(find . -type f -name 'junit.xml' -print | paste -sd, -)
+          echo "junit=$junit" >> "$GITHUB_OUTPUT"
+      - name: Upload test coverage to Codecov
+        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+          verbose: true
+          files: ${{ steps.files.outputs.coverage }}
+      - name: Upload test results to Codecov
+        uses: codecov/test-results-action@47f89e9acb64b76debcd5ea40642d25a4adced9f # v1
+        with:
+          use_oidc: true
+          fail_ci_if_error: true
+          verbose: true
+          files: ${{ steps.files.outputs.junit }}
+      - name: Combine test durations
+        run: jq -Ss 'add' results/**/test_durations.json > test_durations.json
+      - name: Upload combined test durations artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test_durations
+          path: ./test_durations.json
+          if-no-files-found: error
+      - name: Update test durations cache
+        uses: actions/cache/save@v4
+        with:
+          path: test_durations.json
+          key: cov-test-durations-${{ github.sha }}
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@3a74b2957438d0b6e2e61d67b05318aa25c9e6c6 # v2
+        with:
+          files: "results/**/junit.xml"
+          action_fail_on_inconclusive: true
+          comment_mode: off  # codecov already leaves a comment, and more details
+                             # from this action can be found in the check it creates.
