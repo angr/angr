@@ -3338,8 +3338,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         :param Block node:
         :return:
         """
-
-        # return CStatements([ CAILBlock(node) ])
         cstmts = []
         for stmt in node.statements:
             try:

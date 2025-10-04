@@ -36,6 +36,12 @@ from .expression import (
 )
 
 
+class RemoveStatementNotice(Exception):
+    """
+    Indicates that the current statement should be removed.
+    """
+
+
 class AILBlockWalkerBase:
     """
     Walks all statements and expressions of an AIL node and do nothing.
@@ -278,13 +284,20 @@ class AILBlockWalker(AILBlockWalkerBase):
         i = 0
         while i < len(block.statements):
             stmt = block.statements[i]
-            new_stmt = self._handle_stmt(i, stmt, block)
+            try:
+                new_stmt = self._handle_stmt(i, stmt, block)
+            except RemoveStatementNotice:
+                new_stmt = ...  # indicate deletion
             if new_stmt is not None:
                 changed = True
                 if not self._update_block:
                     if new_block is None:
                         new_block = block.copy(statements=block.statements[:i])
-                    new_block.statements.append(new_stmt)
+                    if new_stmt is ...:
+                        # delete the current statement
+                        pass
+                    else:
+                        new_block.statements.append(new_stmt)
             else:
                 if new_block is not None:
                     new_block.statements.append(stmt)

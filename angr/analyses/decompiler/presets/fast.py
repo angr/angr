@@ -23,6 +23,7 @@ from angr.analyses.decompiler.optimization_passes import (
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
     DetermineLoadSizes,
+    RedundantAssignmentRemoval,
     PostStructuringPeepholeOptimizationPass,
 )
 
@@ -50,6 +51,7 @@ preset_fast = DecompilationPreset(
         FlipBooleanCmp,
         InlinedStringTransformationSimplifier,
         CallStatementRewriter,
+        RedundantAssignmentRemoval,
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,

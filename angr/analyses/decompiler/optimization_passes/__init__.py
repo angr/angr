@@ -36,6 +36,7 @@ from .condition_constprop import ConditionConstantPropagation
 from .determine_load_sizes import DetermineLoadSizes
 from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
+from .redundant_assignment_removal import RedundantAssignmentRemoval
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -74,6 +75,7 @@ ALL_OPTIMIZATION_PASSES = [
     DetermineLoadSizes,
     EagerStdStringConcatenationPass,
     PostStructuringPeepholeOptimizationPass,
+    RedundantAssignmentRemoval,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -137,6 +139,7 @@ __all__ = (
     "LoweredSwitchSimplifier",
     "ModSimplifier",
     "OptimizationPassStage",
+    "RedundantAssignmentRemoval",
     "RegisterSaveAreaSimplifier",
     "RetAddrSaveSimplifier",
     "ReturnDeduplicator",

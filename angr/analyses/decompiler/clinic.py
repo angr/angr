@@ -770,6 +770,7 @@ class Clinic(Analysis):
         self._update_progress(85.0, text="Running simplifications 4")
         self._ail_graph = self._run_simplification_passes(
             self._ail_graph,
+            variable_kb=variable_kb,
             stage=OptimizationPassStage.AFTER_VARIABLE_RECOVERY,
             avoid_vvar_ids=self.copied_var_ids,
         )
