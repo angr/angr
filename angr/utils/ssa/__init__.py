@@ -288,9 +288,7 @@ class AILReferenceFinder(AILBlockWalkerBase):
         self.vvar_id = vvar_id
         self.has_references_to_vvar = False
 
-    def _handle_UnaryOp(
-        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None) -> Any:
         if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == self.vvar_id:
             self.has_references_to_vvar = True
             return None
