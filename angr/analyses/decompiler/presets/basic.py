@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes import (
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
     PostStructuringPeepholeOptimizationPass,
+    RedundantAssignmentRemoval,
 )
 
 
@@ -25,6 +26,7 @@ preset_basic = DecompilationPreset(
         RetAddrSaveSimplifier,
         X86GccGetPcSimplifier,
         CallStatementRewriter,
+        RedundantAssignmentRemoval,
         SwitchReusedEntryRewriter,
         PostStructuringPeepholeOptimizationPass,
     ],
