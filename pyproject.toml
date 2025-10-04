@@ -55,7 +55,7 @@ Repository = "https://github.com/angr/angr"
 angrdb = ["sqlalchemy"]
 keystone = ["keystone-engine"]
 telemetry = ["opentelemetry-api"]
-unicorn = ["unicorn==2.0.1.post1"]
+unicorn = ["unicorn==2.0.1.post1", "setuptools"]
 
 [project.scripts]
 angr = "angr.__main__:main"
@@ -72,7 +72,7 @@ dev = [
     "ruff>=0.11.7",
 ]
 docs = ["furo", "myst-parser", "sphinx", "sphinx-autodoc-typehints"]
-extras = ["angr[angrdb,keystone]"]
+extras = ["angr[angrdb,keystone,unicorn]"]
 
 [tool.setuptools]
 include-package-data = true
