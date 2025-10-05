@@ -363,7 +363,7 @@ class Struct(TypeConstant):
         )
 
     def __eq__(self, other):
-        return type(other) is type(self) and hash(self) == hash(other)
+        return type(other) is type(self) and hash(self) == hash(other) and self.idx == other.idx
 
     def __hash__(self):
         return self._hash(set())
@@ -425,7 +425,7 @@ class Enum(TypeConstant):
         return prefix + "{" + ", ".join(variant.name for variant in self.variants) + "}"
 
     def __eq__(self, other):
-        return type(other) is type(self) and self.idx == other.idx and hash(self) == hash(other)
+        return type(other) is type(self) and hash(self) == hash(other)
 
     def __hash__(self):
         return self._hash(set())
