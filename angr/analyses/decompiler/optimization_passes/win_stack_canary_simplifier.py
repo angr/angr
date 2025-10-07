@@ -36,6 +36,9 @@ class WinStackCanarySimplifier(OptimizationPass):
         self._security_cookie_addr = None
         if isinstance(self.project.loader.main_object, cle.PE):
             self._security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)
+            if self._security_cookie_addr is None:
+                # maybe it's just not set - check labels
+                self._security_cookie_addr = self.project.kb.labels.lookup("_security_cookie")
 
         self.analyze()
 
@@ -191,16 +194,9 @@ class WinStackCanarySimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data, ailment.Expr.BinaryOp)
-                and stmt.data.op == "Xor"
-                and isinstance(stmt.data.operands[1], ailment.Expr.StackBaseOffset)
-                and isinstance(stmt.data.operands[0], ailment.Expr.Load)
-                and isinstance(stmt.data.operands[0].addr, ailment.Expr.Const)
+                and self._is_expr_loading_stack_cookie(stmt.data, self._security_cookie_addr)
             ):
-                # Check addr: must be __security_cookie
-                load_addr = stmt.data.operands[0].addr.value
-                if load_addr == self._security_cookie_addr:
-                    return [idx]
+                return [idx]
             # or if we are unlucky and the load and the xor are two different statements
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
@@ -219,19 +215,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                     and stmt.dst.was_reg
                     and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
-                    and isinstance(stmt.src, ailment.Expr.BinaryOp)
-                    and stmt.src.op == "Xor"
-                    and isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
-                    and stmt.src.operands[0].was_reg
-                    and stmt.src.operands[0].reg_offset == load_reg
-                    and (
-                        isinstance(stmt.src.operands[1], ailment.Expr.StackBaseOffset)
-                        or (
-                            isinstance(stmt.src.operands[1], ailment.Expr.VirtualVariable)
-                            and stmt.src.operands[1].was_reg
-                            and stmt.src.operands[1].reg_offset == self.project.arch.registers["ebp"][0]
-                        )
-                    )
+                    and self._is_expr_xoring_stack_cookie_reg(stmt.src, load_reg, self.project.arch.bp_offset)
                 ):
                     xor_stmt_idx = idx
                     xored_reg = stmt.dst.reg_offset
@@ -255,6 +239,25 @@ class WinStackCanarySimplifier(OptimizationPass):
                 ):
                     return [load_stmt_idx, xor_stmt_idx, idx]
                 break
+            if load_stmt_idx is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:  # noqa:SIM102
+                if isinstance(stmt, ailment.Stmt.Store) and (
+                    isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
+                    or (
+                        isinstance(stmt.addr, ailment.Expr.BinaryOp)
+                        and stmt.addr.op == "Sub"
+                        and isinstance(stmt.addr.operands[0], ailment.Expr.VirtualVariable)
+                        and stmt.addr.operands[0].was_reg
+                        and stmt.addr.operands[0].reg_offset == self.project.arch.registers["ebp"][0]
+                        and isinstance(stmt.addr.operands[1], ailment.Expr.Const)
+                    )
+                ):
+                    if (
+                        isinstance(stmt.data, ailment.Expr.VirtualVariable)
+                        and stmt.data.was_reg
+                        and stmt.data.reg_offset == load_reg
+                    ):
+                        return [load_stmt_idx, idx]
+                    break
         return None
 
     def _find_amd64_canary_storing_stmt(self, block, canary_value_stack_offset):
@@ -263,23 +266,27 @@ class WinStackCanarySimplifier(OptimizationPass):
         for idx, stmt in enumerate(block.statements):
             # when we are lucky, we have one instruction
             if (
-                (
-                    isinstance(stmt, ailment.Stmt.Assignment)
-                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                    and stmt.dst.was_reg
-                    and stmt.dst.reg_offset == self.project.arch.registers["rcx"][0]
-                )
-                and isinstance(stmt.src, ailment.Expr.BinaryOp)
-                and stmt.src.op == "Xor"
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.reg_offset == self.project.arch.registers["rcx"][0]
             ):
-                op0, op1 = stmt.src.operands
-                if (
-                    isinstance(op0, ailment.Expr.Load)
-                    and isinstance(op0.addr, ailment.Expr.StackBaseOffset)
-                    and op0.addr.offset == canary_value_stack_offset
-                ) and isinstance(op1, ailment.Expr.StackBaseOffset):
-                    # found it
-                    return idx
+                if isinstance(stmt.src, ailment.Expr.BinaryOp) and stmt.src.op == "Xor":
+                    op0, op1 = stmt.src.operands
+                    if (
+                        isinstance(op0, ailment.Expr.Load)
+                        and isinstance(op0.addr, ailment.Expr.StackBaseOffset)
+                        and op0.addr.offset == canary_value_stack_offset
+                    ) and isinstance(op1, ailment.Expr.StackBaseOffset):
+                        # found it
+                        return idx
+                elif isinstance(stmt.src, ailment.Expr.Load):
+                    if (
+                        isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                        and stmt.src.addr.offset == canary_value_stack_offset
+                    ):
+                        # found it
+                        return idx
             # or when we are unlucky, we have two instructions...
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
@@ -317,22 +324,26 @@ class WinStackCanarySimplifier(OptimizationPass):
         for idx, stmt in enumerate(block.statements):
             # when we are lucky, we have one instruction
             if (
-                (
-                    isinstance(stmt, ailment.Stmt.Assignment)
-                    and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
-                    and stmt.dst.was_reg
-                    and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
-                )
-                and isinstance(stmt.src, ailment.Expr.BinaryOp)
-                and stmt.src.op == "Xor"
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+                and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
             ):
-                op0, op1 = stmt.src.operands
-                if (
-                    isinstance(op0, ailment.Expr.Load)
-                    and self._get_bp_offset(op0.addr, stmt.ins_addr) == canary_value_stack_offset
-                ) and isinstance(op1, ailment.Expr.StackBaseOffset):
-                    # found it
-                    return idx
+                if isinstance(stmt.src, ailment.Expr.BinaryOp) and stmt.src.op == "Xor":
+                    op0, op1 = stmt.src.operands
+                    if (
+                        isinstance(op0, ailment.Expr.Load)
+                        and self._get_bp_offset(op0.addr, stmt.ins_addr) == canary_value_stack_offset
+                    ) and isinstance(op1, ailment.Expr.StackBaseOffset):
+                        # found it
+                        return idx
+                elif isinstance(stmt.src, ailment.Expr.Load):
+                    if (
+                        isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
+                        and stmt.src.addr.offset == canary_value_stack_offset
+                    ):
+                        # found it
+                        return idx
             # or when we are unlucky, we have two instructions...
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
@@ -419,3 +430,45 @@ class WinStackCanarySimplifier(OptimizationPass):
                         return idx
 
         return None
+
+    @staticmethod
+    def _is_expr_loading_stack_cookie(expr: ailment.Expr.Expression, security_cookie_addr: int) -> bool:
+        if (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op == "Xor"
+            and isinstance(expr.operands[1], ailment.Expr.StackBaseOffset)
+            and isinstance(expr.operands[0], ailment.Expr.Load)
+            and isinstance(expr.operands[0].addr, ailment.Expr.Const)
+        ):
+            # Check addr: must be __security_cookie
+            load_addr = expr.operands[0].addr.value
+            if load_addr == security_cookie_addr:
+                return True
+
+        if isinstance(expr, ailment.Expr.Load) and isinstance(expr.addr, ailment.Expr.Const):
+            load_addr = expr.addr.value
+            # Check addr: must be __security_cookie
+            if load_addr == security_cookie_addr:
+                return True
+
+        return False
+
+    @staticmethod
+    def _is_expr_xoring_stack_cookie_reg(
+        expr: ailment.Expr.Expression, security_cookie_reg: int, bp_offset: int
+    ) -> bool:
+        return (
+            isinstance(expr, ailment.Expr.BinaryOp)
+            and expr.op == "Xor"
+            and isinstance(expr.operands[0], ailment.Expr.VirtualVariable)
+            and expr.operands[0].was_reg
+            and expr.operands[0].reg_offset == security_cookie_reg
+            and (
+                isinstance(expr.operands[1], ailment.Expr.StackBaseOffset)
+                or (
+                    isinstance(expr.operands[1], ailment.Expr.VirtualVariable)
+                    and expr.operands[1].was_reg
+                    and expr.operands[1].reg_offset == bp_offset
+                )
+            )
+        )
