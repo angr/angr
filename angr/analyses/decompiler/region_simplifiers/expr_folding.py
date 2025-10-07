@@ -366,7 +366,7 @@ class ExpressionCounter(SequenceWalker):
         if node.condition is not None:
             self._collect_assignments(node.condition, node)
             self._collect_uses(node.condition, ConditionLocation(node.addr))
-        # we do not go ahead and collect into the loop body
+        super()._handle_Loop(node, **kwargs)
         return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
