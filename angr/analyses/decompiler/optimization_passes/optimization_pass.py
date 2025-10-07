@@ -21,6 +21,7 @@ from angr.project import Project
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+    from angr.sim_variable import SimVariable
     from angr.analyses.decompiler.stack_item import StackItem
 
 
@@ -54,13 +55,14 @@ class OptimizationPassStage(Enum):
     BEFORE_SSA_LEVEL0_TRANSFORMATION = 1
     AFTER_SINGLE_BLOCK_SIMPLIFICATION = 2
     BEFORE_SSA_LEVEL1_TRANSFORMATION = 3
-    AFTER_MAKING_CALLSITES = 4
-    AFTER_GLOBAL_SIMPLIFICATION = 5
-    BEFORE_VARIABLE_RECOVERY = 6
-    AFTER_VARIABLE_RECOVERY = 7
-    BEFORE_REGION_IDENTIFICATION = 8
-    DURING_REGION_IDENTIFICATION = 9
-    AFTER_STRUCTURING = 10
+    AFTER_SSA_LEVEL1_TRANSFORMATION = 4
+    AFTER_MAKING_CALLSITES = 5
+    AFTER_GLOBAL_SIMPLIFICATION = 6
+    BEFORE_VARIABLE_RECOVERY = 7
+    AFTER_VARIABLE_RECOVERY = 8
+    BEFORE_REGION_IDENTIFICATION = 9
+    DURING_REGION_IDENTIFICATION = 10
+    AFTER_STRUCTURING = 11
 
 
 class BaseOptimizationPass:
@@ -138,7 +140,7 @@ class OptimizationPass(BaseOptimizationPass):
         refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
         avoid_vvar_ids: set[int] | None = None,
-        arg_vvars: set[int] | None = None,
+        arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         peephole_optimizations=None,
         stack_pointer_tracker=None,
         notes: dict | None = None,
