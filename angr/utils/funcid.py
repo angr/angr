@@ -47,6 +47,77 @@ def is_function_security_check_cookie(func, project, security_cookie_addr: int) 
     return False
 
 
+def is_function_security_check_cookie_strict(func: Function, project) -> tuple[bool, int | None]:
+    # security_cookie_addr is unavailable; we examine all bytes in this function
+    if func.is_plt or func.is_syscall or func.is_simprocedure:
+        return False, None
+    if len(func.block_addrs_set) not in {5, 6}:
+        return False, None
+    block_bytes = [(b.addr, b, b.bytes) for b in sorted(func.blocks, key=lambda b: b.addr)]
+    if block_bytes[0][0] != func.addr:
+        # the first block is probably the BugCheck function - skip it
+        block_bytes = block_bytes[1:]
+    elif len(block_bytes) == 6:
+        # skip the last block, which is probably the BugCheck function
+        block_bytes = block_bytes[:-1]
+    if len(block_bytes) != 5:
+        return False, None
+
+    # check the first block
+    # cmp  rcx, [xxx]
+    # jnz  xxx
+    first_block = block_bytes[0][1]
+    ins0 = first_block.capstone.insns[0]
+    security_cookie_addr = None
+    if (
+        project.arch.name == "AMD64"
+        and ins0.mnemonic == "cmp"
+        and len(ins0.operands) == 2
+        and ins0.operands[0].type == capstone.x86.X86_OP_REG
+        and ins0.operands[0].reg == capstone.x86.X86_REG_RCX
+        and ins0.operands[1].type == capstone.x86.X86_OP_MEM
+        and ins0.operands[1].mem.base == capstone.x86.X86_REG_RIP
+        and ins0.operands[1].mem.index == 0
+    ):
+        ins1 = first_block.capstone.insns[1]
+        if ins1.mnemonic == "jne":
+            security_cookie_addr = ins0.operands[1].mem.disp + ins0.address + ins0.size
+    if (
+        project.arch.name == "X86"
+        and ins0.mnemonic == "cmp"
+        and len(ins0.operands) == 2
+        and ins0.operands[0].type == capstone.x86.X86_OP_REG
+        and ins0.operands[0].reg == capstone.x86.X86_REG_ECX
+        and ins0.operands[1].type == capstone.x86.X86_OP_MEM
+        and ins0.operands[1].mem.base == 0
+        and ins0.operands[1].mem.index == 0
+    ):
+        ins1 = first_block.capstone.insns[1]
+        if ins1.mnemonic == "jne":
+            security_cookie_addr = ins0.operands[1].mem.disp
+
+    if security_cookie_addr is None:
+        return False, None
+
+    # the last block should be a jump
+    last_block = block_bytes[-1][1]
+    last_insn = last_block.capstone.insns[-1]
+    if last_insn.mnemonic != "jmp":
+        return False, None
+
+    # check the bytes of the remaining three blocks
+    if project.arch.name == "AMD64":
+        expected_bytes = [b"\x48\xc1\xc1\x10\x66\xf7\xc1\xff\xff\x75\x01", b"\xc3", b"\x48\xc1\xc9\x10"]
+    else:
+        # TODO: x86 bytes
+        expected_bytes = []
+
+    existing_bytes = [b[2] for b in block_bytes[1:-1]]
+    if existing_bytes == expected_bytes:
+        return True, security_cookie_addr
+    return False, None
+
+
 def is_function_security_init_cookie(func: Function, project, security_cookie_addr: int | None) -> bool:
     if func.is_plt or func.is_syscall or func.is_simprocedure:
         return False

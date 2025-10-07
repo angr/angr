@@ -40,6 +40,7 @@ from angr.errors import (
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.utils.funcid import (
     is_function_security_check_cookie,
+    is_function_security_check_cookie_strict,
     is_function_security_init_cookie,
     is_function_security_init_cookie_win8,
     is_function_likely_security_init_cookie,
@@ -2028,6 +2029,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                     if security_init_cookie_found and security_check_cookie_found:
                         # both are found. exit from the loop
                         break
+
+            else:
+                # security_cookie_addr is None; let's invoke the stricter version to find _security_check_cookie
+                for func in self.kb.functions.values():
+                    if len(func.block_addrs_set) in {5, 6}:
+                        r, cookie_addr = is_function_security_check_cookie_strict(func, self.project)
+                        if r:
+                            security_cookie_addr = cookie_addr
+                            if security_cookie_addr not in self.kb.labels:
+                                self.kb.labels[security_cookie_addr] = "_security_cookie"
+                            security_check_cookie_found = True
+                            func.is_default_name = False
+                            func.name = "_security_check_cookie"
+                            break
 
             # special handling: some binaries do not have SecurityCookie set, but still contain _security_init_cookie
             if security_init_cookie_found is False and self.functions.contains_addr(self.project.entry):
