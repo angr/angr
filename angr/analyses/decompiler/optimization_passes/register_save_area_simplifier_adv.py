@@ -26,7 +26,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_SSA_LEVEL1_TRANSFORMATION
     NAME = "Simplify register save areas (advanced)"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type:ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
@@ -67,8 +67,10 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         for _regvar, regvar_loc, _stackvar, stackvar_loc, _ in info:
             # remove storing statements
             old_block = self._get_block(regvar_loc.block_addr, idx=regvar_loc.block_idx)
+            assert regvar_loc.stmt_idx is not None
             self._modify_statement(old_block, regvar_loc.stmt_idx, updated_blocks)
             old_block = self._get_block(stackvar_loc.block_addr, idx=stackvar_loc.block_idx)
+            assert stackvar_loc.stmt_idx is not None
             self._modify_statement(old_block, stackvar_loc.stmt_idx, updated_blocks)
 
         for old_block, new_block in updated_blocks.items():
@@ -87,6 +89,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
     def _find_reg_store_and_restore_locations(self) -> list[tuple[int, CodeLocation, int, CodeLocation, int]]:
         results = []
 
+        assert self._srda is not None
         srda_model = self._srda.model
         # find all registers that are defined externally and used exactly once
         saved_vvars: set[tuple[int, CodeLocation]] = set()
@@ -107,6 +110,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         # - the restore location is in the dominance frontier of the store location
         for vvar_id, used_loc in saved_vvars:
             def_block = self._get_block(used_loc.block_addr, idx=used_loc.block_idx)
+            assert def_block is not None and used_loc.stmt_idx is not None
             stmt = def_block.statements[used_loc.stmt_idx]
             if not (
                 isinstance(stmt, Assignment)
@@ -118,17 +122,22 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
             ):
                 continue
             stack_vvar = stmt.dst
-            stack_vvar_uses = srda_model.all_vvar_uses.get(stack_vvar.varid, [])
+            all_stack_vvar_uses = srda_model.all_vvar_uses.get(stack_vvar.varid, [])
             # eliminate the use location if it's a phi statement
-            stack_vvar_uses = {
-                (vvar_, loc_)
-                for vvar_, loc_ in stack_vvar_uses
-                if not is_phi_assignment(self._get_block(loc_.block_addr, idx=loc_.block_idx).statements[loc_.stmt_idx])
-            }
+            stack_vvar_uses = set()
+            for vvar_, loc_ in all_stack_vvar_uses:
+                use_block = self._get_block(loc_.block_addr, idx=loc_.block_idx)
+                if use_block is None or loc_.stmt_idx is None:
+                    continue
+                use_stmt = use_block.statements[loc_.stmt_idx]
+                if is_phi_assignment(use_stmt):
+                    continue
+                stack_vvar_uses.add((vvar_, loc_))
             if len(stack_vvar_uses) != 1:
                 continue
             _, stack_vvar_use_loc = next(iter(stack_vvar_uses))
             restore_block = self._get_block(stack_vvar_use_loc.block_addr, idx=stack_vvar_use_loc.block_idx)
+            assert restore_block is not None
             restore_stmt = restore_block.statements[stack_vvar_use_loc.stmt_idx]
 
             if not (
