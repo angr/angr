@@ -10,7 +10,7 @@ from angr.knowledge_plugins.key_definitions.constants import ObservationPointTyp
 from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs
-from angr.calling_conventions import default_cc
+from angr.calling_conventions import default_cc, SimRegArg
 from .s_rda_model import SRDAModel
 from .s_rda_view import SRDAView
 
@@ -26,6 +26,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         func_addr: int | None = None,
         func_graph: networkx.DiGraph[Block] | None = None,
         func_args: set[VirtualVariable] | None = None,
+        use_callee_saved_regs_at_return: bool = False,
         track_tmps: bool = False,
     ):
         if isinstance(subject, Block):
@@ -43,6 +44,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         self.func_addr = func_addr if func_addr is not None else self.func.addr if self.func is not None else None
         self.func_args = func_args
         self._track_tmps = track_tmps
+        self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
 
         self._bp_as_gpr = False
         if self.func is not None:
@@ -156,6 +158,52 @@ class SReachingDefinitionsAnalysis(Analysis):
                         for vvar_size in reg_to_vvarids[reg_offset]:
                             if vvar_size >= reg_size:
                                 vvarid = reg_to_vvarids[reg_offset][vvar_size]
+                                self.model.add_vvar_use(vvarid, None, codeloc)
+
+            if self._use_callee_saved_regs_at_return:
+                # handle callee-saved registers: add uses for these registers so that the restoration statements are not
+                # considered dead assignments.
+                cc = self.func.calling_convention
+                if cc is None:
+                    cc_cls = default_cc(
+                        self.project.arch.name,
+                        platform=self.project.simos.name if self.project.simos is not None else None,
+                    )
+                    assert cc_cls is not None
+                    cc = cc_cls(self.project.arch)
+
+                arch = self.project.arch
+                ob_points = []
+                endpoint_addrs = {end_point.addr for end_point in self.func.endpoints}
+                for block in blocks.values():
+                    if block.addr in endpoint_addrs:
+                        ob_points.append(("node", (block.addr, block.idx), ObservationPointType.OP_AFTER))
+                func_end_observations = srda_view.observe(ob_points)
+                ignore_reg_offsets = {arch.sp_offset, arch.ip_offset}
+                if not self._bp_as_gpr:
+                    ignore_reg_offsets.add(arch.bp_offset)
+                for key, reg_to_vvarids in func_end_observations.items():
+                    _, (block_addr, block_idx), _ = key
+                    block = blocks[(block_addr, block_idx)]
+                    if not block.statements:
+                        # totally unexpected
+                        continue
+                    stmt = block.statements[-1]
+                    codeloc = CodeLocation(
+                        block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=stmt.ins_addr
+                    )
+                    for reg in arch.register_list:
+                        if (
+                            reg.general_purpose
+                            and reg.name not in cc.CALLER_SAVED_REGS
+                            and reg.name not in cc.ARG_REGS
+                            and reg.vex_offset not in ignore_reg_offsets
+                            and (isinstance(cc.RETURN_VAL, SimRegArg) and reg.name != cc.RETURN_VAL.reg_name)
+                        ):
+                            reg_offset = self.project.arch.registers[reg.name][0]
+                            if reg_offset in reg_to_vvarids:
+                                max_vvar_size = max(reg_to_vvarids[reg_offset])
+                                vvarid = reg_to_vvarids[reg_offset][max_vvar_size]
                                 self.model.add_vvar_use(vvarid, None, codeloc)
 
         if self._track_tmps:
