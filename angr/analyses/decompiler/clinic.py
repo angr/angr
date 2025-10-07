@@ -46,7 +46,6 @@ from .return_maker import ReturnMaker
 from .ailgraph_walker import AILGraphWalker, RemoveNodeNotice
 from .optimization_passes import (
     OptimizationPassStage,
-    RegisterSaveAreaSimplifier,
     StackCanarySimplifier,
     TagSlicer,
     DUPLICATING_OPTS,
@@ -598,6 +597,17 @@ class Clinic(Analysis):
         assert self.func_args is not None
         self._ail_graph = self._transform_to_ssa_level1(self._ail_graph, self.func_args)
 
+        # Run simplification passes
+        self._update_progress(49.0, text="Running simplifications 1.5")
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stage=OptimizationPassStage.AFTER_SSA_LEVEL1_TRANSFORMATION
+        )
+
+        # register save area has been removed at this point - we should no longer use callee-saved registers in RDA
+        self._register_save_areas_removed = True
+        # clear the cached RDA result
+        self.reaching_definitions = None
+
     def _stage_pre_ssa_level1_simplifications(self) -> None:
         # Simplify blocks
         # we never remove dead memory definitions before making callsites. otherwise stack arguments may go missing
@@ -698,7 +708,10 @@ class Clinic(Analysis):
         # Run simplification passes
         self._update_progress(65.0, text="Running simplifications 3")
         self._ail_graph = self._run_simplification_passes(
-            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+            self._ail_graph,
+            stack_items=self.stack_items,
+            stage=OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION,
+            arg_vvars=self.arg_vvars,
         )
 
         # Simplify the entire function for the third time
@@ -1579,11 +1592,6 @@ class Clinic(Analysis):
             if a.out_graph:
                 # use the new graph
                 ail_graph = a.out_graph
-                if isinstance(a, RegisterSaveAreaSimplifier):
-                    # register save area has been removed - we should no longer use callee-saved registers in RDA
-                    self._register_save_areas_removed = True
-                    # clear the cached RDA result
-                    self.reaching_definitions = None
                 self.vvar_id_start = a.vvar_id_start
             if stack_items is not None and a.stack_items:
                 stack_items.update(a.stack_items)
