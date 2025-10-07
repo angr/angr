@@ -153,7 +153,8 @@ class SReachingDefinitionsAnalysis(Analysis):
                 for arg_reg_name in arg_locs:
                     reg_offset = self.project.arch.registers[arg_reg_name][0]
                     if reg_offset in reg_to_vvarids:
-                        vvarid = reg_to_vvarids[reg_offset]
+                        max_vvar_size = max(reg_to_vvarids[reg_offset])
+                        vvarid = reg_to_vvarids[reg_offset][max_vvar_size]
                         self.model.add_vvar_use(vvarid, None, codeloc)
 
         if self._track_tmps:

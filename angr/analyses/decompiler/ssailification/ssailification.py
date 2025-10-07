@@ -85,6 +85,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         )
 
         # calculate virtual variables and phi nodes
+        self._partial_reg_defs: dict[int, set[tuple[int, int]]] = None
+        self._partial_stackvar_defs: dict[int, set[tuple[int, int]]] = None
         self._udef_to_phiid: dict[tuple, set[int]] = None
         self._phiid_to_loc: dict[int, tuple[int, int | None]] = None
         self._stackvar_locs: dict[int, set[int]] = None
@@ -100,6 +102,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._udef_to_phiid,
             self._phiid_to_loc,
             self._stackvar_locs,
+            self._partial_reg_defs,
+            self._partial_stackvar_defs,
             self._ssa_tmps,
             self._ail_manager,
             self._func_args,
@@ -148,6 +152,30 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             sorted_stackvar_offs = []
 
         # compute phi node locations for each unified definition
+
+        # we first find all partial register definitions and stack variable definitions. if a partial register (or
+        # stack variable) is defined along one in-edge of a node, it must be defined along all in-edges of the node.
+        partial_reg_defs: dict[int, set[tuple[int, int]]] = defaultdict(set)
+        partial_stackvar_defs: dict[int, set[tuple[int, int]]] = defaultdict(set)
+        for def_, _ in def_to_loc:
+            if isinstance(def_, Register):
+                base_off, base_size = get_reg_offset_base_and_size(def_.reg_offset, self.project.arch, size=def_.size)
+                if base_off != def_.reg_offset or base_size != def_.size:
+                    # a partial register definition
+                    partial_reg_defs[base_off].add((def_.reg_offset, def_.size))
+            elif isinstance(def_, (Store, Load)):
+                if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
+                    idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
+                    for i in range(idx_begin, len(sorted_stackvar_offs)):
+                        off = sorted_stackvar_offs[i]
+                        if off >= def_.addr.offset + def_.size:
+                            break
+                        full_sz = max(stackvar_locs[off])
+                        if def_.size < full_sz:
+                            # a partial stack variable definition
+                            partial_stackvar_defs[off].add((def_.addr.offset, def_.size))
+
+        # compute udef_to_blockkeys
         udef_to_defs = defaultdict(set)
         udef_to_blockkeys = defaultdict(set)
         for def_, loc in def_to_loc:
@@ -157,10 +185,13 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 udef_to_defs[("reg", base_off, base_reg_bits)].add(def_)
                 udef_to_blockkeys[("reg", base_off, base_reg_bits)].add((loc.block_addr, loc.block_idx))
                 # add a definition for the partial register
-                if base_off != def_.reg_offset or base_size != def_.size:
-                    reg_bits = def_.size * self.project.arch.byte_width
-                    udef_to_defs[("reg", def_.reg_offset, reg_bits)].add(def_)
-                    udef_to_blockkeys[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
+                if base_off in partial_reg_defs:
+                    for reg_off_, reg_size_ in partial_reg_defs[base_off]:
+                        if reg_off_ == base_off and reg_size_ == base_size:
+                            continue
+                        reg_bits = reg_size_ * self.project.arch.byte_width
+                        udef_to_defs[("reg", reg_off_, reg_bits)].add(def_)
+                        udef_to_blockkeys[("reg", reg_off_, reg_bits)].add((loc.block_addr, loc.block_idx))
             elif isinstance(def_, (Store, Load)):
                 if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
                     idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
@@ -172,9 +203,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         udef_to_defs[("stack", off, full_sz)].add(def_)
                         udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
                         # add a definition for the partial stack variable
-                        if def_.size in stackvar_locs[off] and def_.size < full_sz:
-                            udef_to_defs[("stack", off, def_.size)].add(def_)
-                            udef_to_blockkeys[("stack", off, def_.size)].add((loc.block_addr, loc.block_idx))
+                        # if def_.size in stackvar_locs[off] and def_.size < full_sz:
+                        if off in partial_stackvar_defs:
+                            for stack_off_, stack_size_ in partial_stackvar_defs[off]:
+                                if stack_off_ == off and stack_size_ == full_sz:
+                                    continue
+                                # if stack_off_ >= off and stack_off_ + stack_size_ <= off + full_sz:
+                                udef_to_defs[("stack", stack_off_, stack_size_)].add(def_)
+                                udef_to_blockkeys[("stack", stack_off_, stack_size_)].add(
+                                    (loc.block_addr, loc.block_idx)
+                                )
             elif isinstance(def_, StackBaseOffset):
                 sz = 1
                 idx_begin = bisect_left(sorted_stackvar_offs, def_.offset)
@@ -205,6 +243,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 phiid_to_loc[phi_id] = block.addr, block.idx
 
         self._stackvar_locs = stackvar_locs
+        self._partial_stackvar_defs = partial_stackvar_defs
+        self._partial_reg_defs = partial_reg_defs
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
 
