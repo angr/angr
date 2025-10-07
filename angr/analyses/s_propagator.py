@@ -15,6 +15,7 @@ from angr.ailment.expression import (
     Load,
     Convert,
     Expression,
+    Tmp,
 )
 from angr.ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
 
@@ -164,7 +165,7 @@ class SPropagatorAnalysis(Analysis):
                 assert v is not None
                 const_vvars[vvar_id] = v
                 for vvar_at_use, useloc in vvar_uselocs[vvar_id]:
-                    replacements[useloc][vvar_at_use] = v
+                    self.replace(replacements, useloc, vvar_at_use, v)
                 continue
 
             v = phi_assignment_get_src(stmt)
@@ -185,7 +186,7 @@ class SPropagatorAnalysis(Analysis):
                         const_value = const_vvars[next(iter(all_int_src_varids))]
                         const_vvars[vvar.varid] = const_value
                         for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                            replacements[useloc][vvar_at_use] = const_value
+                            self.replace(replacements, useloc, vvar_at_use, const_value)
 
         # function mode only
         if self.mode == "function":
@@ -226,7 +227,7 @@ class SPropagatorAnalysis(Analysis):
                     if can_replace:
                         # we can propagate this load because there is no store between its def and use
                         for vvar_used, vvar_useloc in vvar_uselocs_set:
-                            replacements[vvar_useloc][vvar_used] = stmt.src
+                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         continue
 
                 if (
@@ -241,7 +242,7 @@ class SPropagatorAnalysis(Analysis):
                     uselocs = {loc for _, loc in vvar_uselocs_set}
                     if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks) and not has_tmp_expr(stmt.src):
                         for vvar_used, vvar_useloc in vvar_uselocs_set:
-                            replacements[vvar_useloc][vvar_used] = stmt.src
+                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                         # mark the vvar as dead and should be removed
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
@@ -255,7 +256,7 @@ class SPropagatorAnalysis(Analysis):
                             and not has_tmp_expr(stmt.src)
                         ):
                             # we can propagate this load because there is no store between its def and use
-                            replacements[vvar_useloc][vvar_used] = stmt.src
+                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
                         if is_const_and_vvar_assignment(stmt) and not has_tmp_expr(stmt.src):
@@ -272,9 +273,9 @@ class SPropagatorAnalysis(Analysis):
                                     and stmt.src.oident == useloc_stmt.dst.oident
                                     and stmt.src.category == useloc_stmt.dst.category
                                 ):
-                                    replacements[vvar_useloc][vvar_used] = stmt.src
+                                    self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             else:
-                                replacements[vvar_useloc][vvar_used] = stmt.src
+                                self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
                     else:
@@ -288,7 +289,7 @@ class SPropagatorAnalysis(Analysis):
                                 # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
                                 # propagate it
                                 for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                    replacements[vvar_useloc][vvar_used] = stmt.src
+                                    self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                                 continue
 
                             if (
@@ -304,7 +305,7 @@ class SPropagatorAnalysis(Analysis):
                                     # remove duplicate use locs (e.g., if the variable is used multiple times by the
                                     # same statement) - but ensure stmt is simple enough
                                     for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                        replacements[vvar_useloc][vvar_used] = stmt.src
+                                        self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                                     continue
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
@@ -332,7 +333,7 @@ class SPropagatorAnalysis(Analysis):
                             )
                         if not gv_updated:
                             for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                replacements[vvar_useloc][vvar_used] = stmt.src
+                                self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                             continue
 
         for vvar_id, uselocs in vvar_uselocs.items():
@@ -353,7 +354,7 @@ class SPropagatorAnalysis(Analysis):
                             if sp_bits is not None and vvar.bits < sp_bits:
                                 # truncation needed
                                 v = Convert(None, sp_bits, vvar.bits, False, v)
-                            replacements[useloc][vvar_at_use] = v
+                            self.replace(replacements, useloc, vvar_at_use, v)
                     continue
                 if not self._bp_as_gpr and vvar.oident == self.project.arch.bp_offset:
                     bp_bits = (
@@ -368,7 +369,7 @@ class SPropagatorAnalysis(Analysis):
                             if bp_bits is not None and vvar.bits < bp_bits:
                                 # truncation needed
                                 v = Convert(None, bp_bits, vvar.bits, False, v)
-                            replacements[useloc][vvar_at_use] = v
+                            self.replace(replacements, useloc, vvar_at_use, v)
                     continue
 
         # find all tmp definitions
@@ -390,9 +391,8 @@ class SPropagatorAnalysis(Analysis):
                     if r:
                         # we can propagate it!
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            replacements[
-                                CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
-                            ][tmp_used] = stmt.src
+                            loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                            self.replace(replacements, loc, tmp_used, stmt.src)
                         continue
 
                     r = is_const_vvar_tmp_assignment(stmt)
@@ -404,9 +404,8 @@ class SPropagatorAnalysis(Analysis):
                             v = stmt.src
 
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            replacements[
-                                CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
-                            ][tmp_used] = v
+                            loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                            self.replace(replacements, loc, tmp_used, v)
                         continue
 
                     if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(stmt):
@@ -422,9 +421,8 @@ class SPropagatorAnalysis(Analysis):
                                 # we can propagate this load because either we do not consider memory aliasing problem
                                 # within the same instruction (blocks must be originally lifted with
                                 # CROSS_INSN_OPT=False), or there is no store between its def and use.
-                                replacements[
-                                    CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
-                                ][tmp_used] = stmt.src
+                                loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                                self.replace(replacements, loc, tmp_used, stmt.src)
 
         self.model.replacements = replacements
 
@@ -537,6 +535,10 @@ class SPropagatorAnalysis(Analysis):
                     g.add_edge(var_id, f"{stmt.__class__.__name__}@{stmt.ins_addr:#x}")
 
         return g
+
+    @staticmethod
+    def replace(replacements: dict, loc, expr: VirtualVariable | Tmp, value: Expression) -> None:
+        replacements[loc][expr] = value
 
 
 register_analysis(SPropagatorAnalysis, "SPropagator")
