@@ -99,18 +99,39 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         results = []
 
+        # there are cases where sp is moved to another register at the beginning of the function before it is
+        # subtracted, then it is used for stack accesses.
+        # for example:
+        # 132B0 mov     r11, rsp
+        # 132B3 sub     rsp, 88h
+        # 132BA ...
+        # 132C1 ...
+        # 132C6 mov     [r11-18h], r13
+        # 132CA mov     [r11-20h], r14
+        # we support such cases because we will have rewritten r11-18h to SpOffset(-N) when this optimization runs.
+
+        # identify which registers have been updated in this function; they are no longer saved
+        ignored_regs: set[int] = set()
+
         for idx, stmt in enumerate(first_block.statements):
+            if (
+                isinstance(stmt, ailment.Stmt.Assignment)
+                and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
+            ):
+                ignored_regs.add(stmt.dst.reg_offset)
             if (
                 isinstance(stmt, ailment.Stmt.Store)
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
                 and isinstance(stmt.addr.offset, int)
             ):
                 if isinstance(stmt.data, ailment.Expr.VirtualVariable) and stmt.data.was_reg:
-                    # it's storing registers to the stack!
-                    stack_offset = stmt.addr.offset
-                    reg_offset = stmt.data.reg_offset
-                    codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
-                    results.append((reg_offset, stack_offset, codeloc))
+                    if stmt.data.reg_offset not in ignored_regs:
+                        # it's storing registers to the stack!
+                        stack_offset = stmt.addr.offset
+                        reg_offset = stmt.data.reg_offset
+                        codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
+                        results.append((reg_offset, stack_offset, codeloc))
                 elif (
                     self.project.arch.name == "AMD64"
                     and isinstance(stmt.data, ailment.Expr.Convert)
@@ -130,7 +151,24 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
     def _find_registers_restored_from_stack(self) -> list[list[tuple[int, int, CodeLocation]]]:
         all_results = []
         for ret_site in self._func.ret_sites + self._func.jumpout_sites:
-            for block in self._get_blocks(ret_site.addr):
+
+            ret_blocks = list(self._get_blocks(ret_site.addr))
+            if len(ret_blocks) == 1 and self.project.simos is not None and self.project.simos.name == "Win32":
+                # PE files may call __security_check_cookie (which terminates the program if the stack canary is
+                # corrupted) before returning.
+                preds = list(self._graph.predecessors(ret_blocks[0]))
+                if len(preds) == 1:
+                    pred = preds[0]
+                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Call):
+                        last_stmt = pred.statements[-1]
+                        if isinstance(last_stmt.target, ailment.Expr.Const):
+                            callee_addr = last_stmt.target.value
+                            if self.project.kb.functions.contains_addr(callee_addr):
+                                callee_func = self.project.kb.functions.get_by_addr(callee_addr)
+                                if callee_func.name == "_security_check_cookie":
+                                    ret_blocks.append(pred)
+
+            for block in ret_blocks:
                 results = []
                 for idx, stmt in enumerate(block.statements):
                     if (
