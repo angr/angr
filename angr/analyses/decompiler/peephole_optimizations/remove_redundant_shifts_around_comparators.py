@@ -16,7 +16,9 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
     NAME = "Remove redundant bitshifts for operands around a comparator"
     expr_classes = (BinaryOp,)  # all expressions are allowed
 
-    def optimize(self, expr: BinaryOp, **kwargs):
+    def optimize(
+        self, expr: BinaryOp, stmt_idx: int | None = None, block=None, **kwargs
+    ):  # pylint:disable=unused-argument
         # (expr_0 << N) < (expr_1 << N)  ==> expr_0 << expr_1
         # FIXME: This optimization is unsafe but seems to work for all existing case
         if expr.op in {"CmpLE", "CmpLT", "CmpEQ", "CmpNE", "CmpGE", "CmpGT"}:
@@ -42,17 +44,27 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
                 )
 
             # might have been rewritten to multiplications
-            if isinstance(op0, BinaryOp) and op0.op == "Mul" and isinstance(op0.operands[1], Const):
+            if (
+                isinstance(op0, BinaryOp)
+                and op0.op == "Mul"
+                and isinstance(op0.operands[1], Const)
+                and op0.operands[1].is_int
+            ):
                 op0_op = op0.operands[0]
-                mul_0 = op0.operands[1].value
+                mul_0 = op0.operands[1].value_int
                 mul_1 = None
                 op1_op = None
-                if isinstance(op1, BinaryOp) and op1.op == "Mul" and isinstance(op1.operands[1], Const):
+                if (
+                    isinstance(op1, BinaryOp)
+                    and op1.op == "Mul"
+                    and isinstance(op1.operands[1], Const)
+                    and op1.operands[1].is_int
+                ):
                     op1_op = op1.operands[0]
-                    mul_1 = op1.operands[1].value
+                    mul_1 = op1.operands[1].value_int
                 elif isinstance(op1, Const):
                     op1_op = None
-                    mul_1 = op1.value
+                    mul_1 = op1.value_int
 
                 if mul_1 is not None:
                     common_shift_amount = self._get_common_shift_amount(mul_0, mul_1)
