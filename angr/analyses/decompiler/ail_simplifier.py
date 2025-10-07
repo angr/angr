@@ -315,7 +315,7 @@ class AILSimplifier(Analysis):
             subject=self.func,
             func_graph=self.func_graph,
             func_args=func_args,
-            # use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
             # track_tmps=True,
         ).model
         self._reaching_definitions = rd
