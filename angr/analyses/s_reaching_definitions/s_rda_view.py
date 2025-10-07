@@ -235,11 +235,11 @@ class SRDAView:
         self._get_vvar_by_stmt(the_block.addr, the_block.idx, starting_stmt_idx, op_type, predicate)
 
     def get_reg_vvar_by_insn(
-        self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+        self, reg_offset: int, min_size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
+        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
