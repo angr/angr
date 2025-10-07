@@ -67,6 +67,8 @@ def is_function_security_check_cookie_strict(func: Function, project) -> tuple[b
     # cmp  rcx, [xxx]
     # jnz  xxx
     first_block = block_bytes[0][1]
+    if len(first_block.capstone.insns) != 2:
+        return False, None
     ins0 = first_block.capstone.insns[0]
     security_cookie_addr = None
     if (
@@ -101,6 +103,8 @@ def is_function_security_check_cookie_strict(func: Function, project) -> tuple[b
 
     # the last block should be a jump
     last_block = block_bytes[-1][1]
+    if len(last_block.capstone.insns) != 1:
+        return False, None
     last_insn = last_block.capstone.insns[-1]
     if last_insn.mnemonic != "jmp":
         return False, None
