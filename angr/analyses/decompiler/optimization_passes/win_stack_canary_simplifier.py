@@ -189,6 +189,8 @@ class WinStackCanarySimplifier(OptimizationPass):
         xor_stmt_idx = None
         xored_reg = None
 
+        assert self._security_cookie_addr is not None
+
         for idx, stmt in enumerate(block.statements):
             # if we are lucky and things get folded into one statement:
             if (
@@ -209,7 +211,9 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if load_addr == self._security_cookie_addr:
                     load_stmt_idx = idx
                     load_reg = stmt.dst.reg_offset
-            if load_stmt_idx is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:  # noqa:SIM102
+            if (  # noqa:SIM102
+                load_stmt_idx is not None and load_reg is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1
+            ):
                 if (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)

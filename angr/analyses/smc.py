@@ -112,9 +112,8 @@ class SelfModifyingCodeAnalysis(Analysis):
         if subject is None:
             subject = self.project.entry
         if isinstance(subject, str):
-            try:
-                addr = self.project.kb.labels.lookup(subject)
-            except KeyError:
+            addr = self.project.kb.labels.lookup(subject)
+            if addr is None:
                 addr = self.project.kb.functions[subject].addr
         elif isinstance(subject, Function):
             addr = subject.addr
