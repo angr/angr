@@ -33,7 +33,7 @@ class WinStackCanarySimplifier(OptimizationPass):
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)
-        self._security_cookie_addr = None
+        self._security_cookie_addr: int | None = None
         if isinstance(self.project.loader.main_object, cle.PE):
             self._security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)
             if self._security_cookie_addr is None:
@@ -211,9 +211,8 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if load_addr == self._security_cookie_addr:
                     load_stmt_idx = idx
                     load_reg = stmt.dst.reg_offset
-            if (  # noqa:SIM102
-                load_stmt_idx is not None and load_reg is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1
-            ):
+            if load_stmt_idx is not None and load_reg is not None and xor_stmt_idx is None and idx >= load_stmt_idx + 1:
+                assert self.project.arch.bp_offset is not None
                 if (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
