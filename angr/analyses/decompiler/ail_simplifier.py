@@ -853,6 +853,7 @@ class AILSimplifier(Analysis):
                 if (
                     isinstance(stmt, Assignment)
                     and isinstance(stmt.dst, VirtualVariable)
+                    and stmt.dst.was_reg  # values of stack variables might be updated in callees or via pointers
                     and isinstance(stmt.src, Const)
                     and isinstance(stmt.src.value, int)
                 ):
