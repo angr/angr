@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+from typing import Any
 
 import capstone
 
@@ -53,7 +54,11 @@ def is_function_security_check_cookie_strict(func: Function, project) -> tuple[b
         return False, None
     if len(func.block_addrs_set) not in {5, 6}:
         return False, None
-    block_bytes = [(b.addr, b, b.bytes) for b in sorted(func.blocks, key=lambda b: b.addr)]
+    block_bytes: list[tuple[int, Any, bytes]] = [
+        (b.addr, b, b.bytes)
+        for b in sorted(func.blocks, key=lambda b: b.addr)
+        if isinstance(b.addr, int) and b.bytes is not None
+    ]
     if block_bytes[0][0] != func.addr:
         # the first block is probably the BugCheck function - skip it
         block_bytes = block_bytes[1:]
