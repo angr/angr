@@ -116,7 +116,12 @@ def is_function_security_check_cookie_strict(func: Function, project) -> tuple[b
         # TODO: x86 bytes
         expected_bytes = []
 
-    existing_bytes = [b[2] for b in block_bytes[1:-1]]
+    existing_bytes = []
+    for i, b in enumerate(block_bytes[1:-1]):
+        block = b[2]
+        max_block_size = block_bytes[1 + i + 1][0] - b[0]
+        existing_bytes.append(block[:max_block_size])
+    # normalize the block bytes if needed
     if existing_bytes == expected_bytes:
         return True, security_cookie_addr
     return False, None

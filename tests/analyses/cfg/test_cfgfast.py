@@ -873,6 +873,15 @@ class TestCfgfast(unittest.TestCase):
         cfg = proj.analyses.CFGFast()
         assert cfg.kb.functions[0x21514B5600].name == "_security_init_cookie"
 
+    def test_security_check_cookie_identification_unknown_cookie_location(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "03fb29dab8ab848f15852a37a1c04aa65289c0160d9200dceff64d890b3290dd"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        assert cfg.kb.functions[0x14710].name == "_security_check_cookie"
+        assert cfg.kb.labels[0x17108] == "_security_cookie"
+
     def test_pe_unmapped_section_data(self):
         path = os.path.join(
             test_location, "i386", "windows", "0b6e56e2325f8e34fc07669414f6b6fdd45b0de37937947c77c7b81c1fed4329"
