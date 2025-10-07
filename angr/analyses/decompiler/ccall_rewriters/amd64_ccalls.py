@@ -372,6 +372,39 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             bits=ccall.bits,
                             **ccall.tags,
                         )
+                    if op_v in {
+                        AMD64_OpTypes["G_CC_OP_SUBB"],
+                        AMD64_OpTypes["G_CC_OP_SUBW"],
+                        AMD64_OpTypes["G_CC_OP_SUBL"],
+                        AMD64_OpTypes["G_CC_OP_SUBQ"],
+                    }:
+                        # dep_1 <u dep_2
+
+                        dep_1 = self._fix_size(
+                            dep_1,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+                        dep_2 = self._fix_size(
+                            dep_2,
+                            op_v,
+                            AMD64_OpTypes["G_CC_OP_SUBB"],
+                            AMD64_OpTypes["G_CC_OP_SUBW"],
+                            AMD64_OpTypes["G_CC_OP_SUBL"],
+                            ccall.tags,
+                        )
+
+                        r = Expr.BinaryOp(
+                            ccall.idx,
+                            "CmpLT",
+                            (dep_1, dep_2),
+                            False,
+                            **ccall.tags,
+                        )
+                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif (
                     cond_v == AMD64_CondTypes["CondS"]
                     and op_v
