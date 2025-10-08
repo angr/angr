@@ -54,6 +54,14 @@ class TestFlirt(unittest.TestCase):
         _, sig = r
         assert sig.sig_name == "libc"
 
+        # with meta file
+        meta_path = os.path.join(bin_location, "tests", "armhf", "debian_10.3_libc.meta")
+        r = angr.flirt.load_signature(flirt_path, meta_path=meta_path)
+        assert r is not None
+        _, sig = r
+        assert sig.arch == "armel"
+        assert sig.os_name == "debian"
+
 
 if __name__ == "__main__":
     unittest.main()
