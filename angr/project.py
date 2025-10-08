@@ -13,6 +13,7 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 from .sim_procedure import SimProcedure
+from .sim_type import SimType, TypeRef
 
 from .errors import AngrNoPluginError
 
@@ -240,6 +241,8 @@ class Project:
         # Step 5.3: ...etc
         self._knowledge_bases = {"default": KnowledgeBase(self, name="global")}
 
+        self._populate_debug_info(**kwargs)
+
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -292,6 +295,20 @@ class Project:
         """
         self._analyses = cast("AnalysesHubWithDefault", AnalysesHub(self))
         self._analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
+
+    def _populate_debug_info(self, load_debug_info=False, **kwargs):
+        if load_debug_info:
+            # Import types from debug info into the types KB
+            # First we need to convert from the CLE types into angr SimTypes
+            cle_types = []
+            for elf_obj in self.loader.all_elf_objects:
+                cle_types.extend(elf_obj.type_list.values())
+            angr_types = SimType.from_cle(cle_types, arch=self.arch)
+            # Add the types into the KB
+            for typ in angr_types:
+                assert(typ.label is not None)
+                assert(typ.label not in self.kb.types)
+                self.kb.types[typ.label] = TypeRef(typ.label, typ)
 
     def _register_object(self, obj, sim_proc_arch):
         """

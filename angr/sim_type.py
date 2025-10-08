@@ -42,12 +42,16 @@ class SimType:
     _base_name: str
     base: bool = True
 
-    def __init__(self, label=None):
+    def __init__(self, label=None, arch=None):
         """
         :param label: the type label.
         """
         self.label = label
-        self._arch = None
+        self._arch = arch
+
+    @property
+    def arch(self):
+        return self._arch
 
     @staticmethod
     def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
@@ -162,7 +166,10 @@ class SimType:
         raise NotImplementedError(f"extract_claripy is not implemented for {self}")
 
     @staticmethod
-    def from_cle(cle_types: list[variable_type.VariableType]) -> list[SimType]:
+    def from_cle(cle_types: list[variable_type.VariableType], arch=None) -> list[SimType]:
+        def encode_namespace(namespace, name):
+            return "::".join(namespace) + name
+
         mapping: dict[variable_type.VariableType, SimType] = dict()
         constructed_types: list[SimType] = []
         # Perform the conversion in two passes. Once to construct all of the type objects, and the second
@@ -173,33 +180,34 @@ class SimType:
             if isinstance(cle_typ, variable_type.BaseType):
                 match cle_typ.encoding:
                     case variable_type.BaseTypeEncoding.SIGNED:
-                        typ = SimTypeNum(cle_typ.byte_size * 8, True, label=cle_typ.name)
+                        typ = SimTypeNum(cle_typ.byte_size * 8, True, label=cle_typ.name, arch=arch)
                     case variable_type.BaseTypeEncoding.UNSIGNED:
-                        typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name)
+                        typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
                     case variable_type.BaseTypeEncoding.FLOAT:
-                        typ = SimTypeFloat()
+                        typ = SimTypeFloat(arch=arch)
                     case variable_type.BaseTypeEncoding.UTF:
                         if cle_typ.byte_size == 4:
-                            typ = SimTypeWideChar(label=cle_typ.name)
+                            typ = SimTypeWideChar(label=cle_typ.name, arch=arch)
                         else:
-                            typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name)
+                            typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
                     case variable_type.BaseTypeEncoding.BOOLEAN:
-                        typ = SimTypeBool()
+                        typ = SimTypeBool(arch=arch)
             elif isinstance(cle_typ, variable_type.StructType):
-                typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, name=cle_typ.name, offsets=dict())
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, label=label, name=cle_typ.name, offsets=dict(), arch=arch)
             elif isinstance(cle_typ, variable_type.PointerType):
-                typ: SimType = SimTypePointer(None, label=cle_typ.name)
+                typ: SimType = SimTypePointer(None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.ArrayType):
-                typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name)
+                typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.EnumerationType):
-                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=cle_typ.name)
+                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.SubroutineType):
-                typ: SimType = SimTypeFunction([], None, label=cle_typ.name)
+                typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
                 typ: SimType = SimVariant(cle_typ.byte_size, None, [],
-                                          label=cle_typ.name, name=cle_typ.name, align=cle_typ.align)
+                                          label=cle_typ.name, name=cle_typ.name, align=cle_typ.align, arch=arch)
             elif cle_typ is None:
-                typ: SimType = SimTypeBottom()
+                typ: SimType = SimTypeBottom(arch=arch)
             if typ is None:
                 raise ValueError(f"Unable to convert cle DWARF type {type(cle_typ)} to corresponding angr type.")
             mapping[cle_typ] = typ
@@ -225,7 +233,7 @@ class SimType:
                 typ.underlying_type = mapping[cle_typ.type]
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimTypeFunction = mapping[cle_typ]
-                typ.args = tuple(mapping[param] for param in cle_typ.parameters)
+                typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
                 return_ty = cle_typ.type
                 if return_ty is None:
                     typ.returnty = SimTypeBottom()
@@ -384,12 +392,13 @@ class SimTypeReg(SimType):
 
     _fields = ("size",)
 
-    def __init__(self, size: int | None, label=None):
+    def __init__(self, size: int | None, label=None, arch=None):
         """
         :param label: the type label.
         :param size: the size of the type (e.g. 32bit, 8bit, etc.).
+        :param arch: the arch of the type
         """
-        SimType.__init__(self, label=label)
+        SimType.__init__(self, label=label, arch=arch)
         self._size = size
 
     def __repr__(self):
@@ -424,13 +433,14 @@ class SimTypeNum(SimType):
 
     _fields = (*SimType._fields, "signed", "size")
 
-    def __init__(self, size: int, signed=True, label=None):
+    def __init__(self, size: int, signed=True, label=None, arch=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
+        :param arch:        The arch of the type
         """
-        super().__init__(label)
+        super().__init__(label, arch=arch)
         self._size = size
         self.signed = signed
 
@@ -690,11 +700,11 @@ class SimTypeWideChar(SimTypeReg):
 
     _base_name = "char"
 
-    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE):
+    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE, arch=None):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, 16, label=label)
+        SimTypeReg.__init__(self, 16, label=label, arch=arch)
         self.signed = signed
         self.endness = endness
 
@@ -743,11 +753,11 @@ class SimTypeEnumeration(SimTypeReg):
 
     _base_name = "enum"
 
-    def __init__(self, underlying_type, enumerator_values: list[variable_type.EnumeratorValue], label=None):
+    def __init__(self, underlying_type, enumerator_values: list[variable_type.EnumeratorValue], label=None, arch=None):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, None, label=label)
+        SimTypeReg.__init__(self, None, label=label, arch=arch)
         self.underlying_type = underlying_type
         self.enumerator_values = enumerator_values
         self.enumerator_lookup = {val.const_value: val for val in enumerator_values}
@@ -800,12 +810,12 @@ class SimTypeEnumeration(SimTypeReg):
 class SimTypeBool(SimTypeReg):
     _base_name = "bool"
 
-    def __init__(self, signed=True, label=None):
+    def __init__(self, signed=True, label=None, arch=None):
         """
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        super().__init__(8, label=label)
+        super().__init__(8, label=label, arch=arch)
         self.signed = signed
 
     def __repr__(self):
@@ -889,12 +899,12 @@ class SimTypePointer(SimTypeReg):
 
     _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
 
-    def __init__(self, pts_to, label=None, offset=0):
+    def __init__(self, pts_to, label=None, offset=0, arch=None):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
         """
-        super().__init__(None, label=label)
+        super().__init__(None, label=label, arch=arch)
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
@@ -1022,13 +1032,13 @@ class SimTypeArray(SimType):
 
     _fields = ("elem_type", "length")
 
-    def __init__(self, elem_type, length=None, label=None):
+    def __init__(self, elem_type, length=None, label=None, arch=None):
         """
         :param label:       The type label.
         :param elem_type:   The type of each element in the array.
         :param length:      An expression of the length of the array, if known.
         """
-        super().__init__(label=label)
+        super().__init__(label=label, arch=arch)
         self.elem_type: SimType = elem_type
         self.length: int | None = length
 
@@ -1284,6 +1294,7 @@ class SimTypeFunction(SimType):
         label=None,
         arg_names: Iterable[str] | None = None,
         variadic=False,
+        arch=None
     ):
         """
         :param label:    The type label
@@ -1291,7 +1302,7 @@ class SimTypeFunction(SimType):
         :param returnty: The return type of the function, or none for void
         :param variadic: Whether the function accepts varargs
         """
-        super().__init__(label=label)
+        super().__init__(label=label, arch=arch)
         self.args: tuple[SimType, ...] = tuple(args)
         self.returnty: SimType | None = returnty
         self.arg_names = tuple(arg_names) if arg_names else ()
@@ -1462,8 +1473,8 @@ class SimTypeFloat(SimTypeReg):
 
     _base_name = "float"
 
-    def __init__(self, size=32):
-        super().__init__(size)
+    def __init__(self, size=32, arch=None):
+        super().__init__(size, arch=arch)
 
     sort = claripy.FSORT_FLOAT
     signed = True
@@ -1532,13 +1543,15 @@ class SimStruct(NamedTypeMixin, SimType):
     def __init__(
         self,
         fields: dict[str, SimType] | OrderedDict[str, SimType],
+        label=None,
         name=None,
         pack=False,
         align=None,
         anonymous: bool = False,
         offsets: dict[str, int] | None = None,
+        arch=None
     ):
-        super().__init__(None, name="<anon>" if name is None else name)
+        super().__init__(label, name="<anon>" if name is None else name, arch=arch)
 
         self._pack = pack
         self._align = align
@@ -1800,17 +1813,20 @@ class SimVariantCase:
         self.offset = offset
         self.type = type
 
+    def with_arch(self, arch):
+        return SimVariantCase(self.tag_value, self.name, self.offset, self.type.with_arch(arch))
+
 class SimVariant(NamedTypeMixin, SimType):
     fields = ("members", "name")
 
     def __init__(self, size: int, tag: SimType | None, cases: list[SimVariantCase], name=None,
-                 label=None, align: int | None = None):
+                 label=None, align: int | None = None, arch=None):
         """
         :param size:        The size of the variant
         :param cases:     The members of the variant, as a mapping name -> type
         :param name:        The name of the variant
         """
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
         self._size = size
         self._align = align
         self.tag = tag
@@ -1826,7 +1842,7 @@ class SimVariant(NamedTypeMixin, SimType):
             return self._align
         if all(val.alignment is NotImplemented for val in self.cases.values()):
             return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.cases.values())
+        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.cases)
 
     def _refine_dir(self):
         return list(self.cases.keys())
@@ -1896,8 +1912,8 @@ class SimVariant(NamedTypeMixin, SimType):
         return f"union {self.name}"
 
     def _with_arch(self, arch):
-        out = SimUnion({name: ty.with_arch(arch) for name, ty in self.cases.items()}, self.label)
-        out._arch = arch
+        out = SimVariant(self.size, self.tag.with_arch(arch), [c.with_arch(arch) for c in self.cases], name=self._name,
+                         align=self._align, label=self.label, arch=arch)
         return out
 
     def copy(self):
