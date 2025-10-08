@@ -481,7 +481,7 @@ class AILSimplifier(Analysis):
             if old_block is None:
                 continue
             block = self.blocks.get(old_block, old_block)
-            if def_.codeloc.stmt_idx >= len(block.statements):
+            if def_.codeloc.stmt_idx is None or def_.codeloc.stmt_idx >= len(block.statements):
                 continue
             def_stmt = block.statements[def_.codeloc.stmt_idx]
             if (
