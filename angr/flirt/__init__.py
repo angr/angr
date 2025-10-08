@@ -111,3 +111,14 @@ def load_signatures(path: str) -> None:
             if sig.unique_strings:
                 for us in sig.unique_strings:
                     STRING_TO_LIBRARIES[us].add(sig.sig_name)
+
+
+__all__ = (
+    "FLIRT_SIGNATURES_BY_ARCH",
+    "FS",
+    "LIBRARY_TO_SIGNATURES",
+    "STRING_TO_LIBRARIES",
+    "FlirtSignature",
+    "load_signature",
+    "load_signatures",
+)
