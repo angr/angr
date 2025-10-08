@@ -561,7 +561,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     continue
                 varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
-                yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
+                if v.type is None:
+                    yield "<unknown-type>", None
+                else:
+                    yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
 
@@ -1327,9 +1330,10 @@ class CFunctionCall(CStatement, CExpression):
                 return True
 
         # FIXME: Handle name mangle
-        for func in self.codegen.kb.functions.get_by_name(callee.name):
-            if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
-                return True
+        if callee is not None:
+            for func in self.codegen.kb.functions.get_by_name(callee.name):
+                if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
+                    return True
 
         return False
 
