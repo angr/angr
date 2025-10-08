@@ -271,12 +271,19 @@ class ExpressionCounter(SequenceWalker):
         # the current assignment depends on, StatementLocation of the assignment statement, a Boolean variable that
         # indicates if ExpressionUseFinder has succeeded or not)
         self.assignments: defaultdict[Any, set[tuple]] = defaultdict(set)
-        self.uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
+        self.outerscope_uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
+        self.all_uses: dict[int, set[tuple[Expression, LocationBase | None]]] = {}
+        # inner_scope indicates if we are currently within one of the inner scopes (e.g., a loop). we only collect
+        # assignments in the outermost level and stop collecting assignments when we enter inner scopes.
+        # we always collect uses, but uses in the outmost scope will be recorded in self.outerscope_uses
+        self._outer_scope: bool = True
 
         super().__init__(handlers)
         self.walk(node)
 
     def _handle_Statement(self, idx: int, stmt: Statement, node: ailment.Block | LoopNode):
+        if not self._outer_scope:
+            return
         if isinstance(stmt, ailment.Stmt.Assignment):
             if is_phi_assignment(stmt):
                 return
@@ -312,32 +319,40 @@ class ExpressionCounter(SequenceWalker):
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         # find assignments and uses of variables
-        use_finder = ExpressionUseFinder()
-        for idx, stmt in enumerate(node.statements):
-            self._handle_Statement(idx, stmt, node)
-            use_finder.walk_statement(stmt, block=node)
-
-        for varid, content in use_finder.uses.items():
-            if varid not in self.uses:
-                self.uses[varid] = set()
-            self.uses[varid] |= content
+        self._collect_uses(node, None)
 
     def _collect_assignments(self, expr: Expression, node) -> None:
+        if not self._outer_scope:
+            return
         finder = MultiStatementExpressionAssignmentFinder(self._handle_Statement)
         finder.walk_expression(expr, None, None, node)
 
-    def _collect_uses(self, expr: Expression | Statement, loc: LocationBase):
+    def _collect_uses(self, thing: Expression | Statement | ailment.Block, loc: LocationBase | None):
         use_finder = ExpressionUseFinder()
-        if isinstance(expr, Statement):
-            use_finder.walk_statement(expr)
+        if isinstance(thing, ailment.Block):
+            for idx, stmt in enumerate(thing.statements):
+                self._handle_Statement(idx, stmt, thing)
+                use_finder.walk_statement(stmt, block=thing)
+        if isinstance(thing, Statement):
+            use_finder.walk_statement(thing)
         else:
-            use_finder.walk_expression(expr, stmt_idx=-1)
+            use_finder.walk_expression(thing, stmt_idx=-1)
 
         for varid, uses in use_finder.uses.items():
             for use in uses:
-                if varid not in self.uses:
-                    self.uses[varid] = set()
-                self.uses[varid].add((use[0], loc))
+                # overwrite the location if loc is specified
+                content = (use[0], loc) if loc is not None else use
+
+                # update all_uses
+                if varid not in self.all_uses:
+                    self.all_uses[varid] = set()
+                self.all_uses[varid].add(content)
+
+                # update outerscope_uses if we are in the outer scope
+                if self._outer_scope:
+                    if varid not in self.outerscope_uses:
+                        self.outerscope_uses[varid] = set()
+                    self.outerscope_uses[varid].add(content)
 
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         # collect uses on the condition expression
@@ -366,7 +381,12 @@ class ExpressionCounter(SequenceWalker):
         if node.condition is not None:
             self._collect_assignments(node.condition, node)
             self._collect_uses(node.condition, ConditionLocation(node.addr))
+
+        outer_scope = self._outer_scope
+        self._outer_scope = False
         super()._handle_Loop(node, **kwargs)
+        self._outer_scope = outer_scope
+
         return None
 
     def _handle_SwitchCase(self, node: SwitchCaseNode, **kwargs):
