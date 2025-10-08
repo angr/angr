@@ -619,8 +619,8 @@ class AILSimplifier(Analysis):
             ):
                 # special case: sometimes we have an explicit Convert that narrows the value, all other uses are either
                 # in the effective size or narrower, but we pass the full register to a function call as an argument
-                # because we do not know the real type of the argument, or there are cases like putchar(int ch) while ch is
-                # actually a char. We use effective size in such cases to narrow the variable.
+                # because we do not know the real type of the argument, or there are cases like putchar(int ch) while
+                # ch is actually a char. We use effective size in such cases to narrow the variable.
                 target_size = effective_size
 
         if target_size is not None:
