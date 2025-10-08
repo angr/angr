@@ -333,7 +333,7 @@ class ExpressionCounter(SequenceWalker):
             for idx, stmt in enumerate(thing.statements):
                 self._handle_Statement(idx, stmt, thing)
                 use_finder.walk_statement(stmt, block=thing)
-        if isinstance(thing, Statement):
+        elif isinstance(thing, Statement):
             use_finder.walk_statement(thing)
         else:
             use_finder.walk_expression(thing, stmt_idx=-1)
