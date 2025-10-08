@@ -2513,8 +2513,10 @@ class TestDecompiler(unittest.TestCase):
 
         # ensure "v14 = fmt(stdin, "-");" shows up before "optind < a0"
         lines = d.codegen.text.split("\n")
+        a0_assignment_line = next(line for line in lines if " = a0;" in line)
+        a0_var = a0_assignment_line.split(" = ")[0].strip()
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
-        optind_line = next(i for i, line in enumerate(lines) if "optind < a0" in line)
+        optind_line = next(i for i, line in enumerate(lines) if f"optind < {a0_var}" in line)
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
         assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
@@ -5141,8 +5143,14 @@ class TestDecompiler(unittest.TestCase):
         assert from_matches_line_no is not None
         from_matches_line = lines[from_matches_line_no]
         v = from_matches_line[: from_matches_line.index(".from_matches(")]
-        assert lines[from_matches_line_no + 1] == f"if ({v} != 9223372036854775809)"
-        assert lines[from_matches_line_no + 2] == "{"
+        for i in range(2):
+            if (
+                lines[from_matches_line_no + i + 1] == f"if ({v} != 9223372036854775809)"
+                and lines[from_matches_line_no + i + 2] == "{"
+            ):
+                break
+        else:
+            assert False, "Could not find the if statement following from_matches"
         v11_eq_v24_line_no = None
         v24_with_capacity_line_no = None
         for i in range(from_matches_line_no + 3, len(lines)):
