@@ -561,7 +561,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     continue
                 varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
-                yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
+                if v.type is None:
+                    yield "<unknown-type>", None
+                else:
+                    yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
 
@@ -1327,9 +1330,10 @@ class CFunctionCall(CStatement, CExpression):
                 return True
 
         # FIXME: Handle name mangle
-        for func in self.codegen.kb.functions.get_by_name(callee.name):
-            if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
-                return True
+        if callee is not None:
+            for func in self.codegen.kb.functions.get_by_name(callee.name):
+                if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
+                    return True
 
         return False
 
@@ -3194,7 +3198,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Handlers
     #
 
-    def _handle(self, node, is_expr: bool = True, lvalue: bool = False, likely_signed=False):
+    def _handle(
+        self, node, is_expr: bool = True, lvalue: bool = False, likely_signed=False, type_: SimType | None = None
+    ):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
@@ -3204,7 +3210,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             converted = (
                 handler(node, is_expr=is_expr)
                 if isinstance(node, Stmt.Call)
-                else handler(node, lvalue=lvalue, likely_signed=likely_signed)
+                else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_)
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
@@ -3483,6 +3489,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     and i < len(target_func.prototype.args)
                 ):
                     type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    if target_func.prototype_libname is not None:
+                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
 
                 if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
@@ -3490,7 +3498,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
                     new_arg = self._handle_Expr_Const(arg, type_=type_)
                 else:
-                    new_arg = self._handle(arg)
+                    new_arg = self._handle(arg, type_=type_)
                 args.append(new_arg)
 
         ret_expr = None
@@ -3737,10 +3745,19 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             reference_values["offset"] = var_access
         return CConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
 
-    def _handle_Expr_UnaryOp(self, expr, **kwargs):
+    def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
+        data_type = None
+        if expr.op == "Reference" and isinstance(type_, SimTypePointer) and not isinstance(type_.pts_to, SimTypeBottom):
+            data_type = type_.pts_to
+
+        operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type)
+
+        if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
+            # cancel out
+            return operand.operand
         return CUnaryOp(
             expr.op,
-            self._handle(expr.operand),
+            operand,
             tags=expr.tags,
             codegen=self,
         )
@@ -3847,7 +3864,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cexpr = self._handle(expr.expr)
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
-    def _handle_VirtualVariable(self, expr: Expr.VirtualVariable, **kwargs):
+    def _handle_VirtualVariable(
+        self, expr: Expr.VirtualVariable, lvalue: bool = False, type_: SimType | None = None, **kwargs
+    ):
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             # we do not allow returning a struct for a primitive type
             if old_ty.size == proposed_ty.size and (
@@ -3860,13 +3879,29 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if "struct_member_info" in expr.tags:
                 offset, var, _ = expr.struct_member_info
                 cbasevar = self._variable(var, expr.size, vvar_id=expr.varid)
+                data_type = type_
+                if data_type is None:
+                    # try to determine the type of this variable read
+                    data_type = cbasevar.type
+                    if data_type.size // self.project.arch.byte_width > expr.size:
+                        # fallback to a more suitable type
+                        data_type = (
+                            {
+                                64: SimTypeLongLong(signed=False),
+                                32: SimTypeInt(signed=False),
+                                16: SimTypeShort(signed=False),
+                                8: SimTypeChar(signed=False),
+                            }
+                            .get(expr.bits, data_type)
+                            .with_arch(self.project.arch)
+                        )
                 cvar = self._access_constant_offset(
-                    self._get_variable_reference(cbasevar), offset, cbasevar.type, False, negotiate
+                    self._get_variable_reference(cbasevar), offset, data_type, lvalue, negotiate
                 )
             else:
                 cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
 
-            if expr.variable.size != expr.size:
+            if not lvalue and expr.variable.size != expr.size:
                 l.warning(
                     "VirtualVariable size (%d) and variable size (%d) do not match. Force a type cast.",
                     expr.size,
@@ -4096,6 +4131,13 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
     pointer arithmetics aware of the pointer type. In this case, the fixer class will convert the code to
     a_ptr = a_ptr + 1.
     """
+
+    def handle_CAssignment(self, obj: CAssignment):
+        if "type" in obj.tags and "dst" in obj.tags["type"] and "src" in obj.tags["type"]:
+            # HACK: do not attempt to fix pointer arithmetic if dst and src types are explicitly given
+            # FIXME: Properly propagate dst and src types to lhs and rhs
+            return obj
+        return super().handle_CAssignment(obj)
 
     def handle_CBinaryOp(self, obj: CBinaryOp):  # type: ignore
         obj: CBinaryOp = super().handle_CBinaryOp(obj)
