@@ -4132,6 +4132,13 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
     a_ptr = a_ptr + 1.
     """
 
+    def handle_CAssignment(self, obj: CAssignment):
+        if "type" in obj.tags and "dst" in obj.tags["type"] and "src" in obj.tags["type"]:
+            # HACK: do not attempt to fix pointer arithmetic if dst and src types are explicitly given
+            # FIXME: Properly propagate dst and src types to lhs and rhs
+            return obj
+        return super().handle_CAssignment(obj)
+
     def handle_CBinaryOp(self, obj: CBinaryOp):  # type: ignore
         obj: CBinaryOp = super().handle_CBinaryOp(obj)
         if (
