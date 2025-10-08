@@ -8,6 +8,7 @@ import os.path
 import unittest
 
 import angr
+import angr.flirt
 
 from tests.common import bin_location, slow_test
 
@@ -45,6 +46,21 @@ class TestFlirt(unittest.TestCase):
         assert proj.kb.functions[0xF38D9].name == "__printf"
         assert proj.kb.functions[0xF38D9].prototype is not None
         assert proj.kb.functions[0xF38D9].calling_convention is not None
+
+    def test_flirt_sig_loading(self):
+        flirt_path = os.path.join(bin_location, "tests", "armhf", "debian_10.3_libc.sig")
+        r = angr.flirt.load_signature(flirt_path)
+        assert r is not None
+        _, sig = r
+        assert sig.sig_name == "libc"
+
+        # with meta file
+        meta_path = os.path.join(bin_location, "tests", "armhf", "debian_10.3_libc.meta")
+        r = angr.flirt.load_signature(flirt_path, meta_path=meta_path)
+        assert r is not None
+        _, sig = r
+        assert sig.arch == "armel"
+        assert sig.os_name == "debian"
 
 
 if __name__ == "__main__":
