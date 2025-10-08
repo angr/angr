@@ -185,12 +185,18 @@ class SimEngineSSARewriting(
                         self.block.addr, self.block.idx, self.stmt_idx, base_reg_expr
                     )
                     assert base_reg_vvar is not None
+                    base_reg_value = self._partial_update_expr(
+                        existing_base_reg_vvar,
+                        base_offset,
+                        base_size,
+                        new_dst,
+                        stmt.dst.reg_offset,
+                        stmt.dst.size,
+                    )
                     stmt_base_reg = Assignment(
                         self.ail_manager.next_atom(),
                         base_reg_vvar,
-                        self._partial_update_expr(
-                            existing_base_reg_vvar, base_offset, base_size, new_dst, stmt.dst.reg_offset, stmt.dst.size
-                        ),
+                        base_reg_value,
                         **stmt.tags,
                     )
                     additional_stmts.append(stmt_base_reg)
@@ -203,6 +209,9 @@ class SimEngineSSARewriting(
                     for reg_off, reg_size in self.partial_reg_defs[base_offset]:
                         if reg_off == stmt.dst.reg_offset and reg_size == stmt.dst.size:
                             # we have already generated an assignment statement
+                            continue
+                        if stmt.dst.reg_offset + stmt.dst.size <= reg_off:
+                            # no overlap
                             continue
                         partial_dst = self._replace_def_reg(
                             self.block.addr,
@@ -640,12 +649,12 @@ class SimEngineSSARewriting(
         existing_vvar: Expression,
         base_offset: int,
         base_size: int,
-        new_vvar: VirtualVariable,
+        new_value: Expression,
         offset: int,
         size: int,
     ) -> VirtualVariable | Expression:
         if offset == base_offset and base_size == size:
-            return new_vvar
+            return new_value
         if base_offset > offset:
             raise ValueError(f"Base offset {base_offset} is greater than expression offset {offset}")
 
@@ -667,8 +676,8 @@ class SimEngineSSARewriting(
             size * self.arch.byte_width,
             base_size * self.arch.byte_width,
             False,
-            new_vvar,
-            **new_vvar.tags,
+            new_value,
+            **new_value.tags,
         )
         if base_offset < offset:
             shift_amount = Const(
