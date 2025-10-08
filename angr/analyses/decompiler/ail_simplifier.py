@@ -1248,7 +1248,7 @@ class AILSimplifier(Analysis):
             if to_replace_used_in_refs:
                 continue
 
-            if any(not isinstance(expr_and_use[0], VirtualVariable) for _, expr_and_use in all_uses_with_def):
+            if any(isinstance(expr_and_use[0], VirtualVariable) for _, expr_and_use in all_uses_with_def):
                 # if any of the uses are phi assignments, we skip
                 used_in_phi_assignment = False
                 for _, expr_and_use in all_uses_with_def:
