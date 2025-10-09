@@ -11,6 +11,8 @@ env:
   SKIP_SLOW_TESTS: 1
   RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code"
   LLVM_PROFILE_FILE: "%p-%m.profraw"
+  CFLAGS: "--coverage -O0 -g"
+  LDFLAGS: "--coverage -g"
 
 jobs:
   build:
@@ -77,9 +79,10 @@ jobs:
             --junitxml=junit.xml -o junit_family=legacy \
             --store-durations --clean-durations --durations-path=test_durations.json \
             || [[ $? -lt 2 ]]  # Accept success and test failures, fail on infrastructure problems (exit codes >1)
+          gcovr -r native --print-summary --xml-pretty -o coverage-native.xml
       - name: Check for results
         run: |
-          [[ -e junit.xml && -e coverage.xml && -e test_durations.json ]]
+          [[ -e junit.xml && -e coverage.xml && -e coverage-native.xml && -e test_durations.json ]]
       - name: Upload results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -88,6 +91,7 @@ jobs:
           path: |
             ./junit.xml
             ./coverage.xml
+            ./coverage-native.xml
             ./test_durations.json
             ./*.profraw
 
@@ -154,7 +158,7 @@ jobs:
       - name: Collect results
         id: files
         run: |
-          coverage=$(find . -type f -name 'coverage.xml' -o -name 'lcov*.info' -print | paste -sd, -)
+          coverage=$(find . -type f -name 'coverage*.xml' -o -name 'lcov*.info' -print | paste -sd, -)
           echo "coverage=$coverage" >> "$GITHUB_OUTPUT"
           junit=$(find . -type f -name 'junit.xml' -print | paste -sd, -)
           echo "junit=$junit" >> "$GITHUB_OUTPUT"
