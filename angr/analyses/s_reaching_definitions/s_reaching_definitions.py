@@ -151,10 +151,12 @@ class SReachingDefinitionsAnalysis(Analysis):
                     arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
 
                 for arg_reg_name in arg_locs:
-                    reg_offset = self.project.arch.registers[arg_reg_name][0]
+                    reg_offset, reg_size = self.project.arch.registers[arg_reg_name]
                     if reg_offset in reg_to_vvarids:
-                        vvarid = reg_to_vvarids[reg_offset]
-                        self.model.add_vvar_use(vvarid, None, codeloc)
+                        for vvar_size in reg_to_vvarids[reg_offset]:
+                            if vvar_size >= reg_size:
+                                vvarid = reg_to_vvarids[reg_offset][vvar_size]
+                                self.model.add_vvar_use(vvarid, None, codeloc)
 
         if self._track_tmps:
             # track tmps

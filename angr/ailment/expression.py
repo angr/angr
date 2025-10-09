@@ -345,9 +345,9 @@ class VirtualVariable(Atom):
         ori_str = ""
         match self.category:
             case VirtualVariableCategory.REGISTER:
-                ori_str = f"{{reg {self.reg_offset}}}"
+                ori_str = f"{{r{self.reg_offset}|{self.size}b}}"
             case VirtualVariableCategory.STACK:
-                ori_str = f"{{stack {self.oident}}}"
+                ori_str = f"{{s{self.oident}|{self.size}b}}"
         return f"vvar_{self.varid}{ori_str}"
 
     __hash__ = TaggedObject.__hash__  # type: ignore
