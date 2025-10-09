@@ -399,11 +399,11 @@ impl Icicle {
     }
 
     pub fn run(&mut self, py: Python) -> VmExit {
-        // By calling `py.allow_threads`, we allow Python to release the GIL and
+        // By calling `py.detach`, we allow Python to release the GIL and
         // allow other threads to run while the VM is executing. This allows
         // using multiple engines in parallel within a single Python process.
         let mut wrapped = SendWrapper::new(&mut self.vm);
-        py.allow_threads(|| (*wrapped).run().into())
+        py.detach(|| (*wrapped).run().into())
     }
 
     #[getter]
