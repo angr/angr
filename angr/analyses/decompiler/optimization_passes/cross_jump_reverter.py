@@ -5,8 +5,10 @@ import copy
 import logging
 import inspect
 
-from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 from angr.analyses.decompiler.counters import AILBlockCallCounter
+from angr.ailment.statement import ConditionalJump
+from angr.ailment.expression import Const
+from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 
 l = logging.getLogger(__name__)
 
@@ -49,33 +51,41 @@ class CrossJumpReverter(StructuringOptimizationPass):
         to_update = defaultdict(list)
         for node in self.out_graph.nodes:
             gotos = self._goto_manager.gotos_in_block(node)
-            # TODO: support if-stmts
             if not gotos or len(gotos) >= 2:
                 continue
 
+            goto_dst_addrs = []
+            if node.statements:
+                last_stmt = node.statements[-1]
+                if isinstance(last_stmt, ConditionalJump):
+                    if isinstance(last_stmt.true_target, Const):
+                        goto_dst_addrs.append(last_stmt.true_target.value)
+                    if isinstance(last_stmt.false_target, Const):
+                        goto_dst_addrs.append(last_stmt.false_target.value)
+            if not goto_dst_addrs:
+                goto = next(iter(gotos))
+                goto_dst_addrs.append(goto.dst_addr)
+
             # only blocks that have a single outgoing goto are candidates
             # for duplicates
-            goto = next(iter(gotos))
             for goto_target in self.out_graph.successors(node):
-                if goto_target.addr == goto.dst_addr:
+                if goto_target.addr in goto_dst_addrs:
+                    # the target goto block should only have a single outgoing edge
+                    # this prevents duplication of conditions
+                    # FIXME: Check a super block instead of a single block that may end with a call
+                    if self.out_graph.out_degree(goto_target) != 0:
+                        continue
+
+                    # minimize the number of calls in the target block that can be duplicated
+                    # to prevent duplication of big blocks
+                    counter = AILBlockCallCounter()
+                    counter.walk(goto_target)
+                    if counter.calls > self._max_call_dup:
+                        continue
+
+                    # [goto_target] = (pred1, pred2, ...)
+                    to_update[goto_target].append(node)
                     break
-            else:
-                goto_target = None
-
-            # the target goto block should only have a single outgoing edge
-            # this prevents duplication of conditions
-            if goto_target is None or self.out_graph.out_degree(goto_target) != 1:
-                continue
-
-            # minimize the number of calls in the target block that can be duplicated
-            # to prevent duplication of big blocks
-            counter = AILBlockCallCounter()
-            counter.walk(goto_target)
-            if counter.calls > self._max_call_dup:
-                continue
-
-            # [goto_target] = (pred1, pred2, ...)
-            to_update[goto_target].append(node)
 
         if not to_update:
             return False
