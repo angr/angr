@@ -29,7 +29,7 @@ FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware")
 
 def apply_patches(proj: angr.Project, patches: list[tuple[int, str]]):
     for addr, asm in patches:
-        patch_bytes = proj.arch.keystone.asm(asm, addr, as_bytes=True)[0]
+        patch_bytes = proj.arch.keystone.asm(asm, addr)[0]
         proj.kb.patches.add_patch(addr, patch_bytes)
 
 
