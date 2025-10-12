@@ -34,7 +34,7 @@ class DisassemblyPiece:
     addr = None
     ident = float("nan")
 
-    def render(self, formatting=None):
+    def render(self, formatting=None) -> list[str]:
         x = self._render(formatting)
         if len(x) == 1:
             return [self.highlight(x[0], formatting)]
@@ -73,7 +73,7 @@ class DisassemblyPiece:
             pass
         return string
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return False
 
 
@@ -175,7 +175,7 @@ class Instruction(DisassemblyPiece):
         self.arch = self.project.arch
         self.format = ""
         self.components = ()
-        self.opcode = None
+        self.opcode: Opcode = None  # type:ignore
         self.operands = []
 
         # the following members will be filled in after dissecting the instruction
@@ -596,7 +596,7 @@ class Opcode(DisassemblyPiece):
 class Operand(DisassemblyPiece):
     def __init__(self, op_num, children, parentinsn):
         self.addr = parentinsn.addr
-        self.children = children
+        self.children: list = children
         self.parentinsn = parentinsn
         self.op_num = op_num
         self.ident = (self.addr, "operand", self.op_num)
@@ -711,7 +711,7 @@ class MemoryOperand(Operand):
         self.segment_selector = None
         self.prefix = []
         self.suffix_str = ""  # could be arm pre index mark "!"
-        self.values = []
+        self.values: list[str | DisassemblyPiece] = []
         self.offset = []
         # offset_location
         # - prefix: -0xff00($gp)
@@ -740,8 +740,8 @@ class MemoryOperand(Operand):
             l.error("Failed to parse operand children %s. Please report to Fish.", self.children)
 
             # setup all dummy properties
-            self.prefix = None
-            self.values = None
+            self.prefix = []
+            self.values = []
 
     def _parse_memop_squarebracket(self):
         if self.children[0] != "[":
@@ -835,7 +835,7 @@ class MemoryOperand(Operand):
             value_str = custom_values_str
         else:
             sep = ", " if self.separator == "comma" else ""
-            value_str = sep.join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values)
+            value_str = sep.join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.values)
 
         if values_style == "curly":
             left_paren, right_paren = "{", "}"
@@ -845,7 +845,7 @@ class MemoryOperand(Operand):
             left_paren, right_paren = "[", "]"
 
         if self.offset:
-            offset_str = "".join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset)
+            offset_str = "".join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.offset)
 
             # combine values and offsets according to self.offset_location
             if self.offset_location == "prefix":
@@ -863,9 +863,7 @@ class MemoryOperand(Operand):
             prefix_str += " "
 
             if self.offset:
-                offset_str = "".join(
-                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset
-                )
+                offset_str = "".join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.offset)
 
                 # combine values and offsets according to self.offset_location
                 if self.offset_location == "prefix":
@@ -914,6 +912,7 @@ class Value(OperandPiece):
 
     @property
     def project(self):
+        assert self.parentop is not None
         return self.parentop.parentinsn.project
 
     def __eq__(self, other):
@@ -1115,10 +1114,11 @@ class Disassembly(Analysis):
         if irsb.statements is not None:
             if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
                 addr = None
-                for stmt_idx, op in enumerate(irsb._ops):
+                for stmt_idx, op in enumerate(irsb._ops):  # type:ignore
                     if op.opcode == pypcode.OpCode.IMARK:
                         addr = op.inputs[0].offset
                     else:
+                        assert addr is not None
                         addr_to_ops_map[addr].append(IROp(addr, stmt_idx, op, irsb))
             else:
                 for seq, stmt in enumerate(irsb.statements):
@@ -1202,22 +1202,23 @@ class Disassembly(Analysis):
         buf = []
 
         if formatting is None:
+            colors = (
+                {
+                    "address": "gray",
+                    "bytes": "cyan",
+                    "edge": "yellow",
+                    Label: "bright_yellow",
+                    ConstantOperand: "cyan",
+                    MemoryOperand: "yellow",
+                    Comment: "gray",
+                    Hook: "green",
+                }
+                if ansi_color_enabled and color
+                else {}
+            )
             formatting = {
-                "colors": (
-                    {
-                        "address": "gray",
-                        "bytes": "cyan",
-                        "edge": "yellow",
-                        Label: "bright_yellow",
-                        ConstantOperand: "cyan",
-                        MemoryOperand: "yellow",
-                        Comment: "gray",
-                        Hook: "green",
-                    }
-                    if ansi_color_enabled and color
-                    else {}
-                ),
-                "format_callback": lambda item, s: ansi_color(s, formatting["colors"].get(type(item), None)),
+                "colors": colors,
+                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item), None)),
             }
 
         def col(item: Any) -> str | None:
@@ -1270,12 +1271,14 @@ class Disassembly(Analysis):
                 # Format the instruction's address, bytes, disassembly, and comment
                 s_plain = format_address(item.addr, False)
                 s = format_address(item.addr)
+                bytes_column = 0
                 if show_bytes:
                     bytes_column = len(s_plain)
                     s_plain += format_bytes(insn_bytes[0], False)
                     s += format_bytes(insn_bytes[0])
                 s_plain += item.render()[0]
                 s += item.render(formatting)[0]
+                comment_column = 0
                 if comment is not None:
                     comment_column = len(s_plain)
                     s += format_comment(comment.text[0])

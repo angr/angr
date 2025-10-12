@@ -7,7 +7,7 @@ from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import Disassembly
-from angr.analyses.disassembly import MemoryOperand, Instruction
+from angr.analyses.disassembly import MemoryOperand, Instruction, Value
 from angr.errors import AngrTypeError
 
 
@@ -172,7 +172,9 @@ c  lw      $t9, -0x7ee0($gp)
         ins0op1 = ins0.operands[1]
         assert isinstance(ins0op1, MemoryOperand)
         assert len(ins0op1.values) == 1
-        assert ins0op1.values[0].val == 0x8041182
+        value = ins0op1.values[0]
+        assert isinstance(value, Value)
+        assert value.val == 0x8041182
 
 
 if __name__ == "__main__":
