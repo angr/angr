@@ -1505,6 +1505,18 @@ class PhoenixStructurer(StructurerBase):
             cond_case = 2
             switch_head_addr = last_stmt.ins_addr
 
+        graph = _f(graph_raw)
+        full_graph = _f(full_graph_raw)
+
+        # special fix
+        if (
+            len(successor_addrs) == 2
+            and graph.out_degree[node] == 2
+            and len(set(successor_addrs).intersection({succ.addr for succ in graph.successors(node)})) == 1
+        ):
+            # there is an unmatched successor addr! fix it
+            successor_addrs = [succ.addr for succ in graph.successors(node)]
+
         for t in successor_addrs:
             if t in self.jump_tables:
                 # this is a candidate!
@@ -1535,9 +1547,6 @@ class PhoenixStructurer(StructurerBase):
         jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
-
-        graph = _f(graph_raw)
-        full_graph = _f(full_graph_raw)
 
         node_a = next(iter(nn for nn in graph.nodes if nn.addr == target), None)
         if node_a is None:
@@ -2309,6 +2318,8 @@ class PhoenixStructurer(StructurerBase):
     def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
         if self._is_node_unstructured_switch_case_head(node):
             return True
+        if isinstance(node, IncompleteSwitchCaseNode):
+            return True
         for succ in graph.successors(node):
             if self._is_node_unstructured_switch_case_head(succ):
                 return True
@@ -2325,20 +2336,31 @@ class PhoenixStructurer(StructurerBase):
         graph = _f(graph_raw)
 
         succs = list(graph.successors(start_node))
-        if len(succs) == 1:
-            end_node = succs[0]
-            if (
-                full_graph.out_degree[start_node] == 1
-                and full_graph.in_degree[end_node] == 1
-                and not full_graph.has_edge(end_node, start_node)
-                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node)
-                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
-                and end_node not in self.dowhile_known_tail_nodes
-                and not isinstance(end_node, IncompleteSwitchCaseNode)
-            ):
+        if len(succs) != 1:
+            return False
+        end_node = succs[0]
+        if (
+            full_graph.out_degree[start_node] == 1
+            and full_graph.in_degree[end_node] == 1
+            and not full_graph.has_edge(end_node, start_node)
+            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
+            and end_node not in self.dowhile_known_tail_nodes
+        ):
+            new_seq = None
+            if not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
+            elif isinstance(end_node, IncompleteSwitchCaseNode):
+                # a special case where there is a node between the actual switch-case head and the jump table
+                # head
+                # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 0x1400326C0
+                # keep the IncompleteSwitchCaseNode, and merge two blocks into the head of the IncompleteSwitchCaseNode.
+                new_seq = self._merge_nodes(start_node, end_node.head)
+                new_seq.addr = end_node.addr
+                end_node.head = new_seq
+                new_seq = end_node
 
+            if new_seq is not None:
                 # on the original graph
                 self.replace_nodes(graph_raw, start_node, new_seq, old_node_1=end_node if end_node in graph else None)
                 # on the graph with successors

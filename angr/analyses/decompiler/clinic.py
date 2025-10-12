@@ -2545,6 +2545,11 @@ class Clinic(Analysis):
             intended_head = preds[0]
             other_heads = preds[1:]
 
+            # I've seen cases where there is one more block between the actual intended head and the candidate.
+            # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, block 0x140032760
+            while ail_graph.out_degree[intended_head] == 1 and ail_graph.in_degree[intended_head] == 1:
+                intended_head = next(iter(ail_graph.predecessors(intended_head)))
+
             # now here is the tricky part. there are two cases:
             # Case 1: the intended head and the other heads share the same suffix (of instructions)
             #    Example:
@@ -2649,8 +2654,6 @@ class Clinic(Analysis):
     def _get_overlapping_suffix_instructions_compare_conditional_jumps(
         ailblock_0: ailment.Block, ailblock_1: ailment.Block
     ) -> bool:
-        # TODO: The logic here is naive and highly customized to the only example I can access. Expand this method
-        #  later to handle more cases if needed.
         if len(ailblock_0.statements) == 0 or len(ailblock_1.statements) == 0:
             return False
 
@@ -2663,7 +2666,10 @@ class Clinic(Analysis):
 
         last_stmt_0 = ailblock_0.statements[-1]
         last_stmt_1 = ailblock_1.statements[-1]
-        if not (isinstance(last_stmt_0, ailment.Stmt.ConditionalJump) and last_stmt_0.likes(last_stmt_1)):
+        if not (
+            isinstance(last_stmt_0, ailment.Stmt.ConditionalJump)
+            and isinstance(last_stmt_1, ailment.Stmt.ConditionalJump)
+        ):
             return False
 
         last_cmp_stmt_0 = next(
