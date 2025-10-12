@@ -5327,6 +5327,21 @@ class TestDecompiler(unittest.TestCase):
             in normalize_whitespace(dec.codegen.text)
         )
 
+    def test_decompiling_arduino_giga_flash_webhandler_switch_case(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "armhf", "decompiler", "06aa650f61d71744c6709c7c092d9169.hex")
+        proj = angr.Project(bin_path, auto_load_libs=False, main_opts={"backend": "hex", "arch": "ARMCortexM"})
+        cfg = proj.analyses.CFG(normalize=True, regions=[(0x8040F69, 0x8040F69 + 0x1000)])
+        proj.analyses.CompleteCallingConventions(analyze_callsites=False)
+        func = proj.kb.functions[0x8040F69]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # we should be properly structuring the switch-case inside this function
+        assert "switch (g_24000e6b)" in dec.codegen.text
+        for case_no in [0, 2, 3, 4, 5]:
+            assert f"case {case_no}:" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
