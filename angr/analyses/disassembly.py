@@ -776,9 +776,26 @@ class MemoryOperand(Operand):
 
         self.values = self.children[square_bracket_pos + 1 : close_square_pos]
         if len(self.values) >= 3 and self.values[1] == ",":
-            # arm style memory operand: [r0, #0x10]
+            # arm style memory operand: [r0, #0x10], or [pc, r3, lsl #1]
             self.separator = "comma"
-            self.values = self.values[:1] + self.values[2:]
+            # remove all commas and consolidate all remaining strings
+            new_values = []
+            last_item = None
+            for v in self.values:
+                if v == ",":
+                    if last_item is not None:
+                        new_values.append(last_item)
+                        last_item = None
+                elif isinstance(v, str):
+                    last_item = v if last_item is None else last_item + v
+                else:
+                    if last_item is not None:
+                        new_values.append(last_item)
+                        last_item = None
+                    new_values.append(v)
+            if last_item is not None:
+                new_values.append(last_item)
+            self.values = new_values
 
     def _parse_memop_paren(self):
         offset = []
@@ -834,7 +851,7 @@ class MemoryOperand(Operand):
         if custom_values_str is not None:
             value_str = custom_values_str
         else:
-            sep = ", " if self.separator == "comma" else ""
+            sep = "," if self.separator == "comma" else ""
             value_str = sep.join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.values)
 
         if values_style == "curly":

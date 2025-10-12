@@ -7,7 +7,7 @@ from archinfo import ArchAArch64
 
 import angr
 from angr.analyses import Disassembly
-from angr.analyses.disassembly import MemoryOperand, Instruction, Value
+from angr.analyses.disassembly import MemoryOperand, Instruction, Value, Register
 from angr.errors import AngrTypeError
 
 
@@ -175,6 +175,26 @@ c  lw      $t9, -0x7ee0($gp)
         value = ins0op1.values[0]
         assert isinstance(value, Value)
         assert value.val == 0x8041182
+        assert ins0.render()[0] == "ldr     r1, [0x8041182]"
+
+    def test_arm_three_piece_memory_operand(self):
+        proj = angr.load_shellcode(b"\xdf\xe8\x13\xf0", "ARMCortexM", load_address=0x80407F4)
+        # 0x80407f4:    tbh  [pc, r3, lsl #2]
+
+        block = proj.factory.block(0x80407F5)
+        disass = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
+        result = disass.raw_result
+
+        assert len(result) == 2, f"Incorrect number of instructions ({len(result)})"
+        ins0 = result[1]
+        assert len(ins0.operands) == 1
+        ins0op0 = ins0.operands[0]
+        assert isinstance(ins0op0, MemoryOperand)
+        assert len(ins0op0.values) == 3
+        assert isinstance(ins0op0.values[0], Register)
+        assert isinstance(ins0op0.values[1], Register)
+        assert isinstance(ins0op0.values[2], str)
+        assert ins0.render()[0] == "tbh     [pc,r3,lsl#1]"
 
 
 if __name__ == "__main__":
