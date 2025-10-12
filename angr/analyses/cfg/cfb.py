@@ -6,6 +6,7 @@ from collections.abc import Callable
 import cle
 from cle.backends.externs import KernelObject, ExternObject
 from cle.backends.tls.elf_tls import ELFTLSObject
+from cle.backends.ihex import Hex
 from sortedcontainers import SortedDict
 
 from angr.analyses import AnalysesHub
@@ -162,6 +163,16 @@ class CFBlanket(Analysis):
                 if "tls" not in self._exclude_region_types:
                     size = obj.max_addr - obj.min_addr
                     mr = MemoryRegion(obj.min_addr, size, "tls", obj, None)
+                    self._regions.append(mr)
+            elif isinstance(obj, Hex):
+                if obj.segments:
+                    for segment in obj.segments:
+                        mr = MemoryRegion(segment.vaddr, segment.memsize, "segment", obj, segment)
+                        self._regions.append(mr)
+                else:
+                    base_addr = obj.min_addr  # but it's always 0
+                    size = obj.max_addr - base_addr
+                    mr = MemoryRegion(base_addr, size, "segment", obj, None)
                     self._regions.append(mr)
             else:
                 size = obj.size if hasattr(obj, "size") else obj.max_addr - obj.min_addr
