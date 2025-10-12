@@ -357,26 +357,27 @@ class ProximityGraphAnalysis(Analysis):
         def _handle_Call(
             stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None  # pylint:disable=unused-argument
         ):  # pylint:disable=unused-argument
-            func_node = self.kb.functions[stmt.target.value]
-            ref_at = {stmt.ins_addr}
+            if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
+                func_node = self.kb.functions[stmt.target.value]
+                ref_at = {stmt.ins_addr}
 
-            # extract arguments
-            args = []
-            if stmt.args:
-                for arg in stmt.args:
-                    self._arg_handler(arg, args, string_refs)
+                # extract arguments
+                args = []
+                if stmt.args:
+                    for arg in stmt.args:
+                        self._arg_handler(arg, args, string_refs)
 
-            if (
-                self._expand_funcs and func_node.addr in self._expand_funcs
-            ):  # pylint:disable=unsupported-membership-test
-                new_node = FunctionProxiNode(func_node, ref_at=ref_at)
-                if new_node not in to_expand:
-                    to_expand.append(new_node)
-            else:
-                new_node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
+                if (
+                    self._expand_funcs and func_node.addr in self._expand_funcs
+                ):  # pylint:disable=unsupported-membership-test
+                    new_node = FunctionProxiNode(func_node, ref_at=ref_at)
+                    if new_node not in to_expand:
+                        to_expand.append(new_node)
+                else:
+                    new_node = CallProxiNode(func_node, ref_at=ref_at, args=tuple(args) if args is not None else None)
 
-            # stmt has been properly handled, add the proxi node to the list
-            self.handled_stmts.append(new_node)
+                # stmt has been properly handled, add the proxi node to the list
+                self.handled_stmts.append(new_node)
 
         # This should have the same functionality as the previous handler
         def _handle_CallExpr(
