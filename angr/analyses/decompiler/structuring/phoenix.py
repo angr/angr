@@ -1605,9 +1605,16 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
-            # special case: if node_default is None and node_a has a missing case, then we know the default node is in
-            # a parent region. we cannot structure this switch-case right now
-            if len(node_a.cases) == len(set(jump_table.jumptable_entries)) - 1 and node_default is None:
+            # special case: if node_default is None, node_a has a missing case, and node_a has a successor in the full
+            # graph that is not the default node, then we know
+            # 1. there is a default node (instead of the successor of the entire switch-case construct).
+            # 2. the default node is in a parent region.
+            # as a result, we cannot structure this switch-case right now
+            if (
+                len(node_a.cases) == len(set(jump_table.jumptable_entries)) - 1
+                and node_default is None
+                and len([succ for succ in full_graph.successors(node_a) if succ.addr != node_b_addr]) > 0
+            ):
                 return False
 
             r = self._unpack_incompleteswitchcasenode(graph_raw, node_a, jump_table.jumptable_entries)
@@ -1748,6 +1755,10 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node, IncompleteSwitchCaseNode):
+            if len(set(jump_table.jumptable_entries)) > len(node.cases):
+                # it has a missing default case node! we cannot structure it as a no-default switch-case
+                return False
+
             r = self._unpack_incompleteswitchcasenode(graph_raw, node, jump_table.jumptable_entries)
             if not r:
                 return False
