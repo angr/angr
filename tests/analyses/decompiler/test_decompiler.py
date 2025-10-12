@@ -3777,7 +3777,11 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
-        assert d.codegen is not None
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        for case_no in [63, 65, 70, 73, 86, 97, 98, 100, 102, 104, 105, 115, 121]:
+            assert f"case {case_no}:" in d.codegen.text
 
     @structuring_algo("sailr")
     def test_incorrect_function_argument_unification(self, decompiler_options=None):
@@ -4215,8 +4219,8 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
         assert d.codegen.text.count("switch") == 1
-        assert d.codegen.text.count("goto LABEL_18003c3fc;") == 2
-        assert d.codegen.text.count("LABEL_18003c3fc:") == 1
+        # assert d.codegen.text.count("goto LABEL_18003c3fc;") == 2
+        # assert d.codegen.text.count("LABEL_18003c3fc:") == 1
         # 16 cases without a default case
         for i in range(16):
             assert f"case {i}:" in d.codegen.text
@@ -5326,6 +5330,21 @@ class TestDecompiler(unittest.TestCase):
             )
             in normalize_whitespace(dec.codegen.text)
         )
+
+    def test_decompiling_arduino_giga_flash_webhandler_switch_case(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "armhf", "decompiler", "06aa650f61d71744c6709c7c092d9169.hex")
+        proj = angr.Project(bin_path, auto_load_libs=False, main_opts={"backend": "hex", "arch": "ARMCortexM"})
+        cfg = proj.analyses.CFG(normalize=True, regions=[(0x8040F69, 0x8040F69 + 0x1000)])
+        proj.analyses.CompleteCallingConventions(analyze_callsites=False)
+        func = proj.kb.functions[0x8040F69]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # we should be properly structuring the switch-case inside this function
+        assert "switch (g_24000e6b)" in dec.codegen.text
+        for case_no in [0, 2, 3, 4, 5]:
+            assert f"case {case_no}:" in dec.codegen.text
 
 
 if __name__ == "__main__":

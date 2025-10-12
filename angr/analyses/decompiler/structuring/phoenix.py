@@ -1464,6 +1464,8 @@ class PhoenixStructurer(StructurerBase):
         switch_head_addr: int = 0
 
         # case 1: the last block is a ConditionNode with two goto statements
+        cond_expr_or_stmt = None
+        cond_case = None
         if isinstance(node, SequenceNode) and node.nodes and isinstance(node.nodes[-1], ConditionNode):
             cond_node = node.nodes[-1]
             assert isinstance(cond_node, ConditionNode)
@@ -1480,14 +1482,8 @@ class PhoenixStructurer(StructurerBase):
                 if len(successor_addrs) != 2 or None in successor_addrs:
                     return False
 
-                # extract the comparison expression, lower-, and upper-bounds from the last statement
-                cmp = switch_extract_cmp_bounds_from_condition(
-                    self.cond_proc.convert_claripy_bool_ast(cond_node.condition)
-                )
-                if not cmp:
-                    return False
-                cmp_expr, cmp_lb, _cmp_ub = cmp
-
+                cond_expr_or_stmt = cond_node.condition
+                cond_case = 1
                 assert cond_node.addr is not None
                 switch_head_addr = cond_node.addr
 
@@ -1505,13 +1501,21 @@ class PhoenixStructurer(StructurerBase):
             if len(successor_addrs) != 2:
                 return False
 
-            # extract the comparison expression, lower-, and upper-bounds from the last statement
-            cmp = switch_extract_cmp_bounds(last_stmt)
-            if not cmp:
-                return False
-            cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
-
+            cond_expr_or_stmt = last_stmt
+            cond_case = 2
             switch_head_addr = last_stmt.ins_addr
+
+        graph = _f(graph_raw)
+        full_graph = _f(full_graph_raw)
+
+        # special fix
+        if (
+            len(successor_addrs) == 2
+            and graph.out_degree[node] == 2
+            and len(set(successor_addrs).intersection({succ.addr for succ in graph.successors(node)})) == 1
+        ):
+            # there is an unmatched successor addr! fix it
+            successor_addrs = [succ.addr for succ in graph.successors(node)]
 
         for t in successor_addrs:
             if t in self.jump_tables:
@@ -1521,12 +1525,28 @@ class PhoenixStructurer(StructurerBase):
         else:
             return False
 
+        # extract the comparison expression, lower-, and upper-bounds from the last statement
+        match cond_case:
+            case 1:
+                cmp = switch_extract_cmp_bounds_from_condition(
+                    self.cond_proc.convert_claripy_bool_ast(cond_expr_or_stmt)
+                )
+                if not cmp:
+                    return False
+            case 2:
+                # extract the comparison expression, lower-, and upper-bounds from the last statement
+                cmp = switch_extract_cmp_bounds(cond_expr_or_stmt)
+                if not cmp:
+                    return False
+            case _:
+                # unreachable!
+                return False
+
+        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
+
         jump_table = self.jump_tables[target]
         if jump_table.type != IndirectJumpType.Jumptable_AddressLoadedFromMemory:
             return False
-
-        graph = _f(graph_raw)
-        full_graph = _f(full_graph_raw)
 
         node_a = next(iter(nn for nn in graph.nodes if nn.addr == target), None)
         if node_a is None:
@@ -1585,10 +1605,24 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node_a)
+            # special case: if node_default is None, node_a has a missing case, and node_a has a successor in the full
+            # graph that is not the default node, then we know
+            # 1. there is a default node (instead of the successor of the entire switch-case construct).
+            # 2. the default node is in a parent region.
+            # as a result, we cannot structure this switch-case right now
+            if (
+                len(node_a.cases) == len(set(jump_table.jumptable_entries)) - 1
+                and node_default is None
+                and len([succ for succ in full_graph.successors(node_a) if succ.addr != node_b_addr]) > 0
+            ):
+                return False
+
+            r = self._unpack_incompleteswitchcasenode(graph_raw, node_a, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(full_graph_raw, node_a)  # this shall not fail
+            self._unpack_incompleteswitchcasenode(
+                full_graph_raw, node_a, jump_table.jumptable_entries
+            )  # this shall not fail
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
             if self._node_order is not None:
@@ -1721,10 +1755,16 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node, IncompleteSwitchCaseNode):
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node)
+            if len(set(jump_table.jumptable_entries)) > len(node.cases):
+                # it has a missing default case node! we cannot structure it as a no-default switch-case
+                return False
+
+            r = self._unpack_incompleteswitchcasenode(graph_raw, node, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(full_graph_raw, node)  # this shall not fail
+            self._unpack_incompleteswitchcasenode(
+                full_graph_raw, node, jump_table.jumptable_entries
+            )  # this shall not fail
             # update node
             node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
 
@@ -1934,31 +1974,35 @@ class PhoenixStructurer(StructurerBase):
 
         jump_table = self.jump_tables[node.addr]
         assert jump_table.jumptable_entries is not None
-        if (
-            successors
-            and {succ.addr for succ in successors} == set(jump_table.jumptable_entries)
-            and all(graph.in_degree[succ] == 1 for succ in successors)
-        ):
-            out_nodes = set()
-            for succ in successors:
-                out_nodes |= {
-                    succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
-                }
-            out_nodes = list(out_nodes)
-            if len(out_nodes) <= 1 and node.addr not in self._matched_incomplete_switch_case_addrs:
-                self._matched_incomplete_switch_case_addrs.add(node.addr)
-                new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
-                graph_raw.remove_nodes_from(successors)
-                self.replace_nodes(graph_raw, node, new_node)
-                if out_nodes and out_nodes[0] in graph:
-                    graph_raw.add_edge(new_node, out_nodes[0])
-                full_graph_raw.remove_nodes_from(successors)
-                self.replace_nodes(full_graph_raw, node, new_node, update_node_order=True)
-                if out_nodes:
-                    full_graph_raw.add_edge(new_node, out_nodes[0])
-                if self._node_order:
-                    self._node_order[new_node] = self._node_order[node]
-                return True
+
+        if successors and all(graph.in_degree[succ] == 1 for succ in successors):
+            succ_addrs = {succ.addr for succ in successors}
+            expected_entry_addrs = set(jump_table.jumptable_entries)
+            # test if we have found all entries or all but one entry (where the one missing entry is likely the default
+            # case).
+            if succ_addrs == expected_entry_addrs or (
+                succ_addrs.issubset(expected_entry_addrs) and len(expected_entry_addrs - succ_addrs) == 1
+            ):
+                out_nodes = set()
+                for succ in successors:
+                    out_nodes |= {
+                        succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
+                    }
+                out_nodes = list(out_nodes)
+                if len(out_nodes) <= 1 and node.addr not in self._matched_incomplete_switch_case_addrs:
+                    self._matched_incomplete_switch_case_addrs.add(node.addr)
+                    new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
+                    graph_raw.remove_nodes_from(successors)
+                    self.replace_nodes(graph_raw, node, new_node)
+                    if out_nodes and out_nodes[0] in graph:
+                        graph_raw.add_edge(new_node, out_nodes[0])
+                    full_graph_raw.remove_nodes_from(successors)
+                    self.replace_nodes(full_graph_raw, node, new_node, update_node_order=True)
+                    if out_nodes:
+                        full_graph_raw.add_edge(new_node, out_nodes[0])
+                    if self._node_order:
+                        self._node_order[new_node] = self._node_order[node]
+                    return True
         return False
 
     def _switch_build_cases(
@@ -2195,9 +2239,11 @@ class PhoenixStructurer(StructurerBase):
                 out_dst_succs_fullgraph = []
                 for _, o in other_out_edges:
                     if o in graph:
-                        out_dst_succs.append(o)
+                        if o not in out_dst_succs:
+                            out_dst_succs.append(o)
                     elif o in full_graph:
-                        out_dst_succs_fullgraph.append(o)
+                        if o not in out_dst_succs_fullgraph:
+                            out_dst_succs_fullgraph.append(o)
                 out_dst_succ = sorted(out_dst_succs, key=lambda o: o.addr)[0] if out_dst_succs else None
                 out_dst_succ_fullgraph = (
                     sorted(out_dst_succs_fullgraph, key=lambda o: o.addr)[0] if out_dst_succs_fullgraph else None
@@ -2283,6 +2329,8 @@ class PhoenixStructurer(StructurerBase):
     def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
         if self._is_node_unstructured_switch_case_head(node):
             return True
+        if isinstance(node, IncompleteSwitchCaseNode):
+            return True
         for succ in graph.successors(node):
             if self._is_node_unstructured_switch_case_head(succ):
                 return True
@@ -2299,20 +2347,31 @@ class PhoenixStructurer(StructurerBase):
         graph = _f(graph_raw)
 
         succs = list(graph.successors(start_node))
-        if len(succs) == 1:
-            end_node = succs[0]
-            if (
-                full_graph.out_degree[start_node] == 1
-                and full_graph.in_degree[end_node] == 1
-                and not full_graph.has_edge(end_node, start_node)
-                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node)
-                and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
-                and end_node not in self.dowhile_known_tail_nodes
-                and not isinstance(end_node, IncompleteSwitchCaseNode)
-            ):
+        if len(succs) != 1:
+            return False
+        end_node = succs[0]
+        if (
+            full_graph.out_degree[start_node] == 1
+            and full_graph.in_degree[end_node] == 1
+            and not full_graph.has_edge(end_node, start_node)
+            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, start_node)
+            and end_node not in self.dowhile_known_tail_nodes
+        ):
+            new_seq = None
+            if not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(full_graph, end_node):
                 # merge two blocks
                 new_seq = self._merge_nodes(start_node, end_node)
+            elif isinstance(end_node, IncompleteSwitchCaseNode):
+                # a special case where there is a node between the actual switch-case head and the jump table
+                # head
+                # binary 7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb, function 0x1400326C0
+                # keep the IncompleteSwitchCaseNode, and merge two blocks into the head of the IncompleteSwitchCaseNode.
+                new_seq = self._merge_nodes(start_node, end_node.head)
+                new_seq.addr = end_node.addr
+                end_node.head = new_seq
+                new_seq = end_node
 
+            if new_seq is not None:
                 # on the original graph
                 self.replace_nodes(graph_raw, start_node, new_seq, old_node_1=end_node if end_node in graph else None)
                 # on the graph with successors
@@ -3267,17 +3326,23 @@ class PhoenixStructurer(StructurerBase):
         return True, new_seq
 
     @staticmethod
-    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode) -> bool:
+    def _unpack_incompleteswitchcasenode(
+        graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode, jumptable_entries: list[int]
+    ) -> bool:
         preds = list(graph.predecessors(incscnode))
         succs = list(graph.successors(incscnode))
-        if len(succs) <= 1:
+        non_case_succs = [succ for succ in succs if succ.addr not in jumptable_entries]
+        if len(non_case_succs) <= 1:
             graph.remove_node(incscnode)
             for pred in preds:
                 graph.add_edge(pred, incscnode.head)
+            for succ in succs:
+                if succ not in non_case_succs:
+                    graph.add_edge(incscnode.head, succ)
             for case_node in incscnode.cases:
                 graph.add_edge(incscnode.head, case_node)
-                if succs:
-                    graph.add_edge(case_node, succs[0])
+                if non_case_succs:
+                    graph.add_edge(case_node, non_case_succs[0])
             return True
         return False
 

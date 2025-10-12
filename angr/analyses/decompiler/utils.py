@@ -163,12 +163,30 @@ def switch_extract_cmp_bounds(
 def switch_extract_cmp_bounds_from_condition(cond: ailment.Expr.Expression) -> tuple[Any, int, int] | None:
     # TODO: Add more operations
     if isinstance(cond, ailment.Expr.BinaryOp):
-        if cond.op in {"CmpLE", "CmpLT"}:
-            if not (isinstance(cond.operands[1], ailment.Expr.Const) and isinstance(cond.operands[1].value, int)):
+        op = cond.op
+        op0, op1 = cond.operands
+        if not isinstance(op1, ailment.Expr.Const):
+            # swap them
+            match op:
+                case "CmpLE":
+                    op = "CmpGE"
+                case "CmpLT":
+                    op = "CmpGT"
+                case "CmpGE":
+                    op = "CmpLE"
+                case "CmpGT":
+                    op = "CmpLT"
+                case _:
+                    # unsupported
+                    return None
+            op0, op1 = op1, op0
+
+        if op in {"CmpLE", "CmpLT"}:
+            if not (isinstance(op1, ailment.Expr.Const) and isinstance(op1.value, int)):
                 return None
-            cmp_ub = cond.operands[1].value if cond.op == "CmpLE" else cond.operands[1].value - 1
+            cmp_ub = op1.value if op == "CmpLE" else op1.value - 1
             cmp_lb = 0
-            cmp = cond.operands[0]
+            cmp = op0
             if (
                 isinstance(cmp, ailment.Expr.BinaryOp)
                 and cmp.op == "Sub"
@@ -180,15 +198,15 @@ def switch_extract_cmp_bounds_from_condition(cond: ailment.Expr.Expression) -> t
                 cmp = cmp.operands[0]
             return cmp, cmp_lb, cmp_ub
 
-        if cond.op in {"CmpGE", "CmpGT"}:
+        if op in {"CmpGE", "CmpGT"}:
             # We got the negated condition here
             #  CmpGE -> CmpLT
             #  CmpGT -> CmpLE
-            if not (isinstance(cond.operands[1], ailment.Expr.Const) and isinstance(cond.operands[1].value, int)):
+            if not (isinstance(op1, ailment.Expr.Const) and isinstance(op1.value, int)):
                 return None
-            cmp_ub = cond.operands[1].value if cond.op == "CmpGT" else cond.operands[1].value - 1
+            cmp_ub = op1.value if op == "CmpGT" else op1.value - 1
             cmp_lb = 0
-            cmp = cond.operands[0]
+            cmp = op0
             if (
                 isinstance(cmp, ailment.Expr.BinaryOp)
                 and cmp.op == "Sub"
