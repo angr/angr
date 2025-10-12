@@ -3777,7 +3777,11 @@ class TestDecompiler(unittest.TestCase):
         f = proj.kb.functions["main"]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
 
-        assert d.codegen is not None
+        assert d.codegen is not None and d.codegen.text is not None
+        print_decompilation_result(d)
+
+        for case_no in [63, 65, 70, 73, 86, 97, 98, 100, 102, 104, 105, 115, 121]:
+            assert f"case {case_no}:" in d.codegen.text
 
     @structuring_algo("sailr")
     def test_incorrect_function_argument_unification(self, decompiler_options=None):

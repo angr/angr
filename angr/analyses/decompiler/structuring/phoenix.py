@@ -1596,10 +1596,17 @@ class PhoenixStructurer(StructurerBase):
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
         if isinstance(node_a, IncompleteSwitchCaseNode):
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node_a)
+            # special case: if node_default is None and node_a has a missing case, then we know the default node is in
+            # a parent region. we cannot structure this switch-case right now
+            if len(node_a.cases) == len(set(jump_table.jumptable_entries)) - 1 and node_default is None:
+                return False
+
+            r = self._unpack_incompleteswitchcasenode(graph_raw, node_a, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(full_graph_raw, node_a)  # this shall not fail
+            self._unpack_incompleteswitchcasenode(
+                full_graph_raw, node_a, jump_table.jumptable_entries
+            )  # this shall not fail
             # update node_a
             node_a = next(iter(nn for nn in graph.nodes if nn.addr == target))
             if self._node_order is not None:
@@ -1732,10 +1739,12 @@ class PhoenixStructurer(StructurerBase):
 
         # un-structure IncompleteSwitchCaseNode
         if isinstance(node, IncompleteSwitchCaseNode):
-            r = self._unpack_incompleteswitchcasenode(graph_raw, node)
+            r = self._unpack_incompleteswitchcasenode(graph_raw, node, jump_table.jumptable_entries)
             if not r:
                 return False
-            self._unpack_incompleteswitchcasenode(full_graph_raw, node)  # this shall not fail
+            self._unpack_incompleteswitchcasenode(
+                full_graph_raw, node, jump_table.jumptable_entries
+            )  # this shall not fail
             # update node
             node = next(iter(nn for nn in graph.nodes if nn.addr == jump_table.addr))
 
@@ -3284,17 +3293,23 @@ class PhoenixStructurer(StructurerBase):
         return True, new_seq
 
     @staticmethod
-    def _unpack_incompleteswitchcasenode(graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode) -> bool:
+    def _unpack_incompleteswitchcasenode(
+        graph: networkx.DiGraph, incscnode: IncompleteSwitchCaseNode, jumptable_entries: list[int]
+    ) -> bool:
         preds = list(graph.predecessors(incscnode))
         succs = list(graph.successors(incscnode))
-        if len(succs) <= 1:
+        non_case_succs = [succ for succ in succs if succ.addr not in jumptable_entries]
+        if len(non_case_succs) <= 1:
             graph.remove_node(incscnode)
             for pred in preds:
                 graph.add_edge(pred, incscnode.head)
+            for succ in succs:
+                if succ not in non_case_succs:
+                    graph.add_edge(incscnode.head, succ)
             for case_node in incscnode.cases:
                 graph.add_edge(incscnode.head, case_node)
-                if succs:
-                    graph.add_edge(case_node, succs[0])
+                if non_case_succs:
+                    graph.add_edge(case_node, non_case_succs[0])
             return True
         return False
 
