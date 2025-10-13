@@ -15,7 +15,7 @@ Project repository: https://github.com/angr/angr
 
 Documentation: https://docs.angr.io
 
-API Documentation: https://api.angr.io/en/latest/
+API Documentation: https://docs.angr.io/en/latest/api.html
 
 ## What is angr?
 
@@ -29,7 +29,7 @@ angr is a suite of Python 3 libraries that let you load a binary and do a lot of
 - Value-set analysis (VSA)
 - Decompilation
 
-The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in an enhanced REPL like IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](https://docs.angr.io/docs/toplevel) and their docstrings.
+The most common angr operation is loading a binary: `p = angr.Project('/bin/bash')` If you do this in an enhanced REPL like IPython, you can use tab-autocomplete to browse the [top-level-accessible methods](https://docs.angr.io/core-concepts/toplevel) and their docstrings.
 
 The short version of "how to install angr" is `mkvirtualenv --python=$(which python3) angr && python -m pip install angr`.
 
@@ -57,5 +57,5 @@ project.execute()
 - Documentation as [HTML](https://docs.angr.io/) and sources in the angr [Github repository](https://github.com/angr/angr/tree/master/docs)
 - Dive right in: [top-level-accessible methods](https://docs.angr.io/core-concepts/toplevel)
 - [Examples using angr to solve CTF challenges](https://docs.angr.io/examples).
-- [API Reference](https://angr.io/api-doc/)
+- [API Reference](https://docs.angr.io/en/latest/api.html)
 - [awesome-angr repo](https://github.com/degrigis/awesome-angr)
