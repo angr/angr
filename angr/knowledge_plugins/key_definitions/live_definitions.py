@@ -419,7 +419,8 @@ class LiveDefinitions:
         sp_v = sp_values.one_value()
         if sp_v is None:
             values = [v for v in next(iter(sp_values.values())) if self.get_stack_offset(v) is not None]
-            assert len({self.get_stack_offset(v) for v in values}) == 1
+            if len({self.get_stack_offset(v) for v in values}) != 1:
+                return None
             return self.get_stack_offset(values[0])
 
         return self.get_stack_offset(sp_v)
