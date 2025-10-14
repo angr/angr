@@ -82,7 +82,9 @@ class DepGraph:
         """
         return self._graph.predecessors(node)
 
-    def transitive_closure(self, definition: Definition[Atom], recompute: bool = False) -> networkx.DiGraph[Definition[Atom]]:
+    def transitive_closure(
+        self, definition: Definition[Atom], recompute: bool = False
+    ) -> networkx.DiGraph[Definition[Atom]]:
         """
         Compute the "transitive closure" of a given definition.
         Obtained by transitively aggregating the ancestors of this definition in the graph.
