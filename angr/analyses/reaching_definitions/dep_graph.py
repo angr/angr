@@ -90,7 +90,7 @@ class DepGraph:
         Note: Each definition is memoized to avoid any kind of recomputation across the lifetime of this object.
 
         :param definition:  The Definition to get transitive closure for.
-        :param recompute:   Whether to recompute the transitive closure, even if it has been computed before.
+        :param recompute:   Whether to recompute the transitive closure.
         :return:            A graph of the transitive closure of the given definition.
         """
 
