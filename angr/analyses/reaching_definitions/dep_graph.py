@@ -82,7 +82,7 @@ class DepGraph:
         """
         return self._graph.predecessors(node)
 
-    def transitive_closure(self, definition: Definition[Atom]) -> networkx.DiGraph[Definition[Atom]]:
+    def transitive_closure(self, definition: Definition[Atom],recompute: bool = False) -> "networkx.DiGraph[Definition[Atom]]":
         """
         Compute the "transitive closure" of a given definition.
         Obtained by transitively aggregating the ancestors of this definition in the graph.
@@ -90,24 +90,27 @@ class DepGraph:
         Note: Each definition is memoized to avoid any kind of recomputation across the lifetime of this object.
 
         :param definition:  The Definition to get transitive closure for.
+        :param recompute:   Whether to recompute the transitive closure, even if it has been computed before.
         :return:            A graph of the transitive closure of the given definition.
         """
 
         def _transitive_closure(
             def_: Definition[Atom],
-            graph: networkx.DiGraph[Definition[Atom]],
-            result: networkx.DiGraph[Definition[Atom]],
-            visited: set[Definition[Atom]] | None = None,
+            graph: "networkx.DiGraph[Definition[Atom]]",
+            result: "networkx.DiGraph[Definition[Atom]]",
+            visited: Optional[Set[Definition[Atom]]] = None,
+            recompute: bool = False,
         ):
             """
             Returns a joint graph that comprises the transitive closure of all defs that `def_` depends on and the
             current graph `result`. `result` is updated.
             """
-            if def_ in self._transitive_closures:
-                closure = self._transitive_closures[def_]
-                # merge closure into result
-                result.add_edges_from(closure.edges())
-                return result
+            if not recompute:
+                if def_ in self._transitive_closures:
+                    closure = self._transitive_closures[def_]
+                    # merge closure into result
+                    result.add_edges_from(closure.edges())
+                    return result
 
             if def_ not in graph:
                 return result
@@ -128,12 +131,12 @@ class DepGraph:
 
             closure = result
             for def0 in predecessors_to_visit:
-                closure = _transitive_closure(def0, graph, closure, visited)
+                closure = _transitive_closure(def0, graph, closure, visited, recompute=recompute)
 
             self._transitive_closures[def_] = closure
             return closure
 
-        return _transitive_closure(definition, self._graph, networkx.DiGraph())
+        return _transitive_closure(definition, self._graph, networkx.DiGraph(), recompute=recompute)
 
     def contains_atom(self, atom: Atom) -> bool:
         return any(definition.atom == atom for definition in self.nodes())
