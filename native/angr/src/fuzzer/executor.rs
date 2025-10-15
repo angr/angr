@@ -12,8 +12,8 @@ use pyo3::prelude::*;
 use crate::fuzzer::OT;
 
 pub struct PyExecutorInner<S> {
-    base_state: PyObject,
-    apply_fn: PyObject,
+    base_state: Py<PyAny>,
+    apply_fn: Py<PyAny>,
     observers: OT,
     timeout: Option<Duration>,
     phantom: std::marker::PhantomData<S>,
@@ -50,7 +50,7 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
         input: &BytesInput,
     ) -> Result<ExitKind, libafl::Error> {
         // New "smart" harness
-        let (emulator, exit) = Python::with_gil(|py| {
+        let (emulator, exit) = Python::attach(|py| {
             || -> _ {
                 // Step 1: Copy the base state and run the apply function
                 // Copy base state by calling python copy function
@@ -135,7 +135,7 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
         };
 
         // Step 4: Copy the edge map from state.history to the observer to provide feedback
-        let py_hitmap: Vec<u8> = Python::with_gil(|py| {
+        let py_hitmap: Vec<u8> = Python::attach(|py| {
             emulator
                 .bind(py)
                 .getattr("state")?
