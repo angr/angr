@@ -24,6 +24,9 @@ class SocketsInsight(InsightBase):
         except KeyError:
             return
 
+        if sock_func is None:
+            return
+
         # where is it called?
         sock_func_node = self.cfg.get_any_node(sock_func.addr)
         for caller in self.cfg.graph.predecessors(sock_func_node):
