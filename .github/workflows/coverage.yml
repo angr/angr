@@ -7,6 +7,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+env:
+  SKIP_SLOW_TESTS: 1
+  RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code"
+  LLVM_PROFILE_FILE: "%p-%m.profraw"
+  CFLAGS: "--coverage -O0 -g"
+  LDFLAGS: "--coverage -g"
+
 jobs:
   build:
     name: Build
@@ -59,8 +66,6 @@ jobs:
       - name: Relocate binaries directory
         run: mv binaries ..
       - name: Run tests
-        env:
-          SKIP_SLOW_TESTS: 1
         run: |
           source .venv/bin/activate
           pytest -vv \
@@ -69,9 +74,10 @@ jobs:
             --junitxml=junit.xml -o junit_family=legacy \
             --store-durations --clean-durations --durations-path=test_durations.json \
             || [[ $? -lt 2 ]]  # Accept success and test failures, fail on infrastructure problems (exit codes >1)
+          gcovr -r native --print-summary --xml-pretty -o coverage-native.xml
       - name: Check for results
         run: |
-          [[ -e junit.xml && -e coverage.xml && -e test_durations.json ]]
+          [[ -e junit.xml && -e coverage.xml && -e coverage-native.xml && -e test_durations.json ]]
       - name: Upload results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -80,7 +86,33 @@ jobs:
           path: |
             ./junit.xml
             ./coverage.xml
+            ./coverage-native.xml
             ./test_durations.json
+            ./*.profraw
+
+  test_rust:
+    name: Test Rust packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
+      - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2
+      - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
+      - uses: taiki-e/install-action@7ec692fc37da04f8da31c22ba9f3b71ef267e650 # v2
+        with:
+          tool: cargo-llvm-cov
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v5
+        with:
+          python-version: "3.10"
+      - name: Run tests
+        run: |
+          cargo test --release
+          cargo llvm-cov --lcov --output-path lcov.info
+      - name: Upload results artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: results-rust
+          if-no-files-found: error
+          path: lcov.info
 
   report:
       name: Report
@@ -88,19 +120,42 @@ jobs:
       permissions:
         id-token: write
         checks: write
-      needs: [test]
+      needs: [test, test_rust]
       steps:
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+      - name: Download environment
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        with:
+          name: env
+          path: .
+      - name: Extract environment
+        run: |
+          tar -xpf $PWD/env.tzst -C /
+          rm env.tzst
+      - name: Download results
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           pattern: "results-*"
           path: results
+      - name: Combine Rust coverage
+        run: |
+          find results
+
+          # XXX: Workaround slow `Processing triggers for man-db...`
+          echo 'set man-db/auto-update false' | sudo debconf-communicate
+          sudo dpkg-reconfigure man-db
+
+          sudo apt-get install -qq llvm-20 llvm-20-tools
+          echo "Merging coverage..."
+          llvm-profdata-20 merge -sparse $(find . -name '*.profraw') -o default.profdata
+          echo "Generating report..."
+          llvm-cov-20 report ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs")
+          llvm-cov-20 export ./angr/rustylib*.so -instr-profile=default.profdata --sources $(find native -name "*.rs") --format=lcov > lcov-py.info
       - name: Collect results
         id: files
         run: |
-          coverage=$(find . -type f -name 'coverage.xml' -print | paste -sd, -)
+          coverage=$(find . -type f \( -name 'coverage*.xml' -o -name 'lcov*.info' \) | paste -sd, -)
           echo "coverage=$coverage" >> "$GITHUB_OUTPUT"
-          junit=$(find . -type f -name 'junit.xml' -print | paste -sd, -)
+          junit=$(find . -type f -name 'junit.xml' | paste -sd, -)
           echo "junit=$junit" >> "$GITHUB_OUTPUT"
       - name: Upload test coverage to Codecov
         uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5
