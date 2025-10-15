@@ -8,11 +8,7 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 
-#[pyclass(
-    module = "angr.rustylib.fuzzer",
-    name = "InMemoryCorpus",
-    unsendable
-)]
+#[pyclass(module = "angr.rustylib.fuzzer", name = "InMemoryCorpus", unsendable)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PyInMemoryCorpus {
     inner: InMemoryCorpus<BytesInput>,
