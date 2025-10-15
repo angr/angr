@@ -133,7 +133,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                         ins_addr=cas_stmt.ins_addr,
                     )
 
-                assignment_dst = cas_stmt.expd_lo
+                assignment_dst = cas_stmt.old_lo
                 stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
                 return [stmt]
 
@@ -155,7 +155,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                 bits=cas_stmt.bits,
                 ins_addr=cas_stmt.ins_addr,
             )
-            assignment_dst = cas_stmt.expd_lo
+            assignment_dst = cas_stmt.old_lo
             stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
             return [stmt, next_stmt]
 
