@@ -42,7 +42,7 @@ class Fuzzer:
         Initialize the fuzzer with the given parameters.
         """
 
-    def run_once(self) -> None:
+    def run_once(self) -> int:
         """
         Run the fuzzer for one iteration.
         """
