@@ -3,10 +3,10 @@ use std::fmt::Debug;
 use libafl::monitors::Monitor;
 use pyo3::prelude::*;
 
-#[pyclass(name = "Monitor", module = "angr.rustylib.fuzzer.monitor", subclass)]
+#[pyclass(name = "Monitor", module = "angr.rustylib.fuzzer", subclass)]
 pub struct PyMonitor {}
 
-#[pyclass(module = "angr.rustylib.fuzzer.monitor", extends = PyMonitor)]
+#[pyclass(module = "angr.rustylib.fuzzer", extends = PyMonitor)]
 pub struct NopMonitor {}
 
 #[pymethods]
@@ -17,7 +17,7 @@ impl NopMonitor {
     }
 }
 
-#[pyclass(module = "angr.rustylib.fuzzer.monitor", extends = PyMonitor)]
+#[pyclass(module = "angr.rustylib.fuzzer", extends = PyMonitor)]
 pub struct StderrMonitor {}
 
 #[pymethods]
