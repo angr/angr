@@ -188,7 +188,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
     def _reg_predicate(self, node_: Block, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_)
+            if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
         if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
