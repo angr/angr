@@ -15,7 +15,7 @@ def test_fuzzer():
     stdin = angr.SimFile(content=b"", concrete=True)
     base_state = project.factory.entry_state(stdin=stdin, add_options={angr.options.STRICT_PAGE_ACCESS})
 
-    def apply_fn(state: SimState, input: bytes):
+    def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
         state.posix.stdin.write(0, input)
         print("Done")
