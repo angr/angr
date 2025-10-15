@@ -60,8 +60,10 @@ impl Monitor for DynMonitor {
     }
 }
 
-impl FromPyObject<'_> for DynMonitor {
-    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+impl<'a, 'py> FromPyObject<'a, 'py> for DynMonitor {
+    type Error = PyErr;
+
+    fn extract(ob: Borrowed<'a, 'py, PyAny>) -> PyResult<Self> {
         if ob.is_instance_of::<NopMonitor>() {
             Ok(DynMonitor {
                 name: "NopMonitor".to_string(),
