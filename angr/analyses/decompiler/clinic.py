@@ -1740,7 +1740,7 @@ class Clinic(Analysis):
             func_graph=ail_graph,
             func_args=func_args,
             fail_fast=self._fail_fast,
-            # use_callee_saved_regs_at_return=not self._register_save_areas_removed,  FIXME
+            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
         )
 
         class TempClass:  # pylint:disable=missing-class-docstring
