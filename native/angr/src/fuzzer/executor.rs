@@ -50,8 +50,9 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
         input: &BytesInput,
     ) -> Result<ExitKind, libafl::Error> {
         // New "smart" harness
-        let (emulator, exit) = Python::attach(|py| {
-            || -> _ {
+        let (emulator, exit) =
+            Python::attach(|py| {
+                || -> _ {
                 // Step 1: Copy the base state and run the apply function
                 // Copy base state by calling python copy function
                 let copied_state = self.base_state.bind(py).getattr("copy")?.call0()?;
@@ -72,12 +73,16 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
                     .call1((icicle_engine, &copied_state))?;
 
                 // Step 2.5: Set return address as breakpoint to detect normal returns
-                // FIXME: hardcoded for ARM/THUMB
-                let return_addr = copied_state
-                    .getattr("regs")?
-                    .getattr("lr")?
-                    .getattr("concrete_value")?
-                    .extract::<u64>()?;
+                let calling_convention = self.base_state.getattr(py, "project")?
+                    .getattr(py, "factory")?
+                    .getattr(py, "cc")?
+                    .call0(py)?;
+                let return_addr = calling_convention
+                    .getattr(py, "return_addr")?
+                    .getattr(py, "get_value")?
+                    .call1(py, (copied_state,))?
+                    .getattr(py, "concrete_value")?
+                    .extract::<u64>(py)?;
 
                 emulator.call_method1("add_breakpoint", (return_addr,))?;
                 emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
@@ -112,7 +117,7 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
                     )
                 }
             })
-        })?;
+            })?;
 
         // Step 3: Handle the result
         let result = match exit.as_str() {
