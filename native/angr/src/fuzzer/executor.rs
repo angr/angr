@@ -7,7 +7,7 @@ use libafl::{
     observers::MapObserver,
 };
 use libafl_bolts::{AsSliceMut, tuples::RefIndexable};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyRuntimeError, prelude::*};
 
 use crate::fuzzer::OT;
 
@@ -82,7 +82,11 @@ impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
                     .getattr(py, "get_value")?
                     .call1(py, (copied_state,))?
                     .getattr(py, "concrete_value")?
-                    .extract::<u64>(py)?;
+                    .extract::<u64>(py).map_err(|_| {
+                        PyRuntimeError::new_err(
+                            "Failed to extract return address, is it symbolic?".to_string(),
+                        )
+                    })?;
 
                 emulator.call_method1("add_breakpoint", (return_addr,))?;
                 emulator.call_method1("add_breakpoint", (return_addr & !1,))?;

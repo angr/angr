@@ -17,10 +17,12 @@ def test_fuzzer():
 
     def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
+        state.project.factory.cc().return_addr.set_value(state, 0xDEADBEEF)
+        state.posix.stdin.write(0, "usernameN")
         state.posix.stdin.write(0, input)
         print("Done")
 
-    corpus = InMemoryCorpus.from_list([b"S"])
+    corpus = InMemoryCorpus.from_list([b"S", b"SO", b"SOS", b"SOSN"])
     solutions = InMemoryCorpus()
 
     fuzzer = Fuzzer(base_state, corpus, solutions, apply_fn, 0, 0)
