@@ -2,13 +2,13 @@ import logging
 from collections import defaultdict
 from typing import Tuple
 
-from angr.ailment import Block
+from angr.ailment import Block, UnaryOp
 from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
-from angr.ailment.statement import Call, FunctionLikeMacro
+from angr.ailment.statement import Call, FunctionLikeMacro, Store, Assignment
 from angr.rust.optimization_passes.utils import extract_str_from_addr
-from angr.rust.utils.ail import unwrap_stack_vvar_reference
+from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_offset
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.mixins import CFAMixin, DFAMixin
+from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType
 from angr.rust.utils.library import demangle
@@ -22,10 +22,17 @@ PRINT_FUNCTIONS = (
     "core::panicking::panic_fmt",
 )
 
+NEW_ARGUMENTS_FUNCTION = (
+    "core::fmt::rt::<impl core::fmt::Arguments>::new_v1",
+    "core::fmt::rt::<impl core::fmt::Arguments>::new_const",
+)
+
+NEW_ARGUMENT_FUNCTION = ("core::fmt::rt::Argument::new_display",)
+
 l = logging.getLogger(__name__)
 
 
-class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
+class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -35,6 +42,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
         super().__init__(func, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self, self._graph)
+        SRDAMixin.__init__(self, func, self._graph, self.project)
 
         self._stmts_to_remove = defaultdict(list)
         self.analyze()
@@ -57,7 +65,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
             case "panic_fmt":
                 return "panic", fmt_str, None
         l.error(f"Can't find a macro for {func_name}")
-        return None, None, None
+        assert False
 
     def _is_debug_formatter(self, arg: Struct):
         formatter = arg.get_field("formatter")
@@ -68,64 +76,191 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin):
             return True
         return False
 
+    def _extract_args_len_and_pieces_len(self, func_addr):
+        func = self.project.kb.functions.get(func_addr, None)
+        clinic = self.project.kb.clinic_factory.get(func)
+        arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
+        args_len, pieces_len = None, None
+        if arguments_ty:
+            args_len_offset = arguments_ty.get_field_offset("args.len")
+            pieces_len_offset = arguments_ty.get_field_offset("pieces.len")
+            for block in clinic.graph.nodes:
+                for stmt in block.statements:
+                    if isinstance(stmt, Store):
+                        vvar, offset = extract_vvar_and_offset(stmt.addr)
+                        if isinstance(vvar, VirtualVariable) and vvar.was_parameter and vvar.varid == 0:
+                            if offset == args_len_offset:
+                                value = stmt.data
+                                if isinstance(value, Const):
+                                    args_len = value.value
+                            elif offset == pieces_len_offset:
+                                value = stmt.data
+                                if isinstance(value, Const):
+                                    pieces_len = value.value
+        return args_len, pieces_len
+
+    def _extract_fmt_str(self, func_addr):
+        func = self.project.kb.functions.get(func_addr, None)
+        clinic = self.project.kb.clinic_factory.get(func)
+        arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
+        if arguments_ty:
+            pieces_addr_offset = arguments_ty.get_field_offset("pieces.ptr")
+            for block in clinic.graph.nodes:
+                for stmt in block.statements:
+                    if isinstance(stmt, Store):
+                        vvar, offset = extract_vvar_and_offset(stmt.addr)
+                        if (
+                            isinstance(vvar, VirtualVariable)
+                            and vvar.was_parameter
+                            and vvar.varid == 0
+                            and offset == pieces_addr_offset
+                            and isinstance(stmt.data, Const)
+                        ):
+                            return extract_str_from_addr(self.project, stmt.data.value)
+        return None
+
+    def replace_call_inlined(self, block: Block, arg_vvar: VirtualVariable):
+        """
+        First attempt: check if the argument is a fmt::Arguments struct
+        """
+        stack_defs = self.collect_callsite_stack_defs(block)
+        arg_def = stack_defs.get(arg_vvar.stack_offset, None)
+        if arg_def and isinstance(arg_def.data, Struct) and arg_def.data.name == "core::fmt::Arguments":
+            pieces = arg_def.data.get_field("pieces")
+            args = arg_def.data.get_field("args")
+            if (
+                isinstance(pieces, Array)
+                and isinstance(args, Array)
+                and 0 <= pieces.length - args.length <= 1
+                and all(
+                    isinstance(arg, VirtualVariable)
+                    and arg.was_stack
+                    and arg.stack_offset in stack_defs
+                    and isinstance(stack_defs[arg.stack_offset].data, Struct)
+                    and stack_defs[arg.stack_offset].data.name in ["core::fmt::rt::Argument", "core::fmt::ArgumentV1"]
+                    for arg in args.elements
+                )
+                and all(isinstance(piece, Const) for piece in pieces.elements)
+            ):
+                pieces = [extract_str_from_addr(self.project, piece.value) for piece in pieces.elements]
+                macro_args = [stack_defs[arg.stack_offset].data for arg in args.elements]
+                if len(pieces) == len(macro_args):
+                    pieces.append("")
+                placeholders = ["{:?}" if self._is_debug_formatter(macro_arg) else "{}" for macro_arg in macro_args]
+                placeholders.append("")
+                macro_args = [macro_arg.get_field("ty") or macro_arg.get_field("value") for macro_arg in macro_args]
+                for arg in args.elements:
+                    stack_def = stack_defs[arg.stack_offset]
+                    self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
+                self._stmts_to_remove[arg_def.block].append(arg_def.stmt)
+                return pieces, placeholders, macro_args
+        return None
+
+    def replace_call_uninlined(self, arg_vvar: VirtualVariable):
+        """
+        Second attempt: check if the argument is constructed via new_v1
+        """
+        new_arguments_call = self.get_terminal_vvar_value(arg_vvar)
+        # Find the block containing the new_arguments_call
+        new_arguments_call_block = None
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and stmt.src is new_arguments_call:
+                    new_arguments_call_block = block
+                    break
+        if isinstance(new_arguments_call, Call) and self.match_call(
+            new_arguments_call, NEW_ARGUMENTS_FUNCTION, monopolize=False, use_trait_name=False
+        ):
+            if len(new_arguments_call.args) == 2:
+                pieces_value = new_arguments_call.args[0]
+                args_value = unwrap_stack_vvar_reference(new_arguments_call.args[1])
+                args_len, pieces_len = self._extract_args_len_and_pieces_len(new_arguments_call.target.value)
+                if (
+                    isinstance(pieces_value, Const)
+                    and isinstance(args_value, VirtualVariable)
+                    and args_value.was_stack
+                    and args_len is not None
+                    and pieces_len is not None
+                    and 0 <= pieces_len - args_len <= 1
+                ):
+                    pieces = [
+                        extract_str_from_addr(self.project, pieces_value.value + i * self.project.arch.bytes * 2)
+                        for i in range(pieces_len)
+                    ]
+                    if pieces_len == args_len:
+                        pieces.append("")
+                    placeholders = []
+                    macro_args = []
+                    calls_to_remove = []
+                    for i in range(args_len):
+                        arg_vvar = self.get_stack_vvar_by_insn(
+                            args_value.stack_offset + i * self.project.arch.bytes * 2,
+                            new_arguments_call.ins_addr,
+                            None if new_arguments_call_block is None else new_arguments_call_block.idx,
+                        )
+                        new_argument_call = self.get_terminal_vvar_value(arg_vvar)
+                        if isinstance(new_argument_call, Call) and (
+                            (
+                                fmt_name := self.match_call(
+                                    new_argument_call, NEW_ARGUMENT_FUNCTION, monopolize=False, use_trait_name=False
+                                )
+                            )
+                            and len(new_argument_call.args) == 1
+                            and isinstance(new_argument_call.args[0], UnaryOp)
+                            and new_argument_call.args[0].op == "Reference"
+                        ):
+                            calls_to_remove.append(new_argument_call)
+                            macro_args.append(new_argument_call.args[0].operand)
+                            if "display" in fmt_name:
+                                placeholders.append("{}")
+                            else:
+                                placeholders.append("{:?}")
+                    placeholders.append("")
+                    # Remove the statements defining the arguments and the new_arguments_call
+                    calls_to_remove.append(new_arguments_call)
+                    for block in self._graph.nodes:
+                        for call in calls_to_remove:
+                            for stmt in block.statements:
+                                if isinstance(stmt, Assignment) and stmt.src is call:
+                                    self._stmts_to_remove[block].append(stmt)
+                    return pieces, placeholders, macro_args
+            else:
+                fmt_str = self._extract_fmt_str(new_arguments_call.target.value)
+                import ipdb
+
+                ipdb.set_trace()
+                if fmt_str is not None:
+                    pieces = [fmt_str]
+                    placeholders = [""]
+                    macro_args = []
+                    return pieces, placeholders, macro_args
+        return None
+
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
         if (
             (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
             and call.args
             and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1]))
         ):
-            stack_defs = self.collect_callsite_stack_defs(block)
-            arg_def = stack_defs.get(arg_vvar.stack_offset, None)
-            if arg_def and isinstance(arg_def.data, Struct) and arg_def.data.name == "core::fmt::Arguments":
-                pieces = arg_def.data.get_field("pieces")
-                args = arg_def.data.get_field("args")
-                if (
-                    isinstance(pieces, Array)
-                    and isinstance(args, Array)
-                    and 0 <= pieces.length - args.length <= 1
-                    and all(
-                        isinstance(arg, VirtualVariable)
-                        and arg.was_stack
-                        and arg.stack_offset in stack_defs
-                        and isinstance(stack_defs[arg.stack_offset].data, Struct)
-                        and stack_defs[arg.stack_offset].data.name
-                        in ["core::fmt::rt::Argument", "core::fmt::ArgumentV1"]
-                        for arg in args.elements
-                    )
-                    and all(isinstance(piece, Const) for piece in pieces.elements)
-                ):
-                    pieces = [extract_str_from_addr(self.project, piece.value) for piece in pieces.elements]
-                    macro_args = [stack_defs[arg.stack_offset].data for arg in args.elements]
-
-                    if len(pieces) == len(macro_args):
-                        pieces.append("")
-
-                    placeholders = ["{:?}" if self._is_debug_formatter(macro_arg) else "{}" for macro_arg in macro_args]
-                    placeholders.append("")
-                    fmt_str = ""
-                    for piece, placeholder in zip(pieces, placeholders):
-                        fmt_str += piece + placeholder
-                    macro_name, fmt_str, returnty = self._select_macro(name, fmt_str)
-                    if returnty is not None:
-                        returnty = returnty.with_arch(self.project.arch)
-                    if macro_name and fmt_str:
-                        macro_args = [
-                            macro_arg.get_field("ty") or macro_arg.get_field("value") for macro_arg in macro_args
-                        ]
-                        macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
-                        macro = FunctionLikeMacro(
-                            None,
-                            macro_name,
-                            macro_args,
-                            bits=call.bits if is_expr else None,
-                            returnty=returnty,
-                            **call.tags,
-                        )
-                        for arg in args.elements:
-                            stack_def = stack_defs[arg.stack_offset]
-                            self._stmts_to_remove[stack_def.block].append(stack_def.stmt)
-                        self._stmts_to_remove[arg_def.block].append(arg_def.stmt)
-                        return macro
+            result = self.replace_call_inlined(block, arg_vvar) or self.replace_call_uninlined(arg_vvar)
+            if result:
+                pieces, placeholders, macro_args = result
+                fmt_str = ""
+                for piece, placeholder in zip(pieces, placeholders):
+                    fmt_str += piece + placeholder
+                macro_name, fmt_str, returnty = self._select_macro(name, fmt_str)
+                if returnty is not None:
+                    returnty = returnty.with_arch(self.project.arch)
+                macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
+                macro = FunctionLikeMacro(
+                    None,
+                    macro_name,
+                    macro_args,
+                    bits=call.bits if is_expr else None,
+                    returnty=returnty,
+                    **call.tags,
+                )
+                return macro
         return None
 
     def _analyze(self, cache=None):
