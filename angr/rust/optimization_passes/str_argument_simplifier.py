@@ -34,7 +34,7 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
         if (
             isinstance(arg0, Const)
             and isinstance(arg1, Const)
-            and (decoded_str := extract_str(self.project, arg0, arg1))
+            and (decoded_str := extract_str(self.project, arg0.value, arg1.value))
         ):
             return StringLiteral(None, decoded_str, self.project.arch.bits)
         return None
