@@ -1,38 +1,88 @@
-from angr.ailment import AILBlockWalker, Block, Const
-from angr.ailment.statement import Call, Statement
-from angr.ailment.expression import StringLiteral
+from angr.rust.sim_type import RustSimStruct
+from angr.rust.mixins import SRDAMixin
+from angr.ailment import Block, Const
+from angr.ailment.statement import Call
+from angr.ailment.expression import StringLiteral, VirtualVariable, Load
+from angr.rust.optimization_passes.utils import extract_str, CallReplacer
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.utils.ail import deref_vvar_and_offset
+from angr.sim_type import TypeRef
 
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 
+class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
+    """
+    Simplify string literals used as function call arguments in Rust binaries.
+    """
 
-class StrArgumentSimplifierWalker(AILBlockWalker):
-    def __init__(self, context: "StrArgumentSimplifier"):
-        super().__init__()
-        self.context = context
-        self.project = context.project
+    ARCHES = None
+    PLATFORMS = None
+    STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
+    NAME = "Simplify string literals used as function call arguments"
 
-    def _extract_str(self, ptr_expr: Const, len_expr: Const):
-        decoded_str = None
-        memory = self.project.loader.memory
-        str_addr = ptr_expr.value
-        str_len = len_expr.value
-        if str_len >= 0 and (
-            (section := self.project.loader.find_section_containing(ptr_expr.value))
-            and section.is_readable
-            and not section.is_writable
+    def __init__(self, func, **kwargs):
+        super().__init__(func, **kwargs)
+        SRDAMixin.__init__(self, func, self._graph, self.project)
+
+        self._var_manager = self._variable_kb.variables.get_function_manager(self._func.addr)
+
+        self.analyze()
+
+    def _check(self):
+        return self.project.is_rust_binary, None
+
+    def try_str_literal(self, arg0, arg1):
+        if (
+            isinstance(arg0, Const)
+            and isinstance(arg1, Const)
+            and (decoded_str := extract_str(self.project, arg0, arg1))
         ):
-            try:
-                decoded_str = memory.load(str_addr, str_len).decode("utf-8")
-                decoded_str = (
-                    decoded_str
-                    if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable()
-                    else None
-                )
-            except UnicodeDecodeError:
-                pass
-        return decoded_str
+            return StringLiteral(None, decoded_str, self.project.arch.bits)
+        return None
 
-    def _simplify_call(self, call: Call):
+    def try_str_reference(self, arg0, arg1):
+        """
+        Try to identify a &str reference from two arguments. For example, given the following call:
+        Call (
+            target: 0x4696a0<64>, prototype: ...,
+            args: [
+                (Reference vvar_400{stack -848}),
+                Load(addr=(Reference vvar_300{combo_reg (16, 32)}), size=8, endness=Iend_LE),
+                Load(addr=((Reference vvar_300{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE),
+                Load(addr=(Reference vvar_307{combo_reg (16, 32)}), size=8, endness=Iend_LE),
+                Load(addr=((Reference vvar_307{combo_reg (16, 32)}) + 0x8<64>), size=8, endness=Iend_LE)
+            ]
+        )
+        We can identify that the second and third arguments form a &str reference.
+        """
+        if isinstance(arg0, Load) and isinstance(arg1, Load):
+            vvar0, offset0 = deref_vvar_and_offset(arg0.addr)
+            vvar1, offset1 = deref_vvar_and_offset(arg1.addr)
+            str_ty = self.project.kb.known_structs["&str"]
+            if str_ty is not None:
+                ptr_offset = str_ty.get_field_offset("data_ptr")
+                len_offset = str_ty.get_field_offset("length")
+            else:
+                ptr_offset = 0
+                len_offset = self.project.arch.bytes
+            if (
+                isinstance(vvar0, VirtualVariable)
+                and isinstance(vvar1, VirtualVariable)
+                and vvar0.was_combo_reg
+                and vvar1.was_combo_reg
+                and vvar0 is vvar1
+                and offset0 == ptr_offset
+                and offset1 == len_offset
+            ):
+                ty = self._var_manager.get_variable_type(vvar0.variable)
+                if isinstance(ty, TypeRef):
+                    ty = ty.type
+                if isinstance(ty, RustSimStruct) and ty.name == "&str":
+                    return vvar0
+        if isinstance(arg0, VirtualVariable) and isinstance(arg1, VirtualVariable):
+            pass
+        return None
+
+    def replace_call(self, call: Call, block: Block, stmt, is_expr):
         args = call.args
         new_args = []
         changed = False
@@ -41,12 +91,8 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
             while args:
                 arg0 = args.pop(0)
                 arg1 = args.pop(0) if args else None
-                if (
-                    isinstance(arg0, Const)
-                    and isinstance(arg1, Const)
-                    and (decoded_str := self._extract_str(arg0, arg1))
-                ):
-                    new_arg = StringLiteral(None, decoded_str, self.project.arch.bits)
+                new_arg = self.try_str_literal(arg0, arg1) or self.try_str_reference(arg0, arg1)
+                if new_arg is not None:
                     new_args.append(new_arg)
                     changed = True
                 else:
@@ -59,36 +105,7 @@ class StrArgumentSimplifierWalker(AILBlockWalker):
             return new_call
         return None
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        new_expr = super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
-        if new_expr is None:
-            return self._simplify_call(expr)
-        return self._simplify_call(new_expr) or new_expr
-
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        new_stmt = super()._handle_Call(stmt_idx, stmt, block)
-        if block:
-            new_stmt = self._simplify_call(new_stmt if new_stmt else stmt)
-            if new_stmt:
-                block.statements[stmt_idx] = new_stmt
-        return new_stmt
-
-
-class StrArgumentSimplifier(OptimizationPass):
-    ARCHES = None
-    PLATFORMS = None
-    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
-    NAME = "Simplify string literals used as function call arguments"
-
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
-
-        self.analyze()
-
-    def _check(self):
-        return self.project.is_rust_binary, None
-
     def _analyze(self, cache=None):
-        walker = StrArgumentSimplifierWalker(self)
+        walker = CallReplacer(self.replace_call)
         for block in self._graph.nodes:
             walker.walk(block)

@@ -34,7 +34,6 @@ def get_rust_optimization_passes():
         CleanupCodeRemover,
         SecurityCheckRemover,
         FunctionPrototypeInference,
-        StrArgumentSimplifier,
         StructInstantiationSimplifier,
         StringOutliner,
         VecOutliner,
@@ -48,6 +47,7 @@ def get_rust_optimization_passes():
         StructReturnSimplifier,
         PrePatternMatchSimplifier,
         # AFTER_VARIABLE_RECOVERY
+        StrArgumentSimplifier,
         # TypeCorrector,
         # BEFORE_REGION_IDENTIFICATION
         RedundantBlockRemover,

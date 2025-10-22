@@ -78,7 +78,30 @@ def unwrap_combo_reg_vvar_reference(expr) -> VirtualVariable | None:
     return None
 
 
+def deref_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+    """
+    If expr is a dereference of a VirtualVariable (possibly with an offset), return the VirtualVariable and offset.
+    Otherwise, return (None, None).
+    """
+    if isinstance(expr, UnaryOp) and expr.op == "Reference" and isinstance(expr.operand, VirtualVariable):
+        return expr.operand, 0
+    if isinstance(expr, BinaryOp) and expr.op == "Add":
+        op0, op1 = expr.operands
+        if (
+            isinstance(op0, UnaryOp)
+            and op0.op == "Reference"
+            and isinstance(op0.operand, VirtualVariable)
+            and isinstance(op1, Const)
+        ):
+            return op0.operand, op1.value
+    return None, None
+
+
 def extract_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+    """
+    If expr is a VirtualVariable (possibly with an offset), return the VirtualVariable and offset.
+    Otherwise, return (None, None).
+    """
     if isinstance(expr, VirtualVariable):
         return expr, 0
     if (
