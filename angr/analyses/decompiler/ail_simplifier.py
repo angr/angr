@@ -37,7 +37,7 @@ from angr.ailment.expression import (
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel
-from angr.utils.ail import is_phi_assignment, HasExprWalker
+from angr.utils.ail import is_phi_assignment, HasExprWalker, is_expr_used_as_reg_base_value
 from angr.utils.ssa import (
     has_call_in_between_stmts,
     has_store_stmt_in_between_stmts,
@@ -595,6 +595,11 @@ class AILSimplifier(Analysis):
                 continue
             # special case: if the statement is a phi statement, we ignore it
             if is_phi_assignment(stmt):
+                continue
+            # special case: if the statement is an assignment to a destination vvar A, and the source is the bitwise-or
+            # of two expressions where one of them is the high bits of expr, and expr is a phi var that relies on
+            # vvar A, then we skip it.
+            if is_expr_used_as_reg_base_value(stmt, expr, rd):
                 continue
 
             expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
