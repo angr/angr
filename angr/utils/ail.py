@@ -1,9 +1,13 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from angr.ailment import AILBlockWalkerBase
 from angr.ailment.block import Block
-from angr.ailment.expression import Expression, VirtualVariable, Phi
+from angr.ailment.expression import Expression, Const, BinaryOp, Convert, VirtualVariable, Phi
 from angr.ailment.statement import Assignment, Statement, ConditionalJump
+
+if TYPE_CHECKING:
+    from angr.analyses.s_reaching_definitions import SRDAModel
 
 
 def is_phi_assignment(stmt: Statement) -> bool:
@@ -68,3 +72,105 @@ def is_head_controlled_loop_block(block: Block) -> bool:
     if isinstance(last_stmt, ConditionalJump):
         return False
     return any(isinstance(stmt, ConditionalJump) for stmt in block.statements[:-1])
+
+
+def extract_partial_expr(base_expr: Expression, off: int, size: int, ail_manager, byte_width: int = 8) -> Expression:
+    bits = size * byte_width
+    if off == 0 and bits == base_expr.bits:
+        return base_expr
+    if off * byte_width >= base_expr.bits:
+        raise ValueError("Offset is greater than or equal to expression size")
+    if base_expr.bits - off * byte_width < bits:
+        raise ValueError("Insufficient expression bits")
+
+    base_mask = ((1 << bits) - 1) << (off * byte_width)
+    base_mask = Const(ail_manager.next_atom(), None, base_mask, base_expr.bits)
+    masked_base_expr = BinaryOp(
+        ail_manager.next_atom(),
+        "And",
+        [base_expr, base_mask],
+        False,
+        bits=base_expr.bits,
+        **base_expr.tags,
+    )
+    if off > 0:
+        shift_amount = Const(ail_manager.next_atom(), None, off * byte_width, byte_width)
+        shifted_vvar = BinaryOp(
+            ail_manager.next_atom(),
+            "Shr",
+            [
+                masked_base_expr,
+                shift_amount,
+            ],
+            bits=masked_base_expr.bits,
+            **masked_base_expr.tags,
+        )
+    else:
+        shifted_vvar = masked_base_expr
+    truncated_expr = Convert(
+        ail_manager.next_atom(),
+        shifted_vvar.bits,
+        bits,
+        False,
+        shifted_vvar,
+        **shifted_vvar.tags,
+    )
+    assert truncated_expr.bits == bits
+    return truncated_expr
+
+
+def is_expr_used_as_reg_base_value(stmt: Statement, expr: Expression, srda: SRDAModel) -> bool:
+    """
+    Determine if the expression `expr` is used as the base value of an assignment of a full register in `stmt`.
+
+    This method returns True if the following conditions hold:
+    - The statement is an assignment to a reg vvar A;
+    - The src of the assignment statement is a bitwise-or expression;
+    - One of the operands of the src expr is the high bits of `expr`;
+    - `expr` is a phi var that relies on reg vvar A.
+    """
+
+    if not isinstance(stmt, Assignment):
+        return False
+    if not isinstance(stmt.dst, VirtualVariable):
+        return False
+    if not stmt.dst.was_reg:
+        return False
+    if not isinstance(expr, VirtualVariable):
+        return False
+    if not expr.was_reg:
+        return False
+    if expr.varid not in srda.phivarid_to_varids:
+        return False
+    if stmt.dst.varid not in srda.phivarid_to_varids[expr.varid]:
+        return False
+
+    if not (isinstance(stmt.src, BinaryOp) and stmt.src.op == "Or"):
+        return False
+
+    for op0 in stmt.src.operands:
+        op1 = stmt.src.operands[0] if op0 is stmt.src.operands[1] else stmt.src.operands[1]
+        if (
+            isinstance(op1, Convert)
+            and op1.from_type == Convert.TYPE_INT
+            and op1.to_type == Convert.TYPE_INT
+            and op1.from_bits < op1.to_bits
+        ):
+            expected_mask = ((1 << op1.to_bits) - 1) ^ ((1 << op1.from_bits) - 1)
+            if isinstance(op0, BinaryOp) and op0.op == "And":
+                if (
+                    isinstance(op0.operands[0], Const)
+                    and op0.operands[0].value == expected_mask
+                    and isinstance(op0.operands[1], VirtualVariable)
+                    and op0.operands[1].varid == expr.varid
+                ):
+                    return True
+                if (
+                    isinstance(op0.operands[1], Const)
+                    and op0.operands[1].value == expected_mask
+                    and isinstance(op0.operands[0], VirtualVariable)
+                    and op0.operands[0].varid == expr.varid
+                ):
+                    return True
+
+    return False
