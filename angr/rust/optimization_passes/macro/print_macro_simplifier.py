@@ -163,13 +163,17 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
         new_arguments_call = self.get_terminal_vvar_value(arg_vvar)
         # Find the block containing the new_arguments_call
         new_arguments_call_block = None
+        new_arguments_call_stmt = None
         for block in self._graph.nodes:
             for stmt in block.statements:
                 if isinstance(stmt, Assignment) and stmt.src is new_arguments_call:
                     new_arguments_call_block = block
+                    new_arguments_call_stmt = stmt
                     break
-        if isinstance(new_arguments_call, Call) and self.match_call(
-            new_arguments_call, NEW_ARGUMENTS_FUNCTION, monopolize=False, use_trait_name=False
+        if (
+            new_arguments_call_block is not None
+            and isinstance(new_arguments_call, Call)
+            and self.match_call(new_arguments_call, NEW_ARGUMENTS_FUNCTION, monopolize=False, use_trait_name=False)
         ):
             if len(new_arguments_call.args) == 2:
                 pieces_value = new_arguments_call.args[0]
@@ -196,7 +200,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                         arg_vvar = self.get_stack_vvar_by_insn(
                             args_value.stack_offset + i * self.project.arch.bytes * 2,
                             new_arguments_call.ins_addr,
-                            None if new_arguments_call_block is None else new_arguments_call_block.idx,
+                            new_arguments_call_block.idx,
                         )
                         new_argument_call = self.get_terminal_vvar_value(arg_vvar)
                         if isinstance(new_argument_call, Call) and (
@@ -217,7 +221,7 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                                 placeholders.append("{:?}")
                     placeholders.append("")
                     # Remove the statements defining the arguments and the new_arguments_call
-                    calls_to_remove.append(new_arguments_call)
+                    self._stmts_to_remove[new_arguments_call_block].append(new_arguments_call_stmt)
                     for block in self._graph.nodes:
                         for call in calls_to_remove:
                             for stmt in block.statements:
@@ -226,10 +230,8 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                     return pieces, placeholders, macro_args
             else:
                 fmt_str = self._extract_fmt_str(new_arguments_call.target.value)
-                import ipdb
-
-                ipdb.set_trace()
                 if fmt_str is not None:
+                    self._stmts_to_remove[new_arguments_call_block].append(new_arguments_call_stmt)
                     pieces = [fmt_str]
                     placeholders = [""]
                     macro_args = []

@@ -605,6 +605,10 @@ class Clinic(Analysis):
         return depth
 
     def _fix_combo_reg_references(self, ail_graph):
+        """
+        Fix references to combo registers to load from the combo register.
+        """
+
         class ComboRegReferenceWalker(AILBlockWalker):
 
             def __init__(self, project):
@@ -929,6 +933,8 @@ class Clinic(Analysis):
             self._ail_graph, self.arg_list, self.arg_vvars, self.vvar_to_vvar, self._type_hints
         )
 
+        self._ail_graph = self._fix_combo_reg_references(self._ail_graph)
+
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
         self._ail_graph = self._run_simplification_passes(
@@ -937,8 +943,6 @@ class Clinic(Analysis):
             avoid_vvar_ids=self.copied_var_ids,
             variable_kb=variable_kb,
         )
-
-        self._ail_graph = self._fix_combo_reg_references(self._ail_graph)
 
         # Make function prototype
         self._update_progress(90.0, text="Making function prototype")
