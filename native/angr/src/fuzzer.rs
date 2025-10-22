@@ -22,14 +22,16 @@ use libafl_bolts::{
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::fuzzer::{corpus::PyInMemoryCorpus, executor::PyExecutorInner, monitor::DynMonitor};
+use crate::fuzzer::{
+    corpus::PyInMemoryCorpus, executor::PyExecutorInner, monitor::CallbackMonitor,
+};
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
 pub(crate) type C = PyInMemoryCorpus;
 pub(crate) type I = BytesInput;
 pub(crate) type S = StdState<C, I, StdRand, C>;
-pub(crate) type MT = DynMonitor;
+pub(crate) type MT = CallbackMonitor;
 pub(crate) type EM = SimpleEventManager<I, MT, S>;
 pub(crate) type O = OwnedMapObserver<u8>;
 pub(crate) type OT = tuple_list_type!(O);
@@ -67,7 +69,7 @@ impl Fuzzer {
         }
 
         let observer = OwnedMapObserver::new("", vec![0u8; 65536]);
-        let mut feedback = MaxMapFeedback::new(&observer);
+        let mut feedback = MaxMapFeedback::with_name("edges", &observer);
         let mut objective = CrashFeedback::default();
 
         let fuzzer_state = StdState::new(
@@ -115,14 +117,14 @@ impl Fuzzer {
         self.fuzzer_state.solutions().clone().into_pyobject(py)
     }
 
-    #[pyo3(signature = (monitor = None))]
-    fn run_once(&mut self, monitor: Option<DynMonitor>) -> PyResult<usize> {
+    #[pyo3(signature = (progress_callback = None))]
+    fn run_once(&mut self, progress_callback: Option<CallbackMonitor>) -> PyResult<usize> {
         libafl::Fuzzer::fuzz_one(
             &mut self.fuzzer,
             &mut self.stages,
             &mut self.executor,
             &mut self.fuzzer_state,
-            &mut SimpleEventManager::new(monitor.unwrap_or_default()),
+            &mut SimpleEventManager::new(progress_callback.unwrap_or_default()),
         )
         .map(|corpus_id| corpus_id.0)
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
@@ -133,8 +135,6 @@ impl Fuzzer {
 pub fn fuzzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Fuzzer>()?;
     m.add_class::<corpus::PyInMemoryCorpus>()?;
-    m.add_class::<monitor::PyMonitor>()?;
-    m.add_class::<monitor::NopMonitor>()?;
-    m.add_class::<monitor::StderrMonitor>()?;
+    m.add_class::<monitor::ClientStats>()?;
     Ok(())
 }

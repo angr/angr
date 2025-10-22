@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from datetime import timedelta
 
 from angr.sim_state import SimState
 
@@ -19,14 +20,58 @@ class InMemoryCorpus:
     def __len__(self) -> int:
         pass
 
-class Monitor:
-    pass
+class ClientStats:
+    @property
+    def enabled(self) -> bool:
+        pass
 
-class NopMonitor(Monitor):
-    pass
+    @property
+    def corpus_size(self) -> int:
+        pass
 
-class StderrMonitor(Monitor):
-    pass
+    @property
+    def last_corpus_time(self) -> timedelta:
+        pass
+
+    @property
+    def executions(self) -> int:
+        pass
+
+    @property
+    def prev_state_executions(self) -> int:
+        pass
+
+    @property
+    def objective_size(self) -> int:
+        pass
+
+    @property
+    def last_objective_time(self) -> timedelta:
+        pass
+
+    @property
+    def last_window_time(self) -> timedelta:
+        pass
+
+    @property
+    def start_time(self) -> timedelta:
+        pass
+
+    @property
+    def execs_per_sec(self) -> float:
+        pass
+
+    @property
+    def execs_per_sec_pretty(self) -> str:
+        pass
+
+    @property
+    def edges_hit(self) -> int | None:
+        pass
+
+    @property
+    def edges_total(self) -> int | None:
+        pass
 
 class Fuzzer:
     def __init__(
@@ -42,7 +87,7 @@ class Fuzzer:
         Initialize the fuzzer with the given parameters.
         """
 
-    def run_once(self) -> int:
+    def run_once(self, progress_callback: Callable[ClientStats, str, int]) -> int:
         """
         Run the fuzzer for one iteration.
         """
