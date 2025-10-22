@@ -75,7 +75,7 @@ class TestPropagatorLoops(unittest.TestCase):
             ret"""
         )
         # TODO: we should only get vvar_\d+ != 0 once we implement value numbering
-        assert re.match(r"\(vvar_\d+{reg 40} != 0x1<32>\)", str(cond)) is not None
+        assert re.match(r"\(vvar_\d+{r40|4b} != 0x1<32>\)", str(cond)) is not None
 
     def test_loop_counter_stack(self):
         cond = self._test_loop_variant_common(
@@ -92,7 +92,7 @@ class TestPropagatorLoops(unittest.TestCase):
             leave
             ret"""
         )
-        assert re.match(r"\(vvar_\d+{stack -16} <=s 0x9<32>\)", str(cond)) is not None
+        assert re.match(r"\(vvar_\d+{s-16|4b} <=s 0x9<32>\)", str(cond)) is not None
 
 
 if __name__ == "__main__":

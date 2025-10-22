@@ -364,7 +364,12 @@ class CallSiteMaker(Analysis):
             # Find its definition
             view = SRDAView(self._reaching_definitions.model)
             vvar = view.get_reg_vvar_by_stmt(
-                offset, self.block.addr, self.block.idx, len(self.block.statements) - 1, OP_BEFORE
+                offset,
+                arg_loc.size,
+                self.block.addr,
+                self.block.idx,
+                len(self.block.statements) - 1,
+                OP_BEFORE,
             )
 
             if vvar is not None:
