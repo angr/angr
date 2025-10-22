@@ -12,7 +12,7 @@ from angr.errors import AngrError
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV, zero_ext:bool=False) -> tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV, zero_ext: bool = False) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """

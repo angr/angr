@@ -83,23 +83,24 @@ class TestPcodeEngine(TestCase):
         Test the use of correct bitvector extension in behavior INT_RIGHT
         """
         #     beq x12, x0, 12 ; srliw x31, x5, 31
-        byte_code = 0x00060663_01f2df9b.to_bytes(8, "little")
+        byte_code = 0x00060663_01F2DF9B.to_bytes(8, "little")
         # abi names: t0 = x5, t6 = x31
 
         arch = archinfo.ArchPcode("RISCV:LE:64:RV64G")
         p = angr.load_shellcode(byte_code, arch=arch, load_address=0, engine=angr.engines.UberEnginePcode)
 
         entry_state = p.factory.entry_state()
-        entry_state.registers.store("t0", 2**32-1) # bits 31..0 are set
+        entry_state.registers.store("t0", 2**32 - 1)  # bits 31..0 are set
 
         simgr = p.factory.simulation_manager(entry_state)
         simgr = simgr.step()
 
-        # |-32bit-| 
+        # |-32bit-|
         # 111...111 >>(logical) 31 = 1
 
         assert simgr.active[0].regs.t6.concrete
-        assert simgr.active[0].regs.t6.concrete_value == 1 
+        assert simgr.active[0].regs.t6.concrete_value == 1
+
 
 if __name__ == "__main__":
     main()
