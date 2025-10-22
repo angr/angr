@@ -12,13 +12,17 @@ from angr.errors import AngrError
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV, zero_ext: bool = False) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """
     if bv1.size() < bv2.size():
+        if zero_ext:
+            return (bv1.zero_extend(bv2.size() - bv1.size()), bv2)
         return (bv1.sign_extend(bv2.size() - bv1.size()), bv2)
     if bv1.size() > bv2.size():
+        if zero_ext:
+            return (bv1, bv2.zero_extend(bv1.size() - bv2.size()))
         return (bv1, bv2.sign_extend(bv1.size() - bv2.size()))
     return (bv1, bv2)
 
@@ -340,7 +344,7 @@ class OpBehaviorIntRight(OpBehavior):
         super().__init__(OpCode.INT_RIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        in1, in2 = make_bv_sizes_equal(in1, in2)
+        in1, in2 = make_bv_sizes_equal(in1, in2, zero_ext=True)
         return in1.LShR(in2)
 
 
