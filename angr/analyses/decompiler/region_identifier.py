@@ -8,7 +8,7 @@ import networkx
 
 import angr.ailment as ailment
 from angr.ailment import Block
-from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, Jump, Call
 from angr.ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
@@ -26,6 +26,19 @@ l = logging.getLogger(name=__name__)
 
 # an ever-incrementing counter
 CONDITIONNODE_ADDR = count(0xFF000000)
+
+
+class DummyEndNode:
+    """
+    A dummy end node used in region identification. When there are more than one end nodes in a region, we create
+    a DummyEndNode and make all original end nodes point to it.
+    """
+
+    __slots__ = ()
+
+    @property
+    def addr(self) -> int:
+        return -1
 
 
 class RegionIdentifier(Analysis):
@@ -256,7 +269,23 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
+    def _find_control_dependent_node(self, graph: networkx.DiGraph, node: Block) -> Block | None:
+        """
+        Find the closest node A in graph on which the given `node` has a control dependency (i.e., node A determines if
+        `node` will be executed or not). Returns node A if it exists, or None if we cannot find one.
+        """
+        preds = list(graph.predecessors(node))
+        if len(preds) == 1 or (len(preds) == 2 and node in preds):
+            pred = next(iter(p for p in preds if p is not node))
+            succs = list(graph.successors(pred))
+            if len(succs) == 2 and pred not in succs:
+                return pred
+            return self._find_control_dependent_node(graph, pred)
+        # multiple predecessors or no predecessors
+        return None
+
     def _find_loop_headers(self, graph: networkx.DiGraph) -> list:
+        assert self._start_node is not None
         heads = list({t for _, t in dfs_back_edges(graph, self._start_node)})
         return self._sort_nodes(heads)
 
@@ -697,6 +726,29 @@ class RegionIdentifier(Analysis):
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
+        # special case: we add virtual edges for jumpout sites and callout sites to the other successor of their
+        # control-dependent node.
+        if len(endnodes) > 1:
+            endnodes = sorted(endnodes, key=lambda n: (n.addr, n.idx if getattr(n, "idx", None) is not None else -1))
+            graph_copy = networkx.DiGraph(graph_copy)
+            for i, endnode in enumerate(endnodes):
+                if isinstance(endnode, Block) and endnode.statements:
+                    last_stmt = endnode.statements[-1]
+                    if (
+                        isinstance(last_stmt, Call)
+                        and isinstance(last_stmt.target, Const)
+                        and self.kb.functions.contains_addr(last_stmt.target.value)
+                        and not self.kb.functions.get_by_addr(last_stmt.target.value).returning
+                    ):
+                        pred = self._find_control_dependent_node(graph_copy, endnode)
+                        if pred is not None:
+                            succs = list(graph_copy.successors(pred))
+                            if len(succs) == 2:
+                                other_succ = succs[0] if succs[1] is endnode else succs[1]
+                                graph_copy.add_edge(endnode, other_succ)
+                                endnodes[i] = None
+            endnodes = [n for n in endnodes if n is not None]
+
         add_dummy_endnode = False
         if len(endnodes) > 1:
             # if this graph has multiple end nodes: create a single end node
@@ -709,7 +761,7 @@ class RegionIdentifier(Analysis):
         if add_dummy_endnode:
             # we need a copy of the graph!
             graph_copy = networkx.DiGraph(graph_copy)
-            dummy_endnode = "DUMMY_ENDNODE"
+            dummy_endnode = DummyEndNode()
             for endnode in endnodes:
                 graph_copy.add_edge(endnode, dummy_endnode)
             endnodes = [dummy_endnode]
