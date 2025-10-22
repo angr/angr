@@ -171,7 +171,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGROUP', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CLUSGROUP_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hGroup', 'groupType']}"
 		},
 		"ResUtilGetClusterId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'guid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'guid']}"
 		},
 		"ResUtilGetClusterRoleState": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_ROLE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'CLUSTER_ROLE_STATE', 'ot': 'int'}, 'arg_names': ['hCluster', 'eClusterRole']}"
