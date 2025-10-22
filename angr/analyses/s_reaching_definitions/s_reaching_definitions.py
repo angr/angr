@@ -1,10 +1,11 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
+import networkx
 
 from angr.ailment.block import Block
 from angr.ailment.statement import Assignment, Call, Return
 from angr.ailment.expression import VirtualVariable
-import networkx
-
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.code_location import CodeLocation, ExternalCodeLocation
@@ -95,6 +96,8 @@ class SReachingDefinitionsAnalysis(Analysis):
             )
 
         if self.mode == "function":
+
+            assert self.func is not None
 
             # fix register definitions for arguments
             defined_vvarids = set(vvar_deflocs)
