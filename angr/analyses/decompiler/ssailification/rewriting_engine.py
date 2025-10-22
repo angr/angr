@@ -68,8 +68,6 @@ class SimEngineSSARewriting(
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
         stackvar_locs: dict[int, set[int]],
-        partial_reg_defs: dict[int, set[tuple[int, int]]],
-        partial_stackvar_defs: dict[int, set[tuple[int, int]]],
         ail_manager: Manager,
         vvar_id_start: int = 0,
         bp_as_gpr: bool = False,
@@ -83,8 +81,6 @@ class SimEngineSSARewriting(
         self.stackvar_locs = stackvar_locs
         self.udef_to_phiid = udef_to_phiid
         self.phiid_to_loc = phiid_to_loc
-        self.partial_reg_defs = partial_reg_defs
-        self.partial_stackvar_defs = partial_stackvar_defs
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
         self.head_controlled_loop_outstate: RewritingState | None = None
@@ -203,28 +199,6 @@ class SimEngineSSARewriting(
                     self.state.registers[base_offset][base_size] = base_reg_vvar
                 else:
                     base_reg_vvar = new_dst
-
-                # generate assignments that update all non-base registers if needed
-                if base_offset in self.partial_reg_defs:
-                    for reg_off, reg_size in self.partial_reg_defs[base_offset]:
-                        if reg_off == stmt.dst.reg_offset and reg_size == stmt.dst.size:
-                            # we have already generated an assignment statement
-                            continue
-                        if stmt.dst.reg_offset + stmt.dst.size <= reg_off:
-                            # no overlap
-                            continue
-                        partial_dst = self._replace_def_reg(
-                            self.block.addr,
-                            self.block.idx,
-                            self.stmt_idx,
-                            Register(None, None, reg_off, reg_size * self.arch.byte_width),
-                        )
-                        partial_src = self._extract_partial_expr(base_reg_vvar, reg_off - base_offset, reg_size)
-                        partial_update_stmt = Assignment(
-                            self.ail_manager.next_atom(), partial_dst, partial_src, **stmt.tags
-                        )
-                        additional_stmts.append(partial_update_stmt)
-                        self.state.registers[reg_off][reg_size] = partial_dst
 
             elif isinstance(stmt.dst, Tmp):
                 pass
@@ -707,50 +681,6 @@ class SimEngineSSARewriting(
             bits=new_base_expr.bits,
             **new_base_expr.tags,
         )
-
-    def _extract_partial_expr(self, base_expr: Expression, off: int, size: int) -> Expression:
-        bits = size * self.arch.byte_width
-        if off == 0 and bits == base_expr.bits:
-            return base_expr
-        if off * self.arch.byte_width >= base_expr.bits:
-            raise ValueError("Offset is greater than or equal to expression size")
-        if base_expr.bits - off * self.arch.byte_width < bits:
-            raise ValueError("Insufficient expression bits")
-
-        base_mask = ((1 << bits) - 1) << (off * self.arch.byte_width)
-        base_mask = Const(self.ail_manager.next_atom(), None, base_mask, base_expr.bits)
-        masked_base_expr = BinaryOp(
-            self.ail_manager.next_atom(),
-            "And",
-            [base_expr, base_mask],
-            False,
-            bits=base_expr.bits,
-            **base_expr.tags,
-        )
-        if off > 0:
-            shift_amount = Const(self.ail_manager.next_atom(), None, off * self.arch.byte_width, self.arch.byte_width)
-            shifted_vvar = BinaryOp(
-                self.ail_manager.next_atom(),
-                "Shr",
-                [
-                    masked_base_expr,
-                    shift_amount,
-                ],
-                bits=masked_base_expr.bits,
-                **masked_base_expr.tags,
-            )
-        else:
-            shifted_vvar = masked_base_expr
-        truncated_expr = Convert(
-            self.ail_manager.next_atom(),
-            shifted_vvar.bits,
-            bits,
-            False,
-            shifted_vvar,
-            **shifted_vvar.tags,
-        )
-        assert truncated_expr.bits == bits
-        return truncated_expr
 
     def _replace_def_expr(
         self, block_addr: int, block_idx: int | None, stmt_idx: int, thing: Expression | Statement

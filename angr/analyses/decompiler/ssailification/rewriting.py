@@ -38,8 +38,6 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
         stackvar_locs: dict[int, set[int]],
-        partial_reg_defs: dict[int, set[tuple[int, int]]],
-        partial_stackvar_defs: dict[int, set[tuple[int, int]]],
         rewrite_tmps: bool,
         ail_manager,
         func_args: set[VirtualVariable],
@@ -56,8 +54,6 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
         self._stackvar_locs = stackvar_locs
-        self._partial_reg_defs = partial_reg_defs
-        self._partial_stackvar_defs = partial_stackvar_defs
         self._rewrite_tmps = rewrite_tmps
         self._ail_manager = ail_manager
         self._func_args = func_args
@@ -68,8 +64,6 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             udef_to_phiid=self._udef_to_phiid,
             phiid_to_loc=self._phiid_to_loc,
             stackvar_locs=self._stackvar_locs,
-            partial_reg_defs=self._partial_reg_defs,
-            partial_stackvar_defs=self._partial_stackvar_defs,
             rewrite_tmps=self._rewrite_tmps,
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
