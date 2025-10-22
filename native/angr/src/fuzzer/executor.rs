@@ -3,13 +3,13 @@ use std::time::Duration;
 use backtrace::Backtrace;
 use libafl::{
     executors::{Executor, ExitKind, HasObservers, HasTimeout},
-    inputs::BytesInput,
     observers::MapObserver,
+    state::HasExecutions,
 };
 use libafl_bolts::{AsSliceMut, tuples::RefIndexable};
 use pyo3::{exceptions::PyRuntimeError, prelude::*};
 
-use crate::fuzzer::OT;
+use crate::fuzzer::{EM, I, OT, S, Z};
 
 pub struct PyExecutorInner<S> {
     base_state: Py<PyAny>,
@@ -41,15 +41,16 @@ impl<S> PyExecutorInner<S> {
     }
 }
 
-impl<EM, S, Z> Executor<EM, BytesInput, S, Z> for PyExecutorInner<S> {
+impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
     fn run_target(
         &mut self,
         _fuzzer: &mut Z,
-        _state: &mut S,
+        state: &mut S,
         _mgr: &mut EM,
-        input: &BytesInput,
+        input: &I,
     ) -> Result<ExitKind, libafl::Error> {
-        // New "smart" harness
+        *state.executions_mut() += 1;
+
         let (emulator, exit) =
             Python::attach(|py| {
                 || -> _ {
