@@ -2095,8 +2095,19 @@ class Clinic(Analysis):
 
                 if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
                     off = expr.stack_offset
-                    if off in variable_manager.stack_offset_to_struct_member_info:
-                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
+                    for stack_off in variable_manager.stack_offset_to_struct_member_info.irange(
+                        maximum=off, reverse=True
+                    ):
+                        base_off, the_var, vartype = variable_manager.stack_offset_to_struct_member_info[stack_off]
+                        if (
+                            stack_off - base_off
+                            <= off
+                            < stack_off - base_off + vartype.size // self.project.arch.byte_width
+                        ):
+                            expr.tags["struct_member_info"] = base_off + (off - stack_off), the_var, vartype
+                            break
+                        if stack_off - base_off + vartype.size // self.project.arch.byte_width <= off:
+                            break
 
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)

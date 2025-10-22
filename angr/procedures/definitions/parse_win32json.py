@@ -21,6 +21,16 @@ altnames = set()
 
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
+
+# add Guid
+fields = OrderedDict()
+fields["Data1"] = angr.types.SimTypeInt(signed=False)
+fields["Data2"] = angr.types.SimTypeShort(signed=False)
+fields["Data3"] = angr.types.SimTypeShort(signed=False)
+fields["Data4"] = angr.types.SimTypeFixedSizeArray(angr.types.SimTypeChar(signed=False), length=8)
+guid = angr.types.SimStruct(fields, name="Guid", pack=True, align=1)
+typelib.add("Guid", guid)
+
 known_struct_names: set[str] = set()
 
 
@@ -60,8 +70,7 @@ def get_angr_type_from_name(name):
     if name == "Boolean":
         return angr.types.SimTypeBool(label="Boolean")
     if name == "Guid":
-        # FIXME
-        return angr.types.SimTypeBottom(label="Guid")
+        return angr.types.SimTypeRef("Guid", angr.types.SimStruct)
     print(f"Unhandled Native Type: {name}")
     sys.exit(-1)
 

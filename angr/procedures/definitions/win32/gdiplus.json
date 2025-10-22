@@ -267,7 +267,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpPath', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpPath', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LineCap', 'ot': 'int'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpCustomLineCap', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['fillPath', 'strokePath', 'baseCap', 'baseInset', 'customCap']}"
 		},
 		"GdipCreateEffect": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'Guid'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CGpEffect', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['guid', 'effect']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CGpEffect', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['guid', 'effect']}"
 		},
 		"GdipCreateFont": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpFontFamily', 'ot': '_ref'}}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'Unit', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpFont', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['fontFamily', 'emSize', 'style', 'unit', 'font']}"
@@ -801,10 +801,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpFontFamily', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['family', 'style', 'EmHeight']}"
 		},
 		"GdipGetEncoderParameterList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'clsidEncoder', 'size', 'buffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'clsidEncoder', 'size', 'buffer']}"
 		},
 		"GdipGetEncoderParameterListSize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'clsidEncoder', 'size']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'clsidEncoder', 'size']}"
 		},
 		"GdipGetFamily": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpFont', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpFontFamily', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['font', 'family']}"
@@ -900,7 +900,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'format']}"
 		},
 		"GdipGetImageRawFormat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'format']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'format']}"
 		},
 		"GdipGetImageThumbnail": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'thumbWidth', 'thumbHeight', 'thumbImage', 'callback', 'callbackData']}"
@@ -1236,19 +1236,19 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image']}"
 		},
 		"GdipImageGetFrameCount": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionID', 'count']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionID', 'count']}"
 		},
 		"GdipImageGetFrameDimensionsCount": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'count']}"
 		},
 		"GdipImageGetFrameDimensionsList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionIDs', 'count']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionIDs', 'count']}"
 		},
 		"GdipImageRotateFlip": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'RotateFlipType', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'rfType']}"
 		},
 		"GdipImageSelectActiveFrame": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionID', 'frameIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'dimensionID', 'frameIndex']}"
 		},
 		"GdipImageSetAbort": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'GdiplusAbort', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['pImage', 'pIAbort']}"
@@ -1497,10 +1497,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpGraphics', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['graphics', 'state']}"
 		},
 		"GdipSaveImageToFile": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'filename', 'clsidEncoder', 'encoderParams']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'filename', 'clsidEncoder', 'encoderParams']}"
 		},
 		"GdipSaveImageToStream": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'stream', 'clsidEncoder', 'encoderParams']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpImage', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EncoderParameters', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['image', 'stream', 'clsidEncoder', 'encoderParams']}"
 		},
 		"GdipScaleLineTransform": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GpLineGradient', 'ot': '_ref'}}, {'_t': 'float'}, {'_t': 'float'}, {'_t': '_ref', 'name': 'MatrixOrder', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'Status', 'ot': 'int'}, 'arg_names': ['brush', 'sx', 'sy', 'order']}"

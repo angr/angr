@@ -4,6 +4,7 @@ import logging
 from collections import defaultdict
 from itertools import count, chain
 
+from sortedcontainers import SortedDict
 import networkx
 
 import angr.ailment as ailment
@@ -118,7 +119,7 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
-        self.stack_offset_to_struct_member_info: dict[SimStackVariable, tuple[int, SimStackVariable, SimStruct]] = {}
+        self.stack_offset_to_struct_member_info: SortedDict[int, tuple[int, SimStackVariable, SimStruct]] = SortedDict()
 
         self.ret_val_size = None
 
@@ -1060,8 +1061,10 @@ class VariableManagerInternal(Serializable):
         if isinstance(var, SimStackVariable) and isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
             self.stack_offset_to_struct_member_info.update(self._extract_fields_from_struct(var, ty.type))
 
-    def _extract_fields_from_struct(self, var, ty: SimStruct, top_struct_offset=0):
-        result = {}
+    def _extract_fields_from_struct(
+        self, var, ty: SimStruct, top_struct_offset=0
+    ) -> SortedDict[int, tuple[int, SimVariable, SimType]]:
+        result = SortedDict()
         for name, field_offset in ty.offsets.items():
             field_ty = ty.fields[name]
             offset = top_struct_offset + field_offset
