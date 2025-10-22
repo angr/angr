@@ -1,4 +1,5 @@
 from .combo_register_rewriter import ComboRegisterRewriter
+from .deref_coercion_simplifier_uninlined import DerefCoercionSimplifierUninlined
 from .error_propagation_simplifier import ErrorPropagationSimplifier
 from .function_prototype_inference import FunctionPrototypeInference
 from .cleanup_code_remover import CleanupCodeRemover
@@ -48,6 +49,7 @@ def get_rust_optimization_passes():
         PrePatternMatchSimplifier,
         # AFTER_VARIABLE_RECOVERY
         StrArgumentSimplifier,
+        DerefCoercionSimplifierUninlined,
         # TypeCorrector,
         # BEFORE_REGION_IDENTIFICATION
         RedundantBlockRemover,
