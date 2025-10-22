@@ -78,6 +78,28 @@ class TestPcodeEngine(TestCase):
         deny_paths = [s for s in simgr.deadended if b"Go away!" in s.posix.dumps(1)]
         assert len(deny_paths) == 1
 
+    def test_riscv64_int_right_behavior(self):
+        """
+        Test the use of correct bitvector extension in behavior INT_RIGHT
+        """
+        #     beq x12, x0, 12 ; srliw x31, x5, 31
+        byte_code = 0x00060663_01f2df9b.to_bytes(8, "little")
+        # abi names: t0 = x5, t6 = x31
+
+        arch = archinfo.ArchPcode("RISCV:LE:64:RV64G")
+        p = angr.load_shellcode(byte_code, arch=arch, load_address=0, engine=angr.engines.UberEnginePcode)
+
+        entry_state = p.factory.entry_state()
+        entry_state.registers.store("t0", 2**32-1) # bits 31..0 are set
+
+        simgr = p.factory.simulation_manager(entry_state)
+        simgr = simgr.step()
+
+        # |-32bit-| 
+        # 111...111 >>(logical) 31 = 1
+
+        assert simgr.active[0].regs.t6.concrete
+        assert simgr.active[0].regs.t6.concrete_value == 1 
 
 if __name__ == "__main__":
     main()
