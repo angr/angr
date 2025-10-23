@@ -76,7 +76,7 @@ class ClientStats:
 class Fuzzer:
     def __init__(
         self,
-        state: SimState,
+        base_state: SimState,
         corpus: InMemoryCorpus,
         solutions: InMemoryCorpus,
         apply_fn: Callable[[SimState, bytes], None],
