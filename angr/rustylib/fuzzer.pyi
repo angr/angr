@@ -91,3 +91,8 @@ class Fuzzer:
         """
         Run the fuzzer for one iteration.
         """
+
+    def run(self, progress_callback: Callable[[ClientStats, str, int], None], iterations: int | None) -> None:
+        """
+        Run the fuzzer in a loop or for a set number of iterations.
+        """

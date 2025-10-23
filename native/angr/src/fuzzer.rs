@@ -129,6 +129,34 @@ impl Fuzzer {
         .map(|corpus_id| corpus_id.0)
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
+
+    #[pyo3(signature = (progress_callback = None, iterations = None))]
+    fn run(
+        &mut self,
+        progress_callback: Option<CallbackMonitor>,
+        iterations: Option<u64>,
+    ) -> PyResult<()> {
+        if let Some(iters) = iterations {
+            libafl::Fuzzer::fuzz_loop_for(
+                &mut self.fuzzer,
+                &mut self.stages,
+                &mut self.executor,
+                &mut self.fuzzer_state,
+                &mut SimpleEventManager::new(progress_callback.unwrap_or_default()),
+                iters,
+            )
+            .map(|_| ())
+        } else {
+            libafl::Fuzzer::fuzz_loop(
+                &mut self.fuzzer,
+                &mut self.stages,
+                &mut self.executor,
+                &mut self.fuzzer_state,
+                &mut SimpleEventManager::new(progress_callback.unwrap_or_default()),
+            )
+        }
+        .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    }
 }
 
 #[pymodule]
