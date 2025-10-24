@@ -21,7 +21,6 @@ def main():
         c_decl = c_decl.strip("\n")
 
         # preprocessing
-        c_decl = c_decl.replace("FILE *", "FILE_t *")
         c_decl = c_decl.replace("const ", "")
         c_decl = c_decl.replace("*restrict ", "* ")
 
