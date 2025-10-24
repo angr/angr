@@ -175,7 +175,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             idx = bisect.bisect_left(self._rplt_cache_ranges, obj_range)
             if not (idx < len(self._rplt_cache_ranges) and self._rplt_cache_ranges[idx] == obj_range):
                 self._rplt_cache_ranges.insert(idx, obj_range)
-            if isinstance(obj, cle.MetaELF):
+            if isinstance(obj, (cle.MetaELF, cle.MachO)):
                 if self._rplt_cache is None:
                     self._rplt_cache = set()
                 self._rplt_cache |= set(obj.reverse_plt)

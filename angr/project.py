@@ -333,7 +333,10 @@ class Project:
             func = reloc.symbol
             if func is None:
                 continue
-            if not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
+            if isinstance(func, cle.backends.macho.symbol.SymbolTableSymbol):
+                # in macho we cannot determine if a symbol is a function symbol or not
+                pass
+            elif not func.is_function and func.type != cle.backends.symbol.SymbolType.TYPE_NONE:
                 continue
             if func.resolvedby is None:
                 # I don't understand the binary which made me add this case. If you are debugging and see this comment,
