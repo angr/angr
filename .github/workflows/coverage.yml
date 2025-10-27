@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v4
       - uses: Swatinem/rust-cache@f13886b937689c021905a6b90929199931d60db1 # v2
       - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
-      - uses: taiki-e/install-action@e43a5023a747770bfcb71ae048541a681714b951 # v2
+      - uses: taiki-e/install-action@c5b1b6f479c32f356cc6f4ba672a47f63853b13b # v2
         with:
           tool: cargo-llvm-cov
       - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v5
