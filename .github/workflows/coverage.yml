@@ -35,7 +35,7 @@ jobs:
       - name: Archive environment
         run: tar -cpf /tmp/env.tzst --absolute-names --zstd $PWD $UV_CACHE_DIR $UV_PYTHON_INSTALL_DIR
       - name: Upload environment artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v4
         with:
           name: env
           path: /tmp/env.tzst
@@ -79,7 +79,7 @@ jobs:
         run: |
           [[ -e junit.xml && -e coverage.xml && -e coverage-native.xml && -e test_durations.json ]]
       - name: Upload results artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: results-${{ matrix.runner_id }}
           if-no-files-found: error
@@ -108,7 +108,7 @@ jobs:
           cargo test --release
           cargo llvm-cov --lcov --output-path lcov.info
       - name: Upload results artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: results-rust
           if-no-files-found: error
@@ -174,7 +174,7 @@ jobs:
       - name: Combine test durations
         run: jq -Ss 'add' results/**/test_durations.json > test_durations.json
       - name: Upload combined test durations artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
         with:
           name: test_durations
           path: ./test_durations.json
