@@ -23,12 +23,12 @@ typelib = SimTypeCollection()
 typelib.names = ["win32"]
 
 # add Guid
-fields = OrderedDict()
-fields["Data1"] = angr.types.SimTypeInt(signed=False)
-fields["Data2"] = angr.types.SimTypeShort(signed=False)
-fields["Data3"] = angr.types.SimTypeShort(signed=False)
-fields["Data4"] = angr.types.SimTypeFixedSizeArray(angr.types.SimTypeChar(signed=False), length=8)
-guid = angr.types.SimStruct(fields, name="Guid", pack=True, align=1)
+guid_fields = OrderedDict()
+guid_fields["Data1"] = angr.types.SimTypeInt(signed=False)
+guid_fields["Data2"] = angr.types.SimTypeShort(signed=False)
+guid_fields["Data3"] = angr.types.SimTypeShort(signed=False)
+guid_fields["Data4"] = angr.types.SimTypeFixedSizeArray(angr.types.SimTypeChar(signed=False), length=8)
+guid = angr.types.SimStruct(guid_fields, name="Guid", pack=True, align=1)
 typelib.add("Guid", guid)
 
 known_struct_names: set[str] = set()
@@ -2479,7 +2479,7 @@ def do_it(in_dir):
                 non_returning.append(func)
         if not non_returning:
             del d["non_returning"]
-        with open(os.path.join(prefix, filename), "w") as f:
+        with open(os.path.join(prefix, filename), "w", encoding="utf-8") as f:
             f.write(json.dumps(d, indent="\t"))
 
     # Dump the type collection to a JSON file

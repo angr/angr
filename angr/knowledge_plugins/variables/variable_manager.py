@@ -119,7 +119,8 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
-        self.stack_offset_to_struct: SortedDict[int, tuple[SimStackVariable, SimStruct]] = SortedDict()
+        # dict[int, tuple[SimStackVariable, SimStruct]]
+        self.stack_offset_to_struct = SortedDict()
 
         self.ret_val_size = None
 
@@ -516,7 +517,7 @@ class VariableManagerInternal(Serializable):
                 self._atom_to_variable[key][atom_hash] = {var_and_offset}
             if isinstance(atom, ailment.Expr.VirtualVariable):
                 self._vvarid_to_variable[atom.varid] = variable
-                self._variable_to_vvarids[variable] = set(atom.varid)
+                self._variable_to_vvarids[variable] = {atom.varid}
         else:
             if location.ins_addr is not None:
                 self._insn_to_variable[location.ins_addr].add(var_and_offset)
@@ -1214,7 +1215,11 @@ class VariableManagerInternal(Serializable):
         for acc in accesses:
             assert acc.location.block_addr is not None
             block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
-            if block is not None and acc.location.stmt_idx < len(block.statements):
+            if (
+                block is not None
+                and acc.location.stmt_idx is not None
+                and acc.location.stmt_idx < len(block.statements)
+            ):
                 stmt = block.statements[acc.location.stmt_idx]
                 if not is_phi_assignment(stmt):
                     return False
