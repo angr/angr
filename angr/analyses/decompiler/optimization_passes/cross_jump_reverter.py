@@ -13,7 +13,7 @@ l = logging.getLogger(__name__)
 
 class CrossJumpReverter(StructuringOptimizationPass):
     """
-    This is an implementation to revert the compiler optimization Cross Jumping, and ISC optimization discussed
+    This is an implementation to revert the compiler optimization Cross Jumping, an ISC optimization discussed
     in the USENIX 2024 paper SAILR. This optimization is somewhat aggressive and as such should be run last in your
     decompiler deoptimization chain. This deoptimization will take any goto it finds and attempt to duplicate its
     target block if its target only has one outgoing edge.
