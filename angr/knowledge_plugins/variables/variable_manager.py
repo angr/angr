@@ -1228,7 +1228,7 @@ class VariableManagerInternal(Serializable):
         for acc in accesses:
             assert acc.location.block_addr is not None
             block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
-            if block is not None:
+            if block is not None and acc.location.stmt_idx < len(block.statements):
                 stmt = block.statements[acc.location.stmt_idx]
                 if not is_phi_assignment(stmt):
                     return False
