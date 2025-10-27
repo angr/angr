@@ -2008,9 +2008,7 @@ class Clinic(Analysis):
 
                 # link struct member info
                 if isinstance(stmt.variable, SimStackVariable):
-                    off = stmt.variable.offset
-                    if off in variable_manager.stack_offset_to_struct_member_info:
-                        stmt.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
+                    self._map_stackvar_to_struct_member(variable_manager, stmt, stmt.variable.offset)
 
             elif stmt_type is ailment.Stmt.Assignment or stmt_type is ailment.Stmt.WeakAssignment:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
@@ -2094,20 +2092,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
                 if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
-                    off = expr.stack_offset
-                    for stack_off in variable_manager.stack_offset_to_struct_member_info.irange(
-                        maximum=off, reverse=True
-                    ):
-                        base_off, the_var, vartype = variable_manager.stack_offset_to_struct_member_info[stack_off]
-                        if (
-                            stack_off - base_off
-                            <= off
-                            < stack_off - base_off + vartype.size // self.project.arch.byte_width
-                        ):
-                            expr.tags["struct_member_info"] = base_off + (off - stack_off), the_var, vartype
-                            break
-                        if stack_off - base_off + vartype.size // self.project.arch.byte_width <= off:
-                            break
+                    self._map_stackvar_to_struct_member(variable_manager, expr, expr.stack_offset)
 
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -2144,9 +2129,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
                 if isinstance(var, SimStackVariable):
-                    off = var.offset
-                    if off in variable_manager.stack_offset_to_struct_member_info:
-                        expr.tags["struct_member_info"] = variable_manager.stack_offset_to_struct_member_info[off]
+                    self._map_stackvar_to_struct_member(variable_manager, expr, var.offset)
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -2237,6 +2220,24 @@ class Clinic(Analysis):
             for _, vvar in expr.src_and_vvars:
                 if vvar is not None:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, vvar)
+
+    def _map_stackvar_to_struct_member(
+        self,
+        variable_manager,
+        expr_or_stmt: ailment.expression.Expression | ailment.statement.Statement,
+        the_stack_offset: int,
+    ) -> bool:
+        any_struct_found = False
+        off = the_stack_offset
+        for stack_off in variable_manager.stack_offset_to_struct.irange(maximum=off, reverse=True):
+            the_var, vartype = variable_manager.stack_offset_to_struct[stack_off]
+            if stack_off <= off < stack_off + vartype.size // self.project.arch.byte_width:
+                expr_or_stmt.tags["struct_member_info"] = off - stack_off, the_var, vartype
+                any_struct_found = True
+                break
+            if stack_off + vartype.size // self.project.arch.byte_width <= off:
+                break
+        return any_struct_found
 
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:

@@ -9,7 +9,7 @@ import unittest
 import angr
 from angr import default_cc
 
-from tests.common import bin_location
+from tests.common import bin_location, print_decompilation_result
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -36,6 +36,8 @@ class TestStructMemberAccess(unittest.TestCase):
         foo_func.prototype = angr.types.parse_type("void (struct Outer *a)").with_arch(proj.arch)
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         text = dec.codegen.text
         assert '.a = "123"' in text
         assert ".b.a = 2" in text
