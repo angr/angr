@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"AssocCreateForClasses": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ASSOCIATIONELEMENT', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rgClasses', 'cClasses', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ASSOCIATIONELEMENT', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rgClasses', 'cClasses', 'riid', 'ppv']}"
 		},
 		"AssocGetDetailsOfPropKey": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPERTYKEY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psf', 'pidl', 'pkey', 'pv', 'pfFoundPropKey']}"
@@ -252,19 +252,19 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ASSOC_FILTER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IEnumAssocHandlers', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszExtra', 'afFilter', 'ppEnumHandler']}"
 		},
 		"SHAssocEnumHandlersForProtocolByApplication": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['protocol', 'riid', 'enumHandlers']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['protocol', 'riid', 'enumHandlers']}"
 		},
 		"SHBindToFolderIDListParent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psfRoot', 'pidl', 'riid', 'ppv', 'ppidlLast']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psfRoot', 'pidl', 'riid', 'ppv', 'ppidlLast']}"
 		},
 		"SHBindToFolderIDListParentEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psfRoot', 'pidl', 'ppbc', 'riid', 'ppv', 'ppidlLast']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psfRoot', 'pidl', 'ppbc', 'riid', 'ppv', 'ppidlLast']}"
 		},
 		"SHBindToObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psf', 'pidl', 'pbc', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psf', 'pidl', 'pbc', 'riid', 'ppv']}"
 		},
 		"SHBindToParent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'riid', 'ppv', 'ppidlLast']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'riid', 'ppv', 'ppidlLast']}"
 		},
 		"SHBrowseForFolderA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BROWSEINFOA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'arg_names': ['lpbi']}"
@@ -273,7 +273,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BROWSEINFOW', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'arg_names': ['lpbi']}"
 		},
 		"SHCLSIDFromString": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'pclsid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'pclsid']}"
 		},
 		"SHChangeNotification_Lock": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['hChange', 'dwProcId', 'pppidl', 'plEvent']}"
@@ -297,19 +297,19 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'arg_names': ['hwnd', 'csidl', 'fCreate']}"
 		},
 		"SHCoCreateInstance": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszCLSID', 'pclsid', 'pUnkOuter', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszCLSID', 'pclsid', 'pUnkOuter', 'riid', 'ppv']}"
 		},
 		"SHCreateAssociationRegistration": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppv']}"
 		},
 		"SHCreateDataObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlFolder', 'cidl', 'apidl', 'pdtInner', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlFolder', 'cidl', 'apidl', 'pdtInner', 'riid', 'ppv']}"
 		},
 		"SHCreateDefaultContextMenu": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEFCONTEXTMENU', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdcm', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEFCONTEXTMENU', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdcm', 'riid', 'ppv']}"
 		},
 		"SHCreateDefaultExtractIcon": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppv']}"
 		},
 		"SHCreateDefaultPropertiesOp": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellItem', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IFileOperation', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psi', 'ppFileOp']}"
@@ -324,22 +324,22 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SECURITY_ATTRIBUTES', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hwnd', 'pszPath', 'psa']}"
 		},
 		"SHCreateFileExtractIconW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'dwFileAttributes', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'dwFileAttributes', 'riid', 'ppv']}"
 		},
 		"SHCreateItemFromIDList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'riid', 'ppv']}"
 		},
 		"SHCreateItemFromParsingName": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pbc', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pbc', 'riid', 'ppv']}"
 		},
 		"SHCreateItemFromRelativeName": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellItem', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psiParent', 'pszName', 'pbc', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellItem', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psiParent', 'pszName', 'pbc', 'riid', 'ppv']}"
 		},
 		"SHCreateItemInKnownFolder": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['kfid', 'dwKFFlags', 'pszItem', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['kfid', 'dwKFFlags', 'pszItem', 'riid', 'ppv']}"
 		},
 		"SHCreateItemWithParent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlParent', 'psfParent', 'pidl', 'riid', 'ppvItem']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlParent', 'psfParent', 'pidl', 'riid', 'ppvItem']}"
 		},
 		"SHCreateProcessAsUserW": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SHCREATEPROCESSINFOW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pscpi']}"
@@ -363,13 +363,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IShellItemArray', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlParent', 'psf', 'cidl', 'ppidl', 'ppsiItemArray']}"
 		},
 		"SHCreateShellItemArrayFromDataObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdo', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdo', 'riid', 'ppv']}"
 		},
 		"SHCreateShellItemArrayFromIDLists": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IShellItemArray', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cidl', 'rgpidl', 'ppsiItemArray']}"
 		},
 		"SHCreateShellItemArrayFromShellItem": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellItem', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psi', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellItem', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psi', 'riid', 'ppv']}"
 		},
 		"SHCreateStdEnumFmtEtc": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FORMATETC', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IEnumFORMATETC', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cfmt', 'afmt', 'ppenumFormatEtc']}"
@@ -474,25 +474,25 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszIconPath', 'iIconIndex']}"
 		},
 		"SHGetImageList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['iImageList', 'riid', 'ppvObj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['iImageList', 'riid', 'ppvObj']}"
 		},
 		"SHGetInstanceExplorer": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppunk']}"
 		},
 		"SHGetItemFromDataObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DATAOBJ_GET_ITEM_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdtobj', 'dwFlags', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DATAOBJ_GET_ITEM_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdtobj', 'dwFlags', 'riid', 'ppv']}"
 		},
 		"SHGetItemFromObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riid', 'ppv']}"
 		},
 		"SHGetKnownFolderIDList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'ppidl']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'ppidl']}"
 		},
 		"SHGetKnownFolderItem": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'KNOWN_FOLDER_FLAG', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'flags', 'hToken', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'KNOWN_FOLDER_FLAG', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'flags', 'hToken', 'riid', 'ppv']}"
 		},
 		"SHGetKnownFolderPath": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'ppszPath']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'ppszPath']}"
 		},
 		"SHGetLocalizedName": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pszResModule', 'cch', 'pidsRes']}"
@@ -519,13 +519,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pidl', 'pszPath']}"
 		},
 		"SHGetPropertyStoreForWindow": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'riid', 'ppv']}"
 		},
 		"SHGetPropertyStoreFromIDList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'GETPROPERTYSTOREFLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'flags', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'GETPROPERTYSTOREFLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'flags', 'riid', 'ppv']}"
 		},
 		"SHGetPropertyStoreFromParsingName": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'GETPROPERTYSTOREFLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pbc', 'flags', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': '_ref', 'name': 'GETPROPERTYSTOREFLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pbc', 'flags', 'riid', 'ppv']}"
 		},
 		"SHGetRealIDL": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psf', 'pidlSimple', 'ppidlReal']}"
@@ -576,7 +576,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IShellFolder', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndEdit', 'psf']}"
 		},
 		"SHLoadInProc": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rclsid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rclsid']}"
 		},
 		"SHLoadNonloadedIconOverlayIdentifiers": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
@@ -594,7 +594,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidlFolder', 'cidl', 'apidl', 'dwFlags']}"
 		},
 		"SHOpenPropSheetW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IShellBrowser', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszCaption', 'ahkeys', 'ckeys', 'pclsidDefault', 'pdtobj', 'psb', 'pStartPage']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IDataObject', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IShellBrowser', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszCaption', 'ahkeys', 'ckeys', 'pclsidDefault', 'pdtobj', 'psb', 'pStartPage']}"
 		},
 		"SHOpenWithDialog": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENASINFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndParent', 'poainfo']}"
@@ -609,7 +609,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwnd', 'punkEnableModless', 'pszPath', 'dwFlags']}"
 		},
 		"SHPropStgCreate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IPropertySetStorage', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IPropertyStorage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psstg', 'fmtid', 'pclsid', 'grfFlags', 'grfMode', 'dwDisposition', 'ppstg', 'puCodePage']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IPropertySetStorage', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IPropertyStorage', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psstg', 'fmtid', 'pclsid', 'grfFlags', 'grfMode', 'dwDisposition', 'ppstg', 'puCodePage']}"
 		},
 		"SHPropStgReadMultiple": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IPropertyStorage', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPSPEC', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pps', 'uCodePage', 'cpspec', 'rgpspec', 'rgvar']}"
@@ -651,7 +651,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['punk']}"
 		},
 		"SHSetKnownFolderPath": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'pszPath']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['rfid', 'dwFlags', 'hToken', 'pszPath']}"
 		},
 		"SHSetLocalizedName": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszPath', 'pszResModule', 'idsRes']}"
@@ -735,7 +735,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pidl']}"
 		},
 		"StgMakeUniqueName": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStorage', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstgParent', 'pszFileSpec', 'grfMode', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStorage', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstgParent', 'pszFileSpec', 'grfMode', 'riid', 'ppv']}"
 		},
 		"Win32DeleteFile": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszPath']}"

@@ -111,7 +111,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UNICODE_STRING', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['DestinationString', 'SourceString']}"
 		},
 		"RtlInitializeCorrelationVector": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CorrelationVector', 'Version', 'Guid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CORRELATION_VECTOR', 'ot': '_ref'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CorrelationVector', 'Version', 'Guid']}"
 		},
 		"RtlInitializeSListHead": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Alignment': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Anonymous': {'_t': 'struct', 'fields': {'Next': {'_t': '_ref', 'name': 'SINGLE_LIST_ENTRY', 'ot': '_ref'}, 'Depth': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'CpuId': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ListHead']}"

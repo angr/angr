@@ -27,34 +27,34 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Network']}"
 		},
 		"HcnCreateEndpoint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Network', 'Id', 'Settings', 'Endpoint', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Network', 'Id', 'Settings', 'Endpoint', 'ErrorRecord']}"
 		},
 		"HcnCreateGuestNetworkService": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'GuestNetworkService', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'GuestNetworkService', 'ErrorRecord']}"
 		},
 		"HcnCreateLoadBalancer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'LoadBalancer', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'LoadBalancer', 'ErrorRecord']}"
 		},
 		"HcnCreateNamespace": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'Namespace', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'Namespace', 'ErrorRecord']}"
 		},
 		"HcnCreateNetwork": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'Network', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Settings', 'Network', 'ErrorRecord']}"
 		},
 		"HcnDeleteEndpoint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
 		},
 		"HcnDeleteGuestNetworkService": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
 		},
 		"HcnDeleteLoadBalancer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
 		},
 		"HcnDeleteNamespace": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
 		},
 		"HcnDeleteNetwork": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'ErrorRecord']}"
 		},
 		"HcnEnumerateEndpoints": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Query', 'Endpoints', 'ErrorRecord']}"
@@ -90,16 +90,16 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Network', 'Settings', 'ErrorRecord']}"
 		},
 		"HcnOpenEndpoint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Endpoint', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Endpoint', 'ErrorRecord']}"
 		},
 		"HcnOpenLoadBalancer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'LoadBalancer', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'LoadBalancer', 'ErrorRecord']}"
 		},
 		"HcnOpenNamespace": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Namespace', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Namespace', 'ErrorRecord']}"
 		},
 		"HcnOpenNetwork": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Network', 'ErrorRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Id', 'Network', 'ErrorRecord']}"
 		},
 		"HcnQueryEndpointAddresses": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Endpoint', 'Query', 'Addresses', 'ErrorRecord']}"

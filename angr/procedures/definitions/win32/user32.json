@@ -1737,7 +1737,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'POINTER_INPUT_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwnd', 'pointerType', 'fObserve']}"
 		},
 		"RegisterPowerSettingNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'REGISTER_NOTIFICATION_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HPOWERNOTIFY', 'ot': 'ptr'}, 'arg_names': ['hRecipient', 'PowerSettingGuid', 'Flags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'REGISTER_NOTIFICATION_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HPOWERNOTIFY', 'ot': 'ptr'}, 'arg_names': ['hRecipient', 'PowerSettingGuid', 'Flags']}"
 		},
 		"RegisterRawInputDevices": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RAWINPUTDEVICE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRawInputDevices', 'uiNumDevices', 'cbSize']}"

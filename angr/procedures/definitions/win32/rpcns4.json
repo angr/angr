@@ -39,10 +39,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RPC_BINDING_VECTOR', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'UUID_VECTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'BindingVec', 'ObjectUuidVec']}"
 		},
 		"RpcNsBindingImportBeginA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
 		},
 		"RpcNsBindingImportBeginW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'ImportContext']}"
 		},
 		"RpcNsBindingImportDone": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ImportContext']}"
@@ -51,10 +51,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['ImportContext', 'Binding']}"
 		},
 		"RpcNsBindingLookupBeginA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
 		},
 		"RpcNsBindingLookupBeginW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['EntryNameSyntax', 'EntryName', 'IfSpec', 'ObjUuid', 'BindingMaxCount', 'LookupContext']}"
 		},
 		"RpcNsBindingLookupDone": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['LookupContext']}"
@@ -93,7 +93,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext']}"
 		},
 		"RpcNsEntryObjectInqNext": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'ObjUuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['InquiryContext', 'ObjUuid']}"
 		},
 		"RpcNsGroupDeleteA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'GROUP_NAME_SYNTAX', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'RPC_STATUS', 'ot': 'int'}, 'arg_names': ['GroupNameSyntax', 'GroupName']}"

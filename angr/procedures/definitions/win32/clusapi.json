@@ -438,7 +438,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'szAccountSID', 'dwAccess', 'dwControlType']}"
 		},
 		"ClusterSharedVolumeSetSnapshotState": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'Guid'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_SHARED_VOLUME_SNAPSHOT_STATE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['guidSnapshotSet', 'lpszVolumeName', 'state']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLUSTER_SHARED_VOLUME_SNAPSHOT_STATE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['guidSnapshotSet', 'lpszVolumeName', 'state']}"
 		},
 		"ClusterUpgradeFunctionalLevel": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HCLUSTER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'CLUSTER_UPGRADE_PHASE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvCallbackArg', 'eUpgradePhase']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hCluster', 'perform', 'pfnProgressCallback', 'pvCallbackArg']}"

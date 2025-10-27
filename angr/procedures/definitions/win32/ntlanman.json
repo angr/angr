@@ -27,13 +27,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpRemotePath', 'lpReadUseOptions', 'cbReadUseOptions', 'lpWriteUseOptions', 'lpSizeWriteUseOptions']}"
 		},
 		"QueryAppInstanceVersion": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AppInstanceId', 'InstanceVersionHigh', 'InstanceVersionLow', 'VersionStatus']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AppInstanceId', 'InstanceVersionHigh', 'InstanceVersionLow', 'VersionStatus']}"
 		},
 		"RegisterAppInstance": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ProcessHandle', 'AppInstanceId', 'ChildrenInheritAppInstance']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ProcessHandle', 'AppInstanceId', 'ChildrenInheritAppInstance']}"
 		},
 		"RegisterAppInstanceVersion": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Guid'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AppInstanceId', 'InstanceVersionHigh', 'InstanceVersionLow']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AppInstanceId', 'InstanceVersionHigh', 'InstanceVersionLow']}"
 		},
 		"ResetAllAppInstanceVersions": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
