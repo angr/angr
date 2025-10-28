@@ -238,7 +238,8 @@ class FunctionBodyFactCollector(AILBlockWalker):
 
     def _should_handle_call(self, call: Call, stmt: Statement):
         return (
-            isinstance(call.args[0], VirtualVariable)
+            call.args
+            and isinstance(call.args[0], VirtualVariable)
             and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
         ) or (isinstance(stmt, Return) and stmt.ret_exprs and stmt.ret_exprs[0] is call)
 
@@ -465,10 +466,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             or not self._fact_collector.has_write_to_arg0
             or self.is_call_expr is True
         ):
-            if "uu_fmt::linebreak::break_simple" == demangle(self.func.name):
-                import ipdb
-
-                ipdb.set_trace()
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
             if len(self.model.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
                 _, another_const = sorted(self.model.const_ret_values)
