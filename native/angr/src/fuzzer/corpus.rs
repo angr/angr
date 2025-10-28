@@ -8,19 +8,71 @@ use pyo3::{
 };
 use serde::{Deserialize, Serialize};
 
-#[pyclass(module = "angr.rustylib.fuzzer", name = "InMemoryCorpus", unsendable)]
+// A Send+Sync wrapper of InMemoryCorpus for use in PyInMemoryCorpus.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SerializedCorpus<I> {
+    data: Vec<u8>,
+    _phantom: std::marker::PhantomData<I>,
+}
+
+impl<I: Serialize> TryFrom<&InMemoryCorpus<I>> for SerializedCorpus<I> {
+    type Error = PyErr;
+
+    fn try_from(value: &InMemoryCorpus<I>) -> Result<Self, Self::Error> {
+        Ok(SerializedCorpus {
+            data: postcard::to_stdvec(value).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to serialize corpus: {e}"
+                ))
+            })?,
+            _phantom: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<I: for<'de> Deserialize<'de>> TryFrom<&SerializedCorpus<I>> for InMemoryCorpus<I> {
+    type Error = PyErr;
+
+    fn try_from(value: &SerializedCorpus<I>) -> Result<Self, Self::Error> {
+        let corpus: InMemoryCorpus<I> = postcard::from_bytes(&value.data).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to deserialize corpus: {e}"
+            ))
+        })?;
+        Ok(corpus)
+    }
+}
+
+#[pyclass(module = "angr.rustylib.fuzzer", name = "InMemoryCorpus")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PyInMemoryCorpus {
-    inner: InMemoryCorpus<BytesInput>,
+    inner: SerializedCorpus<BytesInput>,
+}
+
+impl TryFrom<&PyInMemoryCorpus> for InMemoryCorpus<BytesInput> {
+    type Error = PyErr;
+
+    fn try_from(value: &PyInMemoryCorpus) -> Result<Self, Self::Error> {
+        InMemoryCorpus::<BytesInput>::try_from(&value.inner)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+    }
+}
+
+impl TryFrom<&InMemoryCorpus<BytesInput>> for PyInMemoryCorpus {
+    type Error = PyErr;
+
+    fn try_from(value: &InMemoryCorpus<BytesInput>) -> Result<Self, Self::Error> {
+        let serialized = SerializedCorpus::try_from(value)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(PyInMemoryCorpus { inner: serialized })
+    }
 }
 
 #[pymethods]
 impl PyInMemoryCorpus {
     #[new]
-    fn py_new() -> Self {
-        PyInMemoryCorpus {
-            inner: InMemoryCorpus::default(),
-        }
+    fn py_new() -> PyResult<Self> {
+        PyInMemoryCorpus::try_from(&InMemoryCorpus::default())
     }
 
     #[staticmethod]
@@ -31,27 +83,28 @@ impl PyInMemoryCorpus {
                 .add(Testcase::new(BytesInput::from(item)))
                 .map_err(|e| PyTypeError::new_err(e.to_string()))?;
         }
-        Ok(PyInMemoryCorpus { inner: corpus })
+        PyInMemoryCorpus::try_from(&corpus)
     }
 
-    fn to_bytes_list(&self) -> Vec<Vec<u8>> {
+    fn to_bytes_list(&self) -> PyResult<Vec<Vec<u8>>> {
+        let deserialized = InMemoryCorpus::<BytesInput>::try_from(&self.inner)?;
         let mut result = Vec::new();
-        for i in 0..self.inner.count() {
+        for i in 0..deserialized.count() {
             let corpus_id = CorpusId::from(i);
-            if let Ok(testcase_ref) = self.inner.get(corpus_id) {
+            if let Ok(testcase_ref) = deserialized.get(corpus_id) {
                 let testcase = testcase_ref.borrow();
                 if let Some(input) = testcase.input() {
                     result.push(input.as_ref().to_vec());
                 }
             }
         }
-        result
+        Ok(result)
     }
 
     fn __getitem__(&self, id: usize) -> PyResult<Vec<u8>> {
+        let deserialized = InMemoryCorpus::<BytesInput>::try_from(self)?;
         let corpus_id = CorpusId::from(id);
-        let testcase_ref = self
-            .inner
+        let testcase_ref = deserialized
             .get(corpus_id)
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         let testcase = testcase_ref.borrow();
@@ -61,104 +114,17 @@ impl PyInMemoryCorpus {
         }
     }
 
-    fn __len__(&self) -> usize {
-        self.inner.count()
-    }
-}
-
-impl Corpus<BytesInput> for PyInMemoryCorpus {
-    fn count(&self) -> usize {
-        self.inner.count()
+    fn __len__(&self) -> PyResult<usize> {
+        Ok(InMemoryCorpus::<BytesInput>::try_from(self)?.count())
     }
 
-    fn count_disabled(&self) -> usize {
-        self.inner.count_disabled()
+    fn __getstate__(&self) -> PyResult<Vec<u8>> {
+        postcard::to_stdvec(&self.inner).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
-    fn count_all(&self) -> usize {
-        self.inner.count_all()
-    }
-
-    fn add(
-        &mut self,
-        testcase: Testcase<BytesInput>,
-    ) -> Result<libafl::corpus::CorpusId, libafl::Error> {
-        self.inner.add(testcase)
-    }
-
-    fn add_disabled(
-        &mut self,
-        testcase: Testcase<BytesInput>,
-    ) -> Result<libafl::corpus::CorpusId, libafl::Error> {
-        self.inner.add_disabled(testcase)
-    }
-
-    fn replace(
-        &mut self,
-        id: libafl::corpus::CorpusId,
-        testcase: Testcase<BytesInput>,
-    ) -> Result<Testcase<BytesInput>, libafl::Error> {
-        self.inner.replace(id, testcase)
-    }
-
-    fn remove(
-        &mut self,
-        id: libafl::corpus::CorpusId,
-    ) -> Result<Testcase<BytesInput>, libafl::Error> {
-        self.inner.remove(id)
-    }
-
-    fn get(
-        &self,
-        id: libafl::corpus::CorpusId,
-    ) -> Result<&std::cell::RefCell<Testcase<BytesInput>>, libafl::Error> {
-        self.inner.get(id)
-    }
-
-    fn get_from_all(
-        &self,
-        id: libafl::corpus::CorpusId,
-    ) -> Result<&std::cell::RefCell<Testcase<BytesInput>>, libafl::Error> {
-        self.inner.get_from_all(id)
-    }
-
-    fn current(&self) -> &Option<libafl::corpus::CorpusId> {
-        self.inner.current()
-    }
-
-    fn current_mut(&mut self) -> &mut Option<libafl::corpus::CorpusId> {
-        self.inner.current_mut()
-    }
-
-    fn next(&self, id: libafl::corpus::CorpusId) -> Option<libafl::corpus::CorpusId> {
-        self.inner.next(id)
-    }
-
-    fn peek_free_id(&self) -> libafl::corpus::CorpusId {
-        self.inner.peek_free_id()
-    }
-
-    fn prev(&self, id: libafl::corpus::CorpusId) -> Option<libafl::corpus::CorpusId> {
-        self.inner.prev(id)
-    }
-
-    fn first(&self) -> Option<libafl::corpus::CorpusId> {
-        self.inner.first()
-    }
-
-    fn last(&self) -> Option<libafl::corpus::CorpusId> {
-        self.inner.last()
-    }
-
-    fn nth_from_all(&self, nth: usize) -> libafl::corpus::CorpusId {
-        self.inner.nth_from_all(nth)
-    }
-
-    fn load_input_into(&self, testcase: &mut Testcase<BytesInput>) -> Result<(), libafl::Error> {
-        self.inner.load_input_into(testcase)
-    }
-
-    fn store_input_from(&self, testcase: &Testcase<BytesInput>) -> Result<(), libafl::Error> {
-        self.inner.store_input_from(testcase)
+    fn __setstate__(&mut self, state: Vec<u8>) -> PyResult<()> {
+        self.inner =
+            postcard::from_bytes(&state).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
     }
 }
