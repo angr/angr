@@ -470,7 +470,9 @@ class EnumVariant:
         if self.has_fields():
             field_ty = self.fields[0][0]
             if self.discriminant_size:
-                return max(self.discriminant_size, field_ty.alignment if isinstance(field_ty.alignment, int) else 0)
+                return (
+                    max(self.discriminant_size, field_ty.alignment if isinstance(field_ty.alignment, int) else 0) // 8
+                )
         return 0
 
     @property
