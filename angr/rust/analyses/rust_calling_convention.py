@@ -433,6 +433,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     # Assume the size of T is greater than the size of E
                     # Intuitively, T's discriminant should be omitted to optimize memory space
                     (err_type, err_discriminant), (ok_type, _) = candidates_and_discriminants
+                    discriminant_size = discriminant_size // 8
                     return RustSimTypeResult(
                         ok_type,
                         None,
