@@ -5,6 +5,7 @@ from collections import OrderedDict
 
 from networkx import DiGraph
 
+from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import SimCC
 from angr.ailment import BinaryOp, Const, AILBlockWalker, Block
 from angr.ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, VirtualVariableCategory
@@ -12,13 +13,19 @@ from angr.ailment.statement import Store, Call, Statement, ConditionalJump, Retu
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc
+from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc, extract_str_from_addr
 from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType, RustSimTypeUnit
 from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
-from angr.rust.sim_type import RustSimTypeInt, RustSimTypeReference, RustSimStruct, RustSimTypeFunction
+from angr.rust.sim_type import (
+    RustSimTypeInt,
+    RustSimTypeReference,
+    RustSimStruct,
+    RustSimTypeFunction,
+    RustSimTypeStrRef,
+)
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
-from angr.rust.utils.library import normalize
+from angr.rust.utils.library import normalize, demangle
 from angr.utils.graph import GraphUtils
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins import Function
@@ -181,21 +188,21 @@ class FunctionBodyFactCollector(AILBlockWalker):
             for block in path:
                 self.walk(block)
 
-        if len(paths) == 0:
-            for block in self.context.graph.nodes:
-                if isinstance(block.statements[-1], Return):
-                    stmt = block.statements[-1]
-                    ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
-                    if isinstance(ret_expr, VirtualVariable):
-                        self.const_ret_values |= set(
-                            value.value
-                            for value in self.context.get_terminal_vvar_values(ret_expr)
-                            if isinstance(value, Const)
-                        )
-                    elif isinstance(ret_expr, Const):
-                        self.const_ret_values.add(ret_expr.value)
-        else:
-            self.has_write_to_arg0 = True
+        self.has_write_to_arg0 = len(paths) != 0
+
+        # Collect constant return values
+        for block in self.context.graph.nodes:
+            if isinstance(block.statements[-1], Return):
+                stmt = block.statements[-1]
+                ret_expr = stmt.ret_exprs[0] if stmt.ret_exprs else None
+                if isinstance(ret_expr, VirtualVariable):
+                    self.const_ret_values |= set(
+                        value.value
+                        for value in self.context.get_terminal_vvar_values(ret_expr)
+                        if isinstance(value, Const)
+                    )
+                elif isinstance(ret_expr, Const):
+                    self.const_ret_values.add(ret_expr.value)
 
     def _srda_on_path(self, path: Tuple[Block]):
         return SRDAMixin(self.context.func, Pathfinder.path_to_graph(path), self.project)
@@ -229,13 +236,17 @@ class FunctionBodyFactCollector(AILBlockWalker):
         if isinstance(addr, VirtualVariable) and addr.was_parameter:
             self.add_memory_write(addr.varid, self._path, offset, stmt.data)
 
-    def _handle_Call_Stmt_or_Expr(self, call: Call, block: Block):
+    def _should_handle_call(self, call: Call, stmt: Statement):
+        return (
+            isinstance(call.args[0], VirtualVariable)
+            and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
+        ) or (isinstance(stmt, Return) and stmt.ret_exprs and stmt.ret_exprs[0] is call)
+
+    def _handle_Call_Stmt_or_Expr(self, call: Call, stmt: Statement, block: Block):
         if (
             isinstance(call.target, Const)
             and call.target.value in self.project.kb.functions
-            and call.args
-            and isinstance(call.args[0], VirtualVariable)
-            and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
+            and self._should_handle_call(call, stmt)
         ):
             func = self.project.kb.functions[call.target.value]
             if func.normalized and func.size and self.context.depth < self.context.max_depth:
@@ -246,6 +257,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
                     max_depth=self.context.max_depth,
                 )
                 self.model.memory_writes[0] |= result.model.memory_writes[0]
+                self.model.const_ret_values |= result.model.const_ret_values
                 if result.model.has_write_to_arg0:
                     self.has_write_to_arg0 = True
             elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
@@ -254,11 +266,11 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.add_memory_write(0, self._path, 0, tmp)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        self._handle_Call_Stmt_or_Expr(stmt, block)
+        self._handle_Call_Stmt_or_Expr(stmt, stmt, block)
         super()._handle_Call(stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        self._handle_Call_Stmt_or_Expr(expr, block)
+        self._handle_Call_Stmt_or_Expr(expr, stmt, block)
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -309,11 +321,13 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             if self.graph is None and self.func.normalized and self.func.size:
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
-                    l.error(f"Clinic for {self.func.demangled_name}")
+                    l.info(f"Clinic for {self.func.demangled_name}")
                     self.graph = self.project.analyses.Clinic(
-                        self.func, cfg=cfg, optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover]
+                        self.func,
+                        cfg=cfg,
+                        optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover, CallStatementRewriter],
                     ).graph
-                    l.error(f"Clinic end for {self.func.demangled_name}")
+                    l.info(f"Clinic end for {self.func.demangled_name}")
                 except Exception as e:
                     l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                     l.error("".join(traceback.format_exception(e)))
@@ -451,13 +465,21 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             or not self._fact_collector.has_write_to_arg0
             or self.is_call_expr is True
         ):
+            if "uu_fmt::linebreak::break_simple" == demangle(self.func.name):
+                import ipdb
+
+                ipdb.set_trace()
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
-            # if len(self._fact_collector.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
-            #     addr = max(self._fact_collector.const_ret_values)
-            #     if SimpleMessageLayoutInference(self.project).is_const_simple_message(addr):
-            #         ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
-            #         err_type = self.kb.known_structs[KnownStructs.SIMPLE_MESSAGE]
-            #         return RustSimTypeResult(ok_type, err_type, 0, None, 0), False
+            if len(self.model.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
+                _, another_const = sorted(self.model.const_ret_values)
+                error_msg = extract_str_from_addr(self.project, another_const)
+                if error_msg is not None:
+                    ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
+                    err_type = RustSimTypeReference(RustSimTypeStrRef()).with_arch(self.project.arch)
+                    result_ty = RustSimTypeResult(ok_type, 0, self.project.arch.bytes, err_type, None, 0).with_arch(
+                        self.project.arch
+                    )
+                    return result_ty, False
             return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
