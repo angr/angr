@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use libafl::{
     NopInputFilter, StdFuzzer,
+    corpus::InMemoryCorpus,
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopBytesConverter},
@@ -28,8 +29,8 @@ use crate::fuzzer::{
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
-pub(crate) type C = PyInMemoryCorpus;
 pub(crate) type I = BytesInput;
+pub(crate) type C = InMemoryCorpus<I>;
 pub(crate) type S = StdState<C, I, StdRand, C>;
 pub(crate) type MT = CallbackMonitor;
 pub(crate) type EM = SimpleEventManager<I, MT, S>;
@@ -72,6 +73,9 @@ impl Fuzzer {
         let mut feedback = MaxMapFeedback::with_name("edges", &observer);
         let mut objective = CrashFeedback::default();
 
+        let corpus = InMemoryCorpus::try_from(&corpus)?;
+        let solutions = InMemoryCorpus::try_from(&solutions)?;
+
         let fuzzer_state = StdState::new(
             StdRand::with_seed(seed),
             corpus,
@@ -109,12 +113,12 @@ impl Fuzzer {
         })
     }
 
-    fn corpus<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyInMemoryCorpus>> {
-        self.fuzzer_state.corpus().clone().into_pyobject(py)
+    fn corpus(&self) -> PyResult<PyInMemoryCorpus> {
+        PyInMemoryCorpus::try_from(self.fuzzer_state.corpus())
     }
 
-    fn solutions<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyInMemoryCorpus>> {
-        self.fuzzer_state.solutions().clone().into_pyobject(py)
+    fn solutions(&self) -> PyResult<PyInMemoryCorpus> {
+        PyInMemoryCorpus::try_from(self.fuzzer_state.solutions())
     }
 
     #[pyo3(signature = (progress_callback = None))]
