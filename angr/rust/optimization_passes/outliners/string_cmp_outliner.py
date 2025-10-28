@@ -28,7 +28,7 @@ class StringCmpOutliner(OptimizationPass):
                 decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
             )
             return decoded_str
-        except UnicodeDecodeError:
+        except Exception:
             return None
 
     def _extract_cmp(self, expr):
