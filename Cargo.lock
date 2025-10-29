@@ -47,7 +47,7 @@ dependencies = [
  "pyo3",
  "rangemap",
  "send_wrapper",
- "target-lexicon 0.12.16",
+ "target-lexicon 0.13.2",
 ]
 
 [[package]]
