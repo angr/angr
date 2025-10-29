@@ -83,10 +83,8 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         return None
 
     def _analyze(self, cache=None):
-        # Run calling convention analysis on current function if it's never analyzed
-        if not isinstance(self._func.prototype, RustSimTypeFunction):
-            rcc = self.project.analyses.RustCallingConvention(self._func)
-            self._func.prototype = rcc.model.inferred_prototype
+        rcc = self.project.analyses.RustCallingConvention(self._func)
+        self._func.prototype = rcc.model.inferred_prototype
 
         walker = CallReplacer(callback=self._analyze_and_replace_call)
         for block in self._graph.nodes:
