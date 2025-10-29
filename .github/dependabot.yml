@@ -6,3 +6,9 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "rust"
