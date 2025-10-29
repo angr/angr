@@ -20,6 +20,9 @@ class Insights(InsightBase):
         ins = self.project.analyses.Insight_Sockets(*self.args, **self.kwargs)
         self.kb.insights.add_insight("Sockets", ins.result)
 
+        features = self.project.analyses.Insight_Features(*self.args, **self.kwargs)
+        self.kb.insights.add_insight("Features", features.result)
+
 
 from angr.analyses import AnalysesHub
 

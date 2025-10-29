@@ -10,7 +10,7 @@ from .base import InsightBase
 
 class AppFeature(Enum):
     AUTH = 1
-    WEBSERVER = 2
+    WEB = 2
     CRYPTO = 3
     COMPRESSION = 4
     MMIO = 5
@@ -18,6 +18,10 @@ class AppFeature(Enum):
     WIFI = 7
     USB = 8
     UART = 9
+    STORAGE = 10
+    POWER = 11
+    TIME_DISPLAY = 12
+    URL = 13
 
 
 FEATURE_STRINGS = {
@@ -30,7 +34,7 @@ FEATURE_STRINGS = {
         "password",
         "username",
     },
-    AppFeature.WEBSERVER: {
+    AppFeature.WEB: {
         "http",
         "https",
         "www",
@@ -65,7 +69,6 @@ FEATURE_STRINGS = {
         "sha1",
         "sha256",
         "hash",
-        "key",
         "signature",
         "cert",
         "ssl",
@@ -85,11 +88,11 @@ FEATURE_STRINGS = {
         "bzip2",
         "lzma",
         "xz",
-        "tar",
+        # "tar",
         "archive",
         "unarchive",
         "7z",
-        "rar",
+        # "rar",
     },
     AppFeature.USB: {
         "usb",
@@ -122,9 +125,9 @@ FEATURE_STRINGS = {
         "bssid",
         "mac address",
         "access point",
-        "ap",
+        # "ap",
         "station",
-        "sta",
+        # "sta",
         "wpa",
         "wpa2",
         "wpa3",
@@ -135,6 +138,28 @@ FEATURE_STRINGS = {
         "eap-tls",
         "eap-ttls",
         "eap-aka",
+    },
+    AppFeature.STORAGE: {
+        "sdcard",
+        "flash",
+        "nand",
+        "sata",
+        "nvme",
+        "filesystem",
+        "sector",
+        "block device",
+    },
+    AppFeature.POWER: {"battery", "power", "voltage", "current", "charge", "discharge", "sleep", "wake", "poweroff"},
+    AppFeature.TIME_DISPLAY: {"%02d am", "%02d pm", "%02dam", "%02dpm"},
+    AppFeature.URL: {
+        "http://",
+        "https://",
+        "ftp://",
+        "ftps://",
+        "sftp://",
+        "file://",
+        "mailto:",
+        "tel:",
     },
 }
 
@@ -156,6 +181,8 @@ class FeaturesInsight(InsightBase):
         super().__init__(*args, **kwargs)
 
         self.result = []
+        self.feature_to_evidence: dict[AppFeature, list] = None
+        self.feature_to_funcs: dict[AppFeature, set[int]] = None
 
         self.analyze()
 
@@ -169,13 +196,24 @@ class FeaturesInsight(InsightBase):
         # map feature evidence to functions
         self.feature_to_funcs = self._map_feature_to_functions(self.feature_to_evidence)
 
-    def _candidate_features(self):
+        for feature in self.feature_to_evidence:
+            evidence = self.feature_to_evidence[feature]
+            functions = self.feature_to_funcs.get(feature, set())
+            self.result.append(
+                {
+                    "feature": feature.name,
+                    "evidence": [(md.addr, s) for md, s in evidence],
+                    "functions": functions,
+                }
+            )
+
+    def _candidate_features(self) -> dict[AppFeature, list]:
 
         feature_to_evidence = defaultdict(list)
 
         cfg = self.kb.cfgs.get_most_accurate()
         if cfg is None:
-            return None
+            return {}
         for _addr, md in cfg.memory_data.items():
             if md.sort == MemoryDataSort.String:
                 s = md.content.decode("ascii")
@@ -193,7 +231,7 @@ class FeaturesInsight(InsightBase):
 
         return feature_to_evidence
 
-    def _map_feature_to_functions(self, feature_to_evidence):
+    def _map_feature_to_functions(self, feature_to_evidence) -> dict[AppFeature, set[int]]:
         feature_to_funcs = defaultdict(set)
 
         cfg = self.kb.cfgs.get_most_accurate()
