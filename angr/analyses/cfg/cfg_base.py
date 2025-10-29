@@ -221,7 +221,10 @@ class CFGBase(Analysis):
             else:
                 if not objects:
                     objects = self.project.loader.all_objects
-                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
+                if not regions:
+                    # fall back to using min and max addresses of all objects
+                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
 
         for start, end in regions:
             if end < start:
@@ -758,6 +761,25 @@ class CFGBase(Analysis):
 
             elif isinstance(b, self._cle_pseudo_objects):
                 pass
+
+            elif hasattr(b, "sections") and b.sections:
+                sections = []
+                # Get all executable sections
+                for section in b.sections:
+                    if section.is_executable:
+                        max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                        tpl = (section.min_addr, max_mapped_addr)
+                        sections.append(tpl)
+                memory_regions += sections
+
+            elif hasattr(b, "segments") and b.segments:
+                segments = []
+                for segment in b.segments:
+                    if segment.is_executable:
+                        max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
+                        tpl = (segment.min_addr, max_mapped_addr)
+                        segments.append(tpl)
+                memory_regions += segments
 
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)

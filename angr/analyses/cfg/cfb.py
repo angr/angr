@@ -174,6 +174,18 @@ class CFBlanket(Analysis):
                     size = obj.max_addr - base_addr
                     mr = MemoryRegion(base_addr, size, "segment", obj, None)
                     self._regions.append(mr)
+            elif hasattr(obj, "sections") and obj.sections:
+                if "section" not in self._exclude_region_types:
+                    for section in obj.sections:
+                        if section.memsize > 0:
+                            mr = MemoryRegion(section.vaddr, section.memsize, "section", obj, section)
+                            self._regions.append(mr)
+            elif hasattr(obj, "segments") and obj.segments:
+                if "segment" not in self._exclude_region_types:
+                    for segment in obj.segments:
+                        if segment.memsize > 0:
+                            mr = MemoryRegion(segment.vaddr, segment.memsize, "segment", obj, segment)
+                            self._regions.append(mr)
             else:
                 size = obj.size if hasattr(obj, "size") else obj.max_addr - obj.min_addr
                 type_ = "TODO"
