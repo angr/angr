@@ -1,10 +1,10 @@
 import logging
 
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import VirtualVariable, Const
 from angr.ailment.statement import Return, Label, Call
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.utils.ail import CallFinder, find_call
+from angr.rust.utils.ail import CallFinder, find_call, get_terminal_call
 
 CLEANUP_FUNCTIONS = ("__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
 
@@ -25,6 +25,8 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         CFAMixin.__init__(self, self._graph, self.project)
         SRDAMixin.__init__(self, self._func, self._graph, self.project)
 
+        self.cleanup_functions = self.kb.cleanup_functions.identify_cleanup_functions()
+
         self.analyze()
 
     def _check(self):
@@ -35,21 +37,16 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         stmts = block.statements[:-1] if len(block.statements) > 0 else []
         return all(isinstance(stmt, Label) for stmt in stmts)
 
-    def _collect_type_hints(self, block):
-        call = self.terminal_call(block)
-        func_name = self.kb.functions[call.target.value].demangled_name
-        if func_name.startswith("core::ptr::drop_in_place<") and func_name.endswith(">"):
-            struct_name = func_name[25:-1].replace(",", ", ")
-            struct_ty = self.kb.known_structs[struct_name]
-            # import ipdb
-            #
-            # ipdb.set_trace()
+    def _should_remove(self, call):
+        # return self.match_call(block, CLEANUP_FUNCTIONS)
+        if isinstance(call, Call) and isinstance(call.target, Const) and call.target.value in self.cleanup_functions:
+            return True
+        return False
 
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()
         for block in self._graph.nodes:
-            if self.match_call(block, CLEANUP_FUNCTIONS):
-                self._collect_type_hints(block)
+            if self._should_remove(get_terminal_call(block)):
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
                 elif not self._is_simple_block(block):
@@ -65,7 +62,7 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
             if block.statements and isinstance(last_stmt := block.statements[-1], Return):
                 call = find_call(last_stmt)
                 last_stmt.ret_exprs = []
-                if call and not self.match_call(call, CLEANUP_FUNCTIONS):
+                if call and not self._should_remove(call):
                     call.bits = None
                     new_stmts = block.statements.copy()
                     new_stmts[-1] = call
@@ -82,15 +79,12 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
             if block.statements and isinstance(last_stmt := block.statements[-1], Return):
                 ret_expr = last_stmt.ret_exprs[0] if last_stmt.ret_exprs else None
                 if isinstance(ret_expr, Call):
-                    if self.match_call(ret_expr, CLEANUP_FUNCTIONS):
+                    if self._should_remove(ret_expr):
                         self._clean_return_exprs()
                         break
                 elif isinstance(ret_expr, VirtualVariable):
                     possible_values = self.get_terminal_vvar_values(ret_expr)
-                    if any(
-                        isinstance(value, Call) and self.match_call(value, CLEANUP_FUNCTIONS)
-                        for value in possible_values
-                    ):
+                    if any(isinstance(value, Call) and self._should_remove(value) for value in possible_values):
                         self._clean_return_exprs()
                         break
 
