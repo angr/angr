@@ -1,5 +1,7 @@
+use std::path::PathBuf;
+
 use libafl::{
-    corpus::{Corpus, CorpusId, InMemoryCorpus, Testcase},
+    corpus::{Corpus, CorpusId, InMemoryCorpus, OnDiskCorpus, Testcase},
     inputs::BytesInput,
 };
 use pyo3::{
@@ -125,6 +127,73 @@ impl PyInMemoryCorpus {
     fn __setstate__(&mut self, state: Vec<u8>) -> PyResult<()> {
         self.inner =
             postcard::from_bytes(&state).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(())
+    }
+}
+
+// On DiskCorpus wrapper
+#[pyclass(module = "angr.rustylib.fuzzer", name = "OnDiskCorpus", unsendable)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PyOnDiskCorpus {
+    pub(crate) inner: OnDiskCorpus<BytesInput>,
+}
+
+#[pymethods]
+impl PyOnDiskCorpus {
+    #[new]
+    fn py_new(dir_path: String) -> PyResult<Self> {
+        let corpus =
+            OnDiskCorpus::new(&dir_path).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(PyOnDiskCorpus { inner: corpus })
+    }
+
+    fn add(&mut self, input: Vec<u8>) -> PyResult<usize> {
+        let testcase = Testcase::new(BytesInput::from(input));
+        let corpus_id = self
+            .inner
+            .add(testcase)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        Ok(corpus_id.into())
+    }
+
+    fn __getitem__(&self, id: usize) -> PyResult<Vec<u8>> {
+        let corpus_id = CorpusId::from(id);
+        let testcase_ref = self
+            .inner
+            .get(corpus_id)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let testcase = testcase_ref.borrow();
+        match testcase.input() {
+            Some(input) => Ok(input.as_ref().to_vec()),
+            None => Err(PyRuntimeError::new_err("Testcase input is None")),
+        }
+    }
+
+    fn __len__(&self) -> usize {
+        self.inner.count()
+    }
+
+    fn to_bytes_list(&self) -> PyResult<Vec<Vec<u8>>> {
+        let mut result = Vec::new();
+        for i in 0..self.inner.count() {
+            let corpus_id = CorpusId::from(i);
+            if let Ok(testcase_ref) = self.inner.get(corpus_id) {
+                let testcase = testcase_ref.borrow();
+                if let Some(input) = testcase.input() {
+                    result.push(input.as_ref().to_vec());
+                }
+            }
+        }
+        Ok(result)
+    }
+
+    fn __getstate__(&self) -> PyResult<PathBuf> {
+        Ok(self.inner.dir_path().to_path_buf())
+    }
+
+    fn __setstate__(&mut self, state: PathBuf) -> PyResult<()> {
+        self.inner = OnDiskCorpus::new(state.to_str().unwrap())
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
 }
