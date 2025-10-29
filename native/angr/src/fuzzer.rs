@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use libafl::{
     NopInputFilter, StdFuzzer,
-    corpus::InMemoryCorpus,
+    corpus::OnDiskCorpus,
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopBytesConverter},
@@ -23,14 +23,12 @@ use libafl_bolts::{
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::fuzzer::{
-    corpus::PyInMemoryCorpus, executor::PyExecutorInner, monitor::CallbackMonitor,
-};
+use crate::fuzzer::{corpus::PyOnDiskCorpus, executor::PyExecutorInner, monitor::CallbackMonitor};
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
 pub(crate) type I = BytesInput;
-pub(crate) type C = InMemoryCorpus<I>;
+pub(crate) type C = OnDiskCorpus<I>;
 pub(crate) type S = StdState<C, I, StdRand, C>;
 pub(crate) type MT = CallbackMonitor;
 pub(crate) type EM = SimpleEventManager<I, MT, S>;
@@ -59,8 +57,8 @@ impl Fuzzer {
     #[new]
     fn py_new(
         base_state: Bound<PyAny>,
-        corpus: PyInMemoryCorpus,
-        solutions: PyInMemoryCorpus,
+        corpus: PyOnDiskCorpus,
+        solutions: PyOnDiskCorpus,
         apply_fn: Bound<PyAny>,
         timeout: Option<u64>,
         seed: u64,
@@ -73,8 +71,8 @@ impl Fuzzer {
         let mut feedback = MaxMapFeedback::with_name("edges", &observer);
         let mut objective = CrashFeedback::default();
 
-        let corpus = InMemoryCorpus::try_from(&corpus)?;
-        let solutions = InMemoryCorpus::try_from(&solutions)?;
+        let corpus = corpus.inner.clone();
+        let solutions = solutions.inner.clone();
 
         let fuzzer_state = StdState::new(
             StdRand::with_seed(seed),
@@ -113,12 +111,16 @@ impl Fuzzer {
         })
     }
 
-    fn corpus(&self) -> PyResult<PyInMemoryCorpus> {
-        PyInMemoryCorpus::try_from(self.fuzzer_state.corpus())
+    fn corpus(&self) -> PyResult<PyOnDiskCorpus> {
+        Ok(PyOnDiskCorpus {
+            inner: self.fuzzer_state.corpus().clone(),
+        })
     }
 
-    fn solutions(&self) -> PyResult<PyInMemoryCorpus> {
-        PyInMemoryCorpus::try_from(self.fuzzer_state.solutions())
+    fn solutions(&self) -> PyResult<PyOnDiskCorpus> {
+        Ok(PyOnDiskCorpus {
+            inner: self.fuzzer_state.solutions().clone(),
+        })
     }
 
     #[pyo3(signature = (progress_callback = None))]
@@ -167,6 +169,7 @@ impl Fuzzer {
 pub fn fuzzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Fuzzer>()?;
     m.add_class::<corpus::PyInMemoryCorpus>()?;
+    m.add_class::<corpus::PyOnDiskCorpus>()?;
     m.add_class::<monitor::ClientStats>()?;
     Ok(())
 }

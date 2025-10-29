@@ -20,6 +20,22 @@ class InMemoryCorpus:
     def __len__(self) -> int:
         pass
 
+class OnDiskCorpus:
+    def __new__(cls, dir_path: str) -> OnDiskCorpus:
+        pass
+
+    def add(self, input: bytes) -> int:
+        pass
+
+    def to_bytes_list(self) -> list[bytes]:
+        pass
+
+    def __getitem__(self, idx: int) -> bytes:
+        pass
+
+    def __len__(self) -> int:
+        pass
+
 class ClientStats:
     @property
     def enabled(self) -> bool:
@@ -77,8 +93,8 @@ class Fuzzer:
     def __init__(
         self,
         base_state: SimState,
-        corpus: InMemoryCorpus,
-        solutions: InMemoryCorpus,
+        corpus: OnDiskCorpus,
+        solutions: OnDiskCorpus,
         apply_fn: Callable[[SimState, bytes], None],
         timeout: int = 0,
         seed: int | None = None,
