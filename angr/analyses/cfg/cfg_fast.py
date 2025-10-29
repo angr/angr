@@ -1344,6 +1344,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 return addr
 
     def _nodecode_bytes_ratio(self, cutoff_addr: int, window_size: int) -> float:
+        if cutoff_addr - 1 < 0:
+            return 0.0
         idx = self._seg_list.search(cutoff_addr - 1)
         if idx is None or idx >= len(self._seg_list):
             return 0.0
