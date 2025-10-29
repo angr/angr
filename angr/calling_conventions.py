@@ -2423,7 +2423,9 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
 
 
 def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
-    DEFAULT_CC[arch] = {platform: cc}
+    if arch not in DEFAULT_CC:
+        DEFAULT_CC[arch] = {}
+    DEFAULT_CC[arch][platform] = cc
     if arch not in CC:
         CC[arch] = {}
     if platform not in CC[arch]:
