@@ -8,9 +8,9 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
-icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
-icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
-pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
+icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "0ce707edd10f7a099426cf02a9fdf8eda3f57768" }
+icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "0ce707edd10f7a099426cf02a9fdf8eda3f57768" }
+pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "0ce707edd10f7a099426cf02a9fdf8eda3f57768" }
 pyo3 = { git = "https://github.com/pyo3/pyo3", version = "0.26.0", features = ["py-clone", "abi3-py310"] }
 rangemap = "1.6.0"
 send_wrapper = "0.6.0"
