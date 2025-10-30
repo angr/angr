@@ -14,4 +14,4 @@ pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "0ce707edd
 pyo3 = { git = "https://github.com/pyo3/pyo3", version = "0.26.0", features = ["py-clone", "abi3-py310"] }
 rangemap = "1.6.0"
 send_wrapper = "0.6.0"
-target-lexicon = "0.13.2"
+target-lexicon = "0.13.3"
