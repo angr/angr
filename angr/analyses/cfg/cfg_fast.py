@@ -2581,6 +2581,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             to_outside, target_func_addr = self._is_branching_to_outside(
                                 addr, resolved_target, current_function_addr
                             )
+                            if jumpkind == "Ijk_Boring" and target_func_addr == current_function_addr:
+                                # an indirect jump should be jumping to the start of a function instead of resuming
+                                # the current one
+                                target_func_addr = resolved_target
                             edge = FunctionTransitionEdge(
                                 cfg_node,
                                 resolved_target,
