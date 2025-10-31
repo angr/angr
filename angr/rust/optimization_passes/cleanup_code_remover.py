@@ -38,10 +38,10 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
         return all(isinstance(stmt, Label) for stmt in stmts)
 
     def _should_remove(self, call):
-        # return self.match_call(block, CLEANUP_FUNCTIONS)
-        if isinstance(call, Call) and isinstance(call.target, Const) and call.target.value in self.cleanup_functions:
-            return True
-        return False
+        return self.match_call(call, CLEANUP_FUNCTIONS)
+        # if isinstance(call, Call) and isinstance(call.target, Const) and call.target.value in self.cleanup_functions:
+        #     return True
+        # return False
 
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()

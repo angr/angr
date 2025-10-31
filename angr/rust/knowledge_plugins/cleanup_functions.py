@@ -25,7 +25,7 @@ class CleanupFunctions(KnowledgeBasePlugin):
                     self._cleanup_functions.add(func.addr)
             queue = [free_addr]
             while queue:
-                current_func_addr = queue.pop()
+                current_func_addr = queue.pop(0)
                 callers = proj.kb.callgraph.predecessors(current_func_addr)
                 for caller_addr in callers:
                     callees = proj.kb.callgraph.successors(caller_addr)
