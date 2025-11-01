@@ -399,6 +399,18 @@ class TestCfgfast(unittest.TestCase):
         # the start function that should not be removed
         assert proj.entry in cfg.kb.functions
 
+    def test_cfg_function_stubs_with_single_jumpouts(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust-stripped"), auto_load_libs=False)
+        cfg = proj.analyses.CFG()
+
+        # the function at 0x4864f0 is a function stub that jumps directly to function at 0x486500. ensure that CFGFast
+        # discovers both functions correctly instead of merging them together
+        assert cfg.kb.functions.contains_addr(0x4864F0)
+        assert cfg.kb.functions.contains_addr(0x486500)
+        func_jump_stub = cfg.kb.functions.get_by_addr(0x4864F0)
+        assert len(func_jump_stub.block_addrs_set) == 1
+        assert len(func_jump_stub.jumpout_sites) == 1
+
     #
     # Serialization
     #

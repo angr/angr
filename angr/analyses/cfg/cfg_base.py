@@ -1943,7 +1943,8 @@ class CFGBase(Analysis):
 
         If the following conditions are met, we will remove the second function and merge it into the first function:
         - The second function is not called by other code.
-        - The first function has only one jumpout site, which points to the second function.
+        - The first function has only one non-empty jumpout site (e.g., the first function contains more than just nops
+          and jumps), which points to the second function.
 
         :param FunctionManager functions:   All functions that angr recovers.
         :return:                            A set of addresses of all removed functions.
@@ -1978,6 +1979,9 @@ class CFGBase(Analysis):
                 if self._is_noop_block(self.project.arch, block):
                     continue
                 if block.vex_nostmt.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
+                    continue
+                if all(isinstance(stmt, pyvex.stmt.IMark) for stmt in block.vex.statements):
+                    # the first block is empty
                     continue
 
                 # does the first block transition to the next function?
