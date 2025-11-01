@@ -2555,6 +2555,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
 
         if target_addr is None:
             # The target address is not a concrete value
+            assert irsb is not None and ins_addr is not None and stmt_idx is not None
 
             if jumpkind == "Ijk_Ret":
                 # This block ends with a return instruction.
@@ -2573,6 +2574,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 # FIXME: in some cases, a statementless irsb will be missing its instr addresses
                 # and this next part will fail. Use the real IRSB instead
                 irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
+                assert irsb is not None
                 cfg_node.instruction_addrs = irsb.instruction_addresses
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(
                     addr, cfg_node, irsb, current_function_addr, stmt_idx
