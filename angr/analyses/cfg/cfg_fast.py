@@ -2594,7 +2594,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                             )
                         else:
                             to_outside, target_func_addr = self._is_branching_to_outside(
-                                addr, resolved_target, current_function_addr, jumpkind, all_successors
+                                cfg_node, resolved_target, current_function_addr, jumpkind, all_successors
                             )
                             if jumpkind == "Ijk_Boring" and target_func_addr == current_function_addr:
                                 # an indirect jump should be jumping to the start of a function instead of resuming
@@ -2702,7 +2702,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             # pylint: disable=too-many-nested-blocks
             if jumpkind in {"Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"}:
                 to_outside, target_func_addr = self._is_branching_to_outside(
-                    addr, target_addr, current_function_addr, jumpkind, all_successors
+                    cfg_node, target_addr, current_function_addr, jumpkind, all_successors
                 )
                 edge = FunctionTransitionEdge(
                     cfg_node,
@@ -2914,12 +2914,17 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         return jobs
 
     def _is_branching_to_outside(
-        self, src_addr: int, target_addr: int, current_function_addr: int, jumpkind: str, all_successors: list | None
+        self,
+        src_node: CFGNode,
+        target_addr: int,
+        current_function_addr: int,
+        jumpkind: str,
+        all_successors: list | None,
     ) -> tuple[bool, int]:
         """
         Determine if a branch is branching to a different function (i.e., branching to outside the current function).
 
-        :param src_addr:                The source address.
+        :param src_node:                The source CFG node.
         :param target_addr:             The destination address.
         :param current_function_addr:   Address of the current function.
         :param all_successors:          A list of other successors of the current block.
@@ -2927,6 +2932,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         :return:                        A tuple of (to_outside, target_func_addr)
         """
 
+        src_addr = src_node.addr
         if self._skip_unmapped_addrs and not self._addrs_belong_to_same_section(src_addr, target_addr):
             # if the target address is at another section, it has to be jumping to a new function
             target_func_addr = target_addr
@@ -2940,11 +2946,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
                 node = self.model.get_any_node(target_addr)
                 if node is not None:
                     target_func_addr = node.function_address
-            # case 2: if this block is the first block of the current function, has only one branch to the target
-            # address, and is a jump (Ijk_Boring, not a call), then the target address is likely the start of another
-            # function
+            # case 2: if the source instruction is the first instruction of the current function, has only one branch
+            # to the target address, and is a jump (Ijk_Boring, not a call), then the target address is likely the
+            # start of another function
             if (
                 target_func_addr is None
+                and len(src_node.instruction_addrs) == 1
                 and src_addr == current_function_addr
                 and jumpkind == "Ijk_Boring"
                 and all_successors is not None
