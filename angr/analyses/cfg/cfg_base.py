@@ -2022,12 +2022,13 @@ class CFGBase(Analysis):
                 if abort:
                     continue
 
-                # Merge block addr_0 and block addr_1
+                # Merge functions addr_0 and addr_1
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
 
                 cfgnode_1_merged = False
-                # we only merge two CFG nodes if the first one does not end with a branch instruction
-                if len(func_0.block_addrs_set) == 1 and len(out_edges) == 1:
+                # we only merge two CFG nodes if the first one does not end with a branch instruction and there are no
+                # other predecessors to CFG node addr_1
+                if len(func_0.block_addrs_set) == 1 and len(out_edges) == 1 and len(cfgnode_1_preds) <= 1:
                     outedge_src, outedge_dst, outedge_data = out_edges[0]
                     if (
                         outedge_src.addr == cfgnode_0.addr
@@ -2042,7 +2043,7 @@ class CFGBase(Analysis):
                         adjusted_cfgnodes.add(cfgnode_0)
                         adjusted_cfgnodes.add(cfgnode_1)
 
-                # Merge it
+                # Merge the two functions
                 func_1 = functions[addr_1]
                 for block_addr in func_1.block_addrs:
                     if block_addr == addr_1 and cfgnode_1_merged:
