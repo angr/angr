@@ -36,7 +36,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
     def _check(self):
         self._srda = self.project.analyses.SReachingDefinitions(
-            subject=self._func, func_graph=self._graph, func_args=self._arg_vvars
+            subject=self._func, func_graph=self._graph, func_args=set(vvar for vvar, _ in self._arg_vvars.values())
         )
         info = self._find_reg_store_and_restore_locations()
         if not info:
