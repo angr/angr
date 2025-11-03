@@ -168,7 +168,7 @@ class SimType:
     @staticmethod
     def from_cle(cle_types: list[variable_type.VariableType], arch=None) -> list[SimType]:
         def encode_namespace(namespace, name):
-            return "::".join(namespace) + name
+            return "::".join(namespace) + "::" + name
 
         mapping: dict[variable_type.VariableType, SimType] = dict()
         constructed_types: list[SimType] = []
@@ -204,7 +204,7 @@ class SimType:
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
-                typ: SimType = SimVariant(cle_typ.byte_size, None, [],
+                typ: SimType = SimVariant(cle_typ.byte_size, None, cle_typ.tag.addr_offset, [],
                                           label=cle_typ.name, name=cle_typ.name, align=cle_typ.align, arch=arch)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom(arch=arch)
@@ -244,7 +244,7 @@ class SimType:
                 if cle_typ.tag is not None:
                     typ.tag = mapping[cle_typ.tag.type]
                 for c in cle_typ.cases:
-                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, mapping[c.type])
+                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, mapping[c.type], align=c.align)
                     typ.cases.append(case)
             elif cle_typ is None:
                 pass
@@ -1807,11 +1807,12 @@ class SimStructValue:
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
 class SimVariantCase:
-    def __init__(self, tag_value: int, name: str, offset: int, type: SimType):
+    def __init__(self, tag_value: int, name: str, offset: int, type: SimType, align=None):
         self.tag_value = tag_value
         self.name = name
         self.offset = offset
         self.type = type
+        self.align = align
 
     def with_arch(self, arch):
         return SimVariantCase(self.tag_value, self.name, self.offset, self.type.with_arch(arch))
@@ -1819,7 +1820,8 @@ class SimVariantCase:
 class SimVariant(NamedTypeMixin, SimType):
     fields = ("members", "name")
 
-    def __init__(self, size: int, tag: SimType | None, cases: list[SimVariantCase], name=None,
+    def __init__(self, size: int, tag: SimType | None, tag_offset: int,
+                 cases: list[SimVariantCase], name=None,
                  label=None, align: int | None = None, arch=None):
         """
         :param size:        The size of the variant
@@ -1830,6 +1832,7 @@ class SimVariant(NamedTypeMixin, SimType):
         self._size = size
         self._align = align
         self.tag = tag
+        self.tag_offset = tag_offset
         self.cases = cases
 
     @property
@@ -1840,24 +1843,42 @@ class SimVariant(NamedTypeMixin, SimType):
     def alignment(self):
         if self._align is not None:
             return self._align
-        if all(val.alignment is NotImplemented for val in self.cases.values()):
+        if all(val.align is None for val in self.cases):
             return NotImplemented
-        return max(val.alignment if val.alignment is not NotImplemented else 1 for val in self.cases)
+        return max(val.align if val.align is not None else 1 for val in self.cases)
 
     def _refine_dir(self):
-        return list(self.cases.keys())
+        return [c.name for c in self.cases]
 
     def _refine(self, view, k):
-        ty = self.cases[k]
-        return view._deeper(ty=ty, addr=view._addr)
+        c = None
+        if isinstance(k, int):
+            c = self.cases[k]
+        elif isinstance(k, str):
+            for cse in self.cases:
+                if cse.name == k:
+                    c = cse
+                    break
+        if c is None:
+            raise ValueError(f"Unknown variant case {k}")
+        return view._deeper(ty=c.type, addr=view._addr + c.offset)
 
     def extract(self, state, addr, concrete=False):
+        # Note that a variant may not have a tag in the case where there is only a single case.
         if self.tag is None:
             tag_view = None
         else:
-            tag_view = SimMemView(ty=self.tag, addr=addr, state=state)
+            tag_view = SimMemView(ty=self.tag, addr=addr + self.tag_offset, state=state)
         if concrete:
-            pass
+            if tag_view is None:
+                for c in self.cases:
+                    return SimMemView(ty=c.type, addr=addr + c.offset, state=state).resolved
+            else:
+                concrete_tag = tag_view.concrete
+                for c in self.cases:
+                    if c.tag_value == concrete_tag:
+                        return SimMemView(ty=c.type, addr=addr + c.offset, state=state).resolved
+                return None
         else:
             if tag_view is None:
                 tag = None
@@ -1867,18 +1888,15 @@ class SimVariant(NamedTypeMixin, SimType):
             for c in self.cases:
                 mem_view = SimMemView(ty=c.type, addr=addr + c.offset, state=state)
                 if tag is None:
-                    tag_constraint = None
+                    tag_constraint = claripy.ast.bool.true()
                 else:
-                    tag_constraint = tag == c.tag
+                    tag_constraint = tag == c.tag_value
                 case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view.resolved))
             return SimVariantValue(self, tag, case_values)
 
     def __repr__(self):
-        # use the str instead of repr of each member to avoid exceed recursion
-        # depth when representing self-referential unions
-        return "union {} {{\n\t{}\n}}".format(
-            self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.cases.items())
-        )
+        members = [f"{c.type!s} {c.name}" for c in self.cases]
+        return "variant " + self.name + " {\n" + "     " + str(self.tag) + " tag;\n\t" + "\n\t".join(members) + "\n}"
 
     def c_repr(
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
@@ -1912,12 +1930,13 @@ class SimVariant(NamedTypeMixin, SimType):
         return f"union {self.name}"
 
     def _with_arch(self, arch):
-        out = SimVariant(self.size, self.tag.with_arch(arch), [c.with_arch(arch) for c in self.cases], name=self._name,
+        out = SimVariant(self.size, self.tag.with_arch(arch), self.tag_offset,
+                         [c.with_arch(arch) for c in self.cases], name=self._name,
                          align=self._align, label=self.label, arch=arch)
         return out
 
     def copy(self):
-        return SimUnion(dict(self.cases), name=self.name, label=self.label)
+        return SimVariant(self.size, self.tag, self.tag_offset, list(self.cases), self.name, self.label, self._align, self.arch)
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
@@ -2049,7 +2068,8 @@ class SimUnionValue:
         return SimUnionValue(self._union, values=self._values)
 
 class SimVariantCaseValue:
-    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool, value: claripy.ast.Bits):
+    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool,
+                 value: claripy.ast.Bits):
         """
         :param variant_case:    A SimVariantCase instance describing this particular case
         :param tag_constraint:  A boolean claripy constraint that must be true in order for this variant case to be\
@@ -2061,8 +2081,8 @@ class SimVariantCaseValue:
         self.value = value
 
     @property
-    def tag(self):
-        return self.variant_case.tag
+    def tag_value(self):
+        return self.variant_case.tag_value
 
     @property
     def name(self):
@@ -2070,6 +2090,10 @@ class SimVariantCaseValue:
 
     def copy(self):
         return SimVariantCaseValue(self.variant_case, self.tag_constraint, self.value)
+
+    @property
+    def align(self):
+        return self.variant_case.align
 
 class SimVariantValue:
     """
