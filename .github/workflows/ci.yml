@@ -15,7 +15,7 @@ jobs:
     name: Test installation
     strategy:
       matrix:
-        os: [windows-2022, macos-15]
+        os: [windows-2022, macos-15-intel]
       fail-fast: false
     runs-on: ${{ matrix.os }}
     steps:
