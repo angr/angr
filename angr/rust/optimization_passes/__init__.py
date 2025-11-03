@@ -22,7 +22,6 @@ from .struct_return_simplifier import StructReturnSimplifier
 from .alloc_simplifier import AllocSimplifier
 from .type_corrector import TypeCorrector
 from .struct_instantiation_simplifier import StructInstantiationSimplifier
-from .ownership_simplifier import OwnershipSimplifier
 
 
 def get_rust_optimization_passes():
