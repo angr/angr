@@ -4890,7 +4890,7 @@ class TestDecompiler(unittest.TestCase):
         )
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
-        func = proj.kb.functions[0x1400117E4]
+        func = proj.kb.functions[0x14001B6B0]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
