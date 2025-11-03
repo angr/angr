@@ -14,7 +14,7 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
 
     __slots__ = ()
 
-    NAME = "Simplifying inlined strcpy"
+    NAME = "Simplifying inlined memcpy"
     stmt_classes = (Assignment, Store)
 
     def optimize(self, stmt: Assignment | Store, stmt_idx: int | None = None, block=None, **kwargs):
