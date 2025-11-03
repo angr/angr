@@ -59,9 +59,9 @@ class StringObfType3Rewriter(OptimizationPass):
                 and last_stmt.ins_addr in self.kb.obfuscations.type3_deobfuscated_strings
             ):
                 the_str = self.kb.obfuscations.type3_deobfuscated_strings[block.statements[-1].ins_addr]
-                if "deobfuscated_strings" not in self.kb.notes:
-                    self.kb.notes["deobfuscated_strings"] = DeobfuscatedStringsNote("deobfuscated_strings")
-                self.kb.notes["deobfuscated_strings"].add_string("3", the_str, ref_addr=last_stmt.ins_addr)
+                if "deobfuscated_strings" not in self.notes:
+                    self.notes["deobfuscated_strings"] = DeobfuscatedStringsNote("deobfuscated_strings")
+                self.notes["deobfuscated_strings"].add_string("3", the_str, ref_addr=last_stmt.ins_addr)
                 new_block = self._process_block(block, the_str)
                 if new_block is not None:
                     self._update_block(block, new_block)
