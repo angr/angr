@@ -39,7 +39,7 @@ jobs:
         run: uv --directory angr run pytest -n auto --splits 5 --group ${{ matrix.runner_id }} tests
   macos:
     name: Test macOS
-    runs-on: macos-13
+    runs-on: macos-15
     strategy:
       matrix:
         runner_id: [1, 2, 3]
