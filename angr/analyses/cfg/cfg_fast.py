@@ -2340,6 +2340,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             self._function_add_return_site(addr, current_func_addr)
         else:
             # the procedure does not return
+            assert self._updated_nonreturning_functions is not None
             self._updated_nonreturning_functions.add(current_func_addr)
             cfg_node.no_ret = True  # update cfg_node
             self.kb.functions.get_by_addr(current_func_addr).returning = False
@@ -2372,6 +2373,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         self._function_add_node(cfg_node, function_addr)
 
         if self.functions.get_by_addr(function_addr).returning is not True:
+            assert self._updated_nonreturning_functions is not None
             self._updated_nonreturning_functions.add(function_addr)
 
         # the function address is updated by _generate_cfgnode() because the CFG node has been assigned to a
@@ -2549,6 +2551,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
             and not self.project.arch.call_pushes_ret
             and cfg_node.instruction_addrs
             and ins_addr == cfg_node.instruction_addrs[-1]
+            and irsb is not None
             and target_addr == irsb.addr + irsb.size
         ):
             jumpkind = "Ijk_Boring"
@@ -2751,7 +2754,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
     def _create_job_call(
         self,
         addr: int,
-        irsb: pyvex.IRSB,
+        irsb: pyvex.IRSB | None,
         cfg_node: CFGNode,
         stmt_idx: int,
         ins_addr: int,
@@ -2779,6 +2782,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylin
         jobs: list[CFGJob] = []
 
         if is_syscall:
+            assert irsb is not None
             resolved, resolved_targets, ij = self._indirect_jump_encountered(
                 addr, cfg_node, irsb, current_function_addr, stmt_idx
             )
