@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from angr.calling_conventions import default_cc
 from angr.rust.definitions.commit_versions import COMMIT_VERSIONS
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import MemoryDataSort
@@ -60,6 +61,8 @@ class KnownTypeLoader(Analysis):
         return None
 
     def _analyze(self):
+        cc_cls = default_cc(self.project.arch.name)
+        cc = cc_cls(self.project.arch) if cc_cls else None
         rustc_version = self._extract_rustc_version() or "1.61.0"
         if rustc_version:
             l.debug(f"Found rustc version: {rustc_version}")
@@ -95,6 +98,7 @@ class KnownTypeLoader(Analysis):
                     prototype = prototype.with_arch(self.project.arch)
                     for func in name_to_func[func_name]:
                         func.prototype = prototype
+                        func.calling_convention = cc
                     self.project.kb.librust.set_prototype(func_name, prototype)
 
 

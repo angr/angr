@@ -69,6 +69,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         skip_other_funcs: bool = False,
         auto_start: bool = True,
         func_graphs: dict[int, networkx.DiGraph] | None = None,
+        target_functions: set[int] | None = None,
     ):
         """
 
@@ -103,6 +104,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._auto_start = auto_start
         self._total_funcs = None
         self._func_graphs = func_graphs or {}
+        self._target_functions = target_functions
         self.prototype_libnames: set[str] = set()
 
         # sanity check
@@ -154,6 +156,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
         total_funcs = 0
         for func_addr in reversed(sorted_funcs):
+            if self._target_functions is not None and func_addr not in self._target_functions:
+                continue
+
             func = self.kb.functions.get_by_addr(func_addr)
             if (func.calling_convention is None or func.prototype is None) or self._force:
                 if func.is_alignment:
