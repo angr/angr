@@ -210,8 +210,9 @@ class FlirtAnalysis(Analysis):
         _l.debug(
             "_on_func_matched() is called with func_addr %#x with a suggested name %s.", func_addr, flirt_func.name
         )
-        if func_addr != base_addr and (self._is_arm and func_addr != base_addr + 1):
+        if func_addr != base_addr or (self._is_arm and func_addr != base_addr + 1):
             # get the correct function
+            func = None
             try:
                 func = self.kb.functions.get_by_addr(func_addr)
             except KeyError:
