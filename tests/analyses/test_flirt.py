@@ -14,7 +14,6 @@ from tests.common import bin_location, slow_test
 
 
 class TestFlirt(unittest.TestCase):
-    @slow_test
     def test_amd64_elf_static_libc_ubuntu_2004(self):
         binary_path = os.path.join(bin_location, "tests", "x86_64", "elf_with_static_libc_ubuntu_2004_stripped")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
