@@ -44,6 +44,7 @@ from .tidy_stack_addr import TidyStackAddr
 from .invert_negated_logical_conjuction_disjunction import InvertNegatedLogicalConjunctionsAndDisjunctions
 from .rol_ror import RolRorRewriter
 from .inlined_memcpy import InlinedMemcpy
+from .inlined_memset import InlinedMemset
 from .inlined_strcpy import InlinedStrcpy
 from .inlined_strcpy_consolidation import InlinedStrcpyConsolidation
 from .inlined_wcscpy import InlinedWcscpy
@@ -102,6 +103,7 @@ ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
     InvertNegatedLogicalConjunctionsAndDisjunctions,
     RolRorRewriter,
     InlinedMemcpy,
+    InlinedMemset,
     InlinedStrcpy,
     InlinedStrcpyConsolidation,
     InlinedWcscpy,
