@@ -1,11 +1,11 @@
 from __future__ import annotations
 import logging
 
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.engines.pcode.lifter import IRSB
-from pypcode import OpCode, Varnode
+from pypcode import OpCode, Varnode, PcodeOp
 import pypcode
 
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.engines.pcode.lifter import IRSB
 from .block import Block
 from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
 from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
@@ -50,7 +50,7 @@ opcode_to_generic_name = {
     # OpCode.INT_REM           : '',
     # OpCode.INT_SREM          : '',
     OpCode.BOOL_NEGATE: "Not",
-    OpCode.BOOL_XOR: "LogicalXor",
+    OpCode.BOOL_XOR: "Xor",
     OpCode.BOOL_AND: "LogicalAnd",
     OpCode.BOOL_OR: "LogicalOr",
     # OpCode.CAST              : '',
@@ -88,6 +88,8 @@ class PCodeIRSBConverter(Converter):
     Converts a p-code IRSB to an AIL block
     """
 
+    _current_op: PcodeOp
+
     @staticmethod
     def convert(irsb: IRSB, manager: Manager):  # pylint:disable=arguments-differ
         """
@@ -103,7 +105,6 @@ class PCodeIRSBConverter(Converter):
         self._irsb = irsb
         self._manager = manager
         self._statements = []
-        self._current_op = None
         self._next_ins_addr = None
         self._current_behavior = None
         self._statement_idx = 0
@@ -150,6 +151,7 @@ class PCodeIRSBConverter(Converter):
                 self._manager.ins_addr = op.inputs[0].offset
                 self._next_ins_addr = op.inputs[-1].offset + op.inputs[-1].size
             else:
+                assert self._irsb.behaviors is not None
                 self._current_behavior = self._irsb.behaviors.get_behavior_for_opcode(self._current_op.opcode)
                 self._convert_current_op()
             self._statement_idx += 1
@@ -191,7 +193,12 @@ class PCodeIRSBConverter(Converter):
         in1 = self._get_value(self._current_op.inputs[0])
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s", opcode.__name__)
-            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, [], bits=self._current_op.output.size * 8)
+            out = DirtyExpression(
+                self._manager.next_atom(),
+                opcode.__name__,
+                [],
+                bits=self._current_op.output.size * 8 if self._current_op.output is not None else 1,
+            )
         else:
             out = UnaryOp(self._manager.next_atom(), op, in1, ins_addr=self._manager.ins_addr)
 
@@ -206,12 +213,19 @@ class PCodeIRSBConverter(Converter):
         op = opcode_to_generic_name.get(opcode)
         in1 = self._get_value(self._current_op.inputs[0])
         in2 = self._get_value(self._current_op.inputs[1])
-        signed = op in {"CmpLEs", "CmpGTs"}
-
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s.", opcode.__name__)
-            out = DirtyExpression(self._manager.next_atom(), opcode.__name__, [], bits=self._current_op.output.size * 8)
+            out = DirtyExpression(
+                self._manager.next_atom(),
+                opcode.__name__,
+                [],
+                bits=self._current_op.output.size * 8 if self._current_op.output is not None else 1,
+            )
         else:
+            # fix op name for signed comparisons
+            signed = op.startswith("Cmp") and op.endswith("s")
+            if signed and op.endswith("s"):
+                op = op[:-1]
             out = BinaryOp(self._manager.next_atom(), op, [in1, in2], signed, ins_addr=self._manager.ins_addr)
 
         # Zero-extend 1-bit results
