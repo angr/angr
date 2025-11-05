@@ -1,11 +1,11 @@
 from __future__ import annotations
 import logging
 
-from angr.utils.constants import DEFAULT_STATEMENT
-from angr.engines.pcode.lifter import IRSB
 from pypcode import OpCode, Varnode, PcodeOp
 import pypcode
 
+from angr.utils.constants import DEFAULT_STATEMENT
+from angr.engines.pcode.lifter import IRSB
 from .block import Block
 from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
 from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
