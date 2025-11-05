@@ -7,5 +7,5 @@ class SkipConversionNotice(Exception):
 
 class Converter:
     @staticmethod
-    def convert(thing):
+    def convert(thing, manager):
         raise NotImplementedError

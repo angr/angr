@@ -37,11 +37,11 @@ class OpBehavior:
     """
 
     __slots__ = ("is_special", "is_unary", "opcode")
-    opcode: int
+    opcode: OpCode
     is_unary: bool
     is_special: bool
 
-    def __init__(self, opcode: int, is_unary: bool, is_special: bool = False) -> None:
+    def __init__(self, opcode: OpCode, is_unary: bool, is_special: bool = False) -> None:
         self.opcode = opcode
         self.is_unary = is_unary
         self.is_special = is_special
@@ -916,7 +916,7 @@ class BehaviorFactory:
         if OpCode:
             self._register_behaviors()
 
-    def get_behavior_for_opcode(self, opcode: int) -> OpBehavior:
+    def get_behavior_for_opcode(self, opcode: OpCode) -> OpBehavior:
         return self._behaviors[opcode]
 
     def _register_behaviors(self) -> None:
