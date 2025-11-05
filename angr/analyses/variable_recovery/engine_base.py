@@ -438,7 +438,7 @@ class SimEngineVRBase(
                     ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
                     region=self.func_addr,
                 )
-                self.state.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
+                self.state.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
             elif vvar.was_tmp:
                 # FIXME: we treat all tmp vvars as registers
                 assert vvar.tmp_idx is not None
