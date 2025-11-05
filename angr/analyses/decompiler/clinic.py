@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 import angr.ailment as ailment
-
+from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -20,6 +20,7 @@ from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.codenode import BlockNode
 from angr.utils import timethis
+from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
@@ -401,6 +402,18 @@ class Clinic(Analysis):
                     ail_graph = self._inline_call(ail_graph, blk, idx, callee)
         return ail_graph
 
+    @staticmethod
+    def _inline_fix_block_phi_stmts(block: ailment.Block, new_block_idx: int) -> None:
+        # update the source block ID of all phi variables
+        for idx, stmt in enumerate(block.statements):
+            if is_phi_assignment(stmt):
+                new_src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]] = [
+                    ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
+                ]
+                new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
+                new_stmt = ailment.Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
+                block.statements[idx] = new_stmt
+
     def _inline_call(self, ail_graph, caller_block, call_idx, callee):
         callee_clinic = self.project.analyses.Clinic(
             callee,
@@ -419,8 +432,10 @@ class Clinic(Analysis):
 
         # uniquely mark all the blocks in case of duplicates (e.g., foo(); foo();)
         self._inlined_counts.setdefault(callee.addr, 0)
+        block_idx = self._inlined_counts[callee.addr]
         for blk in callee_graph.nodes():
-            blk.idx = self._inlined_counts[callee.addr]
+            blk.idx = block_idx
+            self._inline_fix_block_phi_stmts(blk, block_idx)
         self._inlined_counts[callee.addr] += 1
 
         # figure out where the callee should start at and return to
@@ -456,12 +471,7 @@ class Clinic(Analysis):
                     break
 
         # update the call edge
-        caller_block.statements[call_idx] = ailment.Stmt.Jump(
-            None,
-            ailment.Expr.Const(None, None, callee.addr, self.project.arch.bits),
-            callee_start.idx,
-            **caller_block.statements[call_idx].tags,
-        )
+        caller_block.statements[call_idx] = None  # remove the call statement
         if (
             isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
             and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
@@ -490,12 +500,20 @@ class Clinic(Analysis):
                     stmt = ailment.Stmt.Assignment(
                         self._ail_manager.next_atom(),
                         param_vvar,
-                        ailment.Expr.Register(self._ail_manager.next_atom(), None, reg_offset, reg_arg.bits),
+                        ailment.Expr.Register(
+                            self._ail_manager.next_atom(),
+                            None,
+                            reg_offset,
+                            reg_arg.bits,
+                            ins_addr=caller_block.addr + caller_block.original_size,
+                        ),
                         ins_addr=caller_block.addr + caller_block.original_size,
                     )
                     caller_block.statements.append(stmt)
                 else:
                     raise NotImplementedError("Unsupported parameter type")
+
+        caller_block.statements = [s for s in caller_block.statements if s is not None]
 
         ail_graph.add_edge(caller_block, callee_start)
 

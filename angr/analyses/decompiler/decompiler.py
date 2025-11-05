@@ -67,8 +67,8 @@ class Decompiler(Analysis):
         binop_operators=None,
         decompile=True,
         regen_clinic=True,
-        inline_functions=frozenset(),
-        desired_variables=frozenset(),
+        inline_functions=None,
+        desired_variables=None,
         update_memory_data: bool = True,
         generate_code: bool = True,
         use_cache: bool = True,
@@ -109,8 +109,8 @@ class Decompiler(Analysis):
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
-        self._inline_functions = inline_functions
-        self._desired_variables = desired_variables
+        self._inline_functions = frozenset(inline_functions) if inline_functions else set()
+        self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
