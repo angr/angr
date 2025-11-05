@@ -206,7 +206,9 @@ class PCodeIRSBConverter(Converter):
         op = opcode_to_generic_name.get(opcode)
         in1 = self._get_value(self._current_op.inputs[0])
         in2 = self._get_value(self._current_op.inputs[1])
-        signed = op in {"CmpLEs", "CmpGTs"}
+        signed = op.startswith("Cmp") and op.endswith("s")
+        if signed and op.endswith("s"):
+            op = op[:-1]
 
         if op is None:
             log.warning("p-code: Unsupported opcode of type %s.", opcode.__name__)
