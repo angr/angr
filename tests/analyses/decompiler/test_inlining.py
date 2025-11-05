@@ -23,6 +23,7 @@ class TestDecompilerInlining(unittest.TestCase):
             inline_functions={proj.kb.functions["mylloc"], proj.kb.functions["five"]},
             options=[(angr.analyses.decompiler.decompilation_options.options[0], True)],
         )
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         assert "five" not in d.codegen.text
@@ -41,6 +42,7 @@ class TestDecompilerInlining(unittest.TestCase):
 
         # let's decompile without inlining first
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, inline_functions={}, use_cache=False)
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
         assert "mylloc" in d.codegen.text
 
@@ -53,6 +55,7 @@ class TestDecompilerInlining(unittest.TestCase):
             use_cache=False,
             options=[(angr.analyses.decompiler.decompilation_options.options[0], True)],
         )
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         assert "mylloc" not in d.codegen.text
@@ -69,6 +72,7 @@ class TestDecompilerInlining(unittest.TestCase):
             inline_functions=f.functions_reachable(),
             options=[(angr.analyses.decompiler.decompilation_options.options[0], True)],
         )
+        assert d.codegen is not None and d.codegen.text is not None
         print_decompilation_result(d)
 
         assert "five" not in d.codegen.text

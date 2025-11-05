@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 import angr.ailment as ailment
-
+from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -402,11 +402,12 @@ class Clinic(Analysis):
                     ail_graph = self._inline_call(ail_graph, blk, idx, callee)
         return ail_graph
 
-    def _inline_fix_block_phi_stmts(self, block: ailment.Block, new_block_idx: int) -> None:
+    @staticmethod
+    def _inline_fix_block_phi_stmts(block: ailment.Block, new_block_idx: int) -> None:
         # update the source block ID of all phi variables
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
-                new_src_and_vvars = [
+                new_src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]] = [
                     ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
