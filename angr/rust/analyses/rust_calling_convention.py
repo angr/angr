@@ -189,8 +189,12 @@ class FunctionBodyFactCollector(AILBlockWalker):
         for block in self.context.graph.nodes:
             if has_call(block):
                 callsites.add((block,))
+        retsites = set()
+        for block in self.context.graph.nodes:
+            if block.statements and isinstance(block.statements[-1], Return):
+                retsites.add((block,))
 
-        for path in paths | callsites:
+        for path in paths | callsites | retsites:
             self._path = path
             for block in path:
                 self.walk(block)
@@ -273,6 +277,29 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.has_write_to_arg0 = True
                 self.add_memory_write(0, self._path, 0, tmp)
 
+    def _handle_Return(self, stmt_idx: int, stmt: Return, block: Block | None):
+        if stmt.ret_exprs:
+            ret_expr = stmt.ret_exprs[0]
+            ret_exprs = [ret_expr]
+            if isinstance(ret_expr, VirtualVariable):
+                ret_exprs = self.context.get_terminal_vvar_values(ret_expr)
+            for call in ret_exprs:
+                if (
+                    isinstance(call, Call)
+                    and isinstance(call.target, Const)
+                    and call.target.value in self.project.kb.functions
+                ):
+                    func = self.project.kb.functions[call.target.value]
+                    if func.normalized and func.size and self.context.depth < self.context.max_depth:
+                        result = self.project.analyses.RustCallingConvention(
+                            func,
+                            callsite_path=Pathfinder(self.graph).find_backward_path(block),
+                            depth=self.context.depth + 1,
+                            max_depth=self.context.max_depth,
+                        )
+                        self.model.const_ret_values |= result.model.const_ret_values
+        super()._handle_Return(stmt_idx, stmt, block)
+
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         self._handle_Call_Stmt_or_Expr(stmt, stmt, block)
         super()._handle_Call(stmt_idx, stmt, block)
@@ -304,7 +331,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         post_callsite_path=None,
         is_call_expr=None,
         depth=0,
-        max_depth=2,
+        max_depth=8,
         rewrite=False,
     ):
         self.func: Function = func
@@ -368,10 +395,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _infer_potential_enum_type(
         self, candidates_and_paths: List[Tuple[Tuple[RustSimStruct, Const | None], Tuple[Block]]]
     ) -> RustSimEnum | None:
-        if 0x5F8860 == self.func.addr:
-            import ipdb
-
-            ipdb.set_trace()
         # Simplest case: if there is only one candidate, it's not an Enum type
         if len(candidates_and_paths) <= 1:
             return None
@@ -495,7 +518,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             or self.is_call_expr is True
         ):
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
-            if len(self.model.const_ret_values) == 2 and 0 in self._fact_collector.const_ret_values:
+            if len(self.model.const_ret_values) == 2 and 0 in self.model.const_ret_values:
                 _, another_const = sorted(self.model.const_ret_values)
                 error_msg = extract_str_from_addr(self.project, another_const)
                 if error_msg is not None:
@@ -734,7 +757,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
         self.kb.rust_calling_conventions.cache[self.func.addr] = self.model
         # l.debug(f"Memory writes:\n{pformat(dict(self.model.memory_writes))}")
         # l.debug(f"Callsite memory writes:\n{pformat(dict(self.model.callsite_memory_writes))}")
-        l.debug(f"Analysis result for {normalize(self.func.name)} (addr: {hex(self.func.addr)}): {str(self.model)}")
+        l.debug(f"Analysis result for {demangle(self.func.name)} (addr: {hex(self.func.addr)}): {str(self.model)}")
 
 
 AnalysesHub.register_default("RustCallingConvention", RustCallingConventionAnalysis)
