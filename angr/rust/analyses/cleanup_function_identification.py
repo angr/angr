@@ -3,16 +3,35 @@ from angr.knowledge_plugins.functions.function import Function
 from ...analyses import Analysis, AnalysesHub
 
 
-CLEANUP_FUNCTIONS = ("free", "__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
+CLEANUP_FUNCTIONS = (
+    "free",
+    "__rust_dealloc",
+    "close",
+    "core::ptr::drop_in_place",
+    "core::ops::drop::Drop::drop",
+    "alloc::raw_vec::RawVecInner::deallocate",
+    "smallvec::deallocate",
+)
 
 
 class CleanupFunctionIdentification(Analysis):
     def __init__(self):
         self._analyze()
 
+    def _is_nullstub_function(self, func: Function):
+        if func.size == 0 and not func.is_plt:
+            return True
+        if len(list(func.blocks)) == 1:
+            block = next(iter(func.blocks))
+            if len(block.capstone.insns) <= 10 and all(
+                insn.mnemonic in ("push", "pop", "mov", "ret") for insn in block.capstone.insns
+            ):
+                return True
+        return False
+
     def _is_cleanup_function(self, func: Function):
         name = normalize(func.name, monopolize=True, use_trait_name=True)
-        return name in CLEANUP_FUNCTIONS or (not func.is_plt and func.size == 0)
+        return name in CLEANUP_FUNCTIONS or self._is_nullstub_function(func)
 
     def _analyze(self):
         proj = self.project
@@ -20,6 +39,9 @@ class CleanupFunctionIdentification(Analysis):
         for func in proj.kb.functions.values():
             if self._is_cleanup_function(func):
                 queue.append(func.addr)
+                if func.is_default_name:
+                    func.name = "core::ptr::drop_in_place"
+                    func.is_default_name = False
 
         while queue:
             current_func_addr = queue.pop(0)

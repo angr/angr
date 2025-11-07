@@ -239,8 +239,10 @@ class FlirtAnalysis(Analysis):
             # set the function name
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
-            func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
-            self._suggestions[func.addr] = func_name
+            # func_name = flirt_func.name if flirt_func.name != "?" else f"unknown_function_{func.addr:x}"
+            func_name = flirt_func.name if flirt_func.name != "?" else None
+            if func_name:
+                self._suggestions[func.addr] = func_name
 
     def _apply_changes(self, library_name: str | None, suggestion: dict[int, str]) -> None:
         for func_addr, suggested_name in suggestion.items():

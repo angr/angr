@@ -6,7 +6,15 @@ from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.utils.ail import find_call, get_terminal_call
 
-CLEANUP_FUNCTIONS = ("free", "__rust_dealloc", "close", "core::ptr::drop_in_place", "core::ops::drop::Drop::drop")
+CLEANUP_FUNCTIONS = (
+    "free",
+    "__rust_dealloc",
+    "close",
+    "core::ptr::drop_in_place",
+    "core::ops::drop::Drop::drop",
+    "alloc::raw_vec::RawVecInner::deallocate",
+    "smallvec::deallocate",
+)
 
 
 l = logging.getLogger(__name__)
