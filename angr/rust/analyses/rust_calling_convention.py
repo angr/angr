@@ -199,7 +199,7 @@ class FunctionBodyFactCollector(AILBlockWalker):
             for block in path:
                 self.walk(block)
 
-        self.has_write_to_arg0 = len(paths) != 0
+        self.has_write_to_arg0 |= len(paths) != 0
 
         # Collect constant return values
         for block in self.context.graph.nodes:
@@ -254,6 +254,25 @@ class FunctionBodyFactCollector(AILBlockWalker):
             and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
         ) or (isinstance(stmt, Return) and stmt.ret_exprs and stmt.ret_exprs[0] is call)
 
+    def _extract_arg0_offset(self, call: Call) -> Optional[int]:
+        if (
+            call.args
+            and isinstance(call.args[0], VirtualVariable)
+            and ((arg0 := self.context.get_terminal_vvar(call.args[0])) and arg0.was_parameter and arg0.varid == 0)
+        ):
+            return 0
+        if call.args:
+            arg0 = call.args[0]
+            if isinstance(arg0, BinaryOp) and arg0.op == "Add":
+                vvar, offset = extract_vvar_and_offset(arg0)
+                if (
+                    isinstance(vvar, VirtualVariable)
+                    and self.context.get_terminal_vvar(vvar).was_parameter
+                    and vvar.varid == 0
+                ):
+                    return offset
+        return None
+
     def _handle_Call_Stmt_or_Expr(self, call: Call, stmt: Statement, block: Block):
         if (
             isinstance(call.target, Const)
@@ -261,7 +280,11 @@ class FunctionBodyFactCollector(AILBlockWalker):
             and self._should_handle_call(call, stmt)
         ):
             func = self.project.kb.functions[call.target.value]
-            if func.normalized and func.size and self.context.depth < self.context.max_depth:
+            if func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
+                tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
+                self.has_write_to_arg0 = True
+                self.add_memory_write(0, self._path, 0, tmp)
+            elif func.normalized and func.size and self.context.depth < self.context.max_depth:
                 result = self.project.analyses.RustCallingConvention(
                     func,
                     callsite_path=Pathfinder(self.graph).find_backward_path(block),
@@ -272,10 +295,6 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 self.model.const_ret_values |= result.model.const_ret_values
                 if result.model.has_write_to_arg0:
                     self.has_write_to_arg0 = True
-            elif func.name == "memcpy" and len(call.args) == 3 and isinstance(call.args[2], Const):
-                tmp = Tmp(None, None, 0, call.args[2].value * self.context.project.arch.byte_width)
-                self.has_write_to_arg0 = True
-                self.add_memory_write(0, self._path, 0, tmp)
 
     def _handle_Return(self, stmt_idx: int, stmt: Return, block: Block | None):
         if stmt.ret_exprs:
