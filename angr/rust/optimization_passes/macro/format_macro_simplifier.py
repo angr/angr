@@ -263,11 +263,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
         return None
 
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
-        if (
-            (name := self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False))
-            and call.args
-            and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1]))
-        ):
+        name = self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False)
+        if name and call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1])):
             result = self.replace_call_inlined(block, arg_vvar) or self.replace_call_uninlined(arg_vvar)
             if result:
                 pieces, placeholders, macro_args = result
