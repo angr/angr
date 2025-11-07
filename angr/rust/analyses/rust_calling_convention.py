@@ -519,14 +519,16 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 # More than two variants, it should be an Enum type
                 variants = []
                 for candidate, discriminant in candidates_and_discriminants:
-                    variant_name = f"variant_{candidate.size}"
+                    variant_name = f"variant{candidate.size // self.project.arch.bytes}"
                     variant_type = candidate
                     variants.append(
                         EnumVariant(
                             name=variant_name, fields=[(variant_type, None)], discriminant=None, discriminant_size=0
                         )
                     )
-                return RustSimEnum(f"enum_{max(structs_by_size)}", variants).with_arch(self.project.arch)
+                return RustSimEnum(f"enum{max(structs_by_size) // self.project.arch.bytes}", variants).with_arch(
+                    self.project.arch
+                )
         return None
 
     def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
