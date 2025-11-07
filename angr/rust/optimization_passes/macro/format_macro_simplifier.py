@@ -107,6 +107,25 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                                     pieces_len = value.value
         return args_len, pieces_len
 
+    def _extract_fmt_function(self, func_addr):
+        func = self.project.kb.functions.get(func_addr, None)
+        clinic = self.project.kb.clinic_factory.get(func)
+        if clinic:
+            for block in clinic.graph:
+                for stmt in block.statements:
+                    data = None
+                    if isinstance(stmt, Store):
+                        data = stmt.data
+                    elif isinstance(stmt, Assignment):
+                        data = stmt.src
+                    if isinstance(data, Const) and data.value in self.project.kb.functions:
+                        name = demangle(self.project.kb.functions[data.value].name)
+                        if "display" in name or "Display" in name:
+                            return "display"
+                        elif "debug" in name or "Debug" in name:
+                            return "debug"
+        return None
+
     def _extract_fmt_str(self, func_addr):
         func = self.project.kb.functions.get(func_addr, None)
         clinic = self.project.kb.clinic_factory.get(func)
@@ -181,7 +200,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
         if (
             new_arguments_call_block is not None
             and isinstance(new_arguments_call, Call)
-            and self.match_call(new_arguments_call, NEW_ARGUMENTS_FUNCTION, monopolize=False, use_trait_name=False)
+            # and self.match_call(new_arguments_call, NEW_ARGUMENTS_FUNCTION, monopolize=False, use_trait_name=False)
         ):
             if len(new_arguments_call.args) == 2:
                 pieces_value = new_arguments_call.args[0]
@@ -211,19 +230,16 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                             new_arguments_call_block.idx,
                         )
                         new_argument_call = self.get_terminal_vvar_value(arg_vvar)
-                        if isinstance(new_argument_call, Call) and (
-                            (
-                                fmt_name := self.match_call(
-                                    new_argument_call, NEW_ARGUMENT_FUNCTION, monopolize=False, use_trait_name=False
-                                )
-                            )
+                        if (
+                            isinstance(new_argument_call, Call)
                             and len(new_argument_call.args) == 1
                             and isinstance(new_argument_call.args[0], UnaryOp)
                             and new_argument_call.args[0].op == "Reference"
                         ):
                             calls_to_remove.append(new_argument_call)
                             macro_args.append(new_argument_call.args[0].operand)
-                            if "display" in fmt_name:
+                            fmt_function = self._extract_fmt_function(new_argument_call.target.value)
+                            if fmt_function == "display" or fmt_function is None:
                                 placeholders.append("{}")
                             else:
                                 placeholders.append("{:?}")
