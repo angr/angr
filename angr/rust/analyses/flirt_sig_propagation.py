@@ -11,7 +11,7 @@ class FlirtSigPropagation(Analysis):
         """A simple function is defined as a function that only contains jmp instructions."""
         for block in func.blocks:
             for insn in block.capstone.insns:
-                if insn.mnemonic != "jmp":
+                if insn.mnemonic not in ("jmp", "mov", "push", "pop"):
                     return False
         return True
 

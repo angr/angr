@@ -1,4 +1,5 @@
 from angr.rust.utils.library import normalize
+from angr.knowledge_plugins.functions.function import Function
 from ...analyses import Analysis, AnalysesHub
 
 
@@ -9,9 +10,9 @@ class CleanupFunctionIdentification(Analysis):
     def __init__(self):
         self._analyze()
 
-    def _is_cleanup_function(self, func):
+    def _is_cleanup_function(self, func: Function):
         name = normalize(func.name, monopolize=True, use_trait_name=True)
-        return name in CLEANUP_FUNCTIONS
+        return name in CLEANUP_FUNCTIONS or (not func.is_plt and func.size == 0)
 
     def _analyze(self):
         proj = self.project
