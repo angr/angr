@@ -23,9 +23,12 @@ class CleanupFunctionIdentification(Analysis):
             return True
         if len(list(func.blocks)) == 1:
             block = next(iter(func.blocks))
-            if len(block.capstone.insns) <= 10 and all(
-                insn.mnemonic in ("push", "pop", "mov", "ret") for insn in block.capstone.insns
-            ):
+            if len(block.capstone.insns) == 4 and [insn.mnemonic for insn in block.capstone.insns] == [
+                "push",
+                "mov",
+                "pop",
+                "ret",
+            ]:
                 return True
         return False
 
