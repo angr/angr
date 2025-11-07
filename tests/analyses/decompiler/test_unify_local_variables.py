@@ -18,7 +18,7 @@ test_location = os.path.join(bin_location, "tests")
 l = logging.Logger(__name__)
 
 
-class TestPartialRegReads(unittest.TestCase):
+class TestUnifyLocalVariables(unittest.TestCase):
     def test_partial_reg_read_after_full_reg_write(self):
         bin_path = os.path.join(test_location, "x86_64", "split-rust")
         proj = angr.Project(bin_path, auto_load_libs=False)
