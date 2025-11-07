@@ -1004,12 +1004,18 @@ class AILSimplifier(Analysis):
         # sort keys to ensure a reproducible result
         sorted_loc_and_atoms = sorted(atom_by_loc, key=lambda x: x[0])
 
+        # keep track of code locations where the statements have been updated; we can then skip Equivalences that are
+        # out-of-date
+        updated_locs: set[CodeLocation] = set()
+
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
             if len(eqs) > 1:
                 continue
 
             eq = next(iter(eqs))
+            if eq.codeloc in updated_locs:
+                continue
 
             # Acceptable equivalence classes:
             #
@@ -1422,6 +1428,7 @@ class AILSimplifier(Analysis):
                 )
                 if r:
                     self.blocks[old_block] = new_block
+                    updated_locs.add(u)
                 else:
                     # failed to replace a use - we need to keep the initial assignment!
                     all_uses_replaced = False
