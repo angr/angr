@@ -1323,12 +1323,13 @@ class RustAssignment(RustStatement):
 
 
 class RustFunctionLikeMacro(RustStatement, RustExpression):
-    def __init__(self, name, args, delimiter, is_expr, tags=None, **kwargs):
+    def __init__(self, name, args, delimiter, is_expr, returnty=None, tags=None, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self.args = args
         self.delimiter = delimiter
         self.is_expr = is_expr
+        self.returnty = returnty
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1346,6 +1347,15 @@ class RustFunctionLikeMacro(RustStatement, RustExpression):
         yield self.delimiter[1], None
         if not self.is_expr:
             yield ";\n", None
+
+    @property
+    def type(self):
+        if self.is_expr:
+            return self.returnty or RustSimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+        else:
+            raise RuntimeError(
+                "RustFunctionLikeMacro.type should not be accessed if the function call is used as a statement."
+            )
 
 
 class RustFunctionCall(RustStatement, RustExpression):
@@ -3373,7 +3383,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         handler: Optional[Callable] = self._handlers.get(node.__class__, None)
         if handler is not None:
-            if isinstance(node, Stmt.Call):
+            if isinstance(node, (Stmt.Call, Stmt.FunctionLikeMacro)):
                 # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
@@ -3710,9 +3720,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
         return clabel
 
-    def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, **kwargs):
+    def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, is_expr, **kwargs):
         return RustFunctionLikeMacro(
-            stmt.name, stmt.args, stmt.delimiter, is_expr=stmt.bits is not None, tags=stmt.tags, codegen=self
+            stmt.name,
+            stmt.args,
+            stmt.delimiter,
+            is_expr=is_expr,
+            returnty=stmt.returnty,
+            tags=stmt.tags,
+            codegen=self,
         )
 
     #

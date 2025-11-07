@@ -10,7 +10,7 @@ from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_of
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
-from angr.rust.sim_type import RustSimType
+from angr.rust.sim_type import RustSimType, RustSimTypeSize
 from angr.rust.utils.library import demangle
 
 PRINT_FUNCTIONS = (
@@ -20,6 +20,7 @@ PRINT_FUNCTIONS = (
     "alloc::fmt::format",
     "core::option::Option<T>::map_or_else",
     "core::panicking::panic_fmt",
+    "std::io::Write::write_fmt",
 )
 
 NEW_ARGUMENTS_FUNCTION = (
@@ -32,7 +33,7 @@ NEW_ARGUMENT_FUNCTION = ("core::fmt::rt::Argument::new_display",)
 l = logging.getLogger(__name__)
 
 
-class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
+class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -64,6 +65,10 @@ class PrintMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                 return "format", fmt_str, self.project.kb.known_structs["alloc::string::String"]
             case "panic_fmt":
                 return "panic", fmt_str, None
+            case "write_fmt":
+                if fmt_str.endswith("\n"):
+                    return "writeln", fmt_str[:-1], RustSimTypeSize(signed=False)
+                return "write", fmt_str, RustSimTypeSize(signed=False)
         l.error(f"Can't find a macro for {func_name}")
         assert False
 
