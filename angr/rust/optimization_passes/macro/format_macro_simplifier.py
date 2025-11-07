@@ -21,6 +21,9 @@ PRINT_FUNCTIONS = (
     "core::option::Option<T>::map_or_else",
     "core::panicking::panic_fmt",
     "std::io::Write::write_fmt",
+    "core::fmt::write",
+    "core::fmt::Write::write_fmt",
+    "core::fmt::Formatter::write_fmt",
 )
 
 NEW_ARGUMENTS_FUNCTION = (
@@ -65,7 +68,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                 return "format", fmt_str, self.project.kb.known_structs["alloc::string::String"]
             case "panic_fmt":
                 return "panic", fmt_str, None
-            case "write_fmt":
+            case "write_fmt" | "write":
                 if fmt_str.endswith("\n"):
                     return "writeln", fmt_str[:-1], RustSimTypeSize(signed=False)
                 return "write", fmt_str, RustSimTypeSize(signed=False)

@@ -332,18 +332,33 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         for block in self._graph.nodes:
             # Recover structs by function calls
             call = self.terminal_call(block)
-            if (
-                call
-                and call.args
-                and call.prototype
-                and call.prototype.args
-                and len(call.args) == len(call.prototype.args)
-            ):
-                for arg, arg_ty in zip(call.args, call.prototype.args):
-                    if isinstance(arg_ty, RustSimTypeReference):
-                        arg_ty = arg_ty.pts_to
-                    if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
-                        self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+            if call and call.args and call.prototype and call.prototype.args:
+                if len(call.args) == len(call.prototype.args):
+                    for arg, arg_ty in zip(call.args, call.prototype.args):
+                        if isinstance(arg_ty, RustSimTypeReference):
+                            arg_ty = arg_ty.pts_to
+                        if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
+                            self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+                elif len(call.args) > len(call.prototype.args):
+                    # Handle possible struct flattening
+                    offset_to_arg = {}
+                    offset_to_arg_ty = {}
+                    cur_offset = 0
+                    for arg in call.args:
+                        offset_to_arg[cur_offset] = arg
+                        cur_offset += arg.size
+                    cur_offset = 0
+                    for arg_ty in call.prototype.args:
+                        offset_to_arg_ty[cur_offset] = arg_ty
+                        cur_offset += arg_ty.size // 8
+                    for offset in set(offset_to_arg) & set(offset_to_arg_ty):
+                        arg = offset_to_arg[offset]
+                        arg_ty = offset_to_arg_ty[offset]
+                        if isinstance(arg_ty, RustSimTypeReference):
+                            arg_ty = arg_ty.pts_to
+                        if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
+                            self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+
             # Recover other structs
             self._simplify_struct_instantiation(block)
 
