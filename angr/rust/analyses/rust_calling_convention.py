@@ -14,7 +14,14 @@ from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
 from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc, extract_str_from_addr
-from angr.rust.sim_type import RustSimEnum, RustSimTypeOption, RustSimTypeResult, RustSimType, RustSimTypeUnit
+from angr.rust.sim_type import (
+    RustSimEnum,
+    RustSimTypeOption,
+    RustSimTypeResult,
+    RustSimType,
+    RustSimTypeUnit,
+    EnumVariant,
+)
 from angr.rust.knowledge_plugins.rust_calling_conventions import RustCallingConventionModel
 from angr.rust.sim_type import (
     RustSimTypeInt,
@@ -361,6 +368,10 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _infer_potential_enum_type(
         self, candidates_and_paths: List[Tuple[Tuple[RustSimStruct, Const | None], Tuple[Block]]]
     ) -> RustSimEnum | None:
+        if 0x5F8860 == self.func.addr:
+            import ipdb
+
+            ipdb.set_trace()
         # Simplest case: if there is only one candidate, it's not an Enum type
         if len(candidates_and_paths) <= 1:
             return None
@@ -457,6 +468,23 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                         err_discriminant.value,
                         discriminant_size,
                     )
+        if len(candidates_and_discriminants) >= 2:
+            structs_by_size = {}
+            for candidate, discriminant in candidates_and_discriminants:
+                if candidate.size not in structs_by_size:
+                    structs_by_size[candidate.size] = candidate
+            if len(structs_by_size) >= 2:
+                # More than two variants, it should be an Enum type
+                variants = []
+                for candidate, discriminant in candidates_and_discriminants:
+                    variant_name = f"variant_{candidate.size}"
+                    variant_type = candidate
+                    variants.append(
+                        EnumVariant(
+                            name=variant_name, fields=[(variant_type, None)], discriminant=None, discriminant_size=0
+                        )
+                    )
+                return RustSimEnum(f"enum_{max(structs_by_size)}", variants).with_arch(self.project.arch)
         return None
 
     def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
