@@ -974,3 +974,11 @@ class FunctionLikeMacro(Macro):
 
     def copy(self):
         return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, self.returnty, **self.tags)
+
+    @property
+    def verbose_op(self):
+        return "macro_call"
+
+    @property
+    def op(self):
+        return "macro_call"

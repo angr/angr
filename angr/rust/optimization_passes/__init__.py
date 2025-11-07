@@ -12,7 +12,7 @@ from .outliners.string_outliner import StringOutliner
 from .outliners.unwrap_outliner import UnwrapOutliner
 from .outliners.vec_outliner import VecOutliner
 from .pattern_match_simplifier import PatternMatchSimplifier
-from .macro.print_macro_simplifier import PrintMacroSimplifier
+from .macro.format_macro_simplifier import FormatMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from .redundant_block_remover import RedundantBlockRemover
 from .ret_expr_rewriter import RetExprRewriter
@@ -40,7 +40,7 @@ def get_rust_optimization_passes():
         StringCmpOutliner,
         StringLiteralOutliner,
         UnwrapOutliner,
-        PrintMacroSimplifier,
+        FormatMacroSimplifier,
         VecMacroSimplifier,
         # ShowMacroSimplifier,
         DerefCoercionSimplifier,
