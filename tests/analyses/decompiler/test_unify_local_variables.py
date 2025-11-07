@@ -19,7 +19,7 @@ l = logging.Logger(__name__)
 
 
 class TestUnifyLocalVariables(unittest.TestCase):
-    def test_partial_reg_read_after_full_reg_write(self):
+    def test_unify_local_variables_skip_outdated_eqs(self):
         bin_path = os.path.join(test_location, "x86_64", "split-rust")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
