@@ -11,7 +11,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin
 from angr.rust.optimization_passes.utils import CallReplacer
 from angr.rust.sim_type import RustSimType, RustSimTypeSize
-from angr.rust.utils.library import demangle
+from angr.rust.utils.library import demangle, normalize
 
 PRINT_FUNCTIONS = (
     "std::io::stdio::_print",
@@ -49,7 +49,27 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
         SRDAMixin.__init__(self, func, self._graph, self.project)
 
         self._stmts_to_remove = defaultdict(list)
+        self._addr_to_name = {}
+        self._union_functions()
         self.analyze()
+
+    def _union_functions(self):
+        for name in PRINT_FUNCTIONS:
+            func_addrs = [
+                addr
+                for addr, func in self.project.kb.functions.items()
+                if normalize(func.name, monopolize=False, use_trait_name=False) == name
+            ]
+            for addr in func_addrs:
+                self._addr_to_name[addr] = name
+        queue = list(self._addr_to_name.keys())
+        while queue:
+            func_addr = queue.pop(0)
+            callers = self.project.kb.callgraph.predecessors(func_addr)
+            for caller_addr in callers:
+                if caller_addr not in self._addr_to_name:
+                    self._addr_to_name[caller_addr] = self._addr_to_name[func_addr]
+                    queue.append(caller_addr)
 
     def _check(self):
         return self.project.is_rust_binary, None
@@ -264,6 +284,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
 
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
         name = self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False)
+        if name is None and isinstance(call.target, Const):
+            name = self._addr_to_name.get(call.target.value, None)
         if name and call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1])):
             result = self.replace_call_inlined(block, arg_vvar) or self.replace_call_uninlined(arg_vvar)
             if result:
