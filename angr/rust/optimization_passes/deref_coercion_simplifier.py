@@ -21,13 +21,12 @@ class DerefCoercionSimplifierWalker(AILBlockWalker):
 
     def handle_Call(self, call: Call, stmt, block):
         String_ty = self.context.project.kb.known_structs["alloc::string::String"]
-        ptr_offset = String_ty.get_field_offset("vec.buf.ptr.pointer") or String_ty.get_field_offset(
-            "vec.buf.inner.ptr.pointer"
+        ptr_offset = (
+            String_ty.get_field_offset("vec.buf.ptr.pointer")
+            or String_ty.get_field_offset("vec.buf.inner.ptr.pointer")
+            or 0
         )
-        if ptr_offset is None:
-            l.warning(f"Can't find ptr_offset in {String_ty.repr(full=10)}")
-            return None
-        len_offset = String_ty.get_field_offset("vec.len")
+        len_offset = String_ty.get_field_offset("vec.len") or self.context.project.arch.bytes
         if call.args:
             changed = False
             args = list(call.args)

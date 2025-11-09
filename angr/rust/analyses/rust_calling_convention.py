@@ -595,10 +595,6 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
                     pack=True,
                 ).with_arch(self.project.arch)
-            if struct_ty.size == 32 * 8:
-                import ipdb
-
-                ipdb.set_trace()
             candidates.append(struct_ty)
 
         final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
