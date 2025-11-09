@@ -168,7 +168,9 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 expanded_fields.append(field)
         return expanded_fields
 
-    def _convert_to_stack_vvar(self, struct: Struct):
+    def _convert_to_stack_vvar(self, struct: Struct | Array):
+        if isinstance(struct, Array):
+            return None
         src_offset = None
         expected_offset = None
         expanded_fields = self._expand_fields(struct)
@@ -354,10 +356,11 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     for offset in set(offset_to_arg) & set(offset_to_arg_ty):
                         arg = offset_to_arg[offset]
                         arg_ty = offset_to_arg_ty[offset]
-                        if isinstance(arg_ty, RustSimTypeReference):
-                            arg_ty = arg_ty.pts_to
-                        if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
-                            self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+                        if arg.size == arg_ty.size // self.project.arch.bytes:
+                            if isinstance(arg_ty, RustSimTypeReference):
+                                arg_ty = arg_ty.pts_to
+                            if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
+                                self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
 
             # Recover other structs
             self._simplify_struct_instantiation(block)

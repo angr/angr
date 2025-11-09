@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
+from angr.rust.utils.library import demangle
 from angr.calling_conventions import default_cc
 from angr.rust.definitions.commit_versions import COMMIT_VERSIONS
 from angr.analyses import Analysis, AnalysesHub
@@ -92,13 +93,19 @@ class KnownTypeLoader(Analysis):
                 name_to_func = defaultdict(list)
                 for addr in self.kb.functions:
                     func = self.kb.functions[addr]
-                    name_to_func[func.demangled_name].append(func)
+                    name_to_func[demangle(func.name)].append(func)
 
                 for func_name, prototype in module.generate_known_rust_prototypes(self.project).items():
                     prototype = prototype.with_arch(self.project.arch)
                     for func in name_to_func[func_name]:
-                        func.prototype = prototype
-                        func.calling_convention = cc
+                        old_prototype = func.prototype
+                        # Only update the prototype if the argument sizes match
+                        if old_prototype and sum(arg_ty.size for arg_ty in old_prototype.args) == sum(
+                            arg_ty.size for arg_ty in prototype.args
+                        ):
+                            func.prototype = prototype
+                            func.calling_convention = cc
+
                     self.project.kb.librust.set_prototype(func_name, prototype)
 
 

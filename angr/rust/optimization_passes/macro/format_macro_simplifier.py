@@ -282,12 +282,99 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin):
                     return pieces, placeholders, macro_args
         return None
 
+    def replace_call_uninlined2(self, arg_vvar: VirtualVariable):
+        """
+        Third attempt: check if the argument is constructed via new_v1
+        """
+        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
+        argument_value_offset = argument_ty.get_field_offset("value") if argument_ty else 0
+        argument_formatter_offset = (
+            argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+        )
+        new_arguments_call = self.get_terminal_vvar_value(arg_vvar)
+        # Find the block containing the new_arguments_call
+        new_arguments_call_block = None
+        new_arguments_call_stmt = None
+        for block in self._graph.nodes:
+            for stmt in block.statements:
+                if isinstance(stmt, Assignment) and stmt.src is new_arguments_call:
+                    new_arguments_call_block = block
+                    new_arguments_call_stmt = stmt
+                    break
+        if new_arguments_call_block is not None and isinstance(new_arguments_call, Call):
+            if (
+                len(new_arguments_call.args) == 3
+                and isinstance(new_arguments_call.args[0], Const)
+                and isinstance(new_arguments_call.args[1], Const)
+            ):
+                pieces_value = new_arguments_call.args[0]
+                args_value = unwrap_stack_vvar_reference(new_arguments_call.args[2])
+                args_len, _ = self._extract_args_len_and_pieces_len(new_arguments_call.target.value)
+                pieces_len = new_arguments_call.args[1].value
+                if (
+                    isinstance(args_value, VirtualVariable)
+                    and args_value.was_stack
+                    and args_len is not None
+                    and pieces_len is not None
+                    and 0 <= pieces_len - args_len <= 1
+                ):
+                    pieces = [
+                        extract_str_from_addr(self.project, pieces_value.value + i * self.project.arch.bytes * 2)
+                        for i in range(pieces_len)
+                    ]
+                    if pieces_len == args_len:
+                        pieces.append("")
+                    placeholders = []
+                    macro_args = []
+                    for i in range(args_len):
+                        arg_vvar = self.get_stack_vvar_by_insn(
+                            args_value.stack_offset + i * self.project.arch.bytes * 2,
+                            new_arguments_call.ins_addr,
+                            new_arguments_call_block.idx,
+                        )
+                        argument_struct = self.get_terminal_vvar_value(arg_vvar)
+                        if (
+                            isinstance(argument_struct, Struct)
+                            and argument_value_offset in argument_struct.fields
+                            and argument_formatter_offset in argument_struct.fields
+                        ):
+                            value = argument_struct.fields[argument_value_offset]
+                            formatter = argument_struct.fields[argument_formatter_offset]
+                            if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
+                                name = demangle(self.project.kb.functions[formatter.value].name)
+                                if "display" in name or "Display" in name:
+                                    placeholders.append("{}")
+                                else:
+                                    placeholders.append("{:?}")
+                                macro_args.append(value)
+                                # Find the call that defines the argument_struct
+                                for block in self._graph.nodes:
+                                    for stmt in block.statements:
+                                        if isinstance(stmt, Assignment) and stmt.src is argument_struct:
+                                            self._stmts_to_remove[block].append(stmt)
+                    placeholders.append("")
+                    self._stmts_to_remove[new_arguments_call_block].append(new_arguments_call_stmt)
+                    return pieces, placeholders, macro_args
+            else:
+                fmt_str = self._extract_fmt_str(new_arguments_call.target.value)
+                if fmt_str is not None:
+                    self._stmts_to_remove[new_arguments_call_block].append(new_arguments_call_stmt)
+                    pieces = [fmt_str]
+                    placeholders = [""]
+                    macro_args = []
+                    return pieces, placeholders, macro_args
+        return None
+
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
         name = self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False)
         if name is None and isinstance(call.target, Const):
             name = self._addr_to_name.get(call.target.value, None)
         if name and call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[-1])):
-            result = self.replace_call_inlined(block, arg_vvar) or self.replace_call_uninlined(arg_vvar)
+            result = (
+                self.replace_call_inlined(block, arg_vvar)
+                or self.replace_call_uninlined(arg_vvar)
+                or self.replace_call_uninlined2(arg_vvar)
+            )
             if result:
                 pieces, placeholders, macro_args = result
                 fmt_str = ""

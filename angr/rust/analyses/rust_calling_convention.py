@@ -595,6 +595,10 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
                     pack=True,
                 ).with_arch(self.project.arch)
+            if struct_ty.size == 32 * 8:
+                import ipdb
+
+                ipdb.set_trace()
             candidates.append(struct_ty)
 
         final_ty = sorted(candidates, key=lambda candidate: candidate.size, reverse=True)[0] if candidates else None
@@ -720,15 +724,22 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             )
             for idx, arg in enumerate(call.args):
                 if vvar := unwrap_stack_vvar_reference(arg):
+                    # Collect memory writes to stack region used by this argument
+                    # Avoid include overlapping stack writes for arguments that share stack regions
+                    referenced_offsets = set()
                     cur_offset = vvar.stack_offset
                     next_offset = next_offsets[cur_offset]
-                    while next_offset is None or cur_offset < next_offset:
-                        stack_def = stack_defs.get(cur_offset, None)
-                        if stack_def is None:
-                            break
+                    while (
+                        (next_offset is None or cur_offset < next_offset)
+                        and cur_offset not in referenced_offsets
+                        and cur_offset in stack_defs
+                    ):
+                        stack_def = stack_defs[cur_offset]
                         self.add_callsite_memory_write(
                             idx, stack_def.block, cur_offset - vvar.stack_offset, stack_def.data
                         )
+                        if referenced_vvar := unwrap_stack_vvar_reference(stack_def.data):
+                            referenced_offsets.add(referenced_vvar.stack_offset)
                         cur_offset += stack_def.data.size
 
     def collect_post_callsite_facts(self):
