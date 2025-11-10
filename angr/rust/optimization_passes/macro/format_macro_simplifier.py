@@ -513,6 +513,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
 
     def _try_find_argument_structs(self, arguments_struct: Struct, arguments_def_block: Block, arguments_def_stmt):
         args = arguments_struct.get_field("args")
+        if args.length == 0:
+            return [], {}
         argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
         argument_structs = []
         stmts_to_remove = defaultdict(list)
@@ -526,7 +528,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
             arg_vvars.append(arg_vvar)
         arg_values = [self.get_terminal_vvar_value(arg_vvar) if arg_vvar else None for arg_vvar in arg_vvars]
         # Pattern-1: Argument(s) are constructed via calls
-        if arg_values and all(isinstance(arg_value, Call) for arg_value in arg_values):
+        if all(isinstance(arg_value, Call) for arg_value in arg_values):
             for arg_value in arg_values:
                 arg_def_block, arg_def_stmt = self.get_def_block_and_stmt(arg_value)
                 fields = {}
@@ -553,15 +555,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     return None, None
             return argument_structs, stmts_to_remove
         # Pattern-2: Argument(s) are directly Structs
-        stack_defs = self.collect_callsite_stack_defs(arguments_def_block)
-        if all(
-            arg.stack_offset in stack_defs and isinstance(stack_defs[arg.stack_offset].data, Struct)
-            for arg in args.elements
-        ):
-            for arg in args.elements:
-                stack_def = stack_defs[arg.stack_offset]
-                argument_structs.append(stack_def.data)
-                stmts_to_remove[stack_def.block].append(stack_def.stmt)
+        elif all(isinstance(arg_value, Struct) for arg_value in arg_values):
+            for arg_value in arg_values:
+                argument_structs.append(arg_value)
+                def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
+                stmts_to_remove[def_block].append(def_stmt)
             return argument_structs, stmts_to_remove
         return None, None
 
