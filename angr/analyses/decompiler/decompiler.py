@@ -80,6 +80,9 @@ class Decompiler(Analysis):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
+
+        if cfg is None:
+            cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
         self._options = self._parse_options(options) if options else []
 
