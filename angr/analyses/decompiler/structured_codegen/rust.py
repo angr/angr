@@ -4212,7 +4212,10 @@ class MakeTypecastsImplicit(RustStructuredCodeWalker):
 
     @classmethod
     def handle_RustReturn(cls, obj: RustReturn):
-        obj.retval = cls.collapse(obj.codegen._func.prototype.returnty, obj.retval)
+        prototype = obj.codegen._func.prototype
+        if isinstance(prototype, RustSimTypeFunction):
+            prototype = prototype.normalize()
+        obj.retval = cls.collapse(prototype.returnty, obj.retval)
         return super().handle_RustReturn(obj)
 
     @classmethod
