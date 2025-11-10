@@ -539,6 +539,17 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
             )
             arg_vvars.append(arg_vvar)
         arg_values = [self.get_terminal_vvar_value(arg_vvar) if arg_vvar else None for arg_vvar in arg_vvars]
+        # In case args structs are packed into one struct
+        if (
+            arg_values
+            and isinstance(arg_values[0], Struct)
+            and arg_values[0].size == len(arg_values) * argument_ty.size // self.project.arch.bytes
+            and all(
+                isinstance(field, VirtualVariable) and field.size == argument_ty.size // self.project.arch.bytes
+                for field in arg_values[0].fields.values()
+            )
+        ):
+            arg_values = [self.get_terminal_vvar_value(field) for field in arg_values[0].fields.values()]
         # Pattern-1: Argument(s) are constructed via calls
         if all(isinstance(arg_value, Call) for arg_value in arg_values):
             for arg_value in arg_values:
