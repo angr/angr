@@ -528,7 +528,23 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             for candidate, discriminant in candidates_and_discriminants:
                 if candidate.size not in structs_by_size:
                     structs_by_size[candidate.size] = candidate
-            if len(structs_by_size) >= 2 and max(structs_by_size) > 16 * self.project.arch.byte_width:
+            if (
+                len(candidates_and_discriminants) == 2
+                and candidates_and_discriminants[0][0].size == self.project.arch.bits
+            ):
+                some_type, some_discriminant = candidates_and_discriminants[1]
+                return RustSimTypeOption(
+                    None,
+                    self.project.arch.bits,
+                    some_type,
+                    None,
+                    0,
+                )
+            if (
+                len(structs_by_size) >= 2
+                and max(structs_by_size) > 16 * self.project.arch.byte_width
+                and not all(discriminant is None for _, discriminant in candidates_and_discriminants)
+            ):
                 # More than two variants, it should be an Enum type
                 variants = []
                 for candidate, discriminant in candidates_and_discriminants:
