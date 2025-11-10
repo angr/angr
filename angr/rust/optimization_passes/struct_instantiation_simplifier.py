@@ -3,9 +3,10 @@ from collections import defaultdict, OrderedDict
 import claripy
 from archinfo import Endness
 
+from angr.rust.optimization_passes.utils import CallReplacer
 from angr.ailment import UnaryOp
 from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load, BinaryOp
-from angr.ailment.statement import Assignment
+from angr.ailment.statement import Assignment, Call
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef, RustSimTypeUnit, RustSimTypeInt
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
@@ -96,7 +97,7 @@ class StructBuilder:
             elif vvar := unwrap_stack_vvar_reference(ptr_expr):
                 for i in range(len_expr.value):
                     ele_expr = self.context.new_stack_vvar(
-                        vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags
+                        vvar.stack_offset + i * (ele_ty.size // 8), ele_ty.size, vvar.tags, record=False
                     )
                     # Looking for nested structs or struct references
                     if isinstance(ele_ty, RustSimTypeReference) and isinstance(ele_ty.pts_to, RustSimStruct):
@@ -330,7 +331,54 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     for stmt in sorted_stmts[1:]:
                         self._stmts_to_remove[block].append(stmt)
 
+    def _align_prototype_and_args(self):
+        def callback(expr: Call, block, stmt, is_expr):
+            args = list(expr.args)
+            prototype = expr.prototype
+            if prototype and len(args) > len(prototype.args):
+                new_args = []
+                changed = False
+                offset_to_arg_ty = {}
+                cur_offset = 0
+                for arg_ty in prototype.args:
+                    offset_to_arg_ty[cur_offset] = arg_ty
+                    cur_offset += arg_ty.size // self.project.arch.bytes
+                cur_offset = 0
+                while args:
+                    arg = args.pop(0)
+                    if cur_offset in offset_to_arg_ty:
+                        expected_arg_ty = offset_to_arg_ty[cur_offset]
+                        if isinstance(expected_arg_ty, RustSimTypeArrayRef) and len(args) > 0:
+                            next_arg = args.pop(0)
+                            array = StructBuilder(self).build({0: arg, arg.size: next_arg}, expected_arg_ty)
+                            if array is not None:
+                                changed = True
+                                new_args.append(array)
+                                cur_offset += arg.size + next_arg.size
+                            else:
+                                new_args.append(arg)
+                                args.append(next_arg)
+                                cur_offset += arg.size
+                        else:
+                            new_args.append(arg)
+                            cur_offset += arg.size
+                    else:
+                        new_args.append(arg)
+                        cur_offset += arg.size
+                if changed:
+                    expr = expr.copy()
+                    expr.args = new_args
+                    return expr
+            return None
+
+        walker = CallReplacer(callback)
+        for block in self._graph.nodes:
+            walker.walk(block)
+
     def _analyze(self, cache=None):
+        # First, align callsite arguments with known/recovered prototypes
+        self._align_prototype_and_args()
+
         for block in self._graph.nodes:
             # Recover structs by function calls
             call = self.terminal_call(block)
@@ -341,6 +389,15 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                             arg_ty = arg_ty.pts_to
                         if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
                             self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
+                        if (
+                            isinstance(arg_ty, RustSimTypeArrayRef)
+                            and isinstance(arg_ty.ele_ty, RustSimStruct)
+                            and isinstance(arg, Array)
+                        ):
+                            for element in arg.elements:
+                                if isinstance(element, VirtualVariable):
+                                    self._simplify_callsite_struct_instantiation(block, element, arg_ty.ele_ty)
+
                 elif len(call.args) > len(call.prototype.args):
                     # Handle possible struct flattening
                     offset_to_arg = {}
