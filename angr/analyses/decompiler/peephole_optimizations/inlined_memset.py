@@ -98,7 +98,8 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                                 candidate.base,
                                 Const(None, None, candidate.offset, self.project.arch.bits),
                             ],
-                            self.project.arch.bits,
+                            False,
+                            bits=self.project.arch.bits,
                         )
 
                 if base_expr is None:
