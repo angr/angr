@@ -4,6 +4,7 @@ from typing import Tuple, Optional, List
 from collections import OrderedDict
 
 from networkx import DiGraph
+from networkx.exception import NetworkXError
 
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import SimCC
@@ -145,25 +146,33 @@ class Pathfinder:
     def find_backward_path(self, block, max_length=None):
         visited = {block}
         path = [block]
-        while len(preds := list(self.graph.predecessors(block))) == 1 and (
-            max_length is None or len(path) < max_length
-        ):
-            block = preds[0]
-            if block in visited:
-                break
-            visited.add(block)
-            path.insert(0, block)
+        try:
+            while len(preds := list(self.graph.predecessors(block))) == 1 and (
+                max_length is None or len(path) < max_length
+            ):
+                block = preds[0]
+                if block in visited:
+                    break
+                visited.add(block)
+                path.insert(0, block)
+        except NetworkXError:
+            pass
         return path
 
     def find_forward_path(self, block, max_length=None):
         visited = {block}
         path = [block]
-        while len(succs := list(self.graph.successors(block))) == 1 and (max_length is None or len(path) < max_length):
-            block = succs[0]
-            if block in visited:
-                break
-            visited.add(block)
-            path.append(block)
+        try:
+            while len(succs := list(self.graph.successors(block))) == 1 and (
+                max_length is None or len(path) < max_length
+            ):
+                block = succs[0]
+                if block in visited:
+                    break
+                visited.add(block)
+                path.append(block)
+        except NetworkXError:
+            pass
         return path
 
 
@@ -310,9 +319,10 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 ):
                     func = self.project.kb.functions[call.target.value]
                     if func.normalized and func.size and self.context.depth < self.context.max_depth:
+                        def_block, _ = self.context.get_def_block_and_stmt(call)
                         result = self.project.analyses.RustCallingConvention(
                             func,
-                            callsite_path=Pathfinder(self.graph).find_backward_path(block),
+                            callsite_path=Pathfinder(self.graph).find_backward_path(def_block) if def_block else None,
                             depth=self.context.depth + 1,
                             max_depth=self.context.max_depth,
                         )
@@ -534,7 +544,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
         # The first argument is not used as return buffer
         if (
-            len(self.model.callsite_memory_writes[0]) != 0
+            len(self.model.callsite_memory_writes[0]) > 1
             or not self._fact_collector.has_write_to_arg0
             or self.is_call_expr is True
         ):

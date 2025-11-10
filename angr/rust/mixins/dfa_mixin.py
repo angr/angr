@@ -197,3 +197,10 @@ class DFAMixin:
             if dst and stmt_src_offset == src_offset and stmt_size == size:
                 return stmt, dst
         return None, None
+
+    def get_def_block_and_stmt(self, data):
+        for block in self.graph.nodes:
+            for idx, stmt in enumerate(block.statements):
+                if isinstance(stmt, Assignment) and stmt.src is data:
+                    return block, stmt
+        return None, None

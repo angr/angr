@@ -38,14 +38,21 @@ class StructMatcher:
             and pieces_len_offset in fields
             and args_ptr_offset in fields
             and args_len_offset in fields
-            and fmt_offset in fields
             and isinstance(fields[pieces_ptr_offset], Const)
             and isinstance(fields[pieces_len_offset], Const)
             and isinstance(fields[args_len_offset], Const)
             and 1 >= fields[pieces_len_offset].value - fields[args_len_offset].value >= 0
             and extract_str_from_addr(self.project, fields[pieces_ptr_offset].value) is not None
         ):
-            return arguments_ty
+            if fmt_offset in fields:
+                return arguments_ty
+            elif (
+                args_len_offset == fmt_offset - self.project.arch.bytes
+                and isinstance(fields[args_len_offset], Const)
+                and fields[args_len_offset].value == 0
+                and fields[args_len_offset].size == 2 * self.project.arch.bytes
+            ):
+                return arguments_ty
         return None
 
     def match(self, fields):
