@@ -3,7 +3,7 @@ from itertools import count
 
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from angr.analyses.typehoon import typeconsts
-from angr.analyses.typehoon.typeconsts import TypeConstant
+from angr.analyses.typehoon.typeconsts import TypeConstant, IntVar
 from angr import sim_type
 from angr.rust.sim_type import (
     SimType,
@@ -69,6 +69,9 @@ class RustTypeTranslator(TypeTranslator):
 
     def _translate_Int128(self, tc):  # pylint:disable=unused-argument
         return RustSimTypeInt(size=128, signed=False).with_arch(self.arch)
+
+    def _translate_IntVar(self, tc: IntVar):  # pylint:disable=unused-argument
+        return RustSimTypeInt(size=tc.size, signed=False).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):
         # TODO: Maybe array should be translated to struct?
@@ -197,6 +200,7 @@ TypeConstHandlers = {
     typeconsts.Int32: RustTypeTranslator._translate_Int32,
     typeconsts.Int64: RustTypeTranslator._translate_Int64,
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
+    typeconsts.IntVar: RustTypeTranslator._translate_IntVar,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
     typeconsts.Enum: RustTypeTranslator._translate_Enum,
 }
