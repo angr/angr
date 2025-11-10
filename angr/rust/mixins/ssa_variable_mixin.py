@@ -10,7 +10,7 @@ class SSAVariableMixin:
 
         self._new_stack_vvars = {}
 
-    def new_stack_vvar(self, dst_offset, bits, tags):
+    def new_stack_vvar(self, dst_offset, bits, tags, record=True):
         vvar_id = self.context.vvar_id_start
         self.context.vvar_id_start += 1
         vvar_bits = bits
@@ -22,7 +22,8 @@ class SSAVariableMixin:
             oident=dst_offset,
             **tags,
         )
-        self._new_stack_vvars[vvar.varid] = vvar
+        if record:
+            self._new_stack_vvars[vvar.varid] = vvar
         return vvar
 
     def fix_stack_vvar_uses(self):
