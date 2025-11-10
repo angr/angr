@@ -549,6 +549,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 for field in arg_values[0].fields.values()
             )
         ):
+            def_block, def_stmt = self.get_def_block_and_stmt(arg_values[0])
+            stmts_to_remove[def_block].append(def_stmt)
             arg_values = [self.get_terminal_vvar_value(field) for field in arg_values[0].fields.values()]
         # Pattern-1: Argument(s) are constructed via calls
         if all(isinstance(arg_value, Call) for arg_value in arg_values):
