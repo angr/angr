@@ -528,18 +528,18 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             for candidate, discriminant in candidates_and_discriminants:
                 if candidate.size not in structs_by_size:
                     structs_by_size[candidate.size] = candidate
-            if len(structs_by_size) >= 2:
+            if len(structs_by_size) >= 2 and max(structs_by_size) > 16 * self.project.arch.byte_width:
                 # More than two variants, it should be an Enum type
                 variants = []
                 for candidate, discriminant in candidates_and_discriminants:
-                    variant_name = f"variant{candidate.size // self.project.arch.bytes}"
+                    variant_name = f"variant{candidate.size // self.project.arch.byte_width}"
                     variant_type = candidate
                     variants.append(
                         EnumVariant(
                             name=variant_name, fields=[(variant_type, None)], discriminant=None, discriminant_size=0
                         )
                     )
-                return RustSimEnum(f"enum{max(structs_by_size) // self.project.arch.bytes}", variants).with_arch(
+                return RustSimEnum(f"enum{max(structs_by_size) // self.project.arch.byte_width}", variants).with_arch(
                     self.project.arch
                 )
         return None

@@ -23,6 +23,7 @@ from ...analyses.typehoon.typeconsts import (
     Struct,
     Enum,
     EnumVariant,
+    IntVar,
 )
 
 
@@ -58,7 +59,7 @@ class RustTypeLifter(TypeLifter):
         elif ty.size == 128:
             return Int128()
         else:
-            return BottomType()
+            return IntVar(size=ty.size)
 
     def _lift_SimStruct(self, ty: RustSimStruct) -> Union["TypeConstant", BottomType]:
         if ty in self.memo:
