@@ -544,7 +544,7 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
         # The first argument is not used as return buffer
         if (
-            len(self.model.callsite_memory_writes[0]) > 1
+            len(self.model.callsite_memory_writes[0]) != 0
             or not self._fact_collector.has_write_to_arg0
             or self.is_call_expr is True
         ):
