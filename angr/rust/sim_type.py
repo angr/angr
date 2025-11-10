@@ -331,20 +331,20 @@ class RustSimStruct(RustSimType, SimStruct):
             return field_ty.get_field_ty(".".join(path[1:]))
         return None
 
-    def get_field_offset(self, name):
+    def get_field_offset(self, name, default=None):
         path = name.split(".")
         offsets = self.offsets
         field_ty = self.fields.get(path[0], None)
         base_offset = offsets.get(path[0], None)
         if base_offset is None:
-            return None
+            return default
         if len(path) == 1:
             return base_offset
         elif isinstance(field_ty, RustSimStruct):
             addon_offset = field_ty.get_field_offset(".".join(path[1:]))
             if addon_offset is not None:
                 return base_offset + addon_offset
-        return None
+        return default
 
 
 class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):

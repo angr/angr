@@ -98,7 +98,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
 
     def _is_debug_formatter(self, arg: Struct):
         argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-        formatter_offset = argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+        formatter_offset = (
+            argument_ty.get_field_offset("formatter", self.project.arch.bytes)
+            if argument_ty
+            else self.project.arch.bytes
+        )
         formatter = arg.fields.get(formatter_offset, None)
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
@@ -387,9 +391,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         v17 = <std::io::stdio::Stdout as std::io::Write>::write_fmt(&v1, &v9);
         """
         argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-        argument_value_offset = argument_ty.get_field_offset("value") if argument_ty else 0
+        argument_value_offset = argument_ty.get_field_offset("value", 0) if argument_ty else 0
         argument_formatter_offset = (
-            argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+            argument_ty.get_field_offset("formatter", self.project.arch.bytes)
+            if argument_ty
+            else self.project.arch.bytes
         )
         new_arguments_call = self.get_terminal_vvar_value(arg_vvar)
         # Find the block containing the new_arguments_call
@@ -525,9 +531,9 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         argument_structs = []
         stmts_to_remove = defaultdict(list)
         arg_vvars = []
-        for i, arg in enumerate(args.elements):
+        for arg in args.elements:
             arg_vvar = self.get_stack_vvar_by_insn(
-                arg.stack_offset + i * arg.size,
+                arg.stack_offset,
                 arguments_def_stmt.ins_addr,
                 arguments_def_block.idx,
             )
@@ -570,9 +576,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         # Pattern-3: Argument(s) are stack-allocated and are not recovered yet
         stack_defs = self.collect_callsite_stack_defs(arguments_def_block)
         for arg in args.elements:
-            argument_ty_value_offset = argument_ty.get_field_offset("value") if argument_ty else 0
+            argument_ty_value_offset = argument_ty.get_field_offset("value", 0) if argument_ty else 0
             argument_ty_formatter_offset = (
-                argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+                argument_ty.get_field_offset("formatter", self.project.arch.bytes)
+                if argument_ty
+                else self.project.arch.bytes
             )
             value_def = stack_defs.get(arg.stack_offset + argument_ty_value_offset, None)
             formatter_def = stack_defs.get(arg.stack_offset + argument_ty_formatter_offset, None)
@@ -620,7 +628,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         ]
                         placeholders.append("")
                         argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-                        argument_ty_value_offset = argument_ty.get_field_offset("value") if argument_ty else 0
+                        argument_ty_value_offset = argument_ty.get_field_offset("value", 0) if argument_ty else 0
                         macro_args = [macro_arg.fields[argument_ty_value_offset] for macro_arg in macro_args]
                         for block, stmts in stmts_to_remove.items():
                             for stmt in stmts:
