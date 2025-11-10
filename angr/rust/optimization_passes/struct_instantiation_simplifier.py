@@ -377,7 +377,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
 
     def _analyze(self, cache=None):
         # First, align callsite arguments with known/recovered prototypes
-        self._align_prototype_and_args()
+        # self._align_prototype_and_args()
 
         for block in self._graph.nodes:
             # Recover structs by function calls
@@ -389,14 +389,14 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                             arg_ty = arg_ty.pts_to
                         if (vvar := unwrap_stack_vvar_reference(arg)) and isinstance(arg_ty, RustSimStruct):
                             self._simplify_callsite_struct_instantiation(block, vvar, arg_ty)
-                        if (
-                            isinstance(arg_ty, RustSimTypeArrayRef)
-                            and isinstance(arg_ty.ele_ty, RustSimStruct)
-                            and isinstance(arg, Array)
-                        ):
-                            for element in arg.elements:
-                                if isinstance(element, VirtualVariable):
-                                    self._simplify_callsite_struct_instantiation(block, element, arg_ty.ele_ty)
+                        # if (
+                        #     isinstance(arg_ty, RustSimTypeArrayRef)
+                        #     and isinstance(arg_ty.ele_ty, RustSimStruct)
+                        #     and isinstance(arg, Array)
+                        # ):
+                        #     for element in arg.elements:
+                        #         if isinstance(element, VirtualVariable):
+                        #             self._simplify_callsite_struct_instantiation(block, element, arg_ty.ele_ty)
 
                 elif len(call.args) > len(call.prototype.args):
                     # Handle possible struct flattening

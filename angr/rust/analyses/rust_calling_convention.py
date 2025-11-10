@@ -319,7 +319,10 @@ class FunctionBodyFactCollector(AILBlockWalker):
                 ):
                     func = self.project.kb.functions[call.target.value]
                     if func.normalized and func.size and self.context.depth < self.context.max_depth:
-                        def_block, _ = self.context.get_def_block_and_stmt(call)
+                        if isinstance(ret_expr, Call):
+                            def_block = block
+                        else:
+                            def_block, _ = self.context.get_def_block_and_stmt(call)
                         result = self.project.analyses.RustCallingConvention(
                             func,
                             callsite_path=Pathfinder(self.graph).find_backward_path(def_block) if def_block else None,

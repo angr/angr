@@ -97,7 +97,9 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         assert False
 
     def _is_debug_formatter(self, arg: Struct):
-        formatter = arg.get_field("formatter")
+        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
+        formatter_offset = argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+        formatter = arg.fields.get(formatter_offset, None)
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
             if "core::fmt::Display" in name:
@@ -493,13 +495,17 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
                 func = self.project.kb.functions[arg_value.target.value]
                 clinic = self.project.kb.clinic_factory.get(func)
+                srda_mixin = SRDAMixin(func, clinic.graph, self.project)
                 fields = {}
                 for block in clinic.graph.nodes:
                     for stmt in block.statements:
                         if isinstance(stmt, Store):
                             vvar, offset = extract_vvar_and_offset(stmt.addr)
                             if vvar:
-                                fields[offset] = stmt.data
+                                data = stmt.data
+                                if isinstance(data, VirtualVariable):
+                                    data = srda_mixin.get_terminal_vvar_value(data) or data
+                                fields[offset] = data
                 for offset, data in fields.copy().items():
                     if (
                         isinstance(data, VirtualVariable)
@@ -561,7 +567,30 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
                 stmts_to_remove[def_block].append(def_stmt)
             return argument_structs, stmts_to_remove
-        return None, None
+        # Pattern-3: Argument(s) are stack-allocated and are not recovered yet
+        stack_defs = self.collect_callsite_stack_defs(arguments_def_block)
+        for arg in args.elements:
+            argument_ty_value_offset = argument_ty.get_field_offset("value") if argument_ty else 0
+            argument_ty_formatter_offset = (
+                argument_ty.get_field_offset("formatter") if argument_ty else self.project.arch.bytes
+            )
+            value_def = stack_defs.get(arg.stack_offset + argument_ty_value_offset, None)
+            formatter_def = stack_defs.get(arg.stack_offset + argument_ty_formatter_offset, None)
+            if value_def and formatter_def:
+                fields = {
+                    argument_ty_value_offset: value_def.data,
+                    argument_ty_formatter_offset: formatter_def.data,
+                }
+                struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, argument_ty)
+                if isinstance(struct, Struct):
+                    argument_structs.append(struct)
+                    stmts_to_remove[value_def.block].append(value_def.stmt)
+                    stmts_to_remove[formatter_def.block].append(formatter_def.stmt)
+                else:
+                    return None, None
+            else:
+                return None, None
+        return argument_structs, stmts_to_remove
 
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
         name = self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False)
@@ -574,8 +603,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 pieces = arguments_struct.get_field("pieces")
                 args = arguments_struct.get_field("args")
                 if (
-                    pieces
-                    and args
+                    isinstance(pieces, Array)
+                    and isinstance(args, Array)
                     and 0 <= pieces.length - args.length <= 1
                     and all(isinstance(arg, VirtualVariable) and arg.was_stack for arg in args.elements)
                 ):
