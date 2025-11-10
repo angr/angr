@@ -105,6 +105,7 @@ class KnownTypeLoader(Analysis):
                         ):
                             func.prototype = prototype
                             func.calling_convention = cc
+                            func.is_prototype_guessed = False
 
                     self.project.kb.librust.set_prototype(func_name, prototype)
 

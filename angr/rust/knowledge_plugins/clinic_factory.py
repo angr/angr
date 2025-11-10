@@ -20,7 +20,9 @@ class ClinicFactory(KnowledgeBasePlugin):
             return self.cache[key]
         cfg = self._kb.cfgs.get_most_accurate()
         try:
-            clinic = self._kb._project.analyses.Clinic(func, cfg=cfg, optimization_passes=optimization_passes)
+            clinic = self._kb._project.analyses.Clinic(
+                func, cfg=cfg, optimization_passes=optimization_passes, flatten_args=True
+            )
             self.cache[key] = clinic
             return self.cache[key]
         except Exception as e:

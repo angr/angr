@@ -183,6 +183,7 @@ class Clinic(Analysis):
         notes: dict[str, DecompilationNote] | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        flatten_args=False,
         semvar_naming: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
@@ -240,6 +241,7 @@ class Clinic(Analysis):
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
+        self._flatten_args = flatten_args
         self._semvar_naming = semvar_naming
 
         if not semvar_naming and ClinicStage.SEMANTIC_VARIABLE_NAMING not in self._skip_stages:
@@ -1997,6 +1999,14 @@ class Clinic(Analysis):
                 else self.function.prototype
             )
             args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
+            if self._flatten_args:
+                new_args = []
+                for arg in args:
+                    if isinstance(arg, SimStructArg):
+                        new_args.extend(expand_argloc(arg))
+                    else:
+                        new_args.append(arg)
+                args = new_args
             arg_vars: list[SimVariable] = []
             if args:
                 arg_names = self.function.prototype.arg_names or ()
