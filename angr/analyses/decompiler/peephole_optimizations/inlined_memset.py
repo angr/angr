@@ -40,6 +40,8 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
     Simplifies inlined memory setting logic into calls to memset
     """
 
+    MIN_ASSIGNMENTS = 2
+
     __slots__ = ()
 
     NAME = "Simplifying inlined memset"
@@ -73,6 +75,9 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                 continue
             candidates = self._find_memset_candidates(lst)
             for start_stmt_idx, end_stmt_idx, candidate in candidates:
+                if end_stmt_idx - start_stmt_idx <= self.MIN_ASSIGNMENTS:
+                    continue
+
                 for i in range(start_stmt_idx, end_stmt_idx):
                     block.statements[i] = None  # remove these statements
                 # create a new memset call
