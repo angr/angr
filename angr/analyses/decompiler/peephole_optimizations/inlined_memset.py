@@ -20,7 +20,7 @@ class ConstAssignmentInfo:
     def __init__(
         self, kind: Literal["stack", "heap", "global"], base: Any, offset: int, value: int, bits: int, count: int = 1
     ):
-        self.kind = kind
+        self.kind: Literal["stack", "heap", "global"] = kind
         self.base = base
         self.offset = offset
         self.value = value
@@ -51,6 +51,8 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
         d = self._parse_const_assignment(stmt)
         if d is None:
             return None
+
+        assert block is not None and self.project is not None
 
         stmt_idx = -1 if stmt_idx is None else stmt_idx
         info: list[tuple[int, ConstAssignmentInfo]] = [(stmt_idx, d)]
@@ -133,26 +135,27 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
         Parse a constant assignment statement to see if it matches the pattern of a memset.
 
         :param stmt: The statement to parse.
-        :return: A tuple of ("stack" | "heap" | "global", base, offset, value, bits) if it matches the pattern, else None.
+        :return: A tuple of ("stack" | "heap" | "global", base, offset, value, bits) if it matches the pattern, else
+                 None.
         """
-        if isinstance(stmt, Assignment) and isinstance(stmt.src, Const):
+        if isinstance(stmt, Assignment) and isinstance(stmt.src, Const) and stmt.src.is_int:
             dst = stmt.dst
             if isinstance(dst, VirtualVariable) and dst.was_stack:
-                return ConstAssignmentInfo("stack", None, dst.stack_offset, stmt.src.value, stmt.src.bits)
-        elif isinstance(stmt, Store) and isinstance(stmt.data, Const):
+                return ConstAssignmentInfo("stack", None, dst.stack_offset, stmt.src.value_int, stmt.src.bits)
+        elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and stmt.data.is_int:
             if isinstance(stmt.addr, StackBaseOffset):
-                return ConstAssignmentInfo("stack", None, stmt.addr.offset, stmt.data.value, stmt.data.bits)
+                return ConstAssignmentInfo("stack", None, stmt.addr.offset, stmt.data.value_int, stmt.data.bits)
             if isinstance(stmt.addr, Const):
-                return ConstAssignmentInfo("global", stmt.addr.value, 0, stmt.data.value, stmt.data.bits)
+                return ConstAssignmentInfo("global", stmt.addr.value_int, 0, stmt.data.value_int, stmt.data.bits)
             if isinstance(stmt.addr, BinaryOp) and stmt.addr.op in {"Add", "Sub"}:
                 base = stmt.addr.operands[0]
                 offset_expr = stmt.addr.operands[1]
                 if isinstance(offset_expr, Const):
-                    offset = offset_expr.value if stmt.addr.op == "Add" else -offset_expr.value
-                    return ConstAssignmentInfo("heap", base, offset, stmt.data.value, stmt.data.bits)
+                    offset = offset_expr.value_int if stmt.addr.op == "Add" else -offset_expr.value_int
+                    return ConstAssignmentInfo("heap", base, offset, stmt.data.value_int, stmt.data.bits)
             else:
                 base = stmt.addr
-                return ConstAssignmentInfo("heap", base, 0, stmt.data.value, stmt.data.bits)
+                return ConstAssignmentInfo("heap", base, 0, stmt.data.value_int, stmt.data.bits)
         return None
 
     @staticmethod
