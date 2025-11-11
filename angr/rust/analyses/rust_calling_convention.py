@@ -535,14 +535,14 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                     structs_by_size[candidate.size] = candidate
             if len(structs_by_size) == 2:
                 small_type, large_type = sorted(structs_by_size.values(), key=lambda ty: ty.size)
-                if small_type.size == self.project.arch.bits:
-                    return RustSimTypeOption(
-                        None,
-                        self.project.arch.bits,
-                        large_type,
-                        None,
-                        0,
-                    )
+                # if small_type.size == self.project.arch.bits:
+                #     return RustSimTypeOption(
+                #         None,
+                #         self.project.arch.bits,
+                #         large_type,
+                #         None,
+                #         0,
+                #     )
                 return RustSimTypeResult(
                     ok_type=large_type,
                     ok_discriminant=None,
