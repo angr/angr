@@ -198,12 +198,17 @@ class FunctionBodyFactCollector(AILBlockWalker):
         for block in self.context.graph.nodes:
             if has_call(block):
                 callsites.add((block,))
-        retsites = set()
-        for block in self.context.graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
-                retsites.add((block,))
 
-        for path in paths | callsites | retsites:
+        ret_sites = set()
+        for block in self.context.graph.nodes:
+            if (
+                block.statements
+                and isinstance(block.statements[-1], Return)
+                and not any(block in path for path in paths)
+            ):
+                ret_sites.add((block,))
+
+        for path in paths | callsites | ret_sites:
             self._path = path
             for block in path:
                 self.walk(block)
