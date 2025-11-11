@@ -205,6 +205,16 @@ class FlirtAnalysis(Analysis):
                 return callee.name
         return None
 
+    def _get_func_for_addr(self, func_addr) -> Function | None:
+        try:
+            return self.kb.functions.get_by_addr(func_addr)
+        except KeyError:
+            # the function is not found. Try the THUMB version
+            if self._is_arm:
+                with contextlib.suppress(KeyError):
+                    return self.kb.functions.get_by_addr(func_addr + 1)
+        return None
+
     def _on_func_matched(self, func: Function, base_addr: int, flirt_func: FlirtFunction):
         func_addr = base_addr + flirt_func.offset
         _l.debug(
@@ -212,20 +222,13 @@ class FlirtAnalysis(Analysis):
         )
         if func_addr != base_addr or (self._is_arm and func_addr != base_addr + 1):
             # get the correct function
-            func = None
-            try:
-                func = self.kb.functions.get_by_addr(func_addr)
-            except KeyError:
-                # the function is not found. Try the THUMB version
-                if self._is_arm:
-                    with contextlib.suppress(KeyError):
-                        func = self.kb.functions.get_by_addr(func_addr + 1)
-
-            if func is None:
+            matched_func = self._get_func_for_addr(func_addr)
+            if matched_func is None:
                 _l.debug(
                     "FlirtAnalysis identified a function at %#x but it does not exist in function manager.", func_addr
                 )
                 return
+            func = matched_func
 
         if func.is_default_name:
             # set the function name
