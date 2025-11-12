@@ -335,7 +335,8 @@ class FlirtMatcher:
 
         # tail bytes
         for off, b in module.tail_bytes:
-            if len(buff) <= offset + off or buff[offset + off] != b:
+            tail_byte_buff_off = offset + module.crc_len + off
+            if len(buff) <= tail_byte_buff_off or buff[tail_byte_buff_off] != b:
                 return False
 
         # referenced functions
