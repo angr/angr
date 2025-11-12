@@ -87,7 +87,7 @@ class FunctionParser:
                 elif key == "outside":
                     edge.is_outside = value
                 else:
-                    edge.data[key] = pickle.dumps(value)  # pylint:disable=no-member
+                    l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -198,10 +198,11 @@ class FunctionParser:
                 except KeyError as err:
                     raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
-            data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
-            data["outside"] = edge_cmsg.is_outside
-            data["ins_addr"] = edge_cmsg.ins_addr
-            data["stmt_idx"] = edge_cmsg.stmt_idx
+            data = {
+                "outside": edge_cmsg.is_outside,
+                "ins_addr": edge_cmsg.ins_addr,
+                "stmt_idx": edge_cmsg.stmt_idx,
+            }
             if edge_type == "fake_return":
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:

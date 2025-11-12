@@ -1,7 +1,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import json
-import pickle
 
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
@@ -9,13 +8,45 @@ from angr.knowledge_plugins import StructuredCodeManager
 from angr.angrdb.models import DbStructuredCode
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.structured_codegen.base import IdentType
     from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
 
 
+class ConstFormatsSerializer:
+    """
+    Serialize/deserialize the constant formats dictionary.
+    """
+
+    @staticmethod
+    def to_json(const_formats: dict[IdentType, dict[str, bool]]) -> dict[str, dict[int | float, dict[str, bool]]]:
+        d = {"inst": {}, "val": {}}
+        for key, value in const_formats.items():
+            if key[0] == "inst":
+                for k, v in value.items():
+                    d["inst"][k] = v
+            elif key[0] == "val":
+                for k, v in value.items():
+                    d["val"][k] = v
+        return d
+
+    @staticmethod
+    def from_json(d: dict[str, dict[int | float, dict[str, str | bool]]]) -> dict[IdentType, dict[str, bool]]:
+        new_d = {}
+        for key_1, d_ in d.items():
+            if key_1 not in {"inst", "val"}:
+                continue
+            for key_2, d in d_.items():
+                key_tpl: IdentType = (key_1, key_2)
+                new_d[key_tpl] = {}
+                for k, v in d.items():
+                    new_d[key_tpl][k] = v is True or (isinstance(v, str) and v.lower() == "true")
+        return new_d
+
+
 class StructuredCodeManagerSerializer:
     """
-    Serialize/unserialize a structured code manager.
+    Serialize/deserialize a structured code manager.
     """
 
     @staticmethod
@@ -46,11 +77,9 @@ class StructuredCodeManagerSerializer:
 
             const_formats = None
             if cache.codegen is not None and cache.codegen.const_formats:
-                const_formats = pickle.dumps(cache.codegen.const_formats)
+                const_formats = json.dumps(ConstFormatsSerializer.to_json(cache.codegen.const_formats)).encode("utf-8")
 
             ite_exprs = None
-            if cache.ite_exprs:
-                ite_exprs = pickle.dumps(cache.ite_exprs)
 
             db_code = DbStructuredCode(
                 kb=db_kb,
@@ -104,9 +133,11 @@ class StructuredCodeManagerSerializer:
                 stmt_comments = json.loads(db_code.stmt_comments.decode("utf-8"))
                 stmt_comments = StructuredCodeManagerSerializer.dict_strkey_to_intkey(stmt_comments)
 
-            const_formats = None if not db_code.const_formats else pickle.loads(db_code.const_formats)
-
-            ite_exprs = None if not db_code.ite_exprs else pickle.loads(db_code.ite_exprs)
+            const_formats = (
+                None
+                if not db_code.const_formats
+                else ConstFormatsSerializer.from_json(json.loads(db_code.const_formats.decode("utf-8")))
+            )
 
             configuration = None
             dummy_codegen = DummyStructuredCodeGenerator(
@@ -118,7 +149,7 @@ class StructuredCodeManagerSerializer:
             )
             cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen
-            cache.ite_exprs = ite_exprs
+            cache.ite_exprs = set()
             cache.errors = db_code.errors.split("\n\n\n")
             manager[(db_code.func_addr, db_code.flavor)] = cache
 

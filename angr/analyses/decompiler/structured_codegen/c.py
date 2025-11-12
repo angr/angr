@@ -61,7 +61,7 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
+from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement, IdentType
 
 if TYPE_CHECKING:
     import archinfo
@@ -2141,16 +2141,16 @@ class CConstant(CExpression):
     def __init__(self, value, type_: SimType, reference_values=None, **kwargs):
         super().__init__(**kwargs)
 
-        self.value = value
+        self.value: int | float | str = value
         self._type = type_.with_arch(self.codegen.project.arch)
         self.reference_values = reference_values
 
     @property
-    def _ident(self):
+    def _ident(self) -> IdentType:
         ident = (self.tags or {}).get("ins_addr", None)
         if ident is not None:
-            return ("inst", ident)
-        return ("val", self.value)
+            return "inst", ident
+        return "val", self.value
 
     @property
     def fmt(self):
@@ -2545,7 +2545,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         notes=None,
         display_notes: bool = True,
     ):
-        super().__init__(flavor=flavor, notes=notes)
+        super().__init__(
+            flavor=flavor,
+            notes=notes,
+            stmt_comments=stmt_comments,
+            expr_comments=expr_comments,
+            const_formats=const_formats,
+        )
 
         self._handlers = {
             CodeNode: self._handle_Code,
@@ -2606,9 +2612,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
         self.cstyle_null_cmp = cstyle_null_cmp
-        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
-        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
-        self.const_formats: dict[Any, dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
