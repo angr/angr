@@ -1,12 +1,14 @@
 # pylint:disable=no-member,raise-missing-from
 from __future__ import annotations
 import logging
+import json
 import pickle
 
 from collections import defaultdict
 
 from angr.codenode import BlockNode, HookNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
+from angr.sim_type import SimType
 from angr.protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
@@ -37,7 +39,11 @@ class FunctionParser:
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
         obj.calling_convention = pickle.dumps(function.calling_convention)
-        obj.prototype = pickle.dumps(function.prototype)
+        obj.prototype = (
+            json.dumps(function.prototype.to_json(function.prototype)).encode("utf-8")
+            if function.prototype is not None
+            else None
+        )
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
 
@@ -112,7 +118,9 @@ class FunctionParser:
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=pickle.loads(cmsg.calling_convention),
-            prototype=pickle.loads(cmsg.prototype),
+            prototype=(
+                SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype is not None else None
+            ),
             prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
