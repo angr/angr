@@ -396,6 +396,9 @@ class AILSimplifier(Analysis):
         A register may be used with full width even when only the lower bytes are really needed. This results in the
         incorrect determination of wider variables while the actual variable is narrower (e.g., int64 vs char). This
         optimization narrows a register definition if all its uses are narrower than the definition itself.
+
+        Note that at this point, we must account for all uses of any narrowed expressions. This means expression
+        narrowing must be done _after_ making call sites instead of before making call sites.
         """
 
         narrowed = False
@@ -613,8 +616,8 @@ class AILSimplifier(Analysis):
             used_by_loc[loc].append((atom, used_by_exprs))
 
         target_size = None
-        if len(all_used_sizes) == 1 and next(iter(all_used_sizes)) < def_size:
-            target_size = next(iter(all_used_sizes))
+        if len(all_used_sizes) >= 1 and max(all_used_sizes) < def_size:
+            target_size = max(all_used_sizes)
         else:
             effective_size = effective_sizes.get(def_.atom.varid, None)
             if (

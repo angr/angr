@@ -655,7 +655,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=False,
             unify_variables=False,
-            narrow_expressions=True,
+            narrow_expressions=False,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
         )

@@ -4367,10 +4367,10 @@ class TestDecompiler(unittest.TestCase):
         # intended:
         #   do
         #   {
-        #       *(v12) = (char)v11;
-        #       v11 = (unsigned int)v11 + 1;
+        #       *(v12) = v11;
+        #       v11 += 1;
         #       v12 += 1;
-        #   } while ((unsigned int)v11 < 0x100);
+        #   } while (v11 < 0x100);
         lines = [line.strip(" ") for line in d.codegen.text.split("\n")]
         while True:
             # find the do-while loop
@@ -4380,10 +4380,10 @@ class TestDecompiler(unittest.TestCase):
                 assert False, "Cannot find the do-while loop in this function"
             if (
                 lines[start_idx + 1] == "{"
-                and re.match(r"\*\(v\d+\) = \(char\)v\d+;", lines[start_idx + 2])
-                and re.match(r"v\d+ = \(unsigned int\)v\d+ \+ 1;", lines[start_idx + 3])
+                and re.match(r"\*\(v\d+\) = v\d+;", lines[start_idx + 2])
+                and re.match(r"v\d+ \+= 1;", lines[start_idx + 3])
                 and re.match(r"v\d+ \+= 1;", lines[start_idx + 4])
-                and re.match(r"} while \(\(unsigned int\)v\d+ < 0x100\);", lines[start_idx + 5])
+                and re.match(r"} while \(v\d+ < 0x100\);", lines[start_idx + 5])
             ):
                 # found it!
                 break
@@ -5238,9 +5238,9 @@ class TestDecompiler(unittest.TestCase):
         assert (
             normalize_whitespace(
                 """
-                if (a0)
+                if ((unsigned int)a0)
                     return test_cond_tailcall_jmp_callee(a0);
-                return a0 - 1;
+                return (unsigned int)a0 - 1;
                 """
             )
             in normalize_whitespace(dec.codegen.text)
@@ -5268,9 +5268,9 @@ class TestDecompiler(unittest.TestCase):
         assert (
             normalize_whitespace(
                 """
-                if (a0)
+                if ((unsigned int)a0)
                     return test_cond_tailcall_cjmp_callee(a0);
-                return a0 - 1;
+                return (unsigned int)a0 - 1;
                 """
             )
             in normalize_whitespace(dec.codegen.text)
