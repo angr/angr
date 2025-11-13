@@ -986,7 +986,8 @@ class Function(Serializable):
         :param call_target_addr:     The address of the target of said call.
         :param retn_addr:            The address that said call will return to.
         """
-        self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
+        call_target_and_retn_addr = (call_target_addr, retn_addr)
+        self._call_sites.setdefault(call_site_addr, []).append(call_target_and_retn_addr)
 
     def _add_endpoint(self, endpoint_node, sort):
         """
@@ -1070,16 +1071,16 @@ class Function(Serializable):
         """
         return self._call_sites.keys()
 
-    def get_call_target(self, callsite_addr):
+    def get_call_target(self, callsite_addr) -> Iterable[int] | None:
         """
-        Get the target of a call.
+        Get a list of all the targets of call.
 
         :param callsite_addr:       The address of a basic block that ends in a call.
         :return:                    The target of said call, or None if callsite_addr is not a
                                     callsite.
         """
         if callsite_addr in self._call_sites:
-            return self._call_sites[callsite_addr][0]
+            return [target for target, _ in self._call_sites[callsite_addr]]
         return None
 
     def get_call_return(self, callsite_addr):

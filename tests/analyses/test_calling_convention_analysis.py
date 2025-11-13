@@ -589,6 +589,22 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
 
+    @cca_mode("fast")
+    def test_callsite_with_multiple_targets(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "df.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True, analyze_callsites=True)
+        func = cfg.kb.functions[0x40054b]
+        call_sites = func.get_call_sites()
+        assert len(call_sites) == 2
+        assert sorted(call_sites) == [0x400565, 0x40058f]
+        target0 = func.get_call_target(0x400565)
+        assert target0 == [0x500098]
+        target1 = func.get_call_target(0x40058f)
+        assert target1 == [0x400420, 0x4003cc]
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
