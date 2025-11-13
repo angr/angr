@@ -26,10 +26,34 @@ class TestFunction(unittest.TestCase):
         assert type(s) is bytes
         assert len(s) > 10
 
-        f = angr.knowledge_plugins.Function.parse(s)
+        f = angr.knowledge_plugins.Function.parse(s, function_manager=p.kb.functions, project=p)
         assert func_main.addr == f.addr
         assert func_main.name == f.name
         assert func_main.is_prototype_guessed == f.is_prototype_guessed
+        assert func_main.prototype == f.prototype
+        assert f.prototype is None
+
+    def test_function_serialization_with_prototype(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
+        cfg = p.analyses.CFG()
+        p.analyses.CompleteCallingConventions()
+
+        func_main = cfg.kb.functions["main"]
+        assert func_main.calling_convention is not None
+        assert func_main.prototype is not None
+
+        s = func_main.serialize()
+
+        assert type(s) is bytes
+        assert len(s) > 10
+
+        f = angr.knowledge_plugins.Function.parse(s, function_manager=p.kb.functions, project=p)
+        assert func_main.addr == f.addr
+        assert func_main.name == f.name
+        assert func_main.is_prototype_guessed == f.is_prototype_guessed
+        assert func_main.prototype == f.prototype
+        assert func_main.calling_convention == f.calling_convention
+        assert f.prototype is not None
 
     def test_function_definition_application(self):
         p = angr.Project(os.path.join(test_location, "x86_64", "fauxware"), auto_load_libs=False)
