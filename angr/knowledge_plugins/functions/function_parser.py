@@ -109,9 +109,14 @@ class FunctionParser:
         from .function import Function  # pylint:disable=import-outside-toplevel
 
         proto = SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None
-        if not isinstance(proto, SimTypeFunction):
-            l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
-            proto = None
+        if proto is not None:
+            if not isinstance(proto, SimTypeFunction):
+                l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
+                proto = None
+            elif project is None:
+                proto = None  # we cannot assign an arch-less prototype to a function
+            else:
+                proto = proto.with_arch(project.arch)
 
         obj = Function(
             function_manager,
