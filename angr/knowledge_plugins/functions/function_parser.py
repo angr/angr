@@ -2,16 +2,41 @@
 from __future__ import annotations
 import logging
 import json
-import pickle
 
 from collections import defaultdict
 
+from angr.calling_conventions import SimCC, SimCCUsercall, CC_NAMES
 from angr.codenode import BlockNode, HookNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from angr.sim_type import SimType, SimTypeFunction
 from angr.protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
+
+
+class CallingConventionSerializer:
+    """
+    Serialize/deserialize SimCC classes.
+    """
+
+    @staticmethod
+    def to_json(cc: SimCC) -> dict:
+        if isinstance(cc, SimCCUsercall):
+            return {
+                "t": "SimCCUsercall",
+                # TODO: Deserialize the rest of the fields
+            }
+        return {"t": cc.__class__.__name__}
+
+    @staticmethod
+    def from_json(data: dict, arch) -> SimCC | None:
+        cc_type = data.get("t")
+        if cc_type == "SimCCUsercall":
+            return SimCCUsercall(arch, [], None)  # TODO: Deserialize the rest of the fields
+        if cc_type not in CC_NAMES:
+            l.warning("Unknown calling convention type %s", cc_type)
+            return None
+        return CC_NAMES[cc_type](arch)
 
 
 class FunctionParser:
@@ -38,7 +63,11 @@ class FunctionParser:
         obj.alignment = function.is_alignment
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
-        obj.calling_convention = pickle.dumps(function.calling_convention)
+        obj.calling_convention = (
+            json.dumps(CallingConventionSerializer.to_json(function.calling_convention)).encode("utf-8")
+            if function.calling_convention is not None
+            else b""
+        )
         obj.prototype = (
             json.dumps(function.prototype.to_json()).encode("utf-8") if function.prototype is not None else b""
         )
@@ -118,6 +147,12 @@ class FunctionParser:
             else:
                 proto = proto.with_arch(project.arch)
 
+        cc = (
+            CallingConventionSerializer.from_json(json.loads(cmsg.calling_convention.decode("utf-8")), project.arch)
+            if cmsg.calling_convention and project is not None
+            else None
+        )
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -128,7 +163,7 @@ class FunctionParser:
             returning=cmsg.returning,
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
-            calling_convention=pickle.loads(cmsg.calling_convention),
+            calling_convention=cc,
             prototype=proto,
             prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
