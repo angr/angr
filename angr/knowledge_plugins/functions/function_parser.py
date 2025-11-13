@@ -8,7 +8,7 @@ from collections import defaultdict
 
 from angr.codenode import BlockNode, HookNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
-from angr.sim_type import SimType
+from angr.sim_type import SimType, SimTypeFunction
 from angr.protos import primitives_pb2, function_pb2
 
 l = logging.getLogger(name=__name__)
@@ -105,6 +105,11 @@ class FunctionParser:
         # delayed import
         from .function import Function  # pylint:disable=import-outside-toplevel
 
+        proto = SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None
+        if not isinstance(proto, SimTypeFunction):
+            l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
+            proto = None
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -116,7 +121,7 @@ class FunctionParser:
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=pickle.loads(cmsg.calling_convention),
-            prototype=(SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None),
+            prototype=proto,
             prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
