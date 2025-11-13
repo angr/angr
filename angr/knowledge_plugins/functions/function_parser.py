@@ -40,9 +40,7 @@ class FunctionParser:
         obj.normalized = function.normalized
         obj.calling_convention = pickle.dumps(function.calling_convention)
         obj.prototype = (
-            json.dumps(function.prototype.to_json(function.prototype)).encode("utf-8")
-            if function.prototype is not None
-            else None
+            json.dumps(function.prototype.to_json()).encode("utf-8") if function.prototype is not None else b""
         )
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
@@ -118,9 +116,7 @@ class FunctionParser:
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=pickle.loads(cmsg.calling_convention),
-            prototype=(
-                SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype is not None else None
-            ),
+            prototype=(SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None),
             prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
