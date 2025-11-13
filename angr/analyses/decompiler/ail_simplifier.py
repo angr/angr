@@ -616,8 +616,8 @@ class AILSimplifier(Analysis):
             used_by_loc[loc].append((atom, used_by_exprs))
 
         target_size = None
-        if len(all_used_sizes) == 1 and next(iter(all_used_sizes)) < def_size:
-            target_size = next(iter(all_used_sizes))
+        if len(all_used_sizes) >= 1 and max(all_used_sizes) < def_size:
+            target_size = max(all_used_sizes)
         else:
             effective_size = effective_sizes.get(def_.atom.varid, None)
             if (

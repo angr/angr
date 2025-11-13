@@ -5238,9 +5238,9 @@ class TestDecompiler(unittest.TestCase):
         assert (
             normalize_whitespace(
                 """
-                if (a0)
+                if ((unsigned int)a0)
                     return test_cond_tailcall_jmp_callee(a0);
-                return a0 - 1;
+                return (unsigned int)a0 - 1;
                 """
             )
             in normalize_whitespace(dec.codegen.text)
@@ -5268,9 +5268,9 @@ class TestDecompiler(unittest.TestCase):
         assert (
             normalize_whitespace(
                 """
-                if (a0)
+                if ((unsigned int)a0)
                     return test_cond_tailcall_cjmp_callee(a0);
-                return a0 - 1;
+                return (unsigned int)a0 - 1;
                 """
             )
             in normalize_whitespace(dec.codegen.text)
