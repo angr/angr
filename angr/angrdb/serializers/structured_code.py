@@ -3,6 +3,7 @@ from typing import Any, TYPE_CHECKING
 import json
 
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.base import CConstantType
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.knowledge_plugins import StructuredCodeManager
 from angr.angrdb.models import DbStructuredCode
@@ -19,29 +20,39 @@ class ConstFormatsSerializer:
     """
 
     @staticmethod
-    def to_json(const_formats: dict[IdentType, dict[str, bool]]) -> dict[str, dict[int | float, dict[str, bool]]]:
-        d = {"inst": {}, "val": {}}
+    def to_json(const_formats: dict[IdentType, dict[str, bool]]) -> dict[int, dict[str, dict[str, bool]]]:
+        d = {}
         for key, value in const_formats.items():
-            if key[0] == "inst":
-                for k, v in value.items():
-                    d["inst"][k] = v
-            elif key[0] == "val":
-                for k, v in value.items():
-                    d["val"][k] = v
+            ins_addr, v_type, v = key
+            v_type_str = (
+                "i" if v_type == CConstantType.INT.value else "f" if v_type == CConstantType.FLOAT.value else "s"
+            )  # str
+            if ins_addr not in d:
+                d[ins_addr] = {}
+            d_key = f"{v_type_str}{v}"
+            d[ins_addr][d_key] = value
         return d
 
     @staticmethod
-    def from_json(d: dict[str, dict[int | float, dict[str, str | bool]]]) -> dict[IdentType, dict[str, bool]]:
-        new_d = {}
-        for key_1, d_ in d.items():
-            if key_1 not in {"inst", "val"}:
-                continue
-            for key_2, d in d_.items():
-                key_tpl: IdentType = (key_1, key_2)
-                new_d[key_tpl] = {}
+    def from_json(data: dict[int, dict[str, dict[str, str | bool]]]) -> dict[IdentType, dict[str, bool]]:
+        r = {}
+        for ins_addr, d_ in data.items():
+            for d_key, d in d_.items():
+                ch = d_key[0]
+                if ch == "i":
+                    v_type = CConstantType.INT.value
+                    value = int(d_key[1:])
+                elif ch == "f":
+                    v_type = CConstantType.FLOAT.value
+                    value = float(d_key[1:])
+                else:  # ch == "s"
+                    v_type = CConstantType.STRING.value
+                    value = d_key[1:]
+                key_tpl: IdentType = int(ins_addr), v_type, value
+                r[key_tpl] = {}
                 for k, v in d.items():
-                    new_d[key_tpl][k] = v is True or (isinstance(v, str) and v.lower() == "true")
-        return new_d
+                    r[key_tpl][k] = v is True or (isinstance(v, str) and v.lower() == "true")
+        return r
 
 
 class StructuredCodeManagerSerializer:

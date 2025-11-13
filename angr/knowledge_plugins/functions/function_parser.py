@@ -75,6 +75,7 @@ class FunctionParser:
             if dst.addr not in block_addrs_set:
                 external_addrs.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
+            edge.confirmed = 2  # default value
             for key, value in data.items():
                 if key == "type":
                     edge.jumpkind = func_edge_type_to_pb(value)
@@ -86,6 +87,8 @@ class FunctionParser:
                         edge.stmt_idx = value
                 elif key == "outside":
                     edge.is_outside = value
+                elif key == "confirmed":
+                    edge.confirmed = 0 if value is False else 1
                 else:
                     l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
             edges.append(edge)
@@ -203,6 +206,10 @@ class FunctionParser:
                 "ins_addr": edge_cmsg.ins_addr,
                 "stmt_idx": edge_cmsg.stmt_idx,
             }
+            if edge_cmsg.confirmed == 0:
+                data["confirmed"] = False
+            elif edge_cmsg.confirmed == 1:
+                data["confirmed"] = True
             if edge_type == "fake_return":
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:

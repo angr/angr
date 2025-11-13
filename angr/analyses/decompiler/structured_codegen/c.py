@@ -61,7 +61,14 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     ContinueNode,
     CascadingConditionNode,
 )
-from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement, IdentType
+from .base import (
+    BaseStructuredCodeGenerator,
+    InstructionMapping,
+    PositionMapping,
+    PositionMappingElement,
+    IdentType,
+    CConstantType,
+)
 
 if TYPE_CHECKING:
     import archinfo
@@ -2147,10 +2154,13 @@ class CConstant(CExpression):
 
     @property
     def _ident(self) -> IdentType:
-        ident = (self.tags or {}).get("ins_addr", None)
-        if ident is not None:
-            return "inst", ident
-        return "val", self.value
+        ins_addr = (self.tags or {}).get("ins_addr", -1)
+        ty_enum = CConstantType.INT
+        if isinstance(self.value, float):
+            ty_enum = CConstantType.FLOAT
+        elif isinstance(self.value, str):
+            ty_enum = CConstantType.STRING
+        return ins_addr, ty_enum.value, self.value
 
     @property
     def fmt(self):

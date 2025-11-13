@@ -1,12 +1,23 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
-from typing import Literal
+from enum import Enum
 
 from sortedcontainers import SortedDict
 
 from angr.sim_variable import SimVariable
 
-IdentType = tuple[Literal["inst", "val"], int | float | str]
+IdentType = tuple[int, int, str]
+
+
+class CConstantType(Enum):
+    """
+    Describes the value type of a CConstant class.
+    """
+
+    INT = 0
+    FLOAT = 1
+    STRING = 2
+
 
 #
 #   Position Mapping Classes

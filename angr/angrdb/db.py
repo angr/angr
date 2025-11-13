@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DatabaseError
+from sqlalchemy.pool import NullPool
 
 from angr.errors import AngrCorruptDBError, AngrIncompatibleDBError, AngrDBError
 from angr.project import Project
@@ -28,17 +29,21 @@ class AngrDB:
 
     VERSION = 1
 
-    def __init__(self, project=None):
+    def __init__(self, project=None, nullpool=False):
         self.project = project
         self.config = {}
+        self.engine = None
+        self._nullpool = nullpool
 
-    @staticmethod
     @contextmanager
-    def open_db(db_str="sqlite:///:memory:"):
+    def open_db(self, db_str="sqlite:///:memory:"):
         try:
-            engine = create_engine(db_str)
-            Base.metadata.create_all(engine)
-            Session = sessionmaker(bind=engine)
+            kwargs = {}
+            if self._nullpool:
+                kwargs["poolclass"] = NullPool
+            self.engine = create_engine(db_str, **kwargs)
+            Base.metadata.create_all(self.engine)
+            Session = sessionmaker(bind=self.engine)
             yield Session
         except DatabaseError as ex:
             raise AngrCorruptDBError("The target file may not be an angr database or it is corrupted.") from ex
@@ -145,6 +150,10 @@ class AngrDB:
         """
 
         return version == self.VERSION
+
+    def invalidate(self):
+        if self.engine is not None:
+            self.engine.dispose()
 
     def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
         db_str = f"sqlite:///{db_path}"

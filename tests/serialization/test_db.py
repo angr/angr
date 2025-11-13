@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=missing-class-docstring,disable=no-self-use
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.serialization"  # pylint:disable=redefined-builtin
@@ -8,14 +8,14 @@ import os
 import tempfile
 import shutil
 import unittest
-import sys
 
 import cle
 
 import angr
+from angr.analyses.decompiler.structured_codegen.c import CConstant
 from angr.angrdb import AngrDB
 
-from tests.common import bin_location
+from tests.common import bin_location, print_decompilation_result
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -32,10 +32,10 @@ class TestDb(unittest.TestCase):
         dtemp = tempfile.mkdtemp()
         db_file = os.path.join(dtemp, "fauxware.adb")
 
-        db = AngrDB(proj)
+        db = AngrDB(proj, nullpool=True)
         db.dump(db_file)
 
-        db1 = AngrDB()
+        db1 = AngrDB(nullpool=True)
         new_proj = db1.load(db_file)
 
         assert len(new_proj.kb.cfgs["CFGFast"].nodes()) == len(cfg.model.nodes())
@@ -99,23 +99,23 @@ class TestDb(unittest.TestCase):
         dtemp = tempfile.mkdtemp()
         db_file = os.path.join(dtemp, "fauxware.adb")
 
-        db = AngrDB(proj)
+        db = AngrDB(proj, nullpool=True)
         db.dump(db_file)
 
         # attempt 0
-        db0 = AngrDB()
+        db0 = AngrDB(nullpool=True)
         proj0 = db0.load(db_file)
 
         # attempt 1
-        db1 = AngrDB()
+        db1 = AngrDB(nullpool=True)
         proj1 = db1.load(db_file)
 
         # attempt 2
-        db2 = AngrDB()
+        db2 = AngrDB(nullpool=True)
         proj2 = db2.load(db_file)
 
         # attempt 3
-        db3 = AngrDB()
+        db3 = AngrDB(nullpool=True)
         proj3 = db3.load(db_file)
 
         # compare functions
@@ -143,29 +143,29 @@ class TestDb(unittest.TestCase):
         db_file = os.path.join(dtemp, "fauxware.adb")
 
         # attempt 0
-        db = AngrDB(proj)
+        db = AngrDB(proj, nullpool=True)
         db.dump(db_file)
 
         # attempt 1
-        proj0 = AngrDB().load(db_file)
+        proj0 = AngrDB(nullpool=True).load(db_file)
         assert proj0.kb.comments[proj.entry] == "Entry point"
         proj0.kb.comments[proj.entry] = "Comment 0"
         AngrDB(proj0).dump(db_file)
 
         # attempt 2
-        proj1 = AngrDB().load(db_file)
+        proj1 = AngrDB(nullpool=True).load(db_file)
         assert proj1.kb.comments[proj.entry] == "Comment 0"
         proj1.kb.comments[proj.entry] = "Comment 1"
         AngrDB(proj1).dump(db_file)
 
         # attempt 3
-        proj1 = AngrDB().load(db_file)
+        proj1 = AngrDB(nullpool=True).load(db_file)
         assert proj1.kb.comments[proj.entry] == "Comment 1"
         proj1.kb.comments[proj.entry] = "Comment 22222222222222222222222"
         AngrDB(proj1).dump(db_file)
 
         # attempt 4
-        proj1 = AngrDB().load(db_file)
+        proj1 = AngrDB(nullpool=True).load(db_file)
         assert proj1.kb.comments[proj.entry] == "Comment 22222222222222222222222"
 
     def test_angrdb_save_without_binary_existence(self):
@@ -179,28 +179,21 @@ class TestDb(unittest.TestCase):
                 shutil.copy(bin_path, tmp_path)
                 proj = angr.Project(tmp_path, auto_load_libs=False)
 
-                AngrDB(proj).dump(db_file)
+                AngrDB(proj, nullpool=True).dump(db_file)
 
                 del proj
                 os.remove(tmp_path)
 
             # now that the binary file no longer exists, we should be able to open the angr DB and save it without
             # raising exceptions.
-
-            proj = AngrDB().load(db_file)
-            try:
-                os.remove(db_file)
-            except PermissionError:
-                if sys.platform != "win32":
-                    # for some reason removing this file on the nightly CI (Windows) raises a permission error, but
-                    # I cannot reproduce it locally
-                    raise
+            proj = AngrDB(nullpool=True).load(db_file)
+            os.remove(db_file)
 
             db_file_new = os.path.join(td, "proj_new.adb")
-            AngrDB(proj).dump(db_file_new)
+            AngrDB(proj, nullpool=True).dump(db_file_new)
 
             # we should be able to load it back!
-            proj_new = AngrDB().load(db_file_new)
+            proj_new = AngrDB(nullpool=True).load(db_file_new)
             assert os.path.basename(proj_new.loader.main_object.binary) == "fauxware"
 
     def test_angrdb_cart_file(self):
@@ -230,7 +223,70 @@ class TestDb(unittest.TestCase):
                 assert proj.loader._main_binary_path.endswith("1after909.cart")
                 assert proj.loader.main_object.binary is None
 
-                AngrDB(proj).dump(db_file)
+                AngrDB(proj, nullpool=True).dump(db_file)
+
+                del proj
+                os.remove(tmp_path)
+
+            # now that the binary file no longer exists, we should be able to open the angr DB and save it without
+            # raising exceptions.
+            proj = AngrDB(nullpool=True).load(db_file)
+            assert proj.loader._main_binary_path.endswith("1after909.cart")
+            assert proj.loader.main_object.binary is None
+            assert len(proj.kb.functions) == func_count
+            os.remove(db_file)
+
+            db_file_new = os.path.join(td, "proj_new.adb")
+            AngrDB(proj, nullpool=True).dump(db_file_new)
+
+            # we should be able to load it back!
+            proj_new = AngrDB(nullpool=True).load(db_file_new)
+            assert proj.loader._main_binary_path.endswith("1after909.cart")
+            assert proj_new.loader.main_object.binary is None
+            assert len(proj.kb.functions) == func_count
+
+    def test_angrdb_decompilation_display_format(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "proj.adb")
+
+            with tempfile.TemporaryDirectory() as td0:
+                tmp_path = os.path.join(td0, os.path.basename(bin_path))
+                shutil.copy(bin_path, tmp_path)
+                proj = angr.Project(tmp_path, auto_load_libs=False)
+                proj.analyses.CFG(normalize=True)
+                proj.analyses.CompleteCallingConventions()
+
+                # decompile the main function
+                main_func = proj.kb.functions["main"]
+                dec = proj.analyses.Decompiler(main_func)
+                assert dec.codegen is not None and dec.codegen.text is not None
+                print_decompilation_result(dec)
+                assert dec.codegen.text.count("0x8") == 0
+
+                # find the CConstant whose value is 8
+                target_consts = []
+                for _, elem in dec.codegen.map_pos_to_node.items():
+                    if isinstance(elem.obj, CConstant) and elem.obj.value == 8:
+                        target_consts.append(elem.obj)
+
+                assert len(target_consts) == 2
+                assert target_consts[0]._ident < target_consts[1]._ident
+
+                # change the display format of the first one to hex
+                target_consts[0].fmt_hex = True
+
+                # now if we decompile it again, we should see the change reflected
+                dec_1 = proj.analyses.Decompiler(main_func)
+                assert dec_1.codegen is not None and dec_1.codegen.text is not None
+                print_decompilation_result(dec_1)
+                assert dec_1.codegen.text.count("0x8") == 1
+
+                # it should be part of the structured code cache
+                assert proj.kb.decompilations
+
+                AngrDB(proj, nullpool=True).dump(db_file)
 
                 del proj
                 os.remove(tmp_path)
@@ -238,26 +294,21 @@ class TestDb(unittest.TestCase):
             # now that the binary file no longer exists, we should be able to open the angr DB and save it without
             # raising exceptions.
 
-            proj = AngrDB().load(db_file)
-            assert proj.loader._main_binary_path.endswith("1after909.cart")
-            assert proj.loader.main_object.binary is None
-            assert len(proj.kb.functions) == func_count
-            try:
-                os.remove(db_file)
-            except PermissionError:
-                if sys.platform != "win32":
-                    # for some reason removing this file on the nightly CI (Windows) raises a permission error, but
-                    # I cannot reproduce it locally
-                    raise
+            proj = AngrDB(nullpool=True).load(db_file)
+            os.remove(db_file)
 
             db_file_new = os.path.join(td, "proj_new.adb")
-            AngrDB(proj).dump(db_file_new)
+            AngrDB(proj, nullpool=True).dump(db_file_new)
 
             # we should be able to load it back!
-            proj_new = AngrDB().load(db_file_new)
-            assert proj.loader._main_binary_path.endswith("1after909.cart")
-            assert proj_new.loader.main_object.binary is None
-            assert len(proj.kb.functions) == func_count
+            proj_new = AngrDB(nullpool=True).load(db_file_new)
+            assert os.path.basename(proj_new.loader.main_object.binary) == "fauxware"
+
+            # decompile the function again
+            dec_2 = proj_new.analyses.Decompiler(proj_new.kb.functions["main"])
+            assert dec_2.codegen is not None and dec_2.codegen.text is not None
+            print_decompilation_result(dec_2)
+            assert dec_2.codegen.text.count("0x8") == 1
 
 
 if __name__ == "__main__":
