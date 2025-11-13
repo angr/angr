@@ -19,7 +19,7 @@ l = logging.Logger(__name__)
 
 
 class TestPeepholeRedundantBitshifts(unittest.TestCase):
-    def test_unify_local_variables_skip_outdated_eqs(self):
+    def test_remove_redundant_bitshifts_around_comparators_incorrect_constant_sizes(self):
         bin_path = os.path.join(
             test_location, "x86_64", "windows", "1309c8993adeb587e629615eb6838a280f0a1faa6ac74fdb11b80d5bddc1c94f"
         )
