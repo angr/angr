@@ -596,14 +596,14 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         cfg = proj.analyses.CFG(normalize=True)
         proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True, analyze_callsites=True)
-        func = cfg.kb.functions[0x40054b]
+        func = cfg.kb.functions[0x40054B]
         call_sites = func.get_call_sites()
         assert len(call_sites) == 2
-        assert sorted(call_sites) == [0x400565, 0x40058f]
+        assert sorted(call_sites) == [0x400565, 0x40058F]
         target0 = func.get_call_target(0x400565)
         assert target0 == [0x500098]
-        target1 = func.get_call_target(0x40058f)
-        assert target1 == [0x400420, 0x4003cc]
+        target1 = func.get_call_target(0x40058F)
+        assert target1 == [0x400420, 0x4003CC]
 
 
 if __name__ == "__main__":
