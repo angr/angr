@@ -1,8 +1,23 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+from enum import Enum
+
 from sortedcontainers import SortedDict
 
 from angr.sim_variable import SimVariable
+
+IdentType = tuple[int, int, str]
+
+
+class CConstantType(Enum):
+    """
+    Describes the value type of a CConstant class.
+    """
+
+    INT = 0
+    FLOAT = 1
+    STRING = 2
+
 
 #
 #   Position Mapping Classes
@@ -115,7 +130,7 @@ class InstructionMapping:
 
 
 class BaseStructuredCodeGenerator:
-    def __init__(self, flavor=None, notes=None):
+    def __init__(self, flavor=None, notes=None, expr_comments=None, stmt_comments=None, const_formats=None):
         self.flavor = flavor
         self.text = None
         self.map_pos_to_node = None
@@ -123,6 +138,9 @@ class BaseStructuredCodeGenerator:
         self.map_addr_to_pos = None
         self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
         self.notes = notes if notes is not None else {}
+        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
+        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
+        self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
 
     def adjust_mapping_positions(
         self,

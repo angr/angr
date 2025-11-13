@@ -75,6 +75,7 @@ class FunctionParser:
             if dst.addr not in block_addrs_set:
                 external_addrs.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
+            edge.confirmed = 2  # default value
             for key, value in data.items():
                 if key == "type":
                     edge.jumpkind = func_edge_type_to_pb(value)
@@ -86,8 +87,10 @@ class FunctionParser:
                         edge.stmt_idx = value
                 elif key == "outside":
                     edge.is_outside = value
+                elif key == "confirmed":
+                    edge.confirmed = 0 if value is False else 1
                 else:
-                    edge.data[key] = pickle.dumps(value)  # pylint:disable=no-member
+                    l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -106,9 +109,14 @@ class FunctionParser:
         from .function import Function  # pylint:disable=import-outside-toplevel
 
         proto = SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None
-        if not isinstance(proto, SimTypeFunction):
-            l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
-            proto = None
+        if proto is not None:
+            if not isinstance(proto, SimTypeFunction):
+                l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
+                proto = None
+            elif project is None:
+                proto = None  # we cannot assign an arch-less prototype to a function
+            else:
+                proto = proto.with_arch(project.arch)
 
         obj = Function(
             function_manager,
@@ -198,10 +206,15 @@ class FunctionParser:
                 except KeyError as err:
                     raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
-            data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
-            data["outside"] = edge_cmsg.is_outside
-            data["ins_addr"] = edge_cmsg.ins_addr
-            data["stmt_idx"] = edge_cmsg.stmt_idx
+            data = {
+                "outside": edge_cmsg.is_outside,
+                "ins_addr": edge_cmsg.ins_addr,
+                "stmt_idx": edge_cmsg.stmt_idx,
+            }
+            if edge_cmsg.confirmed == 0:
+                data["confirmed"] = False
+            elif edge_cmsg.confirmed == 1:
+                data["confirmed"] = True
             if edge_type == "fake_return":
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:

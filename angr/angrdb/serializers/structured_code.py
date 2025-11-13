@@ -1,21 +1,63 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import json
-import pickle
 
 from angr.analyses.decompiler.structured_codegen import DummyStructuredCodeGenerator
+from angr.analyses.decompiler.structured_codegen.base import CConstantType
 from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from angr.knowledge_plugins import StructuredCodeManager
 from angr.angrdb.models import DbStructuredCode
 
 if TYPE_CHECKING:
+    from angr.analyses.decompiler.structured_codegen.base import IdentType
     from angr.knowledge_base import KnowledgeBase
     from angr.angrdb.models import DbKnowledgeBase
 
 
+class ConstFormatsSerializer:
+    """
+    Serialize/deserialize the constant formats dictionary.
+    """
+
+    @staticmethod
+    def to_json(const_formats: dict[IdentType, dict[str, bool]]) -> dict[int, dict[str, dict[str, bool]]]:
+        d = {}
+        for key, value in const_formats.items():
+            ins_addr, v_type, v = key
+            v_type_str = (
+                "i" if v_type == CConstantType.INT.value else "f" if v_type == CConstantType.FLOAT.value else "s"
+            )  # str
+            if ins_addr not in d:
+                d[ins_addr] = {}
+            d_key = f"{v_type_str}{v}"
+            d[ins_addr][d_key] = value
+        return d
+
+    @staticmethod
+    def from_json(data: dict[int, dict[str, dict[str, str | bool]]]) -> dict[IdentType, dict[str, bool]]:
+        r = {}
+        for ins_addr, d_ in data.items():
+            for d_key, d in d_.items():
+                ch = d_key[0]
+                if ch == "i":
+                    v_type = CConstantType.INT.value
+                    value = int(d_key[1:])
+                elif ch == "f":
+                    v_type = CConstantType.FLOAT.value
+                    value = float(d_key[1:])
+                else:  # ch == "s"
+                    v_type = CConstantType.STRING.value
+                    value = d_key[1:]
+                key_tpl: IdentType = int(ins_addr), v_type, value
+                r[key_tpl] = {}
+                for k, v in d.items():
+                    r[key_tpl][k] = v is True or (isinstance(v, str) and v.lower() == "true")
+        return r
+
+
 class StructuredCodeManagerSerializer:
     """
-    Serialize/unserialize a structured code manager.
+    Serialize/deserialize a structured code manager.
     """
 
     @staticmethod
@@ -46,11 +88,9 @@ class StructuredCodeManagerSerializer:
 
             const_formats = None
             if cache.codegen is not None and cache.codegen.const_formats:
-                const_formats = pickle.dumps(cache.codegen.const_formats)
+                const_formats = json.dumps(ConstFormatsSerializer.to_json(cache.codegen.const_formats)).encode("utf-8")
 
             ite_exprs = None
-            if cache.ite_exprs:
-                ite_exprs = pickle.dumps(cache.ite_exprs)
 
             db_code = DbStructuredCode(
                 kb=db_kb,
@@ -104,9 +144,11 @@ class StructuredCodeManagerSerializer:
                 stmt_comments = json.loads(db_code.stmt_comments.decode("utf-8"))
                 stmt_comments = StructuredCodeManagerSerializer.dict_strkey_to_intkey(stmt_comments)
 
-            const_formats = None if not db_code.const_formats else pickle.loads(db_code.const_formats)
-
-            ite_exprs = None if not db_code.ite_exprs else pickle.loads(db_code.ite_exprs)
+            const_formats = (
+                None
+                if not db_code.const_formats
+                else ConstFormatsSerializer.from_json(json.loads(db_code.const_formats.decode("utf-8")))
+            )
 
             configuration = None
             dummy_codegen = DummyStructuredCodeGenerator(
@@ -118,7 +160,7 @@ class StructuredCodeManagerSerializer:
             )
             cache = DecompilationCache(db_code.func_addr)
             cache.codegen = dummy_codegen
-            cache.ite_exprs = ite_exprs
+            cache.ite_exprs = set()
             cache.errors = db_code.errors.split("\n\n\n")
             manager[(db_code.func_addr, db_code.flavor)] = cache
 
