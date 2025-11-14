@@ -936,16 +936,16 @@ class JumpTableResolver(IndirectJumpResolver):
                 if len(pred_succs) != 2:
                     l.debug("Expect two successors to the single predecessor, found %d.", len(pred_succs))
                     return False, None
-            elif len(pred_endaddrs) == 2 and len(preds) == 2:
+            elif len(pred_endaddrs) == 2 and len(preds) == 2 and all(p in func.graph for p in preds):
                 pred_succs = set(
-                    [succ for succ in func.transition_graph.successors(preds[0]) if succ.addr != preds[0].addr]
-                    + [succ for succ in func.transition_graph.successors(preds[1]) if succ.addr != preds[1].addr]
+                    [succ for succ in func.graph.successors(preds[0]) if succ.addr != preds[0].addr]
+                    + [succ for succ in func.graph.successors(preds[1]) if succ.addr != preds[1].addr]
                 )
                 is_diamond = False
                 if len(pred_succs) == 2:
                     non_node_succ = next(iter(pred_succ for pred_succ in pred_succs if pred_succ is not curr_node))
-                    while func.transition_graph.out_degree[non_node_succ] == 1:
-                        non_node_succ = next(iter(func.transition_graph.successors(non_node_succ)))
+                    while func.graph.out_degree[non_node_succ] == 1:
+                        non_node_succ = next(iter(func.graph.successors(non_node_succ)))
                         if non_node_succ == curr_node:
                             is_diamond = True
                             break
