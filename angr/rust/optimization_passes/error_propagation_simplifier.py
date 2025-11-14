@@ -115,7 +115,7 @@ class ErrorPropagationWalker(SequenceWalker):
 
         if isinstance(node.scrutinee, VirtualVariable):
             if node.scrutinee.was_combo_reg:
-                new_dst_vvar = node.scrutinee.reg_vvars[1]
+                new_dst_vvar = node.scrutinee.reg_vvars[1] if len(node.scrutinee.reg_vvars) > 1 else None
             elif node.scrutinee.was_reg:
                 new_dst_vvar = node.scrutinee
 
