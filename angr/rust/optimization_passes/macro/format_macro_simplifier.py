@@ -527,7 +527,10 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         args = arguments_struct.get_field("args")
         if args.length == 0:
             return [], {}
-        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
+        argument_ty = (
+            self.project.kb.known_structs["core::fmt::rt::Argument"]
+            or self.project.kb.known_structs["core::fmt::ArgumentV1"]
+        )
         argument_structs = []
         stmts_to_remove = defaultdict(list)
         arg_vvars = []
