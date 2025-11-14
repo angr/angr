@@ -542,6 +542,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         # In case args structs are packed into one struct
         if (
             arg_values
+            and arg_values[0] is not None
             and isinstance(arg_values[0], Struct)
             and arg_values[0].size == len(arg_values) * argument_ty.size // self.project.arch.bytes
             and all(
