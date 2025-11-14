@@ -130,7 +130,7 @@ class SimplifierAILEngine(
 
         new_args = None
 
-        if stmt.args:
+        if stmt.args is not None:
             new_args = []
             for arg in stmt.args:
                 new_arg = self._expr(arg)
