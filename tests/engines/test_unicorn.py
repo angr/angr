@@ -16,7 +16,7 @@ import claripy
 
 import angr
 from angr import options as so
-from tests.common import bin_location, broken, slow_test
+from tests.common import bin_location, broken
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -291,7 +291,6 @@ class TestUnicorn(unittest.TestCase):
             cc.simgr = prehook(cc.simgr)
         cc.run(depth=depth)
 
-    @slow_test
     def test_similarity_fauxware(self):
         def cooldown(pg):
             # gotta skip the initializers because of cpuid and RDTSC
