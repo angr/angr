@@ -144,7 +144,6 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_edges_check("mipsel", "busybox", edges)
 
-    @slow_test
     @unittest.skipUnless(
         os.path.isfile("C:\\Windows\\System32\\ntoskrnl.exe"),
         "ntoskrnl.exe does not exist on this system.",

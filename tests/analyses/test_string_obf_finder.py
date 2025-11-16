@@ -3,8 +3,6 @@ from __future__ import annotations
 from unittest import TestCase, main
 import os
 
-from tests.common import slow_test
-
 import angr
 from angr.sim_type import parse_signature
 
@@ -64,7 +62,6 @@ class TestStringObfFinder(TestCase):
         # print(dec.codegen.text)
         assert "\\\\Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Internet Settings" in dec.codegen.text
 
-    @slow_test
     def test_find_obfuscated_strings_543991(self):
         bin_path = os.path.join(
             binaries_base, "x86_64", "windows", "543991ca8d1c65113dff039b85ae3f9a87f503daec30f46929fd454bc57e5a91.sys"
@@ -80,7 +77,6 @@ class TestStringObfFinder(TestCase):
         assert not finder.type2_candidates
         assert not finder.type3_candidates
 
-    @slow_test
     def test_find_obfuscated_strings_28ce9d(self):
         # - type 3 string obfuscation
         bin_path = os.path.join(
@@ -99,7 +95,6 @@ class TestStringObfFinder(TestCase):
         assert "connet false\\n" in dec.codegen.text
         assert "message Size err\\n" in dec.codegen.text
 
-    @slow_test
     def test_find_obfuscated_strings_dd5640(self):
         # - type 3 string obfuscation
         bin_path = os.path.join(

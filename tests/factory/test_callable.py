@@ -14,7 +14,7 @@ from angr.sim_type import SimTypePointer, SimTypeFunction, SimTypeChar, SimTypeI
 from angr.errors import AngrCallableMultistateError
 
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -112,7 +112,6 @@ class TestCallable(unittest.TestCase):
             result_concrete = result.args[0]
             assert answer == result_concrete
 
-    @slow_test
     def run_manyfloatsum_symbolic(self, arch):
         global type_cache
         if type_cache is None:
@@ -195,13 +194,11 @@ class TestCallable(unittest.TestCase):
     def test_manyfloatsum_x86_64(self):
         self.run_manyfloatsum("x86_64")
 
-    @slow_test
     def test_manyfloatsum_symbolic_i386(self):
         # doesn't have to be slow but it might be
         # https://github.com/Z3Prover/z3/issues/2584
         self.run_manyfloatsum_symbolic("i386")
 
-    @slow_test
     def test_manyfloatsum_symbolic_x86_64(self):
         # doesn't have to be slow but it might be
         # https://github.com/Z3Prover/z3/issues/2584

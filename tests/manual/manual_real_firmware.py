@@ -10,7 +10,7 @@
 # If these tests break, contact @subwire (or, likely, he will find you)
 from __future__ import annotations
 
-from common import bin_priv_location, slow_test
+from common import bin_priv_location
 import os
 import angr
 
@@ -57,7 +57,6 @@ def cfg_it(p):
     return cfg, cca
 
 
-@slow_test
 def test_econet_cfg():
     """
     Econet CFG smoketest
@@ -67,7 +66,6 @@ def test_econet_cfg():
     _ = cfg_it(p)
 
 
-@slow_test
 def test_controllogix_cfg():
     """
     ControlLogix CFG smoketest
@@ -77,7 +75,6 @@ def test_controllogix_cfg():
     _ = cfg_it(p)
 
 
-@slow_test
 def test_omnipod_cfg():
     """
     MyCareLink CFG smoketest
@@ -87,7 +84,6 @@ def test_omnipod_cfg():
     _ = cfg_it(p)
 
 
-@slow_test
 def test_mycarelink_cfg():
     p = load_mycarelink()
     _ = cfg_it(p)
