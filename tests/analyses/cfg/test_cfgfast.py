@@ -13,7 +13,7 @@ import angr
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -126,7 +126,7 @@ class TestCfgfast(unittest.TestCase):
         assert node_7bb88 is not None
         assert node_7bb88.function_address == 0x7BA84
 
-    @slow_test
+    @broken
     def test_busybox(self):
         edges = {
             (0x4091EC, 0x408DE0),

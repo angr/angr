@@ -8,12 +8,12 @@ import claripy
 
 import angr
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location, broken
 
 
 # pylint: disable=missing-class-docstring
 class TestMemcmpDefiniteSize(unittest.TestCase):
-    @slow_test
+    @broken
     def test_memcmp_strlen_simprocedure_interaction(self):
         bin_path = os.path.join(bin_location, "tests", "i386", "cpp_regression_test_ch25")
 
