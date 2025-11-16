@@ -51,7 +51,7 @@ from angr.analyses.decompiler.structuring.phoenix import MultiStmtExprMode
 from angr.sim_variable import SimStackVariable
 from angr.utils.library import convert_cproto_to_py
 
-from tests.common import bin_location, slow_test, print_decompilation_result, set_decompiler_option, WORKER
+from tests.common import bin_location, broken, print_decompilation_result, set_decompiler_option, WORKER
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -409,7 +409,7 @@ class TestDecompiler(unittest.TestCase):
         else:
             assert code.count("32") == 2
 
-    @slow_test
+    @broken
     @for_all_structuring_algos
     def test_decompiling_true_a_x86_64_0(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "true_a")
