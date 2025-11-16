@@ -9,7 +9,6 @@ from collections.abc import Sequence
 from tempfile import NamedTemporaryFile
 from unittest import skipIf, skipUnless, skip, SkipTest
 
-import pytest
 
 import angr
 from angr import load_shellcode, Project
@@ -49,13 +48,6 @@ def requires_binaries_private(func):
         ),
         "Skip this test since we do not have the binaries-private repo cloned on Travis CI.",
     )(func)
-
-
-def slow_test(func):
-    pytest.mark.slow(func)
-    func.speed = "slow"
-    slow_test_env = os.environ["SKIP_SLOW_TESTS"].lower() if "SKIP_SLOW_TESTS" in os.environ else ""
-    return skipIf(slow_test_env == "true" or slow_test_env == "1", "Skipping slow test")(func)
 
 
 def skip_if_not_linux(func):
