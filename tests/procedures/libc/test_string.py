@@ -13,7 +13,7 @@ import claripy
 
 import angr
 from angr import SimState, SIM_LIBRARIES
-from tests.common import broken, slow_test
+from tests.common import broken
 
 log = logging.getLogger("angr.tests.string")
 
@@ -464,7 +464,6 @@ class TestStringSimProcedures(unittest.TestCase):
         s.add_constraints(ss2 == 0)
         assert not s.satisfiable()
 
-    @slow_test
     def test_memcpy(self):
         log.info("concrete src, concrete dst, concrete len")
         log.debug("... full copy")

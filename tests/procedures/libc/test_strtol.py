@@ -8,13 +8,12 @@ import unittest
 
 import angr
 
-from tests.common import slow_test, bin_location
+from tests.common import bin_location
 
 
 class TestStrtol(unittest.TestCase):
     # pylint: disable=no-self-use
 
-    @slow_test
     def test_strtol(self, threads=None):
         test_bin = os.path.join(bin_location, "tests", "x86_64", "strtol_test")
         # disabling auto_load_libs increases the execution time of the test case.
