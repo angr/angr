@@ -92,7 +92,7 @@ class CallSiteMaker(Analysis):
         # manually-specified call-site prototype
         has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(self.block.addr)
         if has_callsite_prototype:
-            manually_specified = self.kb.callsite_prototypes.get_prototype_type(self.block.addr)
+            manually_specified = self.kb.callsite_prototypes.is_prototype_manual(self.block.addr)
             if manually_specified:
                 cc = self.kb.callsite_prototypes.get_cc(self.block.addr)
                 prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
