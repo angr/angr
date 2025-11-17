@@ -274,13 +274,14 @@ class RegionIdentifier(Analysis):
                 break
 
     def _find_control_dependent_node(self, graph: TGraph, node: TNode) -> TNode | None:
-        preds = list(graph.predecessors(node))
-        if len(preds) == 1 or (len(preds) == 2 and node in preds):
-            pred = next(iter(p for p in preds if p is not node))
-            succs = list(graph.successors(pred))
-            if len(succs) == 2 and pred not in succs:
+        preds = [pred for pred in graph.predecessors(node) if pred is not node]
+        if len(preds) == 1:
+            pred = preds[0]
+            nsuccs = sum(1 for succ in graph.successors(pred) if succ is not pred)
+            if nsuccs > 1:
                 return pred
-            return self._find_control_dependent_node(graph, pred)
+            if nsuccs == 1:
+                return self._find_control_dependent_node(graph, pred)
         # multiple predecessors or no predecessors
         return None
 
@@ -746,6 +747,9 @@ class RegionIdentifier(Analysis):
                             if len(succs) == 2:
                                 other_succ = succs[0] if succs[1] is endnode else succs[1]
                                 graph_copy.add_edge(endnode, other_succ)
+                                endnodes[i] = None
+                            if len(succs) > 2:
+                                graph_copy.add_edge(endnode, pred)
                                 endnodes[i] = None
             endnodes = [n for n in endnodes if n is not None]
 
