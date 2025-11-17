@@ -11,7 +11,7 @@ from dataclasses import dataclass
 import networkx
 import capstone
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import AILBlockWalkerBase
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
@@ -3431,11 +3431,13 @@ class Clinic(Analysis):
 
                     arg_types.append(arg_type)
 
-                func_proto_candidates[call_.target.value].append((arg_types, None))
+                func_proto_candidates[call_.target.value_int].append((arg_types, None))
 
+        # pylint:disable=unused-argument
         def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None):
             _handle_Call_stmt_or_expr(stmt)
 
+        # pylint:disable=unused-argument
         def _handle_CallExpr(
             expr_idx: int,
             expr: ailment.Stmt.Call,
@@ -3458,8 +3460,13 @@ class Clinic(Analysis):
     def _constrain_callee_prototypes(self):
         func_proto_candidates = self._collect_callsite_prototypes()
 
+        default_arg_type = SimTypeLongLong if self.project.arch.bits == 64 else SimTypeInt
+
         for func_addr, protos in func_proto_candidates.items():
             func = self.kb.functions.get_by_addr(func_addr)
+            if func.prototype is not None and func.is_prototype_guessed is False:
+                # already has a "good" prototype; don't overwrite it
+                continue
 
             # TODO: merge the return type
             # ret_types = [proto[1] for proto in protos]
@@ -3469,7 +3476,7 @@ class Clinic(Analysis):
             arg_count = min(len(args) for args in args_list)
             arg_result = {}
 
-            for arg_i in range(arg_count):
+            for arg_i in range(arg_count):  # pylint:disable=consider-using-enumerate
                 all_args: list[SimType] = [
                     args_list[i][arg_i] for i in range(len(args_list)) if args_list[i][arg_i] is not None
                 ]
@@ -3486,17 +3493,23 @@ class Clinic(Analysis):
             if arg_result:
                 # build a new function prototype
                 new_arg_types = []
-                for i in range(len(func.prototype.args)):
+                func_arg_count = (
+                    len(func.prototype.args) if func.prototype is not None and func.prototype.args else max(arg_result)
+                )
+                for i in range(func_arg_count):
                     if i in arg_result:
                         new_arg_types.append(arg_result[i])
                     else:
-                        new_arg_types.append(func.prototype.args[i])
+                        if func.prototype is not None:
+                            new_arg_types.append(func.prototype.args[i])
+                        else:
+                            new_arg_types.append(default_arg_type())
                 new_type = SimTypeFunction(
                     new_arg_types,
-                    func.prototype.returnty,
-                    label=func.prototype.label,
-                    arg_names=func.prototype.arg_names,
-                    variadic=func.prototype.variadic,
+                    func.prototype.returnty if func.prototype is not None else default_arg_type(),
+                    label=func.prototype.label if func.prototype is not None else None,
+                    arg_names=func.prototype.arg_names if func.prototype is not None else None,
+                    variadic=func.prototype.variadic if func.prototype is not None else False,
                 )
                 func.prototype = new_type
                 func.is_prototype_guessed = False
