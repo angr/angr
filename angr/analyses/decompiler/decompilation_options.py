@@ -241,12 +241,12 @@ options = [
     ),
     O(
         "Display decompilation notes as comments",
-        "Display decompilation notes in the outpu as function comments.",
+        "Display decompilation notes in the output as function comments.",
         bool,
         "codegen",
         "display_notes",
         category="Display",
-        default_value=False,
+        default_value=True,
         clears_cache=False,
     ),
     O(
