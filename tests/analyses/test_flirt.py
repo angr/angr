@@ -31,7 +31,7 @@ class TestFlirt(unittest.TestCase):
     def test_armhf_elf_static_using_armel_libc(self):
         binary_path = os.path.join(bin_location, "tests", "armhf", "amp_challenge_07.gcc")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
-        proj.analyses.CFGFast(show_progressbar=False, regions=[(0x1004c9, 0x1007a9)])
+        proj.analyses.CFGFast(show_progressbar=False, regions=[(0x1004C9, 0x1007A9)])
         flirt_path = os.path.join(bin_location, "tests", "armhf", "debian_10.3_libc.sig")
         flirt = proj.analyses.Flirt(flirt_path)
 
