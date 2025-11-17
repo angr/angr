@@ -768,7 +768,10 @@ class CallingConventionAnalysis(Analysis):
                 proto.returnty = SimTypeBottom(label="void")
             else:
                 if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
-                    proto.returnty = SimTypeInt().with_arch(self.project.arch)
+                    returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
+                        self.project.arch.bits, SimTypeInt
+                    )(signed=True)
+                    proto.returnty = returnty.with_arch(self.project.arch)
 
         if (
             update_arguments == UpdateArgumentsOption.AlwaysUpdate
