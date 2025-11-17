@@ -502,10 +502,17 @@ class SimEngineVRAIL(
 
     def _handle_expr_ITE(self, expr: ailment.Expr.ITE):
         self._expr(expr.cond)  # cond
-        self._expr(expr.iftrue)  # r0
-        self._expr(expr.iffalse)  # r1
+        r0 = self._expr(expr.iftrue)
+        r1 = self._expr(expr.iffalse)
 
-        return RichR(self.state.top(expr.bits))
+        type_constraints = set()
+        tv = typevars.TypeVariable()
+        if r0.typevar is not None:
+            type_constraints.add(typevars.Subtype(tv, r0.typevar))
+        if r1.typevar is not None:
+            type_constraints.add(typevars.Subtype(tv, r1.typevar))
+
+        return RichR(self.state.top(expr.bits), typevar=tv, type_constraints=type_constraints)
 
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
