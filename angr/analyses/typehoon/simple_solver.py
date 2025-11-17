@@ -520,7 +520,7 @@ class SimpleSolver:
             if tv in self._constraints:
                 constraints |= self._constraints[tv]
 
-        equiv_classes, sketches = self.infer_shapes(typevars, constraints)
+        equiv_classes, prelim_sketches = self.infer_shapes(typevars, constraints)
 
         # only create sketches for the type variables representing their equivalence classes
         tv_to_reptvs = {}
@@ -529,6 +529,10 @@ class SimpleSolver:
                 tv_to_reptvs[tv_or_dtv] = reptv
         # rewrite constraints to only use representative type variables
         constraints = self._rewrite_constraints_with_replacements(constraints, tv_to_reptvs)
+        # update sketches
+        sketches = {tv_to_reptvs.get(tv, tv): sketch for tv, sketch in prelim_sketches.items()}
+        # rewrite typevars as well...
+        typevars = {tv_to_reptvs.get(tv, tv) for tv in typevars}
 
         # collect typevars used in the constraint set
         constrained_typevars = set()
@@ -543,7 +547,7 @@ class SimpleSolver:
 
         constraintset2tvs = defaultdict(set)
         tvs_seen = set()
-        for idx, tv in enumerate(constrained_typevars):
+        for idx, tv in enumerate(sorted(constrained_typevars, key=lambda x: x.idx)):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
             if tv in tvs_seen:
                 continue
@@ -651,10 +655,9 @@ class SimpleSolver:
 
         sketches: dict[TypeVariable, Sketch] = {}
         for tv in typevars:
-            if tv in equivalence_classes and equivalence_classes[tv] != tv:
-                # skip non-representative type variables
-                continue
-            sketches[tv] = Sketch(self, tv)
+            rep_tv = equivalence_classes.get(tv, tv)
+            if rep_tv not in sketches:
+                sketches[rep_tv] = Sketch(self, rep_tv)
 
         for tv, sketch in sketches.items():
             sketch_node = sketch.lookup(tv)
