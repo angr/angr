@@ -214,6 +214,9 @@ class TypeTranslator:
     def _translate_SimTypeLongLong(self, st: sim_type.SimTypeLongLong) -> typeconsts.Int64:
         return typeconsts.Int64(name=st.label)
 
+    def _translate_SimTypeShort(self, st: sim_type.SimTypeInt) -> typeconsts.Int16:
+        return typeconsts.Int16(name=st.label)
+
     def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
         return typeconsts.Int8(name=st.label)
 
@@ -265,10 +268,11 @@ TypeConstHandlers = {
 
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
+    sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
+    sim_type.SimTypeShort: TypeTranslator._translate_SimTypeShort,
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,
     sim_type.SimTypeLongLong: TypeTranslator._translate_SimTypeLongLong,
-    sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeInt128: TypeTranslator._translate_SimTypeInt128,
     sim_type.SimTypeInt256: TypeTranslator._translate_SimTypeInt256,
     sim_type.SimTypeInt512: TypeTranslator._translate_SimTypeInt512,
