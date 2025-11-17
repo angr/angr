@@ -269,7 +269,7 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_control_dependent_node(self, graph: networkx.DiGraph, node: Block) -> Block | None:
+    def _find_control_dependent_node(self, graph: networkx.DiGraph, node: Block) -> tuple[Block | None, Block | None]:
         """
         Find the closest node A in graph on which the given `node` has a control dependency (i.e., node A determines if
         `node` will be executed or not). Returns node A if it exists, or None if we cannot find one.
@@ -279,11 +279,11 @@ class RegionIdentifier(Analysis):
             pred = preds[0]
             nsuccs = sum(1 for succ in graph.successors(pred) if succ is not pred)
             if nsuccs > 1:
-                return pred
+                return pred, node
             if nsuccs == 1:
                 return self._find_control_dependent_node(graph, pred)
         # multiple predecessors or no predecessors
-        return None
+        return None, None
 
     def _find_loop_headers(self, graph: networkx.DiGraph) -> list:
         assert self._start_node is not None
@@ -741,15 +741,18 @@ class RegionIdentifier(Analysis):
                         and self.kb.functions.contains_addr(last_stmt.target.value)
                         and not self.kb.functions.get_by_addr(last_stmt.target.value).returning
                     ):
-                        pred = self._find_control_dependent_node(graph_copy, endnode)
+                        pred, succ = self._find_control_dependent_node(graph_copy, endnode)
                         if pred is not None:
-                            succs = list(graph_copy.successors(pred))
-                            if len(succs) == 2:
-                                other_succ = succs[0] if succs[1] is endnode else succs[1]
+                            succs = [node for node in graph_copy.successors(pred) if node is not succ]
+                            if len(succs) >= 1:
+                                other_succ = min(
+                                    succs,
+                                    key=lambda node: (
+                                        node.addr,
+                                        -2 if (idx := getattr(node, "idx", -1)) is None else idx,
+                                    ),
+                                )
                                 graph_copy.add_edge(endnode, other_succ)
-                                endnodes[i] = None
-                            if len(succs) > 2:
-                                graph_copy.add_edge(endnode, pred)
                                 endnodes[i] = None
             endnodes = [n for n in endnodes if n is not None]
 
