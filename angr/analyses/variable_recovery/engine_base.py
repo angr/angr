@@ -483,6 +483,11 @@ class SimEngineVRBase(
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
                 self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
 
+            # add existing (delayed) type constraints
+            if richr.type_constraints is not None:
+                for tc in richr.type_constraints:
+                    self.state.add_type_constraint(tc)
+
         return variable
 
     def _store(
