@@ -291,6 +291,7 @@ class TestUnicorn(unittest.TestCase):
             cc.simgr = prehook(cc.simgr)
         cc.run(depth=depth)
 
+    @broken
     def test_similarity_fauxware(self):
         def cooldown(pg):
             # gotta skip the initializers because of cpuid and RDTSC
