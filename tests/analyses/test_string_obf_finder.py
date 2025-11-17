@@ -38,7 +38,7 @@ class TestStringObfFinder(TestCase):
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
         # it will update kb.obfuscations
-        _ = proj.analyses.StringObfuscationFinder()
+        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
         assert proj.kb.obfuscations.type1_deobfuscated_strings
         assert proj.kb.obfuscations.type2_deobfuscated_strings
 
@@ -71,7 +71,7 @@ class TestStringObfFinder(TestCase):
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
 
         proj.analyses.CompleteCallingConventions(recover_variables=True)
-        finder = proj.analyses.StringObfuscationFinder()
+        finder = proj.analyses.StringObfuscationFinder(fail_fast=True)
 
         assert not finder.type1_candidates
         assert not finder.type2_candidates
@@ -86,7 +86,7 @@ class TestStringObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
         proj.analyses.CompleteCallingConventions(recover_variables=True)
-        _ = proj.analyses.StringObfuscationFinder()
+        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x140004790])
         assert dec.codegen is not None and dec.codegen.text is not None
@@ -104,7 +104,7 @@ class TestStringObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
         proj.analyses.CompleteCallingConventions(recover_variables=True)
-        _ = proj.analyses.StringObfuscationFinder()
+        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
 
         dec = proj.analyses.Decompiler(proj.kb.functions[0x1400017E8])
         assert dec.codegen is not None and dec.codegen.text is not None

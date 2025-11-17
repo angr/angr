@@ -36,6 +36,8 @@ from .typeconsts import (
     Int16,
     Int32,
     Int64,
+    Int128,
+    Int256,
     Pointer,
     Pointer32,
     Pointer64,
@@ -55,6 +57,8 @@ _l = logging.getLogger(__name__)
 
 Top_ = TopType()
 Int_ = Int()
+Int256_ = Int256()
+Int128_ = Int128()
 Int64_ = Int64()
 Int32_ = Int32()
 Int16_ = Int16()
@@ -76,6 +80,8 @@ PRIMITIVE_TYPES = {
     Int16_,
     Int32_,
     Int64_,
+    Int128_,
+    Int256_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -90,6 +96,8 @@ PRIMITIVE_TYPES = {
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
 BASE_LATTICE_64.add_edge(Top_, Int_)
+BASE_LATTICE_64.add_edge(Int_, Int256_)
+BASE_LATTICE_64.add_edge(Int_, Int128_)
 BASE_LATTICE_64.add_edge(Int_, Int64_)
 BASE_LATTICE_64.add_edge(Int_, Int32_)
 BASE_LATTICE_64.add_edge(Int_, Int16_)
@@ -103,6 +111,8 @@ BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(Top_, Int_)
+BASE_LATTICE_64.add_edge(Int_, Int256_)
+BASE_LATTICE_64.add_edge(Int_, Int128_)
 BASE_LATTICE_32.add_edge(Int_, Int64_)
 BASE_LATTICE_32.add_edge(Int_, Int32_)
 BASE_LATTICE_32.add_edge(Int_, Int16_)
@@ -785,9 +795,15 @@ class SimpleSolver:
         typevars: set[TypeVariable | DerivedTypeVariable] = set()
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                if not isinstance(constraint.sub_type, TypeConstant):
+                if isinstance(constraint.sub_type, TypeVariable) and not (
+                    isinstance(constraint.sub_type, DerivedTypeVariable)
+                    and isinstance(constraint.sub_type.type_var, TypeConstant)
+                ):
                     typevars.add(constraint.sub_type)
-                if not isinstance(constraint.super_type, TypeConstant):
+                if isinstance(constraint.super_type, TypeVariable) and not (
+                    isinstance(constraint.super_type, DerivedTypeVariable)
+                    and isinstance(constraint.super_type.type_var, TypeConstant)
+                ):
                     typevars.add(constraint.super_type)
             # TODO: Other types of constraints?
         return typevars
