@@ -36,6 +36,8 @@ from .typeconsts import (
     Int16,
     Int32,
     Int64,
+    Int128,
+    Int256,
     Pointer,
     Pointer32,
     Pointer64,
@@ -55,6 +57,8 @@ _l = logging.getLogger(__name__)
 
 Top_ = TopType()
 Int_ = Int()
+Int256_ = Int256()
+Int128_ = Int128()
 Int64_ = Int64()
 Int32_ = Int32()
 Int16_ = Int16()
@@ -76,6 +80,8 @@ PRIMITIVE_TYPES = {
     Int16_,
     Int32_,
     Int64_,
+    Int128_,
+    Int256_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -90,6 +96,8 @@ PRIMITIVE_TYPES = {
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
 BASE_LATTICE_64.add_edge(Top_, Int_)
+BASE_LATTICE_64.add_edge(Int_, Int256_)
+BASE_LATTICE_64.add_edge(Int_, Int128_)
 BASE_LATTICE_64.add_edge(Int_, Int64_)
 BASE_LATTICE_64.add_edge(Int_, Int32_)
 BASE_LATTICE_64.add_edge(Int_, Int16_)
@@ -103,6 +111,8 @@ BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(Top_, Int_)
+BASE_LATTICE_64.add_edge(Int_, Int256_)
+BASE_LATTICE_64.add_edge(Int_, Int128_)
 BASE_LATTICE_32.add_edge(Int_, Int64_)
 BASE_LATTICE_32.add_edge(Int_, Int32_)
 BASE_LATTICE_32.add_edge(Int_, Int16_)
@@ -520,7 +530,7 @@ class SimpleSolver:
             if tv in self._constraints:
                 constraints |= self._constraints[tv]
 
-        equiv_classes, sketches = self.infer_shapes(typevars, constraints)
+        equiv_classes, prelim_sketches = self.infer_shapes(typevars, constraints)
 
         # only create sketches for the type variables representing their equivalence classes
         tv_to_reptvs = {}
@@ -529,6 +539,10 @@ class SimpleSolver:
                 tv_to_reptvs[tv_or_dtv] = reptv
         # rewrite constraints to only use representative type variables
         constraints = self._rewrite_constraints_with_replacements(constraints, tv_to_reptvs)
+        # update sketches
+        sketches = {tv_to_reptvs.get(tv, tv): sketch for tv, sketch in prelim_sketches.items()}
+        # rewrite typevars as well...
+        typevars = {tv_to_reptvs.get(tv, tv) for tv in typevars}
 
         # collect typevars used in the constraint set
         constrained_typevars = set()
@@ -543,7 +557,7 @@ class SimpleSolver:
 
         constraintset2tvs = defaultdict(set)
         tvs_seen = set()
-        for idx, tv in enumerate(constrained_typevars):
+        for idx, tv in enumerate(sorted(constrained_typevars, key=lambda x: x.idx)):
             _l.debug("Collecting constraints for type variable %r (%d/%d)", tv, idx + 1, len(constrained_typevars))
             if tv in tvs_seen:
                 continue
@@ -651,10 +665,9 @@ class SimpleSolver:
 
         sketches: dict[TypeVariable, Sketch] = {}
         for tv in typevars:
-            if tv in equivalence_classes and equivalence_classes[tv] != tv:
-                # skip non-representative type variables
-                continue
-            sketches[tv] = Sketch(self, tv)
+            rep_tv = equivalence_classes.get(tv, tv)
+            if rep_tv not in sketches:
+                sketches[rep_tv] = Sketch(self, rep_tv)
 
         for tv, sketch in sketches.items():
             sketch_node = sketch.lookup(tv)
@@ -782,9 +795,15 @@ class SimpleSolver:
         typevars: set[TypeVariable | DerivedTypeVariable] = set()
         for constraint in constraints:
             if isinstance(constraint, Subtype):
-                if not isinstance(constraint.sub_type, TypeConstant):
+                if isinstance(constraint.sub_type, TypeVariable) and not (
+                    isinstance(constraint.sub_type, DerivedTypeVariable)
+                    and isinstance(constraint.sub_type.type_var, TypeConstant)
+                ):
                     typevars.add(constraint.sub_type)
-                if not isinstance(constraint.super_type, TypeConstant):
+                if isinstance(constraint.super_type, TypeVariable) and not (
+                    isinstance(constraint.super_type, DerivedTypeVariable)
+                    and isinstance(constraint.super_type.type_var, TypeConstant)
+                ):
                     typevars.add(constraint.super_type)
             # TODO: Other types of constraints?
         return typevars
