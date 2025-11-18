@@ -9,7 +9,7 @@ import networkx as nx
 import angr.ailment as ailment
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
-from angr.ailment.expression import Const, Register, Convert, Expression
+from angr.ailment.expression import Const, Register, Convert, Expression, VirtualVariable
 
 from .ail_merge_graph import AILMergeGraph, AILBlockSplit
 from .errors import SAILRSemanticError
@@ -996,7 +996,11 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # TOP = const | register
                 if isinstance(stmt0, Assignment):
                     src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
-                    if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
+                    if (
+                        isinstance(src, Register)
+                        or (isinstance(src, VirtualVariable) and src.was_reg)
+                        or (isinstance(src, Const) and src.bits > 2)
+                    ):
                         continue
 
                 for stmt1 in b1.statements:
