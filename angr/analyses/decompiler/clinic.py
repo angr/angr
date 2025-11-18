@@ -3392,11 +3392,15 @@ class Clinic(Analysis):
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
 
+        assert self.variable_kb is not None
+
         variables = self.variable_kb.variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
 
         def _handle_Call_stmt_or_expr(call_: ailment.Stmt.Call):
-            if isinstance(call_.target, ailment.Expr.Const) and call_.is_prototype_guessed:
+            assert self.arg_vvars is not None
+
+            if isinstance(call_.target, ailment.Expr.Const) and call_.is_prototype_guessed and call_.args is not None:
                 # derive the actual prototype
                 arg_types = []
                 for arg_expr in call_.args:
@@ -3477,7 +3481,7 @@ class Clinic(Analysis):
             arg_result = {}
 
             for arg_i in range(arg_count):  # pylint:disable=consider-using-enumerate
-                all_args: list[SimType] = [
+                all_args: list[SimType] = [  # type: ignore
                     args_list[i][arg_i] for i in range(len(args_list)) if args_list[i][arg_i] is not None
                 ]
                 if not all_args:
