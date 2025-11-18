@@ -224,21 +224,27 @@ class SimEngineVRAIL(
                     prototype = func.prototype
                 prototype_libname = func.prototype_libname
 
-        # dump the type of the return value
-        ret_ty = typevars.TypeVariable()
-        if isinstance(ret_ty, typeconsts.BottomType):
-            ret_ty = typevars.TypeVariable()
-
-        if prototype is not None and args:
+        ret_ty = None
+        if prototype is not None:
             # add type constraints
-            for arg, arg_type in zip(args, prototype.args):
-                if arg.typevar is not None:
-                    arg_type = (
-                        dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
-                    )
-                    arg_ty = self.type_lifter.lift(arg_type)
-                    type_constraint = typevars.Subtype(arg.typevar, arg_ty)
+            if args:
+                for arg, arg_type in zip(args, prototype.args):
+                    if arg.typevar is not None:
+                        arg_type = (
+                            dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+                        )
+                        arg_ty = self.type_lifter.lift(arg_type)
+                        type_constraint = typevars.Subtype(arg.typevar, arg_ty)
+                        self.state.add_type_constraint(type_constraint)
+            if expr.is_prototype_guessed is False:
+                return_ty = self.type_lifter.lift(prototype.returnty)  # type:ignore
+                ret_ty = typevars.TypeVariable()
+                if not isinstance(ret_ty, typeconsts.BottomType):
+                    type_constraint = typevars.Subtype(ret_ty, return_ty)
                     self.state.add_type_constraint(type_constraint)
+
+        if ret_ty is None:
+            ret_ty = typevars.TypeVariable()
 
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
@@ -287,9 +293,28 @@ class SimEngineVRAIL(
                     prototype = func.prototype
                 prototype_libname = func.prototype_libname
 
-        # dump the type of the return value
-        ret_ty = typevars.TypeVariable()
-        if isinstance(ret_ty, typeconsts.BottomType):
+        ret_ty = None
+        if prototype is not None:
+            # add type constraints
+            if args:
+                for arg, arg_type in zip(args, prototype.args):
+                    if arg.typevar is not None:
+                        arg_type = (
+                            dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
+                        )
+                        arg_ty = self.type_lifter.lift(arg_type)
+                        if arg.typevar is not None and isinstance(
+                            arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
+                        ):
+                            type_constraint = typevars.Subtype(arg.typevar, arg_ty)
+                            self.state.add_type_constraint(type_constraint)
+            return_ty = self.type_lifter.lift(prototype.returnty)  # type:ignore
+            ret_ty = typevars.TypeVariable()
+            if not isinstance(ret_ty, typeconsts.BottomType):
+                type_constraint = typevars.Subtype(return_ty, ret_ty)
+                self.state.add_type_constraint(type_constraint)
+
+        if ret_ty is None:
             ret_ty = typevars.TypeVariable()
 
         # TODO: Expose it as an option
@@ -315,20 +340,6 @@ class SimEngineVRAIL(
                 dst=ret_expr,
                 create_variable=create_variable,
             )
-
-        if prototype is not None and args:
-            # add type constraints
-            for arg, arg_type in zip(args, prototype.args):
-                if arg.typevar is not None:
-                    arg_type = (
-                        dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
-                    )
-                    arg_ty = self.type_lifter.lift(arg_type)
-                    if arg.typevar is not None and isinstance(
-                        arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
-                    ):
-                        type_constraint = typevars.Subtype(arg.typevar, arg_ty)
-                        self.state.add_type_constraint(type_constraint)
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:
