@@ -3466,6 +3466,8 @@ class Clinic(Analysis):
         default_arg_type = SimTypeLongLong if self.project.arch.bits == 64 else SimTypeInt
 
         for func_addr, protos in func_proto_candidates.items():
+            if not self.kb.functions.contains_addr(func_addr):
+                continue
             func = self.kb.functions.get_by_addr(func_addr)
             if func.prototype is not None and func.is_prototype_guessed is False:
                 # already has a "good" prototype; don't overwrite it
