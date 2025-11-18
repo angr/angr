@@ -3405,7 +3405,7 @@ class Clinic(Analysis):
                 arg_types = []
                 for arg_expr in call_.args:
                     arg_type = None
-                    if arg_expr.variable is not None:
+                    if hasattr(arg_expr, "variable") and arg_expr.variable is not None:
                         # the type is type(a)
                         t = None
                         if isinstance(arg_expr, ailment.Expr.VirtualVariable):
