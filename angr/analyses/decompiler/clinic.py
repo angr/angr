@@ -3424,7 +3424,6 @@ class Clinic(Analysis):
                         if t is not None:
                             arg_type = t
                     elif isinstance(arg_expr, ailment.Expr.UnaryOp) and arg_expr.op == "Reference":
-                        print(arg_expr.op)
                         # &a; the type becomes a pointer to type(a)
                         inner = arg_expr.operand
                         v = inner.variable
@@ -3514,7 +3513,7 @@ class Clinic(Analysis):
                     label=func.prototype.label if func.prototype is not None else None,
                     arg_names=func.prototype.arg_names if func.prototype is not None else None,
                     variadic=func.prototype.variadic if func.prototype is not None else False,
-                )
+                ).with_arch(self.project.arch)
                 func.prototype = new_type
                 func.is_prototype_guessed = False
 
