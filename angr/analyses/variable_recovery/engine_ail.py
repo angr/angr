@@ -237,7 +237,7 @@ class SimEngineVRAIL(
                         type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                         self.state.add_type_constraint(type_constraint)
             if expr.is_prototype_guessed is False:
-                return_ty = self.type_lifter.lift(prototype.returnty)
+                return_ty = self.type_lifter.lift(prototype.returnty)  # type:ignore
                 ret_ty = typevars.TypeVariable()
                 if not isinstance(ret_ty, typeconsts.BottomType):
                     type_constraint = typevars.Subtype(ret_ty, return_ty)
@@ -308,7 +308,7 @@ class SimEngineVRAIL(
                         ):
                             type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                             self.state.add_type_constraint(type_constraint)
-            return_ty = self.type_lifter.lift(prototype.returnty)
+            return_ty = self.type_lifter.lift(prototype.returnty)  # type:ignore
             ret_ty = typevars.TypeVariable()
             if not isinstance(ret_ty, typeconsts.BottomType):
                 type_constraint = typevars.Subtype(return_ty, ret_ty)
