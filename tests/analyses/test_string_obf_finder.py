@@ -18,9 +18,6 @@ binaries_base = os.path.join(
 
 class TestStringObfFinder(TestCase):
     def test_netfilter_b64(self):
-        # - type 1 string obfuscation: deobfuscator at 0x140001A90
-        # - type 2 string obfuscation: deobfuscator at 0x140001A18
-
         bin_path = os.path.join(binaries_base, "x86_64", "netfilter_b64.sys")
 
         proj = angr.Project(bin_path, auto_load_libs=False)
@@ -37,8 +34,11 @@ class TestStringObfFinder(TestCase):
 
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
+        type1_deobfuscator = proj.kb.functions[0x140001A90]
+        type2_deobfuscator = proj.kb.functions[0x140001A18]
+
         # it will update kb.obfuscations
-        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
+        _ = proj.analyses.StringObfuscationFinder(functions=[type1_deobfuscator, type2_deobfuscator], fail_fast=True)
         assert proj.kb.obfuscations.type1_deobfuscated_strings
         assert proj.kb.obfuscations.type2_deobfuscated_strings
 
@@ -86,9 +86,12 @@ class TestStringObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
         proj.analyses.CompleteCallingConventions(recover_variables=True)
-        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
 
-        dec = proj.analyses.Decompiler(proj.kb.functions[0x140004790])
+        obfuscated_func = proj.kb.functions[0x140004790]
+        deobfuscator_func = proj.kb.functions[0x140013718]
+        _ = proj.analyses.StringObfuscationFinder(functions=[obfuscated_func, deobfuscator_func], fail_fast=True)
+
+        dec = proj.analyses.Decompiler(obfuscated_func)
         assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert "socket create false\\n" in dec.codegen.text
@@ -104,9 +107,12 @@ class TestStringObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         _ = proj.analyses.CFG(force_smart_scan=False, normalize=True, show_progressbar=False)
         proj.analyses.CompleteCallingConventions(recover_variables=True)
-        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
 
-        dec = proj.analyses.Decompiler(proj.kb.functions[0x1400017E8])
+        obfuscated_func = proj.kb.functions[0x1400017E8]
+        deobfuscator_func = proj.kb.functions[0x140027384]
+        _ = proj.analyses.StringObfuscationFinder(functions=[deobfuscator_func, obfuscated_func], fail_fast=True)
+
+        dec = proj.analyses.Decompiler(obfuscated_func, options=[("display_notes", True)])
         assert dec.codegen is not None and dec.codegen.text is not None
         # print(dec.codegen.text)
         assert "IsWhitelist->RvStrJson=%s\\\\n" in dec.codegen.text

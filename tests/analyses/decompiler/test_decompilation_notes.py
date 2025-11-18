@@ -41,7 +41,9 @@ class TestDecompilationNotes(unittest.TestCase):
 
         proj.analyses.CompleteCallingConventions(recover_variables=True)
 
-        _ = proj.analyses.StringObfuscationFinder(fail_fast=True)
+        type1_deobfuscator = proj.kb.functions[0x140001A90]
+        type2_deobfuscator = proj.kb.functions[0x140001A18]
+        _ = proj.analyses.StringObfuscationFinder(functions=[type1_deobfuscator, type2_deobfuscator], fail_fast=True)
         assert proj.kb.obfuscations.type1_deobfuscated_strings
         assert proj.kb.obfuscations.type2_deobfuscated_strings
 
