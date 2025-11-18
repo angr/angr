@@ -11,7 +11,8 @@ from dataclasses import dataclass
 import networkx
 import capstone
 
-import angr.ailment as ailment
+from angr import ailment
+from angr.ailment import AILBlockWalkerBase
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -25,6 +26,7 @@ from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
 from angr.sim_type import (
+    SimType,
     SimTypeChar,
     SimTypeInt,
     SimTypeLongLong,
@@ -33,6 +35,9 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeFloat,
     SimTypePointer,
+    SimStruct,
+    SimTypeArray,
+    SimCppClass,
 )
 from angr.analyses.stack_pointer_tracker import Register, OffsetVal
 from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
@@ -244,6 +249,7 @@ class Clinic(Analysis):
 
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()
+            self._constrain_callee_prototypes()
         elif self._mode == ClinicMode.COLLECT_DATA_REFS:
             self._analyze_for_data_refs()
         else:
@@ -1046,7 +1052,7 @@ class Clinic(Analysis):
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
-                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype, manual=False)
+                    self.kb.callsite_prototypes.set_prototype(callsite.addr, cc.cc, cc.prototype)
                     if func_graph is not None and cc.prototype.returnty is not None:
                         # patch the AIL call statement if we can find one
                         callsite_ail_block: ailment.Block | None = next(
@@ -1338,7 +1344,7 @@ class Clinic(Analysis):
             # manually-specified call-site prototype
             has_callsite_prototype = self.kb.callsite_prototypes.has_prototype(block.addr)
             if has_callsite_prototype:
-                manually_specified = self.kb.callsite_prototypes.get_prototype_type(block.addr)
+                manually_specified = self.kb.callsite_prototypes.is_prototype_manual(block.addr)
                 if manually_specified:
                     cc = self.kb.callsite_prototypes.get_cc(block.addr)
                     prototype = self.kb.callsite_prototypes.get_prototype(block.addr)
@@ -1377,6 +1383,9 @@ class Clinic(Analysis):
             new_last_stmt = last_stmt.copy()
             new_last_stmt.calling_convention = cc
             new_last_stmt.prototype = prototype
+            new_last_stmt.tags["is_prototype_guessed"] = True
+            if func is not None:
+                new_last_stmt.tags["is_prototype_guessed"] = func.is_prototype_guessed
             block.statements[-1] = new_last_stmt
 
         return ail_graph
@@ -1887,6 +1896,13 @@ class Clinic(Analysis):
             if vartype is not None:
                 for tv in vr.var_to_typevars[variable]:
                     groundtruth[tv] = vartype
+
+        if self.function.prototype is not None and not self.function.is_prototype_guessed:
+            for arg_i, (_, variable) in arg_vvars.items():
+                if arg_i < len(self.function.prototype.args):
+                    for tv in vr.var_to_typevars[variable]:
+                        groundtruth[tv] = self.function.prototype.args[arg_i]
+
         # get maximum sizes of each stack variable, regardless of its original type
         stackvar_max_sizes = var_manager.get_stackvar_max_sizes(self.stack_items)
         tv_max_sizes = {}
@@ -3373,6 +3389,135 @@ class Clinic(Analysis):
                 ail_graph.add_edge(pred, new_node)
             for succ in succs:
                 ail_graph.add_edge(new_node, succ)
+
+    def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
+
+        assert self.variable_kb is not None
+
+        variables = self.variable_kb.variables[self.function.addr]
+        func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
+
+        def _handle_Call_stmt_or_expr(call_: ailment.Stmt.Call):
+            assert self.arg_vvars is not None
+
+            if isinstance(call_.target, ailment.Expr.Const) and call_.is_prototype_guessed and call_.args is not None:
+                # derive the actual prototype
+                arg_types = []
+                for arg_expr in call_.args:
+                    arg_type = None
+                    if hasattr(arg_expr, "variable") and arg_expr.variable is not None:
+                        # the type is type(a)
+                        t = None
+                        if isinstance(arg_expr, ailment.Expr.VirtualVariable):
+                            # a function arg
+                            for idx, (func_arg_vvar, _) in self.arg_vvars.items():
+                                if arg_expr.likes(func_arg_vvar):
+                                    t = self.function.prototype.args[idx]
+                                    break
+
+                        if t is None:
+                            # maybe not a function arg
+                            v = arg_expr.variable
+                            if v is not None:
+                                t = variables.get_variable_type(v)
+
+                        if t is not None:
+                            arg_type = t
+                    elif isinstance(arg_expr, ailment.Expr.UnaryOp) and arg_expr.op == "Reference":
+                        # &a; the type becomes a pointer to type(a)
+                        inner = arg_expr.operand
+                        v = inner.variable
+                        if v is not None:
+                            t = variables.get_variable_type(v)
+                            if t is not None:
+                                arg_type = SimTypePointer(t)
+
+                    arg_types.append(arg_type)
+
+                func_proto_candidates[call_.target.value_int].append((arg_types, None))
+
+        # pylint:disable=unused-argument
+        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None):
+            _handle_Call_stmt_or_expr(stmt)
+
+        # pylint:disable=unused-argument
+        def _handle_CallExpr(
+            expr_idx: int,
+            expr: ailment.Stmt.Call,
+            stmt_idx: int,
+            stmt: ailment.Stmt.Statement,
+            block: ailment.Block | None,
+        ):
+            _handle_Call_stmt_or_expr(expr)
+
+        def _visit_ail_node(node: ailment.Block):
+            w = AILBlockWalkerBase()
+            w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
+            w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
+            w.walk(node)
+
+        AILGraphWalker(self._ail_graph, _visit_ail_node).walk()
+
+        return dict(func_proto_candidates)
+
+    def _constrain_callee_prototypes(self):
+        func_proto_candidates = self._collect_callsite_prototypes()
+
+        default_arg_type = SimTypeLongLong if self.project.arch.bits == 64 else SimTypeInt
+
+        for func_addr, protos in func_proto_candidates.items():
+            if not self.kb.functions.contains_addr(func_addr):
+                continue
+            func = self.kb.functions.get_by_addr(func_addr)
+            if func.prototype is not None and func.is_prototype_guessed is False:
+                # already has a "good" prototype; don't overwrite it
+                continue
+
+            # TODO: merge the return type
+            # ret_types = [proto[1] for proto in protos]
+            args_list = [proto[0] for proto in protos]
+
+            # for each argument, we find the most precise type
+            arg_count = min(len(args) for args in args_list)
+            arg_result = {}
+
+            for arg_i in range(arg_count):  # pylint:disable=consider-using-enumerate
+                all_args: list[SimType] = [  # type: ignore
+                    args_list[i][arg_i] for i in range(len(args_list)) if args_list[i][arg_i] is not None
+                ]
+                if not all_args:
+                    continue
+                # TODO: Implement a better logic to find the precise type
+                precise_types = []
+                for a in all_args:
+                    if isinstance(a, (SimTypePointer, SimStruct, SimTypeArray, SimCppClass)):
+                        precise_types.append(a)
+                if len(precise_types) == 1:
+                    arg_result[arg_i] = precise_types[0]
+
+            if arg_result:
+                # build a new function prototype
+                new_arg_types = []
+                func_arg_count = (
+                    len(func.prototype.args) if func.prototype is not None and func.prototype.args else max(arg_result)
+                )
+                for i in range(func_arg_count):
+                    if i in arg_result:
+                        new_arg_types.append(arg_result[i])
+                    else:
+                        if func.prototype is not None:
+                            new_arg_types.append(func.prototype.args[i])
+                        else:
+                            new_arg_types.append(default_arg_type())
+                new_type = SimTypeFunction(
+                    new_arg_types,
+                    func.prototype.returnty if func.prototype is not None else default_arg_type(),
+                    label=func.prototype.label if func.prototype is not None else None,
+                    arg_names=func.prototype.arg_names if func.prototype is not None else None,
+                    variadic=func.prototype.variadic if func.prototype is not None else False,
+                ).with_arch(self.project.arch)
+                func.prototype = new_type
+                func.is_prototype_guessed = False
 
 
 register_analysis(Clinic, "Clinic")
