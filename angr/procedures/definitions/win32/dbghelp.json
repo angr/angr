@@ -69,10 +69,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMODULE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Module']}"
 		},
 		"ImageDirectoryEntryToData": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'IMAGE_DIRECTORY_ENTRY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Base', 'MappedAsImage', 'DirectoryEntry', 'Size']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'IMAGE_DIRECTORY_ENTRY', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Base', 'MappedAsImage', 'DirectoryEntry', 'Size']}"
 		},
 		"ImageDirectoryEntryToDataEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'IMAGE_DIRECTORY_ENTRY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGE_SECTION_HEADER', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Base', 'MappedAsImage', 'DirectoryEntry', 'Size', 'FoundHeader']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': '_ref', 'name': 'IMAGE_DIRECTORY_ENTRY', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGE_SECTION_HEADER', 'ot': '_ref'}}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['Base', 'MappedAsImage', 'DirectoryEntry', 'Size', 'FoundHeader']}"
 		},
 		"ImageNtHeader": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGE_NT_HEADERS32', 'ot': '_ref'}}, 'arg_names': ['Base']}"

@@ -57,13 +57,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SYSKIND', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ICreateTypeLib2', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['syskind', 'szFile', 'ppctlib']}"
 		},
 		"DispCallFunc": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CALLCONV', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvInstance', 'oVft', 'cc', 'vtReturn', 'cActuals', 'prgvt', 'prgpvarg', 'pvargResult']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'CALLCONV', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvInstance', 'oVft', 'cc', 'vtReturn', 'cActuals', 'prgvt', 'prgpvarg', 'pvargResult']}"
 		},
 		"DispGetIDsOfNames": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ptinfo', 'rgszNames', 'cNames', 'rgdispid']}"
 		},
 		"DispGetParam": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DISPPARAMS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispparams', 'position', 'vtTarg', 'pvarResult', 'puArgErr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DISPPARAMS', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pdispparams', 'position', 'vtTarg', 'pvarResult', 'puArgErr']}"
 		},
 		"DispInvoke": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'ITypeInfo', 'ot': 'bot'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DISPPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EXCEPINFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['_this', 'ptinfo', 'dispidMember', 'wFlags', 'pparams', 'pvarResult', 'pexcepinfo', 'puArgErr']}"
@@ -195,7 +195,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['cDims', 'ppsaOut']}"
 		},
 		"SafeArrayAllocDescriptorEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['vt', 'cDims', 'ppsaOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['vt', 'cDims', 'ppsaOut']}"
 		},
 		"SafeArrayCopy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa', 'ppsaOut']}"
@@ -204,16 +204,16 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psaSource', 'psaTarget']}"
 		},
 		"SafeArrayCreate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound']}"
 		},
 		"SafeArrayCreateEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound', 'pvExtra']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAYBOUND', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'cDims', 'rgsabound', 'pvExtra']}"
 		},
 		"SafeArrayCreateVector": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements']}"
 		},
 		"SafeArrayCreateVectorEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements', 'pvExtra']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}, 'arg_names': ['vt', 'lLbound', 'cElements', 'pvExtra']}"
 		},
 		"SafeArrayDestroy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SAFEARRAY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psa']}"
@@ -1200,10 +1200,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarLeft', 'pvarRight', 'pvarResult']}"
 		},
 		"VariantChangeType": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'wFlags', 'vt']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'short'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'wFlags', 'vt']}"
 		},
 		"VariantChangeTypeEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'lcid', 'wFlags', 'vt']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'VAR_CHANGE_FLAGS', 'ot': 'short'}, {'_t': '_ref', 'name': 'VARENUM', 'ot': 'short'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvargDest', 'pvarSrc', 'lcid', 'wFlags', 'vt']}"
 		},
 		"VariantClear": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pvarg']}"

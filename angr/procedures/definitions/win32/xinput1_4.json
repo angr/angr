@@ -18,7 +18,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwUserIndex', 'pRenderDeviceId', 'pRenderCount', 'pCaptureDeviceId', 'pCaptureCount']}"
 		},
 		"XInputGetBatteryInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BATTERY_DEVTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'XINPUT_BATTERY_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwUserIndex', 'devType', 'pBatteryInformation']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BATTERY_DEVTYPE', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'XINPUT_BATTERY_INFORMATION', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwUserIndex', 'devType', 'pBatteryInformation']}"
 		},
 		"XInputGetCapabilities": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'XINPUT_FLAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'XINPUT_CAPABILITIES', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwUserIndex', 'dwFlags', 'pCapabilities']}"

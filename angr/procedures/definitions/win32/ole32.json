@@ -720,7 +720,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pUnknown', 'dwAspect', 'hdcDraw', 'lprcBounds']}"
 		},
 		"OleDuplicateData": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLIPBOARD_FORMAT', 'ot': 'int'}, {'_t': '_ref', 'name': 'GLOBAL_ALLOC_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['hSrc', 'cfFormat', 'uiFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CLIPBOARD_FORMAT', 'ot': 'short'}, {'_t': '_ref', 'name': 'GLOBAL_ALLOC_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['hSrc', 'cfFormat', 'uiFlags']}"
 		},
 		"OleFlushClipboard": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
