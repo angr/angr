@@ -9,6 +9,8 @@ from collections.abc import Sequence
 from tempfile import NamedTemporaryFile
 from unittest import skipIf, skipUnless, skip, SkipTest
 
+from rich.syntax import Syntax
+from rich.console import Console
 
 import angr
 from angr import load_shellcode, Project
@@ -31,7 +33,7 @@ WORKER = is_testing or bool(
 )  # this variable controls whether we print the decompilation code or not
 
 if not os.path.isdir(bin_location) and not os.getenv("CI", "") == "true":
-    raise Exception(
+    raise RuntimeError(
         "Can't find the angr/binaries repo for holding testcases. "
         "It should be cloned into the same folder as the rest of your angr modules."
     )
@@ -160,7 +162,13 @@ def run_simple_unicorn_congruency_check(thing: Project | bytes | str, arch: str 
 def print_decompilation_result(dec):
     if not WORKER:
         print("Decompilation result:")
-        print(dec.codegen.text)
+
+        try:
+            console = Console()
+            syntax = Syntax(dec.codegen.text, "c", line_numbers=False)
+            console.print(syntax)
+        except Exception:  # pylint:disable=broad-exception-caught
+            print(dec.codegen.text)
 
 
 def set_decompiler_option(decompiler_options: list[tuple] | None, params: list[tuple]) -> list[tuple]:
