@@ -16,7 +16,7 @@ from angr import SIM_TYPE_COLLECTIONS
 from angr.analyses import AnalysesHub
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.block import Block
-from angr.errors import AngrVariableRecoveryError, SimEngineError
+from angr.errors import AngrVariableRecoveryError, SimEngineError, AngrMissingTypeError
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
@@ -652,8 +652,9 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             # TODO: Handle other types of locations
 
     def _parse_type_hint(self, type_hint_str: str) -> TypeConstant | None:
-        ty = SIM_TYPE_COLLECTIONS["cpp::std"].get(type_hint_str)
-        if ty is None:
+        try:
+            ty = SIM_TYPE_COLLECTIONS["cpp::std"].get(type_hint_str)
+        except AngrMissingTypeError:
             return None
         ty = ty.with_arch(self.project.arch)
         lifted = self.type_lifter.lift(ty)
