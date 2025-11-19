@@ -204,8 +204,11 @@ class SimType:
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
-                typ: SimType = SimVariant(cle_typ.byte_size, None, cle_typ.tag.addr_offset, [],
+                tag_offset = None if cle_typ.tag is None else cle_typ.tag.addr_offset
+                typ: SimType = SimVariant(cle_typ.byte_size, None, tag_offset, [],
                                           label=cle_typ.name, name=cle_typ.name, align=cle_typ.align, arch=arch)
+            elif isinstance(cle_typ, variable_type.SubprogramType):
+                typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom(arch=arch)
             if typ is None:
@@ -239,6 +242,14 @@ class SimType:
                     typ.returnty = SimTypeBottom()
                 else:
                     typ.returnty = mapping[return_ty]
+            elif isinstance(cle_typ, variable_type.SubprogramType):
+                typ: SimTypeFunction = mapping[cle_typ]
+                typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
+                return_ty = cle_typ.type
+                if return_ty is None:
+                    typ.returnty = SimTypeBottom()
+                else:
+                    typ.returnty = mapping[return_ty]
             elif isinstance(cle_typ, variable_type.VariantType):
                 typ: SimVariant = mapping[cle_typ]
                 if cle_typ.tag is not None:
@@ -248,6 +259,8 @@ class SimType:
                     typ.cases.append(case)
             elif cle_typ is None:
                 pass
+        # The caller may want to preserve the correspondence between the input and output lists
+        assert(len(constructed_types) == len(cle_types))
         return constructed_types
 
 class TypeRef(SimType):
@@ -1820,7 +1833,7 @@ class SimVariantCase:
 class SimVariant(NamedTypeMixin, SimType):
     fields = ("members", "name")
 
-    def __init__(self, size: int, tag: SimType | None, tag_offset: int,
+    def __init__(self, size: int, tag: SimType | None, tag_offset: int | None,
                  cases: list[SimVariantCase], name=None,
                  label=None, align: int | None = None, arch=None):
         """
