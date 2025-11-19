@@ -2676,7 +2676,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NLSVERSIONINFOEX', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['function', 'lpLocaleName', 'lpVersionInformation']}"
 		},
 		"IsWow64GuestMachineSupported": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAGE_FILE_MACHINE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['WowGuestMachine', 'MachineIsSupported']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMAGE_FILE_MACHINE', 'ot': 'short'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['WowGuestMachine', 'MachineIsSupported']}"
 		},
 		"IsWow64Process": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hProcess', 'Wow64Process']}"
@@ -2796,10 +2796,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hfSource']}"
 		},
 		"LZOpenFileA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OFSTRUCT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LZOPENFILE_STYLE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpFileName', 'lpReOpenBuf', 'wStyle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OFSTRUCT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LZOPENFILE_STYLE', 'ot': 'short'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpFileName', 'lpReOpenBuf', 'wStyle']}"
 		},
 		"LZOpenFileW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OFSTRUCT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LZOPENFILE_STYLE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpFileName', 'lpReOpenBuf', 'wStyle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OFSTRUCT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'LZOPENFILE_STYLE', 'ot': 'short'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lpFileName', 'lpReOpenBuf', 'wStyle']}"
 		},
 		"LZRead": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hFile', 'lpBuffer', 'cbRead']}"
@@ -3639,7 +3639,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'COORD', 'ot': '_ref'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hConsoleOutput', 'dwSize']}"
 		},
 		"SetConsoleTextAttribute": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CONSOLE_CHARACTER_ATTRIBUTES', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hConsoleOutput', 'wAttributes']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CONSOLE_CHARACTER_ATTRIBUTES', 'ot': 'short'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hConsoleOutput', 'wAttributes']}"
 		},
 		"SetConsoleTitleA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpConsoleTitle']}"
