@@ -5,6 +5,7 @@ import angr.ailment as ailment
 
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis import FunctionGraphVisitor
+from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal_engine import SimEngineSSATraversal
 from .traversal_state import TraversalState
 
@@ -72,7 +73,9 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
                     reg_size = func_arg.size
                     state.live_registers.add(reg_offset)
                     # get the full register if needed
-                    basereg_offset, basereg_size = self.project.arch.get_base_register(reg_offset, size=reg_size)
+                    basereg_offset, basereg_size = get_reg_offset_base_and_size(
+                        reg_offset, self.project.arch, size=reg_size
+                    )
                     if basereg_size != reg_size or basereg_offset != reg_offset:
                         state.live_registers.add(basereg_offset)
                 elif func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.STACK:
