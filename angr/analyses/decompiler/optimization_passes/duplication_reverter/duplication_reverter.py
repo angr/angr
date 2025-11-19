@@ -350,6 +350,8 @@ class DuplicationReverter(StructuringOptimizationPass):
                 new_node.addr = new_addr
                 for i, stmt in enumerate(new_node.statements):
                     if stmt.tags and "ins_addr" in stmt.tags:
+                        if "orig_ins_addr" not in stmt.tags:
+                            stmt.tags["orig_ins_addr"] = stmt.tags["ins_addr"]
                         stmt.tags["ins_addr"] = new_addr + i + 1
 
                 new_nodes[duplicate_node] = new_node
