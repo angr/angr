@@ -56,7 +56,10 @@ def get_reg_offset_base_and_size(
 
     base_reg_and_size = arch.get_base_register(reg_offset, size=size)
     if resilient and base_reg_and_size is None:
-        return reg_offset, size
+        base_reg_and_size = arch.get_base_register(reg_offset, size=None)
+        if base_reg_and_size is None:
+            # give up
+            return reg_offset, size
     return base_reg_and_size
 
 
