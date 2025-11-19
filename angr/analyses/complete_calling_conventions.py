@@ -217,6 +217,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
                     self._set_function_prototype(func, proto, proto_libname, proto_guessed)
                     if proto_libname is not None:
                         self.prototype_libnames.add(proto_libname)
+                func.ran_cca = True
 
                 if self._cc_callback is not None:
                     self._cc_callback(func_addr)
