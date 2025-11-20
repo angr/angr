@@ -11,6 +11,7 @@ from archinfo import Endness
 import angr
 from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimType,
     SimTypeFunction,
     SimTypeInt,
     SimTypePointer,
@@ -411,6 +412,17 @@ class TestTypes(unittest.TestCase):
 
         wchar_array = SimTypeArray(SimTypeWideChar(endness=Endness.LE), length=5).with_arch(proj.arch)
         assert wchar_array.extract(state, 0xC000_0000, concrete=True) == ["a", "b", "c", "D", "E"]
+
+    def test_serialize_recursive_types(self):
+        angr.procedures.definitions.load_win32_type_collections()
+        t = angr.SIM_TYPE_COLLECTIONS["win32"].get("DEVICE_OBJECT")
+        deref_t = dereference_simtype(t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        d = deref_t.to_json()
+        assert isinstance(d, dict)  # shall not raise
+
+        new_t = SimType.from_json(d)
+        deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        assert deref_t == deref_new_t
 
 
 if __name__ == "__main__":

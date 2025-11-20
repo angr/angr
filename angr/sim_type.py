@@ -162,10 +162,13 @@ class SimType:
         """
         raise NotImplementedError(f"extract_claripy is not implemented for {self}")
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         """
         Serialize the type class to a JSON-compatible dictionary.
         """
+
+        if memo is None:
+            memo = {}
 
         nullable_fields = {"label"}
         if fields is None:
@@ -175,11 +178,11 @@ class SimType:
         for field in fields:
             value = getattr(self, field)
             if isinstance(value, SimType):
-                d[field] = value.to_json()
+                d[field] = value.to_json(memo=memo)
             elif isinstance(value, (list, tuple)):
-                d[field] = [v.to_json() if isinstance(v, SimType) else v for v in value]
+                d[field] = [v.to_json(memo=memo) if isinstance(v, SimType) else v for v in value]
             elif isinstance(value, dict):
-                d[field] = {k: v.to_json() if isinstance(v, SimType) else v for k, v in value.items()}
+                d[field] = {k: v.to_json(memo=memo) if isinstance(v, SimType) else v for k, v in value.items()}
             else:
                 if field in nullable_fields and value is None:
                     continue
@@ -488,8 +491,10 @@ class SimTypeInt(SimTypeReg):
         super().__init__(None, label=label)
         self.signed = signed
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
-        d = super().to_json(fields=fields)
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+        d = super().to_json(fields=fields, memo=memo)
         if "signed" in d and d["signed"] is True:
             del d["signed"]
         return d
@@ -859,8 +864,10 @@ class SimTypePointer(SimTypeReg):
         self.signed = False
         self.offset = offset
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
-        d = super().to_json(fields=fields)
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+        d = super().to_json(fields=fields, memo=memo)
         if d["offset"] == 0:
             d.pop("offset")
         return d
@@ -1276,8 +1283,10 @@ class SimTypeFunction(SimType):
         self.arg_names = tuple(arg_names) if arg_names else ()
         self.variadic = variadic
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
-        d = super().to_json(fields=fields)
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+        d = super().to_json(fields=fields, memo=memo)
         if d["variadic"] is False:
             d.pop("variadic")
         return d
@@ -1596,8 +1605,15 @@ class SimStruct(NamedTypeMixin, SimType):
 
         return offsets
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
-        d = super().to_json(fields=fields)
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        if self.name in memo:
+            return memo[self.name].to_json(fields=fields, memo=memo)
+        memo[self.name] = SimTypeRef(self.name, SimStruct)
+
+        d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
         if d["align"] is None:
@@ -2203,7 +2219,7 @@ class SimTypeRef(SimType):
         original_type_name = self.original_type.__name__.split(".")[-1]
         return f'SimTypeRef("{self.name}", {original_type_name})'
 
-    def to_json(self, fields: Iterable[str] | None = None) -> dict[str, Any]:
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
         if fields is not None:
             d = {k: d[k] for k in fields}
