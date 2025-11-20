@@ -91,7 +91,9 @@ class AngrTypeError(AngrError, TypeError):
 
 
 class AngrMissingTypeError(AngrTypeError):
-    pass
+    def __init__(self, missing_type: str):
+        super().__init__(f"Type {missing_type} is missing")
+        self.missing_type = missing_type
 
 
 # Congruency check failure

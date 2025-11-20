@@ -68,7 +68,7 @@ class SimTypeCollection:
         if bottom_on_missing and name not in self:
             return SimTypeBottom(label=name)
         if name not in self:
-            raise AngrMissingTypeError(f"Type {name} is missing")
+            raise AngrMissingTypeError(name)
         if name not in self.types and name in self.types_json:
             d = self.types_json[name]
             if isinstance(d, str):
@@ -80,7 +80,7 @@ class SimTypeCollection:
                 # the type is missing
                 if bottom_on_missing:
                     return SimTypeBottom(label=name)
-                raise AngrMissingTypeError(f"Type {name} is missing") from ex
+                raise AngrMissingTypeError(name) from ex
             self.types[name] = t
         return self.types[name]
 
