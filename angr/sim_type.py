@@ -192,6 +192,9 @@ class SimType:
                             typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
                     case variable_type.BaseTypeEncoding.BOOLEAN:
                         typ = SimTypeBool(arch=arch)
+            elif isinstance(cle_typ, variable_type.UnionType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimType = SimUnion(dict(), label=label, name=cle_typ.name)
             elif isinstance(cle_typ, variable_type.StructType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
                 typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, label=label, name=cle_typ.name, offsets=dict(), arch=arch)
@@ -200,13 +203,15 @@ class SimType:
             elif isinstance(cle_typ, variable_type.ArrayType):
                 typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.EnumerationType):
-                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=cle_typ.name, arch=arch)
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=label, arch=arch)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
                 tag_offset = None if cle_typ.tag is None else cle_typ.tag.addr_offset
                 typ: SimType = SimVariant(cle_typ.byte_size, None, tag_offset, [],
-                                          label=cle_typ.name, name=cle_typ.name, align=cle_typ.align, arch=arch)
+                                          label=label, name=cle_typ.name, align=cle_typ.align, arch=arch)
             elif isinstance(cle_typ, variable_type.SubprogramType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif cle_typ is None:
@@ -220,6 +225,10 @@ class SimType:
         for cle_typ in cle_types:
             if isinstance(cle_typ, variable_type.BaseType):
                 pass
+            elif isinstance(cle_typ, variable_type.UnionType):
+                typ: SimUnion = mapping[cle_typ]
+                for field in cle_typ.members:
+                    typ.members[field.name] = mapping[field.type]
             elif isinstance(cle_typ, variable_type.StructType):
                 typ: SimStruct = mapping[cle_typ]
                 for field in cle_typ.members:
@@ -239,7 +248,7 @@ class SimType:
                 typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
                 return_ty = cle_typ.type
                 if return_ty is None:
-                    typ.returnty = SimTypeBottom()
+                    typ.returnty = SimTypeBottom(arch=arch)
                 else:
                     typ.returnty = mapping[return_ty]
             elif isinstance(cle_typ, variable_type.SubprogramType):
@@ -247,7 +256,7 @@ class SimType:
                 typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
                 return_ty = cle_typ.type
                 if return_ty is None:
-                    typ.returnty = SimTypeBottom()
+                    typ.returnty = SimTypeBottom(arch=arch)
                 else:
                     typ.returnty = mapping[return_ty]
             elif isinstance(cle_typ, variable_type.VariantType):
