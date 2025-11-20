@@ -10,6 +10,7 @@ from angr.codenode import BlockNode, HookNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from angr.sim_type import SimType, SimTypeFunction
 from angr.protos import primitives_pb2, function_pb2
+from angr.utils.types import make_type_reference
 
 l = logging.getLogger(name=__name__)
 
@@ -68,9 +69,12 @@ class FunctionParser:
             if function.calling_convention is not None
             else b""
         )
-        obj.prototype = (
-            json.dumps(function.prototype.to_json()).encode("utf-8") if function.prototype is not None else b""
-        )
+        if function.prototype is None:
+            obj.prototype = b""
+        else:
+            # convert all named structs in the prototype to typerefs; they will be dereferenced when used
+            prototype_ref = make_type_reference(function.prototype)
+            obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
 
