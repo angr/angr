@@ -4720,9 +4720,7 @@ class TestDecompiler(unittest.TestCase):
         assert f.prototype is not None
         assert len(f.prototype.args) == 2
         # reflow it
-        func_typevar = proj.kb.decompilations[(f.addr, "pseudocode")].func_typevar
-        assert func_typevar is not None
-        dec.reflow_variable_types({func_typevar: set()}, func_typevar, {}, dec.codegen)
+        dec.reflow_variable_types(dec.cache)
 
         print_decompilation_result(dec)
         out_1 = dec.codegen.text
