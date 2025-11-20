@@ -588,14 +588,21 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(
-        self, type_constraints: dict[TypeVariable, set[TypeConstraint]], func_typevar, var_to_typevar: dict, codegen
-    ):
+    def reflow_variable_types(self, cache: DecompilationCache):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
         :return:
         """
+
+        # extract everything from the cache
+        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints
+        func_typevar = cache.func_typevar
+        var_to_typevar = cache.var_to_typevar
+        arg_vvars = cache.arg_vvars
+        stack_offset_typevars = cache.stack_offset_typevars
+        stackvar_max_sizes = cache.stackvar_max_sizes
+        codegen = cache.codegen
 
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
@@ -612,6 +619,12 @@ class Decompiler(Analysis):
                     for typevar in var_to_typevar[variable]:
                         groundtruth[typevar] = vartype
 
+        if self.func.prototype is not None and not self.func.is_prototype_guessed:
+            for arg_i, (_, variable) in arg_vvars.items():
+                if arg_i < len(self.func.prototype.args):
+                    for tv in var_to_typevar[variable]:
+                        groundtruth[tv] = self.func.prototype.args[arg_i]
+
         # variables that must be interpreted as structs
         if self._vars_must_struct:
             must_struct = set()
@@ -621,6 +634,16 @@ class Decompiler(Analysis):
                         must_struct.add(typevar)
         else:
             must_struct = None
+
+        tv_max_sizes = {}
+        for v, s in stackvar_max_sizes.items():
+            assert isinstance(v, SimStackVariable)
+            if v in var_to_typevar:
+                for tv in var_to_typevar[v]:
+                    tv_max_sizes[tv] = s
+            if v.offset in stack_offset_typevars:
+                tv = stack_offset_typevars[v.offset]
+                tv_max_sizes[tv] = s
 
         # Type inference
         try:
@@ -632,6 +655,8 @@ class Decompiler(Analysis):
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
+                stack_offset_tvs=stack_offset_typevars,
+                stackvar_max_sizes=tv_max_sizes,
             )
             tp.update_variable_types(
                 self.func.addr,
@@ -642,7 +667,7 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
-            if self.func.prototype is not None and self.func.prototype.args:
+            if self.func.is_prototype_guessed and self.func.prototype is not None and self.func.prototype.args:
                 var_manager = var_kb.variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):

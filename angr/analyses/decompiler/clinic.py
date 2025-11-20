@@ -1999,9 +1999,12 @@ class Clinic(Analysis):
             self._link_variables_on_block(block, tmp_kb)
 
         if self._cache is not None:
+            self._cache.arg_vvars = arg_vvars
             self._cache.type_constraints = vr.type_constraints
             self._cache.func_typevar = vr.func_typevar
             self._cache.var_to_typevar = vr.var_to_typevars
+            self._cache.stack_offset_typevars = vr.stack_offset_typevars
+            self._cache.stackvar_max_sizes = stackvar_max_sizes
 
         return tmp_kb
 

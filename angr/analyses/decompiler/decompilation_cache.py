@@ -16,6 +16,7 @@ class DecompilationCache:
 
     __slots__ = (
         "addr",
+        "arg_vvars",
         "binop_operators",
         "clinic",
         "codegen",
@@ -24,6 +25,8 @@ class DecompilationCache:
         "ite_exprs",
         "notes",
         "parameters",
+        "stack_offset_typevars",
+        "stackvar_max_sizes",
         "type_constraints",
         "var_to_typevar",
     )
@@ -32,8 +35,11 @@ class DecompilationCache:
         self.parameters: dict[str, Any] = {}
         self.addr = addr
         self.type_constraints: dict[TypeVariable, set[TypeConstraint]] | None = None
+        self.arg_vvars: dict | None = None
         self.func_typevar: TypeVariable | None = None
         self.var_to_typevar: dict | None = None
+        self.stackvar_max_sizes: dict | None = None
+        self.stack_offset_typevars: dict | None = None
         self.codegen: BaseStructuredCodeGenerator | None = None
         self.clinic: Clinic | None = None
         self.ite_exprs: set[tuple[int, Any]] | None = None
