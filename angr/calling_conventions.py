@@ -35,6 +35,7 @@ from .sim_type import (
     parse_signature,
     SimTypeReference,
     SimTypeRef,
+    SimTypeBool,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -1848,7 +1849,9 @@ class SimCCARM(SimCC):
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
         nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
+        if isinstance(
+            ty, (SimTypeInt, SimTypeChar, SimTypeBool, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)
+        ):
             return ["INTEGER"] * nchunks
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
