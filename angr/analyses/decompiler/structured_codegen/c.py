@@ -2970,7 +2970,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             return self._access_constant_offset(result, remainder, data_type, lvalue, renegotiate_type)
 
-        if isinstance(base_type, SimStruct):
+        if isinstance(base_type, SimStruct) and base_type.offsets:
             # find the field that we're accessing
             field_name, field_offset = max(
                 ((x, y) for x, y in base_type.offsets.items() if y <= remainder), key=lambda x: x[1]
