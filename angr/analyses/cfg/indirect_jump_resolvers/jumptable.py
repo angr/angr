@@ -2276,7 +2276,7 @@ class JumpTableResolver(IndirectJumpResolver):
         # FIXME:
         # this is a hack: for certain architectures, we do not initialize the base pointer, since the jump table on
         # those architectures may use the bp register to store value
-        if self.project.arch.name not in {"S390X"}:
+        if self.project.arch.name not in {"S390X"} and "bp" in self.project.arch.registers:
             state.regs.bp = state.arch.initial_sp + 0x2000
 
         return state
