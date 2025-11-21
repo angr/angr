@@ -86,21 +86,28 @@ class Callable:
 
     def perform_call(self, *args, prototype=None):
         prototype = SimCC.guess_prototype(args, prototype or self._func_ty).with_arch(self._project.arch)
+        deadend_addr = self._deadend_addr
+
+        if self._cc.RETURN_ADDR.size < 4:
+            deadend_addr &= (1 << (self._cc.RETURN_ADDR.size * 8)) - 1
+
         state = self._project.factory.call_state(
             self._addr,
             *args,
             prototype=prototype,
             cc=self._cc,
             base_state=self._base_state,
-            ret_addr=self._deadend_addr,
+            ret_addr=deadend_addr,
             toc=self._toc,
             add_options=self._add_options,
             remove_options=self._remove_options,
         )
 
         caller = self._project.factory.simulation_manager(state)
-        caller.run(step_func=self._step_func).unstash(from_stash="deadended")
-        caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
+        caller.run(
+            step_func=self._step_func, until=lambda sm: sm.active and any(s.addr == deadend_addr for s in sm.active)
+        ).unstash(from_stash="deadended")
+        caller.prune(filter_func=lambda pt: pt.addr == deadend_addr)
 
         if "step_limited" in caller.stashes:
             caller.stash(from_stash="step_limited", to_stash="active")
