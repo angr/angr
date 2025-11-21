@@ -1898,6 +1898,10 @@ class SimCCARM(SimCC):
                     return None
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
+            if not result:
+                # the struct is empty (because somehow we do not know its members), so we treat it as a single INTEGER
+                # at offset 0
+                result[0].append(SimTypeInt().with_arch(self.arch))
         elif isinstance(ty, SimTypeFixedSizeArray):
             assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
