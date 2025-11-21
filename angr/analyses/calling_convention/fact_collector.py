@@ -281,6 +281,8 @@ class FactCollector(Analysis):
         end_states: list[FactCollectorState] = []
         while queue:
             depth, state, node, retnode = queue.pop(0)
+            if isinstance(node, BlockNode) and node in traversed:
+                continue
             traversed.add(node)
 
             if depth > self._max_depth:
