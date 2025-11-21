@@ -2416,7 +2416,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "PPC64": {"Linux": SimCCPowerPC64},
     "AARCH64": {"Linux": SimCCAArch64},
     "Soot": {"Linux": SimCCSoot},
-    "AVR8": {"Linux": SimCCUnknown},
+    "AVR": {"Linux": SimCCUnknown},
     "MSP": {"Linux": SimCCUnknown},
     "S390X": {"Linux": SimCCS390X},
 }
@@ -2449,7 +2449,7 @@ ARCH_NAME_ALIASES = {
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
     "Soot": [],
-    "AVR8": ["avr8"],
+    "AVR": ["avr"],
     "MSP": [],
     "S390X": [],
 }
