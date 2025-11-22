@@ -447,6 +447,8 @@ class SimplifierAILEngine(
 
     _handle_binop_CmpGE = _handle_binop_Default
 
+    _handle_binop_CmpORD = _handle_binop_Default
+
     _handle_binop_Concat = _handle_binop_Default
 
     _handle_binop_Ror = _handle_binop_Default

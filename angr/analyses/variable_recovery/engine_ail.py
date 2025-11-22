@@ -875,6 +875,7 @@ class SimEngineVRAIL(
     _handle_binop_CmpLE = _handle_binop_Default
     _handle_binop_CmpGT = _handle_binop_Default
     _handle_binop_CmpGE = _handle_binop_Default
+    _handle_binop_CmpORD = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpNEV = _handle_binop_Default
     _handle_binop_CmpGEV = _handle_binop_Default
