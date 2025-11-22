@@ -1020,6 +1020,7 @@ class SimEngineSSARewriting(
     _handle_binop_CmpLE = _unreachable
     _handle_binop_CmpLT = _unreachable
     _handle_binop_CmpNE = _unreachable
+    _handle_binop_CmpORD = _unreachable
     _handle_binop_Concat = _unreachable
     _handle_binop_Div = _unreachable
     _handle_binop_DivF = _unreachable

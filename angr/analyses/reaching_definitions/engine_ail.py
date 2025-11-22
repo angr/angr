@@ -579,7 +579,6 @@ class SimEngineRDAIL(
         return self._top(expr.bits)
 
     _handle_unop_Reference = _handle_unop_Default
-    _handle_unop_Clz = _handle_unop_Default
     _handle_unop_Ctz = _handle_unop_Default
     _handle_unop_Dereference = _handle_unop_Default
     _handle_unop_GetMSBs = _handle_unop_Default
@@ -715,7 +714,6 @@ class SimEngineRDAIL(
     _handle_binop_InterleaveHIV = _handle_binop_Default
     _handle_binop_CasCmpEQ = _handle_binop_Default
     _handle_binop_CasCmpNE = _handle_binop_Default
-    _handle_binop_ExpCmpNE = _handle_binop_Default
     _handle_binop_SarNV = _handle_binop_Default
     _handle_binop_ShrNV = _handle_binop_Default
     _handle_binop_ShlNV = _handle_binop_Default

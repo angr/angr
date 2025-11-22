@@ -1089,7 +1089,7 @@ class SimEngineRDVEX(
             if e0 is e1:
                 return MultiValues(claripy.BVV(0x2, bits))
 
-        return MultiValues(self.state.top(1))
+        return MultiValues(self.state.top(bits))
 
     def _handle_expr_CCall(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         bits = expr.result_size(self.tyenv)

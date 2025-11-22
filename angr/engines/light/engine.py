@@ -608,6 +608,7 @@ class SimEngineLightAIL(
             "CmpLE": self._handle_binop_CmpLE,
             "CmpGT": self._handle_binop_CmpGT,
             "CmpGE": self._handle_binop_CmpGE,
+            "CmpORD": self._handle_binop_CmpORD,
             "Concat": self._handle_binop_Concat,
             "Ror": self._handle_binop_Ror,
             "Rol": self._handle_binop_Rol,
@@ -922,6 +923,9 @@ class SimEngineLightAIL(
 
     @abstractmethod
     def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_binop_CmpORD(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
 
     @abstractmethod
     def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType_co: ...
