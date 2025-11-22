@@ -905,6 +905,8 @@ class VariableManagerInternal(Serializable):
                     var.name = labels[var.addr]
                     if "@@" in var.name:
                         var.name = var.name[: var.name.index("@@")]
+                    if "." in var.name:
+                        var.name = var.name.replace(".", "_")
                 elif isinstance(var.addr, int):
                     var.name = f"g_{var.addr:x}"
                 elif var.ident is not None:
