@@ -22,6 +22,6 @@ class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
 
             l.debug("Execution terminated at %#x", state.addr)
             terminator = SIM_PROCEDURES["stubs"]["PathTerminator"](project=self.project)
-            return self.process_procedure(state, successors, terminator, **kwargs)
+            return self.process_procedure(state, successors, terminator, arguments=[], **kwargs)
 
         return super().process_successors(successors, **kwargs)

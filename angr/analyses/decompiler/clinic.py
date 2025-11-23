@@ -123,7 +123,7 @@ class Clinic(Analysis):
 
     def __init__(
         self,
-        func,
+        func: Function,
         remove_dead_memdefs=False,
         exception_edges=False,
         sp_tracker_track_memory=True,

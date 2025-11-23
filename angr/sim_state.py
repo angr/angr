@@ -119,6 +119,7 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
             l.warning("Unused keyword arguments passed to SimState: %s", " ".join(kwargs))
         super().__init__()
         self.project = project
+        self._addr: IPTypeConc | None = None
 
         # Java & Java JNI
         self._is_java_project = self.project and self.project.is_java_project
@@ -300,7 +301,15 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
     def __repr__(self):
         try:
             addr = self.addr
-            ip_str = f"{addr:#x}" if type(addr) is int else repr(addr)
+            ip_str = (
+                f"{addr:#x}"
+                if type(addr) is int
+                else (
+                    f"{addr[0]:#x}{'' if addr[1] is None else '.'}{'' if addr[1] is None else addr[1]}"
+                    if type(addr) is tuple
+                    else repr(addr)
+                )
+            )
         except (SimValueError, SimSolverModeError):
             ip_str = repr(self.regs.ip)
 
@@ -339,11 +348,17 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
+        if isinstance(self._addr, tuple):
+            return self._addr
         return self.regs.ip
 
     @ip.setter
     def ip(self, val):
-        self.regs.ip = val
+        # I WISH FOR A BETTER WAY TO DO THIS
+        if isinstance(val, tuple):
+            self._addr = val
+        else:
+            self.regs.ip = val
 
     @property
     def _ip(self) -> IPTypeSym:
@@ -352,6 +367,8 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
 
         :return: an expression
         """
+        if isinstance(self._addr, tuple):
+            return self._addr
         try:
             return self.regs._ip
         except AttributeError as e:
@@ -365,6 +382,9 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         :param val: The new instruction pointer.
         :return:    None
         """
+        if isinstance(val, tuple):
+            self._addr = val
+            return
         try:
             self.regs._ip = val
         except AttributeError as e:
@@ -379,10 +399,14 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
         :return: an int
         """
 
-        ip = self.regs._ip
-        if isinstance(ip, SootAddressDescriptor):
+        ip = self._ip
+        if isinstance(ip, (SootAddressDescriptor, tuple)):
             return ip
         return self.solver.eval_one(self.regs._ip)
+
+    @addr.setter
+    def addr(self, v):
+        self._ip = v
 
     @property
     def arch(self) -> Arch:
@@ -559,6 +583,7 @@ class SimState(Generic[IPTypeConc, IPTypeSym], PluginHub[SimStatePlugin]):
             mode=self.mode,
             os_name=self.os_name,
         )
+        state._addr = self._addr
 
         if self._is_java_jni_project:
             state.ip_is_soot_addr = self.ip_is_soot_addr
