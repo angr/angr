@@ -2,12 +2,15 @@
 # pylint: disable=missing-class-docstring,no-self-use,line-too-long
 from __future__ import annotations
 
+import os
 import binascii
 import unittest
 
 import pyvex
 import archinfo
 import angr
+
+from tests.common import bin_location
 
 
 class TestLifter(unittest.TestCase):
@@ -119,6 +122,17 @@ class TestLifter(unittest.TestCase):
         # 15 | ------ IMark(0x402106, 2, 0) ------
         assert isinstance(stmts[15], pyvex.IRStmt.IMark)
         assert stmts[15].addr == 0x402106
+
+    def test_arm_thumb_itstate_optimization(self):
+        # ensure that we optimize away itstate updates when possible
+        bin_path = os.path.join(bin_location, "tests", "armhf", "checkbyte")
+        p = angr.Project(bin_path, auto_load_libs=False)
+
+        block = p.factory.block(0x84C5)
+        itstate_offset = p.arch.registers["itstate"][0]
+        for stmt in block.vex.statements:
+            if isinstance(stmt, pyvex.IRStmt.WrTmp) and isinstance(stmt.data, pyvex.IRExpr.Get):
+                assert stmt.data.offset != itstate_offset, "Found an itstate read that should have been optimized away"
 
 
 if __name__ == "__main__":
