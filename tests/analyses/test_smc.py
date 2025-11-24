@@ -14,6 +14,7 @@ def gcc(c: str) -> str:
     """
     Use GCC compile `c` and return path to the binary.
     """
+    print(c)
     with tempfile.NamedTemporaryFile(suffix=".c", delete=False) as f_in:
         path_out = f_in.name + ".bin"
         try:

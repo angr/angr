@@ -6,11 +6,11 @@ from abc import abstractmethod
 import re
 import logging
 
-import angr.ailment as ailment
 import pyvex
 import claripy
 from pyvex.expr import IRExpr
 
+import angr.ailment as ailment
 from angr.misc.ux import once
 from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation

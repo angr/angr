@@ -3,7 +3,7 @@ from __future__ import annotations
 import collections
 import logging
 from collections.abc import Iterator
-from typing import Self
+from typing_extensions import Self
 
 import claripy
 
@@ -141,7 +141,7 @@ class CallStack(SimStatePlugin):
         return self.next == other.next
 
     def __ne__(self, other):
-        return not (self == other)
+        return not (self == other)  # pylint: disable=superfluous-parens
 
     def __hash__(self):
         return hash(tuple((c.func_addr, c.stack_ptr, c.ret_addr) for c in self))
@@ -306,7 +306,8 @@ class CallStack(SimStatePlugin):
         stack = []
         for i, frame in enumerate(self):
             stack.append(
-                f"{i} | {frame.call_site_addr:#x} -> {frame.func_addr:#x}, returning to {frame.current_return_target:#x}"
+                f"{i} | {frame.call_site_addr:#x} -> {frame.func_addr:#x}, "
+                f"returning to {frame.current_return_target:#x}"
             )
 
         return "\n".join(stack)

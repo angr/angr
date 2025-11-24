@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, TypeAlias
 import itertools
 import logging
 
+import claripy
 
 import angr
 from angr.engines.ail.callstack import AILCallStack
@@ -13,7 +14,6 @@ from angr.sim_state import SimState
 from angr.engines.vex.claripy import ccall
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 from angr.utils.constants import DEFAULT_STATEMENT
-import claripy
 
 if TYPE_CHECKING:
     from angr.project import Project
@@ -26,10 +26,16 @@ DataType: TypeAlias = claripy.ast.Bits | claripy.ast.Bool
 
 
 class CallReached(Exception):
-    pass
+    """
+    An exception to abort executing a block if we need to restart it with a call result
+    """
 
 
 class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
+    """
+    A light engine for symbolically executing AIL
+    """
+
     def __init__(
         self,
         project: Project,
@@ -118,6 +124,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     else:
                         log.warning("Emulation is adding together two pointers")
                         return self.state.memory, ptr
+                    break
                 else:
                     offset += node
             else:

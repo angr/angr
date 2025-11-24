@@ -16,13 +16,13 @@ from angr.errors import (
     SimException,
     SimSolverModeError,
 )
-from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.state_plugins.sim_action_object import _raw_ast
 from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 if TYPE_CHECKING:
     from angr.ailment import Addr as AILAddr
+    from angr.sim_state import SimState
 
 
 l = logging.getLogger(name=__name__)

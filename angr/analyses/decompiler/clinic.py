@@ -1989,7 +1989,7 @@ class Clinic(Analysis):
         var_manager.unify_variables(interference=liveness.interference_graph())
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
-            arg_names=self.function.prototype.arg_names if self.function.prototype else None,
+            arg_names=list(self.function.prototype.arg_names) if self.function.prototype else None,
             reset=self._reset_variable_names,
             func_blocks=list(ail_graph),
         )
@@ -3415,6 +3415,7 @@ class Clinic(Analysis):
                             # a function arg
                             for idx, (func_arg_vvar, _) in self.arg_vvars.items():
                                 if arg_expr.likes(func_arg_vvar):
+                                    assert self.function.prototype is not None
                                     t = self.function.prototype.args[idx]
                                     break
 

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-# pylint: disable=wrong-import-position
+# pylint: disable=import-outside-toplevel
 from typing import TYPE_CHECKING
 from collections.abc import Callable, Iterable
+
+import claripy
+
 from angr.engines.ail.callstack import AILCallStack
 from angr.sim_state import SimState
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
-import claripy
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.clinic import Clinic

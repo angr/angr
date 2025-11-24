@@ -6,7 +6,7 @@ from angr.errors import AngrExitError
 from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
 
-l = logging.getLogger(name=__name__)
+log = logging.getLogger(name=__name__)
 
 
 class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
@@ -20,7 +20,7 @@ class SimEngineFailure(SuccessorsEngine, ProcedureMixin):
         if jumpkind == "Ijk_Exit":
             from angr.procedures import SIM_PROCEDURES
 
-            l.debug("Execution terminated at %#x", state.addr)
+            log.debug("Execution terminated at %#x", state.addr)
             terminator = SIM_PROCEDURES["stubs"]["PathTerminator"](project=self.project)
             return self.process_procedure(state, successors, terminator, arguments=[], **kwargs)
 

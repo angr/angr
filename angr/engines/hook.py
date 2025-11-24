@@ -1,12 +1,13 @@
 from __future__ import annotations
 import logging
 
+import claripy
+import cle
+from archinfo.arch_soot import SootAddressDescriptor
+
 import angr
 from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
-from archinfo.arch_soot import SootAddressDescriptor
-import claripy
-import cle
 
 l = logging.getLogger(name=__name__)
 

@@ -1280,7 +1280,7 @@ class SimTypeFunction(SimType):
         super().__init__(label=label)
         self.args: tuple[SimType, ...] = tuple(args)
         self.returnty: SimType | None = returnty
-        self.arg_names = tuple(arg_names) if arg_names else ()
+        self.arg_names: tuple[str, ...] = tuple(arg_names) if arg_names else ()
         self.variadic = variadic
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:

@@ -26,7 +26,6 @@ from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type
 
 if TYPE_CHECKING:
-    import angr
     import archinfo
     from angr.sim_state import SimState
 
@@ -419,7 +418,7 @@ class SimProcedure:
             return result
 
         if index is not None:
-            raise Exception("you think you're so fucking smart? you implement this logic then")
+            raise SimProcedureError("you think you're so fucking smart? you implement this logic then")
 
         if type(ty) is str:
             ty = parse_type(ty, arch=self.arch)

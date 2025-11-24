@@ -6,6 +6,12 @@ from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
 
 class AILCallStack(CallStack):
+    """
+    An implementation of state.callstack for AIL symbolic execution
+
+    Contains extra state for local vars and AIL calling conventions
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
