@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # pylint: disable=import-outside-toplevel
 
-from typing import Any, Concatenate, Generic, ParamSpec, cast, TypeVar, Protocol
+from typing import Any, Generic, ParamSpec, cast, TypeVar, Protocol
 from collections.abc import Callable
 from functools import wraps
 
@@ -18,13 +18,13 @@ S_co = TypeVar("S_co", covariant=True)
 P = ParamSpec("P")
 
 
-class _CopyFunc(Protocol, Generic[S_co, P]):
+class _CopyFunc(Protocol, Generic[S_co]):
     """
     Function wrapping copy method for memo tracking.
     """
 
     @staticmethod
-    def __call__(_self: Any, memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co: ...
+    def __call__(_self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -54,18 +54,18 @@ class SimStatePlugin:
         return d
 
     @staticmethod
-    def memo(f: Callable[Concatenate[T, dict[int, Any], P], S_co]) -> _CopyFunc[S_co, P]:
+    def memo(f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
         """
         A decorator function you should apply to ``copy``
         """
 
         @wraps(f)
-        def inner(self: T, memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co:
+        def inner(self: Any, memo: dict[int, Any] | None = None) -> S_co:
             if memo is None:
                 memo = {}
             if id(self) in memo:
                 return memo[id(self)]
-            c = f(self, memo, *args, **kwargs)
+            c = f(self, memo)
             memo[id(self)] = c
             return c
 

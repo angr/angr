@@ -19,6 +19,6 @@ class AILMixin(SuccessorsEngine):
         successors.description = "AIL block"
 
         subengine = SimEngineAILSimState(self.project, successors)
-        subengine.process(self.state, block=block)
+        subengine.process(self.state, block=block)  # type: ignore
 
         successors.processed = True

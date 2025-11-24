@@ -24,8 +24,20 @@ class AILCallStack(CallStack):
         self.return_addr: ailment.Addr | None = None
 
     @CallStack.memo
-    def copy(self, memo, with_tail=True):
-        o = super().copy(memo, with_tail=with_tail)
+    def copy(self, memo):
+        o = super().copy(memo)
+        o.passed_args = self.passed_args
+        o.passed_rets = self.passed_rets
+        o.resume_at = self.resume_at
+        o.vars = {idx: v.copy(memo) if isinstance(v, MemoryMixin) else v for idx, v in self.vars.items()}
+        o.var_refs = dict(self.var_refs)
+        o.var_refs_rev = dict(self.var_refs_rev)
+        o.return_addr = self.return_addr
+        return o
+
+    @CallStack.memo
+    def copy_without_tail(self, memo):
+        o = super().copy_without_tail(memo)
         o.passed_args = self.passed_args
         o.passed_rets = self.passed_rets
         o.resume_at = self.resume_at
