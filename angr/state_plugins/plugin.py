@@ -24,7 +24,7 @@ class _CopyFunc(Protocol, Generic[S_co, P]):
     """
 
     @staticmethod
-    def __call__(*args: P.args, memo: dict[int, Any] | None = None, **kwargs: P.kwargs) -> S_co: ...
+    def __call__(_self: Any, memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -53,6 +53,27 @@ class SimStatePlugin:
         d["state"] = None
         return d
 
+    @staticmethod
+    def memo(f: Callable[Concatenate[T, dict[int, Any], P], S_co]) -> _CopyFunc[S_co, P]:
+        """
+        A decorator function you should apply to ``copy``
+        """
+
+        @wraps(f)
+        def inner(self: T, memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co:
+            if memo is None:
+                memo = {}
+            if id(self) in memo:
+                return memo[id(self)]
+            c = f(self, memo, *args, **kwargs)
+            memo[id(self)] = c
+            return c
+
+        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
+        # and we can't express the optional `memo` parameter without a Protocol
+        return inner  # type: ignore
+
+    @memo
     def copy(self, _memo):
         """
         Should return a copy of the plugin without any state attached. Should check the memo first, and add itself to
@@ -70,26 +91,6 @@ class SimStatePlugin:
         o = type(self).__new__(type(self))
         o.state = None  # type: ignore
         return o
-
-    @staticmethod
-    def memo(f: Callable[Concatenate[T, dict[int, Any], P], S_co]) -> _CopyFunc[S_co, P]:
-        """
-        A decorator function you should apply to ``copy``
-        """
-
-        @wraps(f)
-        def inner(self: T, *args: P.args, memo: dict[int, Any] | None = None, **kwargs: P.kwargs) -> S_co:
-            if memo is None:
-                memo = {}
-            if id(self) in memo:
-                return memo[id(self)]
-            c = f(self, *args, memo=memo, **kwargs)
-            memo[id(self)] = c
-            return c
-
-        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
-        # and we can't express the optional `memo` parameter without a Protocol
-        return inner  # type: ignore
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         """
