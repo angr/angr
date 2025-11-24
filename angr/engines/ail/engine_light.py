@@ -78,7 +78,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return callstack
 
     def lift_addr(self, addr: ailment.Addr) -> Clinic:
-        result = self.state.globals["ail_lifter"]
+        result = self.state.globals["ail_lifter"]  # type: ignore
         assert callable(result)
         return result(addr[0])  # type: ignore
 
@@ -106,10 +106,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         while queue:
             node = queue.pop()
             if node.op == "__add__":
-                queue.extend(node.args)
+                queue.extend(node.args)  # type: ignore
             elif node.op == "__sub__":
-                queue.append(node.args[0])
-                queue.extend(-x for x in node.args[1:])
+                queue.append(node.args[0])  # type: ignore
+                queue.extend(-x for x in node.args[1:])  # type: ignore
             elif node.op == "BVS":
                 frame = self.frame
                 while frame is not None:
@@ -323,7 +323,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         self.successors.add_successor(
             state_false,
             (target_false_addr.concrete_value, stmt.false_target_idx),
-            ~condition,
+            ~condition,  # type: ignore
             "Ijk_Boring",
             exit_stmt_idx=self.stmt_idx,
             exit_ins_addr=self.ins_addr,
@@ -533,7 +533,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 region_name = f"ail_engine_var_{func_name}_{expr.operand.varid}"
 
                 # pick a class, any class...
-                memory_cls = self.state.globals["ail_var_memory_cls"]
+                memory_cls = self.state.globals["ail_var_memory_cls"]  # type: ignore
                 newval = memory_cls(memory_id=region_name)
                 assert isinstance(newval, MemoryMixin)
                 if curval is not None:
