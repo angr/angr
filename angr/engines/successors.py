@@ -101,8 +101,8 @@ class SimSuccessors:
                 if addendum is not None:
                     whatsup = whatsup.replace(hex_addr, hex_addr + addendum)
                 return f"<{self.description} from {whatsup}: {result}>"
-            return f"<{self.description} from {self.addr:#x}{addendum} ({whatsup}): {result}>"
-        return f"<{self.description} from {self.addr:#x}{addendum}: {result}>"
+            return f"<{self.description} from {int_addr:#x}{addendum} ({whatsup}): {result}>"
+        return f"<{self.description} from {int_addr:#x}{addendum}: {result}>"
 
     @property
     def is_empty(self):

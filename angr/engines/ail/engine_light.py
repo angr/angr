@@ -182,6 +182,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     "there is absolutely no good way to emulate this. generate better IR."
                 ) from e
             # assume we've already pushed the callee frame
+            # furthermore assume that it's okay to mutate callstack.next since it should be unique still...?
             assert self.frame.next is not None
             self.frame.next.resume_at = self.stmt_idx
             return False
@@ -332,14 +333,14 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> bool:
         ret_values = tuple(self._expr_bits(e) for e in stmt.ret_exprs)
-        target = self.frame.ret_addr
+        target = self.frame.return_addr
         self.frame.pop()
         self.frame.passed_rets += (ret_values,)
         self.successors.add_successor(
             self.state,
-            target,
+            target if target is not None else self.state.addr,
             claripy.true(),
-            "Ijk_Ret",
+            "Ijk_Ret" if target is not None else "Ijk_Exit",
             add_guard=False,
             exit_ins_addr=self.ins_addr,
             exit_stmt_idx=self.stmt_idx,
