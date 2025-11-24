@@ -214,7 +214,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
         if angr.options.CALLLESS in self.state.options:
             if is_expr:
-                # ????? if doing ret emulation and this is an expr (no lvalue expression), how do I tell if this is a float ret or not?
+                # ????? if doing ret emulation and this is an expr (no lvalue expression)
+                # how do I tell if this is a float ret or not?
                 return (claripy.BVS(f"callless_stub_{call.target}", call.bits),)
             if call.ret_expr is not None:
                 return (claripy.BVS(f"callless_stub_{call.target}", call.ret_expr.bits),)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=import-outside-toplevel
+
 from typing import Any, Concatenate, Generic, ParamSpec, cast, TypeVar, Protocol
 from collections.abc import Callable
 from functools import wraps
@@ -22,7 +24,7 @@ class _CopyFunc(Protocol, Generic[S_co, P]):
     """
 
     @staticmethod
-    def __call__(memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co: ...
+    def __call__(*args: P.args, memo: dict[int, Any] | None = None, **kwargs: P.kwargs) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -76,12 +78,12 @@ class SimStatePlugin:
         """
 
         @wraps(f)
-        def inner(self: T, memo: dict[int, Any] | None = None, *args: P.args, **kwargs: P.kwargs) -> S_co:
+        def inner(self: T, *args: P.args, memo: dict[int, Any] | None = None, **kwargs: P.kwargs) -> S_co:
             if memo is None:
                 memo = {}
             if id(self) in memo:
                 return memo[id(self)]
-            c = f(self, memo, *args, **kwargs)
+            c = f(self, *args, memo=memo, **kwargs)
             memo[id(self)] = c
             return c
 

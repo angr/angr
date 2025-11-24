@@ -1,5 +1,5 @@
-# what a silly fulcrum. the SimState engines and the the light ail engines have diverged enough that they can no longer be mixed together.
-# simply compose them by encapsulation instead of inheritance.
+# what a silly fulcrum. the SimState engines and the the light ail engines have diverged enough
+# that they can no longer be mixed together. # simply compose them by encapsulation instead of inheritance.
 from __future__ import annotations
 
 __all__ = [

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=missing-class-docstring
+
 import logging
 
 import angr
