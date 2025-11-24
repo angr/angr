@@ -42,8 +42,8 @@ def ail_call_state(
     from angr.knowledge_plugins.functions.function import Function
     from angr.storage import DefaultMemory
 
-    state.globals["ail_var_memory_cls"] = memory_cls or DefaultMemory
-    state.globals["ail_lifter"] = lifter
+    state.globals["ail_var_memory_cls"] = memory_cls or DefaultMemory  # type: ignore
+    state.globals["ail_lifter"] = lifter  # type: ignore
 
     if not isinstance(func, Function):
         func = project.kb.functions[func]
