@@ -8,7 +8,7 @@ from typing import Self
 import claripy
 
 from angr import errors
-from angr.errors import AngrError, SimEmptyCallStackError
+from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
@@ -354,7 +354,10 @@ class CallStack(SimStatePlugin):
     def _manage(self):
         # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
         # SimProcedures that call out to binary code self.call.
-        if not isinstance(self.state.addr, int):
+        try:
+            if not isinstance(self.state.addr, int):
+                return
+        except SimSolverError:
             return
         if self.state.arch.sp_offset is None:
             return
@@ -397,31 +400,32 @@ class CallStack(SimStatePlugin):
 
             self.state._inspect("call", BP_AFTER)
         else:
+            rself = self
             while True:
                 cur_sp = (
-                    self.state.solver.max(self.state.regs._sp)
-                    if self.state.has_plugin("symbolizer")
-                    else self.state.regs._sp
+                    rself.state.solver.max(rself.state.regs._sp)
+                    if rself.state.has_plugin("symbolizer")
+                    else rself.state.regs._sp
                 )
-                if not self.state.solver.is_true(cur_sp > self.top.stack_ptr):
+                if not rself.state.solver.is_true(cur_sp > rself.top.stack_ptr):
                     break
-                self.state._inspect("return", BP_BEFORE, function_address=self.top.func_addr)
-                self.pop()
-                self.state._inspect("return", BP_AFTER)
+                rself.state._inspect("return", BP_BEFORE, function_address=rself.top.func_addr)
+                rself = rself.pop()
+                rself.state._inspect("return", BP_AFTER)
 
             if (
-                not self.state.arch.call_pushes_ret
-                and claripy.is_true(self.state.regs._ip == self.ret_addr)
-                and claripy.is_true(self.state.regs._sp == self.stack_ptr)
+                not rself.state.arch.call_pushes_ret
+                and claripy.is_true(rself.state.regs._ip == rself.ret_addr)
+                and claripy.is_true(rself.state.regs._sp == rself.stack_ptr)
             ):
                 # very weird edge case that's not actually weird or on the edge at all:
                 # if we use a link register for the return address, the stack pointer will be the same
                 # before and after the call. therefore we have to check for equality with the marker
                 # along with this other check with the instruction pointer to guess whether it's time
                 # to pop a callframe. Still better than relying on Ijk_Ret.
-                self.state._inspect("return", BP_BEFORE, function_address=self.top.func_addr)
-                self.pop()
-                self.state._inspect("return", BP_AFTER)
+                rself.state._inspect("return", BP_BEFORE, function_address=rself.top.func_addr)
+                rself = rself.pop()
+                rself.state._inspect("return", BP_AFTER)
 
 
 class CallStackAction:
