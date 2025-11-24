@@ -252,6 +252,12 @@ class AILSimplifier(Analysis):
         if self._only_consts:
             return
 
+        _l.debug("Removing dead assignments")
+        r = self._iteratively_remove_dead_assignments()
+        if r:
+            _l.debug("... dead assignments removed")
+            self.simplified = True
+
         if self._should_rewrite_ccalls:
             _l.debug("Rewriting ccalls")
             ccalls_rewritten = self._rewrite_ccalls()
