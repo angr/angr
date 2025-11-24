@@ -87,8 +87,22 @@ class SimSuccessors:
             result = "failure"
 
         if isinstance(self.addr, int):
-            return f"<{self.description} from {self.addr:#x}: {result}>"
-        return f"<{self.description} from {self.addr}: {result}>"
+            int_addr = self.addr
+            addendum = ""
+        elif isinstance(self.addr, tuple):
+            int_addr = self.addr[0]
+            addendum = f"{'.' if self.addr[1] is not None else ''}{self.addr[1] if self.addr[1] is not None else ''}"
+        else:
+            return f"<{self.description} from {self.addr}: {result}>"
+        if self.initial_state is not None and self.initial_state.project is not None:
+            whatsup = self.initial_state.project.loader.describe_addr(int_addr)
+            hex_addr = hex(int_addr)
+            if hex_addr in whatsup:
+                if addendum is not None:
+                    whatsup = whatsup.replace(hex_addr, hex_addr + addendum)
+                return f"<{self.description} from {whatsup}: {result}>"
+            return f"<{self.description} from {self.addr:#x}{addendum} ({whatsup}): {result}>"
+        return f"<{self.description} from {self.addr:#x}{addendum}: {result}>"
 
     @property
     def is_empty(self):

@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, TypeAlias
 import itertools
 import logging
 
+
 import angr
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
@@ -42,6 +43,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> None:
         self.state = state
+        self.state.bbl_addr = state.addr[0]
         # if there is a function parameter handoff waiting, process that asap
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
@@ -50,7 +52,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 raise errors.AngrRuntimeError("Call statement and lifted function disagree on number of arguments")
             for idx, value in enumerate(self.frame.passed_args):
                 vvar, _ = clinic.arg_vvars[idx]
-                self._do_assign(vvar, value)
+                self._do_assign(vvar, value, auto_narrow=True)
             self.frame.passed_args = None
 
         if self.frame.resume_at is not None:
@@ -74,10 +76,11 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert callable(result)
         return result(addr[0])  # type: ignore
 
-    def lift(self, state) -> ailment.Block:
-        clinic = self.lift_addr(state.addr)
+    def lift(self, state: StateType | int | ailment.Addr) -> ailment.Block:
+        addr = (state, None) if isinstance(state, int) else state if isinstance(state, tuple) else state.addr
+        clinic = self.lift_addr(addr)
         assert clinic.graph is not None
-        blocks = [blk for blk in clinic.graph if (blk.addr, blk.idx) == state.addr]
+        blocks = [blk for blk in clinic.graph if (blk.addr, blk.idx) == addr]
         if len(blocks) == 0:
             raise errors.AngrLifterError("Lifted graph does not have the needed block")
         if len(blocks) > 1:
@@ -132,10 +135,22 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             # this is a block lifted such that we don't have explicit gotos. Find one from the graph
             clinic = self.lift_addr(self.state.addr)
             assert clinic.graph is not None
-            if len(clinic.graph.succ[block]) != 1:
+            if len(clinic.graph.succ[block]) > 1:
                 raise errors.AngrRuntimeError(
                     f"Reached default exit of block with {len(clinic.graph.succ[block])} successors"
                 )
+            if len(clinic.graph.succ[block]) == 0:
+                # deadend. add pathterminator
+                self.successors.add_successor(
+                    self.state,
+                    self.state.addr,
+                    claripy.true(),
+                    "Ijk_Exit",
+                    add_guard=False,
+                    exit_ins_addr=self.ins_addr,
+                    exit_stmt_idx=DEFAULT_STATEMENT,
+                )
+                return
             succ = next(iter(clinic.graph.succ[block]))
             self.successors.add_successor(
                 self.state,
@@ -150,6 +165,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _stmt(self, stmt: ailment.statement.Statement, toplevel: bool = True) -> bool:
         if toplevel:
             self.ret_idx = 0
+            self.state.scratch.stmt_idx = self.stmt_idx
+            self.state.scratch.ins_addr = self.ins_addr
         try:
             result = super()._stmt(stmt)
         except CallReached as e:
@@ -187,7 +204,21 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(result, claripy.ast.FP)
         return result
 
-    def _do_call(self, call: ailment.statement.Call):
+    def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
+        if angr.options.CALLLESS in self.state.options:
+            if is_expr:
+                # ????? if doing ret emulation and this is an expr (no lvalue expression), how do I tell if this is a float ret or not?
+                return (claripy.BVS(f"callless_stub_{call.target}", call.bits),)
+            if call.ret_expr is not None:
+                return (claripy.BVS(f"callless_stub_{call.target}", call.ret_expr.bits),)
+            if call.fp_ret_expr is not None:
+                return (
+                    claripy.FPS(
+                        f"callless_stub_{call.target}",
+                        claripy.FSORT_FLOAT if call.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
+                    ),
+                )
+            return ()
         if self.ret_idx < len(self.frame.passed_rets):
             results = self.frame.passed_rets[self.ret_idx]
             self.ret_idx += 1
@@ -213,7 +244,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         )
         raise CallReached
 
-    def _do_assign(self, dst: ailment.Expression, val: claripy.ast.Bits):
+    def _do_assign(self, dst: ailment.Expression, val: claripy.ast.Bits, auto_narrow: bool = False):
+        if len(val) != dst.bits:
+            if auto_narrow and len(val) > dst.bits and isinstance(val, claripy.ast.BV):
+                val = val[dst.bits - 1 : 0]
+            else:
+                raise errors.AngrRuntimeError(f"Bad-sized assignment: expected {dst.bits} bits, got {len(val)}")
         match dst:
             case ailment.expression.VirtualVariable():
                 if isinstance((mem := self.frame.vars.get(dst.varid, None)), MemoryMixin):
@@ -233,7 +269,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return True
 
     def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> bool:
-        val = self._expr(stmt.src)
+        val = self._expr(stmt.data)
         ptr = self._expr_bv(stmt.addr)
         region, offset = self._find_ptr_region(ptr)
         region.store(offset, val, endness=stmt.endness)
@@ -279,7 +315,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         self.successors.add_successor(
             state_false,
             (target_false_addr.concrete_value, stmt.false_target_idx),
-            condition,
+            ~condition,
             "Ijk_Boring",
             exit_stmt_idx=self.stmt_idx,
             exit_ins_addr=self.ins_addr,
@@ -318,18 +354,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             )
         for ret_expr, result in zip(ret_exprs, results):
             # these may be provided by misbehaving simprocedures. truncate the result as needed.
-            if len(result) > ret_expr.bits:
-                assert isinstance(result, claripy.ast.BV)
-                result = result[ret_expr.bits - 1 : 0]
-            elif len(result) < ret_expr.bits:
-                raise errors.AngrRuntimeError("Function returned too-small value for lvalue expression")
-            self._do_assign(ret_expr, result)
+            self._do_assign(ret_expr, result, auto_narrow=True)
         return True
 
     ### Expressions
 
     def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType:
-        results = self._do_call(expr)
+        results = self._do_call(expr, True)
         if len(results) != 1:
             raise errors.AngrRuntimeError(f"Call expression returned with {len(results)} return values, expected 1")
         # these may be provided by misbehaving simprocedures. truncate the result as needed.
@@ -388,9 +419,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         raise errors.AngrRuntimeError("None of the predecessors in a phi node are my predecessor!")
 
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType:
-        child = self._expr_bits(expr.operand)
+        child = self._expr(expr.operand)
         assert len(child) == expr.from_bits
         if expr.from_type == expr.TYPE_INT:
+            if isinstance(child, claripy.ast.Bool):
+                assert expr.from_bits == 1
+                assert expr.to_type == expr.TYPE_INT
+                return claripy.If(child, claripy.BVV(1, expr.to_bits), claripy.BVV(0, expr.to_bits))
             assert isinstance(child, claripy.ast.BV)
             if expr.to_type == expr.TYPE_INT:
                 if expr.to_bits > expr.from_bits:

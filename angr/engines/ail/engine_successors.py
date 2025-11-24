@@ -8,9 +8,10 @@ class AILMixin(SuccessorsEngine):
     def process_successors(self, successors: SimSuccessors, block: Block | None = None, **kwargs):
         if not isinstance(successors.addr, tuple):
             super().process_successors(successors, block=block, **kwargs)
+            return
 
         successors.sort = "AIL"
-        successors.description = f"AIL block {successors.addr[0]:#x}{'.' if successors.addr[1] is not None else ''}{successors.addr[1] if successors.addr[1] is not None else ''}"
+        successors.description = "AIL block"
 
         subengine = SimEngineAILSimState(self.project, successors)
         subengine.process(self.state, block=block)
