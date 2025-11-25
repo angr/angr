@@ -21,7 +21,7 @@ from angr.state_plugins.sim_action_object import _raw_ast
 from angr.storage import DUMMY_SYMBOLIC_READ_VALUE
 
 if TYPE_CHECKING:
-    from angr.ailment import Addr as AILAddr
+    from angr.ailment import Address as AILAddr
     from angr.sim_state import SimState
 
 

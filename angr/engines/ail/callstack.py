@@ -21,7 +21,7 @@ class AILCallStack(CallStack):
         self.vars: dict[int, claripy.ast.Bits | MemoryMixin] = {}
         self.var_refs: dict[claripy.ast.BV, int] = {}
         self.var_refs_rev: dict[int, claripy.ast.BV] = {}
-        self.return_addr: ailment.Addr | None = None
+        self.return_addr: ailment.Address | None = None
 
     @CallStack.memo
     def copy(self, memo):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 import logging
 from typing import TypeAlias
-import traceback
 
 from .block import Block
 from . import statement
@@ -20,7 +19,7 @@ Stmt = statement
 
 available_converters: set[str] = set()
 
-Addr: TypeAlias = tuple[int, int | None]
+Address: TypeAlias = tuple[int, int | None]
 
 try:
     from .converter_vex import VEXIRSBConverter
@@ -37,7 +36,6 @@ try:
 
     available_converters.add("pcode")
 except ImportError:
-    log.debug(traceback.format_exc())
     log.debug("Could not import PCodeIRSBConverter", exc_info=True)
     PCodeIRSBConverter = None
 

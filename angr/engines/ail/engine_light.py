@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-StateType: TypeAlias = SimState[ailment.Addr, ailment.Addr]
+StateType: TypeAlias = SimState[ailment.Address, ailment.Address]
 DataType: TypeAlias = claripy.ast.Bits | claripy.ast.Bool
 
 
@@ -77,12 +77,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(callstack, AILCallStack)
         return callstack
 
-    def lift_addr(self, addr: ailment.Addr) -> Clinic:
+    def lift_addr(self, addr: ailment.Address) -> Clinic:
         result = self.state.globals["ail_lifter"]  # type: ignore
         assert callable(result)
         return result(addr[0])  # type: ignore
 
-    def lift(self, state: StateType | int | ailment.Addr) -> ailment.Block:
+    def lift(self, state: StateType | int | ailment.Address) -> ailment.Block:
         addr = (state, None) if isinstance(state, int) else state if isinstance(state, tuple) else state.addr
         clinic = self.lift_addr(addr)
         assert clinic.graph is not None
