@@ -13,12 +13,12 @@ from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 if TYPE_CHECKING:
     from angr.analyses.decompiler.clinic import Clinic
     from angr.project import Project
-    from angr.knowledge_plugins.functions.function import Function
+    from angr.ailment import Address
 
 
 def ail_call_state(
     project: Project,
-    func: Function | int | str,
+    start_addr: int | Address | str,
     args: Iterable[claripy.ast.Bits],
     lifter: Callable[[int], Clinic],
     mode: str = "symbolic",
@@ -39,15 +39,14 @@ def ail_call_state(
         plugin_preset=plugin_preset,
     )
     # break circular imports. this module should maybe live somewhere else
-    from angr.knowledge_plugins.functions.function import Function
     from angr.storage import DefaultMemory
 
     state.globals["ail_var_memory_cls"] = memory_cls or DefaultMemory  # type: ignore
     state.globals["ail_lifter"] = lifter  # type: ignore
 
-    if not isinstance(func, Function):
-        func = project.kb.functions[func]
-    state.addr = (func.addr, None)
+    if isinstance(start_addr, str):
+        start_addr = project.kb.functions[start_addr].addr
+    state.addr = (start_addr, None) if isinstance(start_addr, int) else start_addr
 
     bottom_frame = AILCallStack()
     top_frame = AILCallStack()
