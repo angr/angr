@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+# pylint: disable=missing-class-docstring,no-self-use
 import unittest
 import os
 
