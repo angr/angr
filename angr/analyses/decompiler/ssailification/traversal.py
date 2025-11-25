@@ -13,7 +13,7 @@ from .traversal_state import TraversalState
 l = logging.getLogger(__name__)
 
 
-class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, tuple[int, int]]):
+class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, tuple[int, int], object]):
     """
     TraversalAnalysis traverses the AIL graph and collects definitions.
     """
