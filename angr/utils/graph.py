@@ -49,6 +49,7 @@ def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | No
             endnode = next(iter(end_nodes))  # pick the end node
 
         idoms = networkx.immediate_dominators(inverted_graph, endnode)
+        idoms[endnode] = endnode
     else:
         idoms = None
     return inverted_graph, idoms
