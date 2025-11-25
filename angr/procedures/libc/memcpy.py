@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# pylint: disable=missing-class-docstring
+
 import logging
 
 import angr
@@ -36,3 +38,8 @@ class memcpy(angr.SimProcedure):
                 self.state.memory.store(dst_addr, src_mem, size=limit, endness="Iend_BE")
 
         return dst_addr
+
+
+class __memcpy_chk(memcpy):
+    def run(self, dst_addr, src_addr, limit, _destlen):
+        return super().run(dst_addr, src_addr, limit)

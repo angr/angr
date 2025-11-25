@@ -1,22 +1,24 @@
 # pylint:disable=no-self-use,unused-argument
 from __future__ import annotations
-from typing import Any, Protocol, cast, TypeVar, Generic
+from typing import Any, Protocol, cast, TypeVar, Generic, TYPE_CHECKING
 from collections.abc import Callable
 from abc import abstractmethod
 import re
 import logging
 
-import angr.ailment as ailment
 import pyvex
 import claripy
 from pyvex.expr import IRExpr
 
+import angr.ailment as ailment
 from angr.misc.ux import once
 from angr.engines.vex.claripy.irop import UnsupportedIROpError, SimOperationError, vexop_to_simop
 from angr.code_location import CodeLocation
-from angr.project import Project
 from angr.engines.engine import DataType_co, SimEngine, StateType
 from angr.block import Block
+
+if TYPE_CHECKING:
+    from angr.project import Project
 
 
 class BlockProtocol(Protocol):
@@ -638,6 +640,9 @@ class SimEngineLightAIL(
         }
         super().__init__(*args, **kwargs)
 
+    def _stmt_diverges(self, result: StmtDataType) -> bool:
+        return False
+
     def process(
         self, state: StateType, *, block: ailment.Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> ResultType:
@@ -689,7 +694,10 @@ class SimEngineLightAIL(
 
             self.stmt_idx = stmt_idx
             self.ins_addr = stmt.ins_addr
-            result.append(self._stmt(stmt))
+            stmt_result = self._stmt(stmt)
+            result.append(stmt_result)
+            if self._stmt_diverges(stmt_result):
+                break
 
         return result
 

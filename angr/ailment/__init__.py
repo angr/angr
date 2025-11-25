@@ -1,5 +1,6 @@
 from __future__ import annotations
 import logging
+from typing import TypeAlias
 
 from .block import Block
 from . import statement
@@ -18,14 +19,15 @@ Stmt = statement
 
 available_converters: set[str] = set()
 
+Address: TypeAlias = tuple[int, int | None]
+
 try:
     from .converter_vex import VEXIRSBConverter
     import pyvex
 
     available_converters.add("vex")
-except ImportError as e:
-    log.debug("Could not import VEXIRSBConverter")
-    log.debug(e)
+except ImportError:
+    log.debug("Could not import VEXIRSBConverter", exc_info=True)
     VEXIRSBConverter = None
 
 try:
@@ -33,9 +35,8 @@ try:
     from angr.engines import pcode
 
     available_converters.add("pcode")
-except ImportError as e:
-    log.debug("Could not import PCodeIRSBConverter")
-    log.debug(e)
+except ImportError:
+    log.debug("Could not import PCodeIRSBConverter", exc_info=True)
     PCodeIRSBConverter = None
 
 

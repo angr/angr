@@ -97,7 +97,7 @@ class SimEngineUnicorn(SuccessorsEngine):
         ):
             l.debug("segment register must be synchronized with the concrete target before using unicorn engine")
             return False
-        if state.regs.ip.symbolic:
+        if isinstance(state.regs.ip, tuple) or state.regs.ip.symbolic:
             l.debug("symbolic IP!")
             return False
         if unicorn.countdown_symbolic_stop > 0:

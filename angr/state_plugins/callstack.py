@@ -3,10 +3,14 @@ from __future__ import annotations
 import collections
 import logging
 from collections.abc import Iterator
-from itertools import dropwhile
+from typing_extensions import Self
 
-from angr.errors import AngrError, SimEmptyCallStackError
+import claripy
+
+from angr import errors
+from angr.errors import AngrError, SimEmptyCallStackError, SimSolverError
 from angr.sim_state import SimState
+from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
 
 l = logging.getLogger(name=__name__)
@@ -25,11 +29,10 @@ class CallStack(SimStatePlugin):
         stack_ptr=0,
         ret_addr=0,
         jumpkind="Ijk_Call",
-        next_frame: CallStack | None = None,
+        next_frame: Self | None = None,
         invoke_return_variable=None,
     ):
         super().__init__()
-        self.state = None
         self.call_site_addr = call_site_addr
         self.func_addr = func_addr
         self.stack_ptr = stack_ptr
@@ -47,14 +50,30 @@ class CallStack(SimStatePlugin):
     #
 
     @SimStatePlugin.memo
-    def copy(self, memo, with_tail=True):  # pylint: disable=unused-argument,arguments-differ
+    def copy(self, memo):
         o = super().copy(memo)
         o.call_site_addr = self.call_site_addr
         o.func_addr = self.func_addr
         o.stack_ptr = self.stack_ptr
         o.ret_addr = self.ret_addr
         o.jumpkind = self.jumpkind
-        o.next = self.next if with_tail else None
+        o.next = self.next
+        o.invoke_return_variable = self.invoke_return_variable
+
+        o.block_counter = collections.Counter(self.block_counter)
+        o.procedure_data = self.procedure_data
+        o.locals = dict(self.locals)
+        return o
+
+    @SimStatePlugin.memo
+    def copy_without_tail(self, memo):
+        o = super().copy(memo)
+        o.call_site_addr = self.call_site_addr
+        o.func_addr = self.func_addr
+        o.stack_ptr = self.stack_ptr
+        o.ret_addr = self.ret_addr
+        o.jumpkind = self.jumpkind
+        o.next = None
         o.invoke_return_variable = self.invoke_return_variable
 
         o.block_counter = collections.Counter(self.block_counter)
@@ -138,7 +157,7 @@ class CallStack(SimStatePlugin):
         return self.next == other.next
 
     def __ne__(self, other):
-        return not (self == other)
+        return not (self == other)  # pylint: disable=superfluous-parens
 
     def __hash__(self):
         return hash(tuple((c.func_addr, c.stack_ptr, c.ret_addr) for c in self))
@@ -205,24 +224,8 @@ class CallStack(SimStatePlugin):
         """
         return "[" + ",".join([(f"0x{i:x}") if i is not None else "Unspecified" for i in stack_suffix]) + "]"
 
-    @staticmethod
-    def _rfind(lst, item):
-        """
-        Reverse look-up.
-
-        :param list lst: The list to look up in.
-        :param item: The item to look for.
-        :return: Offset of the item if found. A ValueError is raised if the item is not in the list.
-        :rtype: int
-        """
-
-        try:
-            return dropwhile(lambda x: lst[x] != item, next(reversed(range(len(lst)))))
-        except Exception as e:
-            raise ValueError(f"{item} not in the list") from e
-
     @property
-    def top(self):
+    def top(self) -> Self:
         """
         Returns the element at the top of the callstack without removing it.
 
@@ -234,7 +237,7 @@ class CallStack(SimStatePlugin):
     # Public methods
     #
 
-    def push(self, cf):
+    def push(self, cf: Self) -> Self:
         """
         Push the frame cf onto the stack. Return the new stack.
         """
@@ -242,7 +245,7 @@ class CallStack(SimStatePlugin):
         if self.state is not None:
             self.state.register_plugin("callstack", cf)
             self.state.history.recent_stack_actions.append(
-                CallStackAction(hash(cf), len(cf), "push", callframe=cf.copy({}, with_tail=False))
+                CallStackAction(hash(cf), len(cf), "push", callframe=cf.copy_without_tail({}))
             )
 
         return cf
@@ -274,7 +277,7 @@ class CallStack(SimStatePlugin):
         :return: None
         """
 
-        frame = CallStack(call_site_addr=callsite_addr, func_addr=addr, ret_addr=retn_target, stack_ptr=stack_pointer)
+        frame = type(self)(call_site_addr=callsite_addr, func_addr=addr, ret_addr=retn_target, stack_ptr=stack_pointer)
         return self.push(frame)
 
     def ret(self, retn_target=None):
@@ -319,7 +322,8 @@ class CallStack(SimStatePlugin):
         stack = []
         for i, frame in enumerate(self):
             stack.append(
-                f"{i} | {frame.call_site_addr:#x} -> {frame.func_addr:#x}, returning to {frame.current_return_target:#x}"
+                f"{i} | {frame.call_site_addr:#x} -> {frame.func_addr:#x}, "
+                f"returning to {frame.current_return_target:#x}"
             )
 
         return "\n".join(stack)
@@ -363,6 +367,82 @@ class CallStack(SimStatePlugin):
             if frame.ret_addr == target:
                 return i
         return None
+
+    def _manage(self):
+        # For architectures with no stack pointer, we can't manage a callstack. This has the side effect of breaking
+        # SimProcedures that call out to binary code self.call.
+        try:
+            if not isinstance(self.state.addr, int):
+                return
+        except SimSolverError:
+            return
+        if self.state.arch.sp_offset is None:
+            return
+
+        # condition for call = Ijk_Call
+        # condition for ret = stack pointer drops below call point
+        if self.state.history.jumpkind == "Ijk_Call":
+            self.state._inspect("call", BP_BEFORE, function_address=self.state.regs._ip)
+            new_func_addr = self.state._inspect_getattr("function_address", None)
+            if new_func_addr is not None and not claripy.is_true(new_func_addr == self.state.regs._ip):
+                self.state.regs._ip = new_func_addr
+
+            try:
+                if self.state.arch.call_pushes_ret:
+                    ret_addr = self.state.mem[self.state.regs._sp].long.concrete
+                else:
+                    ret_addr = self.state.solver.eval(self.state.regs._lr)
+            except (errors.SimSolverModeError, errors.SimUnsatError, AttributeError, KeyError):
+                # Use the address for UnresolvableCallTarget instead.
+                ret_addr = self.state.project.simos.unresolvable_call_target
+
+            try:
+                state_addr = self.state.addr
+            except (errors.SimValueError, errors.SimSolverModeError):
+                state_addr = None
+
+            try:
+                stack_ptr = self.state.solver.eval(self.state.regs._sp)
+            except (errors.SimSolverModeError, errors.SimUnsatError):
+                stack_ptr = 0
+
+            new_frame = type(self)(
+                call_site_addr=self.state.history.recent_bbl_addrs[-1],
+                func_addr=state_addr,
+                stack_ptr=stack_ptr,
+                ret_addr=ret_addr,
+                jumpkind="Ijk_Call",
+            )
+            self.push(new_frame)
+
+            self.state._inspect("call", BP_AFTER)
+        else:
+            rself = self
+            while True:
+                cur_sp = (
+                    rself.state.solver.max(rself.state.regs._sp)
+                    if rself.state.has_plugin("symbolizer")
+                    else rself.state.regs._sp
+                )
+                if not rself.state.solver.is_true(cur_sp > rself.top.stack_ptr):
+                    break
+                rself.state._inspect("return", BP_BEFORE, function_address=rself.top.func_addr)
+                rself = rself.pop()
+                rself.state._inspect("return", BP_AFTER)
+
+            if (
+                not rself.state.arch.call_pushes_ret
+                and claripy.is_true(rself.state.regs._ip == rself.ret_addr)
+                and claripy.is_true(rself.state.regs._sp == rself.stack_ptr)
+            ):
+                # very weird edge case that's not actually weird or on the edge at all:
+                # if we use a link register for the return address, the stack pointer will be the same
+                # before and after the call. therefore we have to check for equality with the marker
+                # along with this other check with the instruction pointer to guess whether it's time
+                # to pop a callframe. Still better than relying on Ijk_Ret.
+                rself.state._inspect("return", BP_BEFORE, function_address=rself.top.func_addr)
+                rself = rself.pop()
+                rself.state._inspect("return", BP_AFTER)
 
 
 class CallStackAction:

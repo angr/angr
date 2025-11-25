@@ -1,9 +1,13 @@
 from __future__ import annotations
 import logging
 
+import claripy
+import cle
+from archinfo.arch_soot import SootAddressDescriptor
+
+import angr
 from .successors import SuccessorsEngine
 from .procedure import ProcedureMixin
-from archinfo.arch_soot import SootAddressDescriptor
 
 l = logging.getLogger(name=__name__)
 
@@ -31,21 +35,42 @@ class HooksMixin(SuccessorsEngine, ProcedureMixin):
         if state.history and state.history.parent and state.history.parent.jumpkind == "Ijk_NoHook":
             return None
 
-        if type(state._ip) is not int and state._ip.symbolic:
+        if isinstance(state._ip, claripy.ast.BV) and state._ip.symbolic:
             # symbolic IP is not supported
             return None
-
         addr = state.addr
-        procedure = self.project._sim_procedures.get(addr, None)
+        if isinstance(addr, tuple):
+            addr = addr[0]
+        if not isinstance(addr, int):
+            return None
+
+        procedure = self._get_proc_at_addr(state, addr)
         if procedure is not None:
             return procedure
 
         if not state.arch.name.startswith("ARM") or addr & 1 != 1:
             return None
 
-        procedure = self.project._sim_procedures.get(addr - 1, None)
+        procedure = self._get_proc_at_addr(state, addr - 1)
         if procedure is not None:
             return procedure
+
+        return None
+
+    def _get_proc_at_addr(self, state, addr) -> angr.SimProcedure | None:
+        procedure = self.project._sim_procedures.get(addr, None)
+        if procedure is not None:
+            return procedure
+        if angr.options.RUN_HOOKS_AT_PLT in state.options:
+            obj = self.project.loader.find_object_containing(addr)
+            if obj is not None and isinstance(obj, cle.ELF) and addr in obj.reverse_plt:
+                proc_name = obj.reverse_plt[addr]
+                real_sym = self.project.loader.find_symbol(proc_name)
+                assert real_sym is not None
+
+                procedure = self.project._sim_procedures.get(real_sym.rebased_addr, None)
+                if procedure is not None:
+                    return procedure
 
         return None
 
