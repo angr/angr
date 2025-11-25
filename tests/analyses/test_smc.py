@@ -1,33 +1,14 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
 import os
-import subprocess
-import tempfile
 import unittest
-
-import archinfo
 
 import angr
 
+from tests.common import bin_location
 
-def gcc(c: str) -> str:
-    """
-    Use GCC compile `c` and return path to the binary.
-    """
-    print(c)
-    with tempfile.NamedTemporaryFile(suffix=".c", delete=False) as f_in:
-        path_out = f_in.name + ".bin"
-        try:
-            f_in.write(c.encode("utf-8"))
-            f_in.close()
 
-            try:
-                subprocess.check_call(["gcc", "-o", path_out, f_in.name])
-            except FileNotFoundError as e:
-                raise unittest.SkipTest("gcc is not installed") from e
-            return path_out
-        finally:
-            os.unlink(f_in.name)
+test_location = os.path.join(bin_location, "tests")
 
 
 class TestTraceClassifier(unittest.TestCase):
@@ -65,39 +46,7 @@ class TestTraceClassifier(unittest.TestCase):
         """
         Evaluate a binary that allocates a buffer, writes code to that buffer, then runs it.
         """
-        arch = archinfo.ArchAMD64()
-        code_asm = "mov eax, 0xdeadbeef; ret"
-        code_bytes, _ = arch.keystone.asm(code_asm, as_bytes=True)
-        code_as_hex = "".join(f"\\x{b:02x}" for b in code_bytes)
-        code_len = len(code_bytes)
-        c_src = f"""
-                #include <assert.h>
-                #include <stdlib.h>
-                #include <malloc.h>
-                #include <stdio.h>
-                #include <string.h>
-                #include <sys/mman.h>
-                #include <unistd.h>
-                #define ALIGN_UP(v, align) (((v)+(align)-1)&~((align)-1))
-                int main(int argc, char **argv) {{
-                        size_t page_size = sysconf(_SC_PAGE_SIZE);
-                        assert(page_size != -1);
-                        size_t buf_size = ALIGN_UP({code_len}, page_size);
-                        // we can't symbolically execute through memalign in native glibc yet
-                        // void *buf = memalign(page_size, buf_size);
-                        void *buf = malloc(buf_size);
-                        assert(buf);
-                        memcpy(buf, \"{code_as_hex}\", {code_len});
-                        int status = mprotect(buf, buf_size, PROT_EXEC | PROT_READ);
-                        assert(status != -1);
-                        int v = ( (int(*)(void)) buf )();
-                        printf("v = 0x%x\\n", v);
-                        return 0;
-                }}
-                """
-
-        path = gcc(c_src)
-        p = angr.Project(path, selfmodifying_code=True, auto_load_libs=False)
+        p = angr.Project(os.path.join(test_location, "x86_64", "smc"), selfmodifying_code=True, auto_load_libs=False)
         is_smc = p.analyses.SMC("main").result
         assert is_smc
 
