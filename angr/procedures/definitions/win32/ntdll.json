@@ -11,6 +11,12 @@
 		"AMD64": "SimCCMicrosoftAMD64"
 	},
 	"functions": {
+		"NtGetCurrentPeb": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PEB', 'ot': 'struct'}}, 'arg_names': []}"
+		},
+		"NtGetCurrentTeb": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'TEB', 'ot': 'struct'}}, 'arg_names': []}"
+		},
 		"RtlAddGrowableFunctionTable": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMAGE_RUNTIME_FUNCTION_ENTRY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DynamicTable', 'FunctionTable', 'EntryCount', 'MaximumEntryCount', 'RangeBase', 'RangeEnd']}"
 		},
