@@ -369,7 +369,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         return Stmt.Call(
                             ccall.idx,
                             "__CFADD__",
-                            calling_convention=SimCCUsercall(self.arch, [], None),
+                            calling_convention=SimCCUsercall(self.project.arch, [], None),
                             args=[dep_1, dep_2],
                             bits=ccall.bits,
                             **ccall.tags,

@@ -8,12 +8,12 @@ class CCallRewriterBase:
     """
 
     __slots__ = (
-        "arch",
+        "project",
         "result",
     )
 
-    def __init__(self, ccall: ailment.Expr.VEXCCallExpression, arch, rename_ccalls: bool = False):
-        self.arch = arch
+    def __init__(self, ccall: ailment.Expr.VEXCCallExpression, project, rename_ccalls: bool = False):
+        self.project = project
         self.result: ailment.Expr.Expression | None = self._rewrite(ccall)
         if rename_ccalls and self.result is None and ccall.callee != "_ccall":
             renamed = ccall.copy()
