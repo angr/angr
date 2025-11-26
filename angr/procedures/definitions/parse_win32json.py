@@ -2466,6 +2466,14 @@ def do_it(in_dir):
         ),
         "MD5Final": SimTypeFunction([SimTypeLong(signed=True)], SimTypeLong(signed=True)),
     }
+    missing_declarations[("win32", "ntdll", "dll")] = {
+        "NtGetCurrentTeb": SimTypeFunction(
+            [], angr.types.SimTypePointer(angr.types.SimTypeRef("TEB", angr.types.SimStruct))
+        ),
+        "NtGetCurrentPeb": SimTypeFunction(
+            [], angr.types.SimTypePointer(angr.types.SimTypeRef("PEB", angr.types.SimStruct))
+        ),
+    }
 
     for (prefix, lib, suffix), decls in missing_declarations.items():
 
