@@ -78,7 +78,12 @@ class TestFunctionManager(unittest.TestCase):
         assert set(main.block_addrs) == expected_blocks
         assert [bl.addr for bl in main.endpoints] == [0x4007D3]
         assert set(main.get_call_sites()) == expected_callsites
-        assert set(map(main.get_call_target, main.get_call_sites())) == expected_callsite_targets
+        assert {
+                   t
+                   for cs in main.get_call_sites()
+                   for t in main.get_call_target(cs)
+               } == expected_callsite_targets
+
         assert set(map(main.get_call_return, main.get_call_sites())) == expected_callsite_returns
         assert main.has_return
 
