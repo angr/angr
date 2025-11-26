@@ -2101,7 +2101,7 @@ class AILSimplifier(Analysis):
             r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             if r_expr is None:
                 r_expr = expr
-            rewriter = rewriter_cls(r_expr, self.project.arch, rename_ccalls=self._should_rename_ccalls)
+            rewriter = rewriter_cls(r_expr, self.project, rename_ccalls=self._should_rename_ccalls)
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result
