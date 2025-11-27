@@ -111,7 +111,6 @@ target-version = ['py310']
 force-exclude = '''
 /(
   angr\/protos
-| angr\/procedures\/definitions
 )/
 '''
 
