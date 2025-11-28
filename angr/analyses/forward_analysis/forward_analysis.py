@@ -1,24 +1,36 @@
 from __future__ import annotations
+
+# pylint: disable=import-outside-toplevel
 from collections import defaultdict
 from typing import Any, Generic, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
 import networkx
 
+from angr.analyses.forward_analysis.visitors.function_graph import FunctionGraphVisitor
+from angr.knowledge_plugins.functions.function import Function
+
 from .visitors.graph import NodeType
-from angr.sim_state import SimState
-from angr.errors import AngrForwardAnalysisError
-from angr.errors import AngrSkipJobNotice, AngrDelayJobNotice, AngrJobMergingFailureNotice, AngrJobWideningFailureNotice
+from angr.errors import (
+    AngrSkipJobNotice,
+    AngrDelayJobNotice,
+    AngrJobMergingFailureNotice,
+    AngrJobWideningFailureNotice,
+    AngrForwardAnalysisError,
+)
 from angr.utils.algo import binary_insert
 from .job_info import JobInfo, JobType, JobKey
 
 if TYPE_CHECKING:
     from .visitors.graph import GraphVisitor
+    from angr import ailment
+    from angr.analyses.decompiler import Clinic
 
 AnalysisState = TypeVar("AnalysisState")
+SuccessorType = TypeVar("SuccessorType")
 
 
-class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
+class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, SuccessorType]):
     """
     This is my very first attempt to build a static forward analysis framework that can serve as the base of multiple
     static analyses in angr, including CFG analysis, VFG analysis, DDG, etc.
@@ -43,7 +55,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         order_jobs=False,
         allow_merging=False,
         allow_widening=False,
-        status_callback: Callable[[type[ForwardAnalysis]], Any] | None = None,
+        status_callback: Callable[[ForwardAnalysis], Any] | None = None,
         graph_visitor: GraphVisitor[NodeType] | None = None,
     ):
         """
@@ -151,16 +163,18 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
     def _job_key(self, job: JobType) -> JobKey:
         raise NotImplementedError("_job_key() is not implemented.")
 
-    def _get_successors(self, job: JobType) -> list[SimState] | list[JobType]:
+    def _get_successors(self, job: JobType) -> list[SuccessorType]:
         raise NotImplementedError("_get_successors() is not implemented.")
 
     def _pre_job_handling(self, job: JobType) -> None:
         raise NotImplementedError("_pre_job_handling() is not implemented.")
 
-    def _post_job_handling(self, job: JobType, new_jobs, successors: list[SimState]) -> None:
+    def _post_job_handling(self, job: JobType, new_jobs: list[JobType], successors: list[SuccessorType]) -> None:
         raise NotImplementedError("_post_job_handling() is not implemented.")
 
-    def _handle_successor(self, job: JobType, successor: SimState, successors: list[SimState]) -> list[JobType]:
+    def _handle_successor(
+        self, job: JobType, successor: SuccessorType, successors: list[SuccessorType]
+    ) -> list[JobType]:
         raise NotImplementedError("_handle_successor() is not implemented.")
 
     def _job_queue_empty(self) -> None:
@@ -270,10 +284,11 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         self._post_analysis()
 
     def _analysis_core_graph(self) -> None:
+        assert self._graph_visitor is not None
         while not self.should_abort:
             self._intra_analysis()
 
-            n: NodeType = self._graph_visitor.next_node()
+            n = self._graph_visitor.next_node()
 
             if n is None:
                 break
@@ -287,8 +302,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
             if changed is False:
                 # no change is detected
                 self._output_state[self._node_key(n)] = output_state
-                continue
-            if changed is True:
+            elif changed is True:
                 # changes detected
 
                 # output state of node n is input state for successors to node n
@@ -321,6 +335,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         :param input_state: The state that will be added to successors of the node.
         """
 
+        assert self._graph_visitor is not None
         successors = set(self._graph_visitor.successors(node))
         # successors_to_visit = set()  # a collection of successors whose input states did not reach a fixed point
 
@@ -344,8 +359,8 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         :return:     A merged state, or None if there is no input state for this node available.
         """
 
-        if self._node_key(node) in self._input_states:
-            input_state = self._get_input_state(node)
+        input_state = self._get_input_state(node)
+        if input_state is not None:
             self._input_states[self._node_key(node)] = [input_state]
             return input_state
         return None
@@ -358,10 +373,10 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
         :return:        A merged state, or None if there is no input state for this node available.
         """
 
-        if self._node_key(node) not in self._input_states:
+        key = self._node_key(node)
+        all_input_states = self._input_states.get(key, None)
+        if all_input_states is None:
             return None
-
-        all_input_states = self._input_states.get(self._node_key(node))
         if len(all_input_states) == 1:
             return all_input_states[0]
         if self._allow_merging:
@@ -528,3 +543,77 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey]):
             key = self._job_key(job_info.job)
             if key in self._job_map:
                 del self._job_map[key]
+
+
+class ForwardAnalysisForDummies(
+    Generic[AnalysisState, NodeType, JobKey], ForwardAnalysis[AnalysisState, NodeType, NodeType, JobKey, NodeType]
+):
+    def __init__(self, *args, function: Function, graph: networkx.DiGraph[NodeType], **kwargs):
+        self._graph_for_dummies = graph
+        ForwardAnalysis.__init__(self, *args, graph_visitor=FunctionGraphVisitor(function, graph), **kwargs)
+
+    def _pre_analysis(self) -> None:
+        pass
+
+    def _intra_analysis(self) -> None:
+        pass
+
+    def _post_analysis(self) -> None:
+        pass
+
+    def _get_successors(self, job: NodeType) -> list[NodeType]:
+        return list(self._graph_for_dummies.succ[job])
+
+    def _pre_job_handling(self, job) -> None:
+        pass
+
+    def _post_job_handling(self, job, new_jobs, successors) -> None:
+        pass
+
+    def _handle_successor(self, job, successor, successors):
+        return [successor]
+
+    def _job_queue_empty(self) -> None:
+        pass
+
+
+class ForwardAnalysisForClinic(
+    Generic[AnalysisState], ForwardAnalysisForDummies[AnalysisState, "ailment.Block", tuple[int, int | None]]
+):
+    def __init__(self, *args, clinic: Clinic, **kwargs):
+        assert clinic.graph is not None
+        ForwardAnalysisForDummies.__init__(self, *args, function=clinic.function, graph=clinic.graph, **kwargs)
+
+    def _job_key(self, job: ailment.Block) -> tuple[int, int | None]:
+        return (job.addr, job.idx)
+
+    def _run_on_node(self, node: ailment.Block, state: AnalysisState) -> tuple[bool | None, AnalysisState]:
+        from angr import ailment
+
+        status, result = self._step_node(node, state)
+
+        for succ in self._graph_for_dummies.succ[node]:
+            for stmt in succ.statements:
+                if isinstance(stmt, ailment.statement.Assignment) and isinstance(stmt.src, ailment.expression.Phi):
+                    assert isinstance(stmt.dst, ailment.expression.VirtualVariable)
+                    for pred, vvar in stmt.src.src_and_vvars:
+                        if pred == (node.addr, node.idx):
+                            assert vvar is not None
+                            self._handle_phi(node, succ, result, stmt.dst, vvar)
+                            break
+                    else:
+                        raise AngrForwardAnalysisError("Failed to find appropriate predecessor")
+        return status, result
+
+    def _handle_phi(
+        self,
+        node: ailment.Block,
+        succ: ailment.Block,
+        state: AnalysisState,
+        dst_vvar: ailment.expression.VirtualVariable,
+        src_vvar: ailment.expression.VirtualVariable,
+    ) -> None:
+        pass
+
+    def _step_node(self, node: ailment.Block, state: AnalysisState) -> tuple[bool | None, AnalysisState]:
+        raise NotImplementedError

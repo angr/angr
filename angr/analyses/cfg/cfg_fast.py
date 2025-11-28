@@ -544,7 +544,7 @@ class CFGJob:
         )
 
 
-class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int], CFGBase):  # pylint: disable=abstract-method
+class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase):  # pylint: disable=abstract-method
     """
     We find functions inside the given binary, and build a control-flow graph in very fast manners: instead of
     simulating program executions, keeping track of states, and performing expensive data-flow analysis, CFGFast will
