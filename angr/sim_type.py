@@ -2746,6 +2746,9 @@ GLIBC_TYPES = {
         },
         name="FILE_t",
     ),
+    
+    "FILE": SimStruct({}, name="FILE"),
+
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/stdio-common/printf.h#L34
     "printf_info": SimStruct(
         {
