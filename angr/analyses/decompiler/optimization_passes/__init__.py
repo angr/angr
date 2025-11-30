@@ -37,6 +37,7 @@ from .determine_load_sizes import DetermineLoadSizes
 from .eager_std_string_concatenation import EagerStdStringConcatenationPass
 from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
 from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvanced
+from .inlined_strlen_simplifier import InlinedStrlenSimplifier
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -76,6 +77,7 @@ ALL_OPTIMIZATION_PASSES = [
     EagerStdStringConcatenationPass,
     PostStructuringPeepholeOptimizationPass,
     RegisterSaveAreaSimplifierAdvanced,
+    InlinedStrlenSimplifier,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -136,6 +138,7 @@ __all__ = (
     "ITEExprConverter",
     "ITERegionConverter",
     "InlinedStringTransformationSimplifier",
+    "InlinedStrlenSimplifier",
     "LoweredSwitchSimplifier",
     "ModSimplifier",
     "OptimizationPassStage",
