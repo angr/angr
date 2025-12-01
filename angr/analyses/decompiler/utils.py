@@ -497,8 +497,8 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     in_edges = list(graph.in_edges(node_a, data=True))
     out_edges = list(graph.out_edges(node_b, data=True))
 
-    a_ogs = graph.nodes[node_a].get("original_nodes", set())
-    b_ogs = graph.nodes[node_b].get("original_nodes", set())
+    a_ogs = graph.nodes[node_a].get("original_nodes", [])
+    b_ogs = graph.nodes[node_b].get("original_nodes", [])
     new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
     old_node = node_b if new_node == node_a else node_a
     # remove jumps in the middle of nodes when merging
@@ -511,7 +511,7 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     graph.remove_node(node_b)
 
     if new_node is not None:
-        graph.add_node(new_node, original_nodes=a_ogs.union(b_ogs))
+        graph.add_node(new_node, original_nodes=a_ogs + b_ogs)
         for src, _, data in in_edges:
             if src is node_b:
                 src = new_node
@@ -536,7 +536,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph, allow_fake=False) -> n
     """
     # make a copy of the graph
     transition_graph = networkx.DiGraph(transition_graph)
-    networkx.set_node_attributes(transition_graph, {node: {node} for node in transition_graph.nodes}, "original_nodes")
+    networkx.set_node_attributes(transition_graph, {node: [node] for node in transition_graph.nodes}, "original_nodes")
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):

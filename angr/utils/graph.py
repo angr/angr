@@ -30,7 +30,9 @@ def shallow_reverse(g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     return new_g
 
 
-def inverted_idoms(graph: networkx.DiGraph[T]) -> tuple[networkx.DiGraph[T], dict[T, T] | None]:
+def inverted_idoms(
+    graph: networkx.DiGraph[T], end_node: T | None = None
+) -> tuple[networkx.DiGraph[T], dict[T, T] | None]:
     """
     Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
     computing post-dominators.
@@ -39,8 +41,8 @@ def inverted_idoms(graph: networkx.DiGraph[T]) -> tuple[networkx.DiGraph[T], dic
     :return:        A tuple of the inverted graph and the immediate dominator tree.
     """
 
-    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0}
     inverted_graph: networkx.DiGraph = shallow_reverse(graph)
+    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0} if end_node is None else {end_node}
     if end_nodes:
         if len(end_nodes) > 1:
             # make sure there is only one end node
