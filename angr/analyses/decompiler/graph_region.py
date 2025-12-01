@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections.abc import Collection
 import logging
 from typing import Any
 from collections import defaultdict
@@ -72,6 +73,7 @@ class GraphRegion:
 
         for node in self.graph.nodes():
             if hasattr(node, "addr"):
+                assert isinstance(node.addr, int)
                 addrs.append(node.addr)
         if addrs:
             s = f": {min(addrs):#x}-{max(addrs):#x}"
@@ -197,6 +199,10 @@ class GraphRegion:
         virtualized_edges: set[tuple[Any, Any]],
     ):
         assert self.graph is not None
+        assert sub_region.graph_with_successors is not None
+        assert sub_region.successors is not None
+        assert updated_sub_region.graph_with_successors is not None
+        assert updated_sub_region.successors is not None
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception
@@ -249,6 +255,9 @@ class GraphRegion:
 
     def replace_region_with_region(self, sub_region: GraphRegion, replace_with: GraphRegion):
         assert self.graph is not None
+        assert replace_with.successors is not None
+        assert replace_with.graph_with_successors is not None
+        assert replace_with.graph is not None
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception
@@ -338,8 +347,8 @@ class GraphRegion:
 
     def _replace_node_in_graph_with_subgraph(
         self,
-        graph: networkx.DiGraph[Block | GraphRegion],
-        known_successors: list[Block | GraphRegion] | None,
+        graph: networkx.DiGraph[Block | GraphRegion | MultiNode | ConditionNode],
+        known_successors: Collection[Block | GraphRegion | MultiNode | ConditionNode] | None,
         reference_full_graph: networkx.DiGraph[Block] | None,
         node,
         sub_graph: networkx.DiGraph,
