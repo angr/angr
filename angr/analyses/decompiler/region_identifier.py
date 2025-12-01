@@ -8,7 +8,7 @@ import networkx
 
 import angr.ailment as ailment
 from angr.ailment import Block
-from angr.ailment.statement import ConditionalJump, Jump
+from angr.ailment.statement import ConditionalJump, Jump, Call
 from angr.ailment.expression import Const
 
 from angr.utils.graph import GraphUtils
@@ -26,6 +26,23 @@ l = logging.getLogger(name=__name__)
 
 # an ever-incrementing counter
 CONDITIONNODE_ADDR = count(0xFF000000)
+
+# Temporary; just to deal with rebasing
+TGraph = networkx.DiGraph
+TNode = Any
+
+
+class DummyEndNode:
+    """
+    A dummy end node used in region identification. When there are more than one end nodes in a region, we create
+    a DummyEndNode and make all original end nodes point to it.
+    """
+
+    __slots__ = ()
+
+    @property
+    def addr(self) -> int:
+        return -1
 
 
 class RegionIdentifier(Analysis):
@@ -256,7 +273,20 @@ class RegionIdentifier(Analysis):
             else:
                 break
 
-    def _find_loop_headers(self, graph: networkx.DiGraph) -> list:
+    def _find_control_dependent_node(self, graph: TGraph, node: TNode) -> tuple[TNode | None, TNode | None]:
+        preds = [pred for pred in graph.predecessors(node) if pred is not node]
+        if len(preds) == 1:
+            pred = preds[0]
+            nsuccs = sum(1 for succ in graph.successors(pred) if succ is not pred)
+            if nsuccs > 1:
+                return pred, node
+            if nsuccs == 1:
+                return self._find_control_dependent_node(graph, pred)
+        # multiple predecessors or no predecessors
+        return None, None
+
+    def _find_loop_headers(self, graph: TGraph) -> list[TNode]:
+        assert self._start_node is not None
         heads = list({t for _, t in dfs_back_edges(graph, self._start_node)})
         return self._sort_nodes(heads)
 
@@ -697,6 +727,35 @@ class RegionIdentifier(Analysis):
             l.critical("No end node is found in a supposedly acyclic graph. Is it really acyclic?")
             return False
 
+        # special case: we add virtual edges for jumpout sites and callout sites to the other successor of their
+        # control-dependent node.
+        if len(endnodes) > 1:
+            endnodes = sorted(endnodes, key=lambda n: (n.addr, n.idx if getattr(n, "idx", None) is not None else -1))
+            graph_copy = networkx.DiGraph(graph_copy)
+            for i, endnode in enumerate(endnodes):
+                if isinstance(endnode, Block) and endnode.statements:
+                    last_stmt = endnode.statements[-1]
+                    if (
+                        isinstance(last_stmt, Call)
+                        and isinstance(last_stmt.target, Const)
+                        and self.kb.functions.contains_addr(last_stmt.target.value)
+                        and not self.kb.functions.get_by_addr(last_stmt.target.value).returning
+                    ):
+                        pred, succ = self._find_control_dependent_node(graph_copy, endnode)
+                        if pred is not None:
+                            succs = [node for node in graph_copy.successors(pred) if node is not succ]
+                            if len(succs) >= 1:
+                                other_succ = min(
+                                    succs,
+                                    key=lambda node: (
+                                        node.addr,
+                                        -2 if (idx := getattr(node, "idx", -1)) is None else idx,
+                                    ),
+                                )
+                                graph_copy.add_edge(endnode, other_succ)
+                                endnodes[i] = None
+            endnodes = [n for n in endnodes if n is not None]
+
         add_dummy_endnode = False
         if len(endnodes) > 1:
             # if this graph has multiple end nodes: create a single end node
@@ -709,7 +768,7 @@ class RegionIdentifier(Analysis):
         if add_dummy_endnode:
             # we need a copy of the graph!
             graph_copy = networkx.DiGraph(graph_copy)
-            dummy_endnode = "DUMMY_ENDNODE"
+            dummy_endnode = DummyEndNode()
             for endnode in endnodes:
                 graph_copy.add_edge(endnode, dummy_endnode)
             endnodes = [dummy_endnode]
