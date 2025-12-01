@@ -1,5 +1,6 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+from typing import Any
 
 from angr.ailment import Block
 from angr.ailment.statement import Assignment, Label, ConditionalJump, Call
@@ -60,6 +61,7 @@ class InlinedStrlenSimplifier(OptimizationPass):
         self._update_block(block, new_block)
 
         # remove the self-loop edge
+        assert self.out_graph is not None
         if self.out_graph.has_edge(new_block, new_block):
             self.out_graph.remove_edge(new_block, new_block)
 
@@ -73,22 +75,24 @@ class InlinedStrlenSimplifier(OptimizationPass):
 
         for block in self._graph:
             r, d = self._is_strlen_pattern_1_core_block(block)
-            if r and d["load_size"] in {1, 2}:
-                # ensure the index variable is initialized to -1
-                index_var_src = d["index_var_src"]
-                index_var = d["index_var"]
+            if r:
+                assert d is not None
+                if d["load_size"] in {1, 2}:
+                    # ensure the index variable is initialized to -1
+                    index_var_src: tuple[int, int | None] = d["index_var_src"]
+                    index_var: VirtualVariable = d["index_var"]
 
-                index_var_init_value = self._find_var_init_value(blocks_dict[index_var_src], index_var)
-                if (
-                    index_var_init_value is not None
-                    and isinstance(index_var_init_value, Const)
-                    and u2s(index_var_init_value.value_int, index_var.bits) == -1
-                ):
-                    strlen_descs.append(d)
+                    index_var_init_value = self._find_var_init_value(blocks_dict[index_var_src], index_var)
+                    if (
+                        index_var_init_value is not None
+                        and isinstance(index_var_init_value, Const)
+                        and u2s(index_var_init_value.value_int, index_var.bits) == -1
+                    ):
+                        strlen_descs.append(d)
         return strlen_descs
 
     @staticmethod
-    def _is_strlen_pattern_1_core_block(block: Block) -> tuple[bool, dict[str, Expression] | None]:
+    def _is_strlen_pattern_1_core_block(block: Block) -> tuple[bool, dict[str, Any] | None]:
         """
         Pattern 1:
 
@@ -163,7 +167,8 @@ class InlinedStrlenSimplifier(OptimizationPass):
             src_to_vvars = dict(phi_stmt.src.src_and_vvars)
             if (block.addr, block.idx) not in src_to_vvars:
                 return False, None
-            if src_to_vvars[(block.addr, block.idx)].likes(v1):
+            vvar = src_to_vvars[(block.addr, block.idx)]
+            if vvar is not None and vvar.likes(v1):
                 # self-loop
                 v_phi_src, v_phi_src_var = next(
                     (src, vvar) for src, vvar in phi_stmt.src.src_and_vvars if src != (block.addr, block.idx)
