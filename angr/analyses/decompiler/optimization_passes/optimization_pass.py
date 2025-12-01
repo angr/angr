@@ -151,7 +151,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
         self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
         self._graph = graph
-        self._variable_kb if variable_kb is not None else self.kb
+        self._variable_kb = variable_kb if variable_kb is not None else self.kb
         self._ri = region_identifier
         self._rd = reaching_definitions
         self._scratch = scratch if scratch is not None else {}
