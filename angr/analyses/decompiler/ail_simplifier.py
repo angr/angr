@@ -10,6 +10,7 @@ import networkx
 
 from angr.ailment import AILBlockWalker
 from angr.ailment.block import Block
+from angr.ailment.block_walker import AILBlockWalkerBase
 from angr.ailment.statement import (
     Statement,
     Assignment,
@@ -85,7 +86,7 @@ class HasRefVVarNotification(Exception):
     """
 
 
-class AILBlockTempCollector(AILBlockWalker):
+class AILBlockTempCollector(AILBlockWalkerBase[None, None, None]):
     """
     Collects any temporaries used in a block.
     """
@@ -96,7 +97,7 @@ class AILBlockTempCollector(AILBlockWalker):
         self.expr_handlers[Tmp] = self._handle_Tmp
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
+    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block):
         if isinstance(expr, Tmp):
             self.temps.add(expr)
 
@@ -142,7 +143,7 @@ class PartialConstantExprRewriter(AILBlockWalker):
             high_bits_mask &= mask  # in case high bits of mask are zero
             new_mask = mask ^ high_bits_mask
             if new_mask == mask:
-                return None
+                return expr
             if new_mask == 0:
                 return Const(expr_idx, None, 0, expr.bits, **expr.tags)
             new_mask_expr = Const(mask_expr.idx, mask_expr.variable, new_mask, mask_expr.bits, **mask_expr.tags)
@@ -2104,7 +2105,7 @@ class AILSimplifier(Analysis):
 
         def _handle_VEXCCallExpression(
             expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
-        ) -> Expression | None:
+        ) -> Expression:
             r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             if r_expr is None:
                 r_expr = expr
@@ -2112,7 +2113,7 @@ class AILSimplifier(Analysis):
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result
-            return r_expr if r_expr is not expr else None
+            return r_expr
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
@@ -2148,15 +2149,16 @@ class AILSimplifier(Analysis):
 
         def _handle_DirtyStatement(  # pylint:disable=unused-argument
             stmt_idx: int, stmt: DirtyStatement, block: Block | None
-        ) -> DirtyStatement | None:
+        ) -> Statement:
             # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
             rewriter = rewriter_cls(stmt, self.project.arch)
             if rewriter.result is not None:
                 _any_update.v = True
                 if walker._update_block and block is not None:
                     block.statements[stmt_idx] = rewriter.result  # type:ignore
-                return rewriter.result  # type:ignore
-            return None
+                assert isinstance(rewriter.result, Statement)
+                return rewriter.result
+            return stmt
 
         def _handle_DirtyExpression(
             expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
@@ -2168,7 +2170,7 @@ class AILSimplifier(Analysis):
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result
-            return r_expr if r_expr is not expr else None
+            return r_expr
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
@@ -2194,7 +2196,7 @@ class AILSimplifier(Analysis):
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             raise HasCallNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockWalkerBase()
         walker.expr_handlers[Call] = _handle_callexpr
         try:
             walker.walk_statement(stmt)
@@ -2208,7 +2210,7 @@ class AILSimplifier(Analysis):
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             raise HasCallNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockWalkerBase()
         walker.expr_handlers[Call] = _handle_callexpr
         try:
             walker.walk_expression(expr)
@@ -2223,7 +2225,7 @@ class AILSimplifier(Analysis):
             if expr.varid in vvar_ids:
                 raise HasVVarNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockWalkerBase()
         walker.expr_handlers[VirtualVariable] = _handle_VirtualVariable
 
         for expr in exprs:
@@ -2239,7 +2241,7 @@ class AILSimplifier(Analysis):
             if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == vvar_id:
                 raise HasRefVVarNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockWalkerBase()
         walker.expr_handlers[UnaryOp] = _handle_UnaryOp
         try:
             walker.walk_statement(stmt)

@@ -54,9 +54,9 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
 
         return new_stmt
 
-    def _handle_VirtualVariable(  # type:ignore
+    def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
-    ) -> VirtualVariable | None:
+    ) -> VirtualVariable:
         if expr.varid in self.vvar_mapping:
             return VirtualVariable(
                 expr.idx,
@@ -68,15 +68,7 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
                 variable_offset=expr.variable_offset,
                 **expr.tags,
             )
-        return None
-
-    def _handle_stmt(self, stmt_idx: int, stmt, block: Block):  # type:ignore
-        r = super()._handle_stmt(stmt_idx, stmt, block)
-        if r is not None:
-            # replace the original statement
-            if self.new_block is None:
-                self.new_block = block.copy()
-            self.new_block.statements[stmt_idx] = r
+        return expr
 
 
 class ReturnDuplicatorBase:

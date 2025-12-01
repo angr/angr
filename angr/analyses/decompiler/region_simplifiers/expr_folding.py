@@ -6,7 +6,7 @@ from typing import Any, TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment import Expression, Block, AILBlockWalker
-from angr.ailment.expression import ITE, Load
+from angr.ailment.expression import ITE, Atom, Load
 from angr.ailment.statement import Statement, Assignment, Call, Return
 
 from angr.utils.ail import is_phi_assignment
@@ -245,7 +245,7 @@ class ExpressionUseFinder(AILBlockWalker):
                     )
                 else:
                     self.uses[expr.varid].add((expr, None))
-            return None
+            return expr
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: ailment.Expr.Load, stmt_idx: int, stmt: Statement, block: Block | None):
@@ -615,13 +615,13 @@ class ExpressionReplacer(AILBlockWalker):
             expr_.expr = new_expr
             expr_.stmts = new_statements
             return expr_
-        return None
+        return expr
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None):
         # override the base handler and make sure we do not replace .dst with a Call expression or an ITE expression
 
         if is_phi_assignment(stmt):
-            return None
+            return stmt
 
         changed = False
 
@@ -630,6 +630,7 @@ class ExpressionReplacer(AILBlockWalker):
             changed = True
         else:
             dst = stmt.dst
+        assert isinstance(dst, Atom)
 
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
         if src is not None and src is not stmt.src:
@@ -643,11 +644,11 @@ class ExpressionReplacer(AILBlockWalker):
                 # update the statement directly in the block
                 block.statements[stmt_idx] = new_stmt
             return new_stmt
-        return None
+        return stmt
 
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    ) -> Expression:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.varid in self._uses:
             replace_with, _ = self._assignments[expr.varid]
             return replace_with
