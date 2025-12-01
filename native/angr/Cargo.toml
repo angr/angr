@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
 icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
 pcode = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "4d7ed93254a20b7e5c16bd7b0c6b46db49e1c72e" }
-pyo3 = { version = "0.27.1", features = ["py-clone", "abi3-py310"] }
+pyo3 = { version = "0.27.2", features = ["py-clone", "abi3-py310"] }
 rangemap = "1.7.0"
 send_wrapper = "0.6.0"
 target-lexicon = "0.12.16"
