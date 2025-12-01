@@ -104,7 +104,7 @@ class Decompiler(Analysis):
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
         self._flavor = flavor
-        self._variable_kb = variable_kb
+        self._variable_kb if variable_kb is not None else self.kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
         self._ite_exprs = ite_exprs
