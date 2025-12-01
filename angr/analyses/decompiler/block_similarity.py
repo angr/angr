@@ -4,7 +4,7 @@ import networkx as nx
 from angr.ailment.block import Block
 from angr.ailment.statement import Statement, ConditionalJump
 
-from .utils import find_block_by_addr
+from .utils import find_block_by_addr_and_idx
 
 _l = logging.getLogger(name=__name__)
 
@@ -23,7 +23,7 @@ def has_similar_stmt(blk1: Block, blk2: Block):
 def is_similar(
     ail_obj1: Block | Statement,
     ail_obj2: Block | Statement,
-    graph: nx.DiGraph = None,
+    graph: nx.DiGraph | None = None,
     partial: bool = True,
     max_depth: int = 10,
     curr_depth: int = 0,
@@ -71,8 +71,11 @@ def is_similar(
             # must use graph to know
             for attr in ["true_target", "false_target"]:
                 t1, t2 = getattr(ail_obj1, attr).value, getattr(ail_obj2, attr).value
+                i1, i2 = getattr(ail_obj1, attr + "_idx"), getattr(ail_obj2, attr + "_idx")
                 try:
-                    t1_blk, t2_blk = find_block_by_addr(graph, t1), find_block_by_addr(graph, t2)
+                    t1_blk, t2_blk = find_block_by_addr_and_idx(graph, t1, i1), find_block_by_addr_and_idx(
+                        graph, t2, i2
+                    )
                 except ValueError:
                     _l.warning("Could not find block by address in graph. It is likely that the graph is broken.")
                     return False

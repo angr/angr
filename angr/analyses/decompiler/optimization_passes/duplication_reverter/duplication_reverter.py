@@ -146,7 +146,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         candidates = sorted(candidates, key=len)
         _l.debug("Located %d candidates for merging: %s", len(candidates), candidates)
 
-        candidate = sorted(candidates[0], key=lambda x: x.addr)
+        candidate = sorted(candidates[0])
         _l.debug("Selecting the candidate: %s", candidate)
         return candidate[0], candidate[1]
 
@@ -342,7 +342,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 continue
 
             # we have multiple nodes with the same address
-            duplicate_addr_nodes = sorted(nodes, key=lambda x: (x.idx or -1), reverse=True)
+            duplicate_addr_nodes = sorted(nodes, reverse=True)
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
                 new_node.idx = None
@@ -1028,7 +1028,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_level_blocks = []
             for lblock in level_blocks:
                 block_lvls[lblock] = lvl + 1
-                new_level_blocks += list(graph.predecessors(lblock))
+                new_level_blocks += sorted(graph.predecessors(lblock))
 
             blocks += new_level_blocks
             level_blocks = new_level_blocks
@@ -1051,8 +1051,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         """
         # first, find all the goto edges, since these locations will always be the base of the merge
         # graph we create; therefore, we only need search around gotos
-        goto_edges = self._goto_manager.find_goto_edges(self.read_graph)
-        goto_edges = sorted(goto_edges, key=lambda x: x[0].addr + x[1].addr)
+        goto_edges = sorted(self._goto_manager.find_goto_edges(self.read_graph))
 
         candidates = []
         for goto_src, goto_dst in goto_edges:
@@ -1060,13 +1059,13 @@ class DuplicationReverter(StructuringOptimizationPass):
             goto_candidates = []
             for b0, b1 in combinations(candidate_subgraph, 2):
                 if self._is_valid_candidate(b0, b1):
-                    pair = tuple(sorted([b0, b1], key=lambda x: x.addr))
+                    pair = tuple(sorted([b0, b1]))
                     goto_candidates.append(pair)
 
             # eliminate any that are already blacklisted
             goto_candidates = [c for c in goto_candidates if c not in self.candidate_blacklist]
             # re-sort candidates by address (for tiebreakers)
-            goto_candidates = sorted(goto_candidates, key=lambda x: x[0].addr + x[1].addr, reverse=True)
+            goto_candidates = sorted(goto_candidates, reverse=True)
 
             # choose only a single candidate for this goto, make it the one nearest to the head
             best = None
@@ -1088,9 +1087,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                 candidates.append(best)
 
-        candidates = list(set(candidates))
-        candidates.sort(key=lambda x: x[0].addr + x[1].addr)
-        return candidates
+        return sorted(set(candidates))
 
     def _filter_candidates(self, candidates, merge_candidates=True):
         """
@@ -1162,8 +1159,8 @@ class DuplicationReverter(StructuringOptimizationPass):
                 candidates = merged_candidates + remaining_candidates
 
             candidates = list(set(candidates))
-            candidates = [tuple(sorted(candidate, key=lambda x: x.addr)) for candidate in candidates]
-            candidates = sorted(candidates, key=lambda x: sum(c.addr for c in x))
+            candidates = [tuple(sorted(candidate)) for candidate in candidates]
+            candidates = sorted(candidates)
 
         return candidates
 
@@ -1215,7 +1212,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             # if no dominators found, move up a level
             seen_nodes.update(set(node_level))
-            next_level = list(itertools.chain.from_iterable([list(graph.predecessors(cnode)) for cnode in node_level]))
+            next_level = itertools.chain.from_iterable([sorted(graph.predecessors(cnode)) for cnode in node_level])
             # only add nodes we have never seen
             node_level = set(next_level).difference(seen_nodes)
 

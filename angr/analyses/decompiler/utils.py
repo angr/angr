@@ -1121,7 +1121,11 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
     return counter.calls
 
 
-def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
+def has_addr_dups(graph: networkx.DiGraph[ailment.Block]) -> bool:
+    return len({block.addr for block in graph}) != len(graph)
+
+
+def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False) -> ailment.Block:
     for block in graph.nodes():
         if insn_addr:
             for stmt in block.statements:
@@ -1130,6 +1134,14 @@ def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
         else:
             if block.addr == addr:
                 return block
+
+    raise ValueError("The block is not in the graph!")
+
+
+def find_block_by_addr_and_idx(graph: networkx.DiGraph, addr: int, idx: int | None) -> ailment.Block:
+    for block in graph.nodes():
+        if block.addr == addr and block.idx == idx:
+            return block
 
     raise ValueError("The block is not in the graph!")
 

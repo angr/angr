@@ -33,6 +33,13 @@ class Block:
             idx=self.idx,
         )
 
+    @property
+    def sort_key(self) -> tuple[int, int, int]:
+        return (self.addr, 0 if self.idx is None else 1, 0 if self.idx is None else self.idx)
+
+    def __lt__(self, other):
+        return self.sort_key < other.sort_key
+
     def __repr__(self):
         if self.idx is None:
             return f"<AILBlock {self.addr:#x} of {len(self.statements)} statements>"
