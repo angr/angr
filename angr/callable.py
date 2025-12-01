@@ -1,6 +1,11 @@
 from __future__ import annotations
 import pycparser
 
+from angr.exploration_techniques.base import ExplorationTechnique
+from angr.project import Project
+from angr.sim_state import SimState
+from angr.sim_type import SimTypeFunction
+
 from .sim_manager import SimulationManager
 from .errors import AngrCallableError, AngrCallableMultistateError
 from .calling_conventions import default_cc, SimCC
@@ -19,17 +24,18 @@ class Callable:
 
     def __init__(
         self,
-        project,
-        addr,
-        prototype=None,
+        project: Project,
+        addr: int,
+        prototype: SimTypeFunction | None = None,
         concrete_only=False,
         perform_merge=True,
-        base_state=None,
+        base_state: SimState | None = None,
         toc=None,
-        cc=None,
-        add_options=None,
-        remove_options=None,
+        cc: SimCC | None = None,
+        add_options: set[str] | None = None,
+        remove_options: set[str] | None = None,
         step_limit: int | None = None,
+        techniques: list[ExplorationTechnique] | None = None,
     ):
         """
         :param project:         The project to operate on
@@ -63,6 +69,7 @@ class Callable:
         self._add_options = add_options if add_options else set()
         self._remove_options = remove_options if remove_options else set()
         self._step_limit = step_limit
+        self._techniques = techniques or []
 
         self.result_path_group = None
         self.result_state = None
@@ -99,6 +106,8 @@ class Callable:
         )
 
         caller = self._project.factory.simulation_manager(state)
+        for technique in self._techniques:
+            caller.use_technique(technique)
         caller.run(step_func=self._step_func).unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 

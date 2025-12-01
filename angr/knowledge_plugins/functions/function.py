@@ -87,7 +87,7 @@ class Function(Serializable):
     def __init__(
         self,
         function_manager: FunctionManager | None,
-        addr,
+        addr: int,
         name=None,
         syscall=None,
         is_simprocedure: bool | None = None,

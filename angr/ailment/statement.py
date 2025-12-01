@@ -1,6 +1,7 @@
 # pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from collections.abc import Iterable
 from collections.abc import Sequence
 from abc import ABC, abstractmethod
 from typing_extensions import Self
@@ -689,7 +690,7 @@ class Return(Statement):
 
     __slots__ = ("ret_exprs",)
 
-    def __init__(self, idx: int | None, ret_exprs, **kwargs):
+    def __init__(self, idx: int | None, ret_exprs: Iterable[Expression], **kwargs):
         super().__init__(idx, **kwargs)
         self.ret_exprs = ret_exprs if isinstance(ret_exprs, list) else list(ret_exprs)
 

@@ -197,7 +197,6 @@ class GraphRegion:
         virtualized_edges: set[tuple[Any, Any]],
     ):
         assert self.graph is not None
-        assert self.graph_with_successors is not None
         if sub_region not in self.graph:
             l.error("The sub-region to replace must be in the current region. Note that this method is not recursive.")
             raise Exception
