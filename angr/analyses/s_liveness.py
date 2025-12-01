@@ -204,7 +204,7 @@ class SLivenessAnalysis(Analysis):
 
         return graph
 
-    def live_vars_by_stmt(self):
+    def live_vars_by_stmt(self) -> defaultdict[tuple[int, int | None], dict[int, set[int]]]:
         """
         Get a mapping from statements to live variables at the point of the statement.
 
