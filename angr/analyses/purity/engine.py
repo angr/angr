@@ -73,12 +73,18 @@ class ResultType:
     call_args: MutableMapping[tuple[int, int | None, int, int, int], DataType_co] = field(
         default_factory=lambda: defaultdict(frozenset)
     )
+    ret_vals: MutableMapping[int, DataType_co] = field(default_factory=lambda: defaultdict(frozenset))
+    other_storage: MutableMapping[DataSource, DataType_co] = field(default_factory=lambda: defaultdict(frozenset))
 
     def update(self, other: Self):
         for src, use in other.uses.items():
             self.uses[src] |= use
         for arg, val in other.call_args.items():
             self.call_args[arg] |= val
+        for arg, val in other.ret_vals.items():
+            self.ret_vals[arg] |= val
+        for arg, val in other.other_storage.items():
+            self.other_storage[arg] |= val
 
 
 DataType_co: TypeAlias = frozenset[DataSource]
@@ -167,6 +173,8 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                 self.state.vars[src.reference_to] = val
             elif self._is_valid_pointer(src):
                 self.result.uses[src].ptr_store = True
+                if val:
+                    self.result.other_storage[src] |= val
 
     def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> StmtDataType:
         self._expr_single(stmt.target)
@@ -194,8 +202,9 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType:
         # recursive processing...?
-        for expr in stmt.ret_exprs:
-            self._expr(expr)
+        for i, expr in enumerate(stmt.ret_exprs):
+            r = self._expr(expr)
+            self.result.ret_vals[i] |= r
 
     def _handle_stmt_DirtyStatement(self, stmt: ailment.statement.DirtyStatement) -> StmtDataType:
         self._expr(stmt.dirty)
