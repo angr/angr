@@ -48,13 +48,17 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
     map to the associated :class:`Function`.
     """
 
-    def __init__(self, backref: FunctionManager[K] | None, *args, **kwargs):
-        self._backref = cast(FunctionManager[K], weakref.proxy(backref)) if backref is not None else None
-        self._key_types = kwargs.pop("key_types", int)
+    def __init__(self, backref: FunctionManager[K] | None, *args, key_types: type = int, **kwargs):
+        self._backref = (
+            cast(FunctionManager[K], backref if isinstance(backref, weakref.ProxyType) else weakref.proxy(backref))
+            if backref is not None
+            else None
+        )
+        self._key_types = key_types
         super().__init__(*args, **kwargs)
 
     def copy(self) -> FunctionDict[K]:
-        return FunctionDict(self._backref, **self)
+        return FunctionDict(self._backref, self, key_types=self._key_types)
 
     def __getitem__(self, addr: K) -> Function:
         try:
