@@ -196,7 +196,6 @@ class TestOutliner(TestCase):
 
 if __name__ == "__main__":
     # main()
-    from angr.analyses.outliner import Outliner
 
     logging.getLogger("angr.analyses.outliner").setLevel(logging.DEBUG)
     # TestOutliner().test_outlining_authenticate()
