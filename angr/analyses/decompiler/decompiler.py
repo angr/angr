@@ -7,8 +7,8 @@ from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
-import angr.ailment as ailment
 
+from angr import ailment
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_base import KnowledgeBase
@@ -167,7 +167,7 @@ class Decompiler(Analysis):
                 for error in self.errors:
                     self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
-                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
+                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
                     if preset != DECOMPILATION_PRESETS["basic"]:
                         self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
                             self.project.arch, self.project.simos.name
@@ -348,8 +348,8 @@ class Decompiler(Analysis):
         )
 
         if not self._want_full_graph:
-            # finally (no more graph-based simplifications will run in the future), we can remove the edges that should be
-            # removed!
+            # finally (no more graph-based simplifications will run in the future),
+            # we can remove the edges that should be removed!
             remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
 
         # save the graph before structuring happens (for AIL view)

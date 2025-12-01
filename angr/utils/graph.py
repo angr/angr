@@ -47,8 +47,8 @@ def inverted_idoms(
         if len(end_nodes) > 1:
             # make sure there is only one end node
             dummy_node = "DUMMY_NODE"
-            for end_node in end_nodes:
-                inverted_graph.add_edge(dummy_node, end_node)
+            for end_node2 in end_nodes:
+                inverted_graph.add_edge(dummy_node, end_node2)
             endnode = dummy_node
         else:
             endnode = next(iter(end_nodes))  # pick the end node
