@@ -334,7 +334,8 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                 for src in arg:
                     if src.constant_value is not None:
                         argc.append(src.constant_value)
-                    # this line is weird because it basically means "you can compute however you like with a source and it will come out with the same taints as before"
+                    # this line is weird because it basically means "you can compute however you like with a source
+                    # and it will come out with the same taints as before"
                     # preliminary testing indicates this is not desired
                     # else:
                     #     result.append(src)
@@ -355,22 +356,22 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         return inner
 
     def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co:
-        r = self._handle_binop_Add_basic(expr)
+        r = self._handle_binop_Add_basic(expr)  # pylint: disable=no-value-for-parameter
         arg0 = self._expr(expr.operands[0])
         arg1 = self._expr(expr.operands[1])
         return r | arg0 | arg1
 
     def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co:
-        r = self._handle_binop_Sub_basic(expr)
+        r = self._handle_binop_Sub_basic(expr)  # pylint: disable=no-value-for-parameter
         arg0 = self._expr(expr.operands[0])
         return r | arg0
 
     @__concrete_binop
-    def _handle_binop_Add_basic(self, a, b):
+    def _handle_binop_Add_basic(self, a, b):  # pylint: disable=no-self-use
         return a + b
 
     @__concrete_binop
-    def _handle_binop_Sub_basic(self, a, b):
+    def _handle_binop_Sub_basic(self, a, b):  # pylint: disable=no-self-use
         return a - b
 
     @__concrete_binop
