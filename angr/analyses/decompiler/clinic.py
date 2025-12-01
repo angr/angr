@@ -381,6 +381,8 @@ class Clinic(Analysis):
         for v_name in self._desired_variables:
             v = next(iter(vv for vv in vfm._unified_variables if vv.name == v_name))
             for va in vfm.get_variable_accesses(v):
+                assert va.location.block_addr is not None
+                assert va.location.stmt_idx is not None
                 nodes_index[(va.location.block_addr, va.location.block_idx)].statements[va.location.stmt_idx].tags[
                     "keep_in_slice"
                 ] = True
@@ -399,9 +401,11 @@ class Clinic(Analysis):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
                 if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+                    assert self.function._function_manager is not None
                     callee = self.function._function_manager.function(stmt.target.value)
                     if (
-                        callee.addr == self.function.addr
+                        callee is None
+                        or callee.addr == self.function.addr
                         or callee.addr in self._inlining_parents
                         or callee not in self._inline_functions
                         or callee.is_plt
@@ -424,7 +428,7 @@ class Clinic(Analysis):
                 new_stmt = ailment.Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                 block.statements[idx] = new_stmt
 
-    def _inline_call(self, ail_graph, caller_block, call_idx, callee):
+    def _inline_call(self, ail_graph: networkx.DiGraph, caller_block: ailment.Block, call_idx: int, callee: Function):
         callee_clinic = self.project.analyses.Clinic(
             callee,
             mode=ClinicMode.DECOMPILE,
@@ -481,7 +485,8 @@ class Clinic(Analysis):
                     break
 
         # update the call edge
-        caller_block.statements[call_idx] = None  # remove the call statement
+        # first, remove the call statement. this is a type error but will be resolved later
+        caller_block.statements[call_idx] = None  # type: ignore
         if (
             isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
             and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
@@ -1205,7 +1210,7 @@ class Clinic(Analysis):
                 [],
                 bits=0,
             )
-            statements = [
+            statements: list[ailment.Statement] = [
                 ailment.Stmt.DirtyStatement(
                     self._ail_manager.next_atom(),
                     dirty_expr,
@@ -3387,7 +3392,9 @@ class Clinic(Analysis):
 
         if alloca_node is not None and sp_equal_to is not None:
             stmt0 = alloca_node.statements[1]
-            statements = [ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)]
+            statements: list[ailment.Statement] = [
+                ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)
+            ]
             new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)
             # replace the node
             preds = [pred for pred in ail_graph.predecessors(alloca_node) if pred is not alloca_node]
