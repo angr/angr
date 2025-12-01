@@ -478,7 +478,7 @@ class Phi(Atom):
 class Op(Expression):
     __slots__ = ("op",)
 
-    def __init__(self, idx, depth, op, **kwargs):
+    def __init__(self, idx, depth, op: str, **kwargs):
         super().__init__(idx, depth, **kwargs)
         self.op = op
 
