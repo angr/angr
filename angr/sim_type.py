@@ -891,6 +891,7 @@ class SimTypeEnumeration(SimTypeReg):
     """
 
     _base_name = "enum"
+    _ident = "enum"
 
     def __init__(self, underlying_type, enumerator_values: list[variable_type.EnumeratorValue], label=None, arch=None):
         """
@@ -1698,7 +1699,7 @@ class SimTypeDouble(SimTypeFloat):
 
     def __init__(self, align_double=True, label=None):
         self.align_double = align_double
-        super().__init__(64, label=label)
+        super().__init__(64)
 
     sort = claripy.FSORT_DOUBLE
 
@@ -2036,7 +2037,8 @@ class SimVariantCase:
         return SimVariantCase(self.tag_value, self.name, self.offset, self.type.with_arch(arch))
 
 class SimVariant(NamedTypeMixin, SimType):
-    fields = ("members", "name")
+    fields = ("cases", "name")
+    _ident = "variant"
 
     def __init__(self, size: int, tag: SimType | None, tag_offset: int | None,
                  cases: list[SimVariantCase], name=None,
@@ -2157,6 +2159,8 @@ class SimVariant(NamedTypeMixin, SimType):
         return SimVariant(self.size, self.tag, self.tag_offset, list(self.cases), self.name, self.label, self._align, self.arch)
 
 class SimTypedef(NamedTypeMixin, SimType):
+    _ident = "typedef"
+
     def __init__(self, underlying_type, name=None, label=None, arch=None):
         super().__init__(label, name=name, arch=arch)
         self.type = underlying_type
@@ -2195,6 +2199,8 @@ class SimTypedef(NamedTypeMixin, SimType):
         return f"typedef {self.name} {self.c_repr()}"
 
 class SimConst(NamedTypeMixin, SimType):
+    _ident = "const"
+
     def __init__(self, underlying_type, name=None, label=None, arch=None):
         super().__init__(label, name=name, arch=arch)
         self.type = underlying_type
