@@ -25,6 +25,7 @@ from angr.analyses.decompiler.optimization_passes import (
     RegisterSaveAreaSimplifierAdvanced,
     DetermineLoadSizes,
     PostStructuringPeepholeOptimizationPass,
+    EagerStdStringConcatenationPass,
 )
 
 
@@ -55,6 +56,7 @@ preset_fast = DecompilationPreset(
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
+        EagerStdStringConcatenationPass,
     ],
 )
 

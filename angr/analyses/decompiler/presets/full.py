@@ -30,6 +30,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ConditionConstantPropagation,
     DetermineLoadSizes,
     PostStructuringPeepholeOptimizationPass,
+    EagerStdStringConcatenationPass,
 )
 
 
@@ -65,6 +66,7 @@ preset_full = DecompilationPreset(
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
+        EagerStdStringConcatenationPass,
     ],
 )
 
