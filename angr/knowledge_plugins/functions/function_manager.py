@@ -1,7 +1,8 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
-from typing import Iterable, Iterator, Self, TypeVar, Generic, cast, TYPE_CHECKING, overload
+from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
+from collections.abc import Iterator
 import contextlib
 from collections.abc import Generator
 import logging
@@ -26,9 +27,10 @@ T = TypeVar("T")
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
+
     class SortedDict(Generic[K, T], dict[K, T]):
-        def irange(self, *args, **kwargs) -> Iterator[K]:
-            ...
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+
 else:
     from sortedcontainers import SortedDict
 
@@ -38,7 +40,6 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 
 l = logging.getLogger(name=__name__)
 _missing = object()
-
 
 
 class FunctionDict(Generic[K], SortedDict[K, Function]):
@@ -79,7 +80,7 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
     @overload
     def get(self, key: K, default: T, /) -> Function | T: ...
 
-    def get(self, addr, default = _missing, /):
+    def get(self, addr, default=_missing, /):
         try:
             return super().__getitem__(addr)
         except KeyError:
