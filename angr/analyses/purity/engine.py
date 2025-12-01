@@ -165,7 +165,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         for src in ptr:
             if src.reference_to is not None:
                 self.state.vars[src.reference_to] = val
-            else:
+            elif self._is_valid_pointer(src):
                 self.result.uses[src].ptr_store = True
 
     def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> StmtDataType:
@@ -223,12 +223,17 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType_co:
         return self._expr(expr.operand)
 
+    def _is_valid_pointer(self, src: DataSource) -> bool:
+        return not (
+            src.constant_value is not None and self.project.loader.find_object_containing(src.constant_value) is None
+        )
+
     def _do_load(self, ptr: DataType_co) -> DataType_co:
         result: list[DataSource] = []
         for src in ptr:
             if src.reference_to is not None:
                 result.extend(self.state.vars[src.reference_to])
-            else:
+            elif self._is_valid_pointer(src):
                 self.result.uses[src].ptr_load = True
                 result.append(src)
         return frozenset(result)
@@ -281,8 +286,9 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
             for src in arg:
                 if src.constant_value is not None:
                     result.append(DataSource(constant_value=f(self, src.constant_value)))
-                else:
-                    result.append(src)
+                # see similar commented code in __concrete_binop
+                # else:
+                #     result.append(src)
             return frozenset(result)
 
         return inner
@@ -328,8 +334,10 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                 for src in arg:
                     if src.constant_value is not None:
                         argc.append(src.constant_value)
-                    else:
-                        result.append(src)
+                    # this line is weird because it basically means "you can compute however you like with a source and it will come out with the same taints as before"
+                    # preliminary testing indicates this is not desired
+                    # else:
+                    #     result.append(src)
             if len(arg0c) * len(arg1c) <= 10:  # arbitrary limit
                 for c0 in arg0c:
                     for c1 in arg1c:
@@ -338,7 +346,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                         except ZeroDivisionError:
                             pass
                         else:
-                            if m is not None:
+                            if m is None:
                                 continue
                             result.append(DataSource(constant_value=m % 2**expr.bits))
 
@@ -346,12 +354,23 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
         return inner
 
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        r = self._handle_binop_Add_basic(expr)
+        arg0 = self._expr(expr.operands[0])
+        arg1 = self._expr(expr.operands[1])
+        return r | arg0 | arg1
+
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        r = self._handle_binop_Sub_basic(expr)
+        arg0 = self._expr(expr.operands[0])
+        return r | arg0
+
     @__concrete_binop
-    def _handle_binop_Add(self, a, b):
+    def _handle_binop_Add_basic(self, a, b):
         return a + b
 
     @__concrete_binop
-    def _handle_binop_Sub(self, a, b):
+    def _handle_binop_Sub_basic(self, a, b):
         return a - b
 
     @__concrete_binop
