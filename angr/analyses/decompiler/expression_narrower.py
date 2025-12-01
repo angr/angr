@@ -5,7 +5,7 @@ import logging
 
 from angr.ailment import AILBlockWalkerBase, AILBlockWalker
 from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
@@ -146,7 +146,7 @@ class ExpressionNarrower(AILBlockWalker):
         self.narrowed_any = False
         return super().walk(block)
 
-    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment:
 
         if isinstance(stmt.src, Phi):
             changed = False
@@ -217,13 +217,14 @@ class ExpressionNarrower(AILBlockWalker):
 
         if changed:
             self.narrowed_any = True
+            assert isinstance(new_dst, Atom)
             return Assignment(stmt.idx, new_dst, new_src, **stmt.tags)
 
-        return None
+        return stmt
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
-    ) -> Convert | None:
+    ) -> Expression:
         if expr.varid in self.new_vvar_sizes and self.new_vvar_sizes[expr.varid] != expr.size:
             self.narrowed_any = True
             new_expr = VirtualVariable(
@@ -245,9 +246,9 @@ class ExpressionNarrower(AILBlockWalker):
                 new_expr,
                 **new_expr.tags,
             )
-        return None
+        return expr
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call | None:
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
         new_stmt = super()._handle_Call(stmt_idx, stmt, block)
         if new_stmt is None:
             changed = False
@@ -284,4 +285,4 @@ class ExpressionNarrower(AILBlockWalker):
             self.narrowed_any = True
             return new_stmt
 
-        return None
+        return stmt

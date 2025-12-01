@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx
 
-from angr.ailment import AILBlockWalker, Block
+from angr.ailment import AILBlockWalker, Block, Expression
 from angr.ailment.statement import ConditionalJump, Statement, Assignment
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable
 
@@ -44,38 +44,30 @@ class CCondPropBlockWalker(AILBlockWalker):
         self.const_value = const_value
         self.abort = False
 
-    def walk(self, block: Block):
-        self._new_block = None
-        super().walk(block)
-        return self._new_block
-
     def _handle_stmt(self, stmt_idx: int, stmt: Statement, block: Block):  # type: ignore
         if self.abort:
-            return
+            return stmt
 
-        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == self.vvar_id:
+        return super()._handle_stmt(stmt_idx, stmt, block)
+
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
+        if isinstance(stmt.dst, VirtualVariable) and stmt.dst_varid == self.vvar_id:
             # we see the assignment of this virtual variable; this is the original block that creates this variable
             # and checks if this variable is equal to a constant value. as such, we stop processing this block.
             # an example appears in binary 1de5cda760f9ed80bb6f4a35edcebc86ccec14c49cf4775ddf2ffc3e05ff35f4, function
             # 0x4657C0, blocks 0x465bd6 and 0x465a5c
             self.abort = True
-            return
-
-        r = super()._handle_stmt(stmt_idx, stmt, block)
-        if r is not None:
-            # replace the original statement
-            if self._new_block is None:
-                self._new_block = block.copy()
-            self._new_block.statements[stmt_idx] = r
+            return stmt
+        return super()._handle_Assignment(stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(  # type: ignore
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
-    ) -> Const | None:
+    ) -> Expression:
         if expr.varid == self.vvar_id and not (
             isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == self.vvar_id
         ):
             return Const(expr.idx, None, self.const_value.value, self.const_value.bits, **expr.tags)
-        return None
+        return expr
 
 
 class ConditionConstantPropagation(OptimizationPass):
