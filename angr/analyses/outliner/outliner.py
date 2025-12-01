@@ -298,7 +298,7 @@ class Outliner(Analysis):
         assert self.src_loc in live_vars_dict
 
         # find its dominance frontier
-        doms = Dominators(self.parent_graph, self.parent_entry_loc)
+        doms = Dominators(self.parent_graph, self.nodes_dict[self.parent_entry_loc])
         dom_frontiers = compute_dominance_frontier(self.parent_graph, doms.dom)
 
         start = next(iter(bb for bb in self.parent_graph if (bb.addr, bb.idx) == self.src_loc))
