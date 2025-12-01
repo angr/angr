@@ -192,6 +192,12 @@ class SimType:
                             typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
                     case variable_type.BaseTypeEncoding.BOOLEAN:
                         typ = SimTypeBool(arch=arch)
+                    case variable_type.BaseTypeEncoding.UNSIGNED_CHAR:
+                        typ = SimTypeChar(signed=False)
+                    case variable_type.BaseTypeEncoding.SIGNED_CHAR:
+                        typ = SimTypeChar(signed=True)
+                    case _:
+                        raise ValueError(f"Unable to convert cle base DWARF type {type(cle_typ)} with encoding {cle_typ.encoding} to corresponding angr type.")
             elif isinstance(cle_typ, variable_type.UnionType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
                 typ: SimType = SimUnion(dict(), label=label, name=cle_typ.name)
@@ -214,6 +220,11 @@ class SimType:
                                           label=label, name=cle_typ.name, align=cle_typ.align, arch=arch)
             elif isinstance(cle_typ, variable_type.SubprogramType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.TypedefType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimTypedef = SimTypedef(None, name=cle_typ.name, label=label)
+            elif isinstance(cle_typ, variable_type.ConstType):
+                typ: SimConst = SimConst(None, arch=arch)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom(arch=arch)
             if typ is None:
@@ -266,6 +277,12 @@ class SimType:
                 for c in cle_typ.cases:
                     case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, mapping[c.type], align=c.align)
                     typ.cases.append(case)
+            elif isinstance(cle_typ, variable_type.TypedefType):
+                typ: SimTypedef = mapping[cle_typ]
+                typ.type = mapping[cle_typ.type]
+            elif isinstance(cle_typ, variable_type.ConstType):
+                typ: SimConst = mapping[cle_typ]
+                typ.type = mapping[cle_typ.type]
             elif cle_typ is None:
                 pass
         # The caller may want to preserve the correspondence between the input and output lists
@@ -1959,6 +1976,82 @@ class SimVariant(NamedTypeMixin, SimType):
 
     def copy(self):
         return SimVariant(self.size, self.tag, self.tag_offset, list(self.cases), self.name, self.label, self._align, self.arch)
+
+class SimTypedef(NamedTypeMixin, SimType):
+    def __init__(self, underlying_type, name=None, label=None, arch=None):
+        super().__init__(label, name=name, arch=arch)
+        self.type = underlying_type
+
+    @property
+    def size(self):
+        return self.type.size
+
+    @property
+    def alignment(self):
+        return self.type.alignment
+
+    def extract(self, *args, **kwargs):
+        return self.type.extract(*args, **kwargs)
+
+    def store(self, *args, **kwargs):
+        return self.type.store(*args, **kwargs)
+
+    def copy(self):
+        return SimTypedef(self.type, name=self.name, label=self.label, arch=self.arch)
+
+    def _with_arch(self, arch):
+        return SimTypedef(self.type, name=self.name, label=self.label, arch=arch)
+
+    def _refine(self, *args, **kwargs):
+        self.type._refine(*args, **kwargs)
+
+    def __repr__(self):
+        return self.c_repr()
+
+    def __str__(self):
+        return f"typedef {self.name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+        # TODO: Figure out what to do with these other parameters to c_repr
+        return f"typedef {self.name} {self.c_repr()}"
+
+class SimConst(NamedTypeMixin, SimType):
+    def __init__(self, underlying_type, name=None, label=None, arch=None):
+        super().__init__(label, name=name, arch=arch)
+        self.type = underlying_type
+
+    @property
+    def size(self):
+        return self.type.size
+
+    @property
+    def alignment(self):
+        return self.type.alignment
+
+    def extract(self, *args, **kwargs):
+        return self.type.extract(*args, **kwargs)
+
+    def store(self, *args, **kwargs):
+        return self.type.store(*args, **kwargs)
+
+    def copy(self):
+        return SimConst(self.type, name=self.name, label=self.label, arch=self.arch)
+
+    def _with_arch(self, arch):
+        return SimConst(self.type, name=self.name, label=self.label, arch=arch)
+
+    def _refine(self, *args, **kwargs):
+        self.type._refine(*args, **kwargs)
+
+    def __repr__(self):
+        return self.c_repr()
+
+    def __str__(self):
+        return f"const {self.type.name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+        # TODO: Figure out what to do with these other parameters to c_repr
+        return f"const {self.c_repr()}"
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
