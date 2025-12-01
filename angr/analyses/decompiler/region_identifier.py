@@ -32,6 +32,19 @@ TGraph = networkx.DiGraph
 TNode = Any
 
 
+class DummyEndNode:
+    """
+    A dummy end node used in region identification. When there are more than one end nodes in a region, we create
+    a DummyEndNode and make all original end nodes point to it.
+    """
+
+    __slots__ = ()
+
+    @property
+    def addr(self) -> int:
+        return -1
+
+
 class RegionIdentifier(Analysis):
     """
     Identifies regions within a function graph and creates a recursive GraphRegion object.
@@ -716,10 +729,9 @@ class RegionIdentifier(Analysis):
         # special case: we add virtual edges for jumpout sites and callout sites to the other successor of their
         # control-dependent node.
         if len(endnodes) > 1:
+            endnodes = sorted(endnodes, key=lambda n: (n.addr, n.idx if getattr(n, "idx", None) is not None else -1))
             graph_copy = networkx.DiGraph(graph_copy)
-            for i, endnode in enumerate(
-                sorted(endnodes, key=lambda n: (n.addr, n.idx if getattr(n, "idx", None) is not None else -1))
-            ):
+            for i, endnode in enumerate(endnodes):
                 if isinstance(endnode, Block) and endnode.statements:
                     last_stmt = endnode.statements[-1]
                     if (
@@ -749,7 +761,7 @@ class RegionIdentifier(Analysis):
         if add_dummy_endnode:
             # we need a copy of the graph!
             graph_copy = networkx.DiGraph(graph_copy)
-            dummy_endnode = "DUMMY_ENDNODE"
+            dummy_endnode = DummyEndNode()
             for endnode in endnodes:
                 graph_copy.add_edge(endnode, dummy_endnode)
             endnodes = [dummy_endnode]
