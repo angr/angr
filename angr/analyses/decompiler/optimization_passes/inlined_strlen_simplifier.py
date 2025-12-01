@@ -1,3 +1,4 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
 
 from angr.ailment import Block
@@ -86,7 +87,8 @@ class InlinedStrlenSimplifier(OptimizationPass):
                     strlen_descs.append(d)
         return strlen_descs
 
-    def _is_strlen_pattern_1_core_block(self, block: Block) -> tuple[bool, dict[str, Expression] | None]:
+    @staticmethod
+    def _is_strlen_pattern_1_core_block(block: Block) -> tuple[bool, dict[str, Expression] | None]:
         """
         Pattern 1:
 
