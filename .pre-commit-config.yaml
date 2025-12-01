@@ -11,7 +11,7 @@ repos:
       fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     # General
     -   id: check-merge-conflict
@@ -23,7 +23,9 @@ repos:
     -   id: check-symlinks
         fail_fast: true
     -   id: check-added-large-files
-        fail_fast: true
+        args: ["--maxkb=1024"]
+        exclude: ^angr/procedures/definitions/.*/.*\.json$
+        fail_fast: false
     # Syntax
     -   id: check-toml
         fail_fast: true
@@ -33,7 +35,7 @@ repos:
         fail_fast: true
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: check-ast
         fail_fast: true
@@ -43,7 +45,7 @@ repos:
 #
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: mixed-line-ending
     -   id: trailing-whitespace
@@ -54,20 +56,20 @@ repos:
     -   id: rm-unneeded-f-str
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.20.0
+    rev: v3.21.2
     hooks:
     -   id: pyupgrade
         args: [--py310-plus]
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.12.1
+    rev: v0.14.7
     hooks:
     - id: ruff
       args: [--fix, --exit-non-zero-on-fix]
 
 # Last modifier: Coding Standard
--   repo: https://github.com/psf/black
-    rev: 25.1.0
+-   repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 25.11.0
     hooks:
     -   id: black
 
@@ -79,7 +81,6 @@ repos:
     rev: v1.10.0
     hooks:
     # Python
-    -   id: python-use-type-annotations
     -   id: python-no-log-warn
     # Documentation
     -   id: rst-backticks
@@ -87,7 +88,7 @@ repos:
     -   id: rst-inline-touching-normal
 
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: debug-statements
     -   id: check-builtin-literals

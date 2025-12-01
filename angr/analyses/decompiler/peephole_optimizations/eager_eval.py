@@ -28,27 +28,42 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
     @staticmethod
     def _optimize_binaryop(expr: BinaryOp):
+        op0, op1 = expr.operands
         if expr.op == "Add":
             if (
-                isinstance(expr.operands[0], Const)
-                and isinstance(expr.operands[0].value, int)
-                and isinstance(expr.operands[1], Const)
-                and isinstance(expr.operands[1].value, int)
+                isinstance(op0, Const)
+                and isinstance(op0.value, int)
+                and isinstance(op1, Const)
+                and isinstance(op1.value, int)
             ):
+                # const + const ==> const
                 mask = (1 << expr.bits) - 1
-                return Const(
-                    expr.idx, None, (expr.operands[0].value + expr.operands[1].value) & mask, expr.bits, **expr.tags
+                return Const(expr.idx, None, (op0.value + op1.value) & mask, expr.bits, **expr.tags)
+            if isinstance(op1, Const) and op1.value < 0:
+                # x + (-A)  ==>  x - A
+                new_op1 = Const(
+                    op1.idx,
+                    op1.variable,
+                    -op1.value,
+                    op1.bits,
+                    **op1.tags,
                 )
-            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
-                return expr.operands[0]
-            if (
-                isinstance(expr.operands[1], Const)
-                and isinstance(expr.operands[0], BinaryOp)
-                and isinstance(expr.operands[0].operands[1], Const)
-            ):
-                left = expr.operands[0]
+                return BinaryOp(
+                    expr.idx,
+                    "Sub",
+                    [op0, new_op1],
+                    expr.signed,
+                    variable=expr.variable,
+                    variable_offset=expr.variable_offset,
+                    bits=expr.bits,
+                    **expr.tags,
+                )
+            if isinstance(op1, Const) and op1.value == 0:
+                return op0
+            if isinstance(op1, Const) and isinstance(op0, BinaryOp) and isinstance(op0.operands[1], Const):
+                left = op0
                 inner_expr, const_0 = left.operands
-                const_1 = expr.operands[1]
+                const_1 = op1
                 if left.op == "Add":
                     return BinaryOp(
                         left.idx,
@@ -65,7 +80,6 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
-            op0, op1 = expr.operands
             if op0.likes(op1):
                 # x + x => 2 * x
                 count = Const(expr.idx, None, 2, op0.bits, **expr.tags)
@@ -112,30 +126,28 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
         elif expr.op == "Sub":
             if (
-                isinstance(expr.operands[0], Const)
-                and isinstance(expr.operands[0].value, int)
-                and isinstance(expr.operands[1], Const)
-                and isinstance(expr.operands[1].value, int)
+                isinstance(op0, Const)
+                and isinstance(op0.value, int)
+                and isinstance(op1, Const)
+                and isinstance(op1.value, int)
             ):
                 mask = (1 << expr.bits) - 1
-                return Const(
-                    expr.idx, None, (expr.operands[0].value - expr.operands[1].value) & mask, expr.bits, **expr.tags
-                )
-            if isinstance(expr.operands[1], Const) and expr.operands[1].is_int and expr.operands[1].sign_bit == 1:
+                return Const(expr.idx, None, (op0.value - op1.value) & mask, expr.bits, **expr.tags)
+            if isinstance(op1, Const) and op1.is_int and op1.sign_bit == 1:
                 # x - (-A)  ==>  x + A
-                assert isinstance(expr.operands[1].value, int)
-                mask = (1 << expr.operands[1].bits) - 1
+                assert isinstance(op1.value, int)
+                mask = (1 << op1.bits) - 1
                 complement = Const(
-                    expr.operands[1].idx,
-                    expr.operands[1].variable,
-                    ((~expr.operands[1].value) + 1) & mask,
-                    expr.operands[1].bits,
-                    **expr.operands[1].tags,
+                    op1.idx,
+                    op1.variable,
+                    ((~op1.value) + 1) & mask,
+                    op1.bits,
+                    **op1.tags,
                 )
                 return BinaryOp(
                     expr.idx,
                     "Add",
-                    [expr.operands[0], complement],
+                    [op0, complement],
                     expr.signed,
                     variable=expr.variable,
                     variable_offset=expr.variable_offset,
@@ -143,14 +155,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                     **expr.tags,
                 )
 
-            if (
-                isinstance(expr.operands[1], Const)
-                and isinstance(expr.operands[0], BinaryOp)
-                and isinstance(expr.operands[0].operands[1], Const)
-            ):
-                left = expr.operands[0]
+            if isinstance(op1, Const) and isinstance(op0, BinaryOp) and isinstance(op0.operands[1], Const):
+                left = op0
                 inner_expr, const_0 = left.operands
-                const_1 = expr.operands[1]
+                const_1 = op1
                 if left.op == "Add":
                     return BinaryOp(
                         left.idx,
@@ -167,16 +175,16 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                         expr.signed,
                         **expr.tags,
                     )
-            if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
-                return UnaryOp(expr.idx, "Neg", expr.operands[1], **expr.tags)
+            if isinstance(op0, Const) and op0.value == 0:
+                return UnaryOp(expr.idx, "Neg", op1, **expr.tags)
 
             r = EagerEvaluation._combine_like_terms(expr)
             if r is not None:
                 return r
 
-            if isinstance(expr.operands[0], StackBaseOffset) and isinstance(expr.operands[1], StackBaseOffset):
-                assert isinstance(expr.operands[0].offset, int) and isinstance(expr.operands[1].offset, int)
-                return Const(expr.idx, None, expr.operands[0].offset - expr.operands[1].offset, expr.bits, **expr.tags)
+            if isinstance(op0, StackBaseOffset) and isinstance(op1, StackBaseOffset):
+                assert isinstance(op0.offset, int) and isinstance(op1.offset, int)
+                return Const(expr.idx, None, op0.offset - op1.offset, expr.bits, **expr.tags)
 
         elif expr.op == "And":
             op0, op1 = expr.operands
@@ -191,22 +199,15 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 return Const(expr.idx, None, 0, expr.bits, **expr.tags)
 
         elif expr.op == "Mul":
-            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 1:
+            if isinstance(op1, Const) and op1.value == 1:
                 # x * 1 => x
-                return expr.operands[0]
-            if (
-                isinstance(expr.operands[0], Const)
-                and expr.operands[0].is_int
-                and isinstance(expr.operands[1], Const)
-                and expr.operands[1].is_int
-            ):
-                assert isinstance(expr.operands[0].value, int) and isinstance(expr.operands[1].value, int)
+                return op0
+            if isinstance(op0, Const) and op0.is_int and isinstance(op1, Const) and op1.is_int:
+                assert isinstance(op0.value, int) and isinstance(op1.value, int)
                 # constant multiplication
                 mask = (1 << expr.bits) - 1
-                return Const(
-                    expr.idx, None, (expr.operands[0].value * expr.operands[1].value) & mask, expr.bits, **expr.tags
-                )
-            if {type(expr.operands[0]), type(expr.operands[1])} == {BinaryOp, Const}:
+                return Const(expr.idx, None, (op0.value * op1.value) & mask, expr.bits, **expr.tags)
+            if {type(op0), type(op1)} == {BinaryOp, Const}:
                 op0, op1 = expr.operands
                 const_, x0 = (op0, op1) if isinstance(op0, Const) else (op1, op0)
                 if x0.op == "Mul" and (isinstance(x0.operands[0], Const) or isinstance(x0.operands[1], Const)):
@@ -220,10 +221,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
 
         elif (
             expr.op == "Div"
-            and isinstance(expr.operands[1], Const)
-            and isinstance(expr.operands[0], BinaryOp)
-            and expr.operands[0].op == "Mul"
-            and isinstance(expr.operands[0].operands[1], Const)
+            and isinstance(op1, Const)
+            and isinstance(op0, BinaryOp)
+            and op0.op == "Mul"
+            and isinstance(op0.operands[1], Const)
         ):
             expr0, const_0 = expr.operands
             const_1 = expr0.operands[1]
@@ -259,7 +260,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
             ):
                 return Const(expr.idx, None, op0.value % op1.value, expr.bits, **expr.tags)
 
-        elif expr.op in {"Shr", "Sar"} and isinstance(expr.operands[1], Const):
+        elif expr.op in {"Shr", "Sar"} and isinstance(op1, Const):
             expr0, expr1 = expr.operands
             if isinstance(expr0, BinaryOp) and expr0.op == "Shr" and isinstance(expr0.operands[1], Const):
                 # (a >> M) >> N  ==>  a >> (M + N)
@@ -280,10 +281,10 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 mask = (2**expr0.bits) - 1
                 return Const(expr0.idx, None, (const_a >> expr1.value) & mask, expr0.bits, **expr0.tags)
 
-            if expr.op == "Shr" and expr.operands[0].bits <= expr.operands[1].value:
-                return Const(expr.idx, None, 0, expr.operands[0].bits, **expr.tags)
+            if expr.op == "Shr" and op0.bits <= op1.value:
+                return Const(expr.idx, None, 0, op0.bits, **expr.tags)
 
-        elif expr.op == "Shl" and isinstance(expr.operands[1], Const):
+        elif expr.op == "Shl" and isinstance(op1, Const):
             expr0, expr1 = expr.operands
             if isinstance(expr0, Const):
                 const_a = expr0.value
@@ -298,17 +299,17 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and isinstance(op1, Const)
                 and isinstance(op1.value, int)
             ):
-                return Const(expr.idx, None, expr.operands[0].value | expr.operands[1].value, expr.bits, **expr.tags)
-            if isinstance(expr.operands[0], Const) and expr.operands[0].value == 0:
-                return expr.operands[1]
-            if isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
-                return expr.operands[0]
-            if isinstance(expr.operands[0], Const) and expr.operands[0].value == (1 << expr.operands[0].bits) - 1:
-                return expr.operands[0]
-            if isinstance(expr.operands[1], Const) and expr.operands[1].value == (1 << expr.operands[1].bits) - 1:
-                return expr.operands[1]
-            if expr.operands[0].likes(expr.operands[1]):
-                return expr.operands[0]
+                return Const(expr.idx, None, op0.value | op1.value, expr.bits, **expr.tags)
+            if isinstance(op0, Const) and op0.value == 0:
+                return op1
+            if isinstance(op1, Const) and op1.value == 0:
+                return op0
+            if isinstance(op0, Const) and op0.value == (1 << op0.bits) - 1:
+                return op0
+            if isinstance(op1, Const) and op1.value == (1 << op1.bits) - 1:
+                return op1
+            if op0.likes(op1):
+                return op0
 
         elif expr.op == "Xor":
             op0, op1 = expr.operands
@@ -318,43 +319,31 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
                 and isinstance(op1, Const)
                 and isinstance(op1.value, int)
             ):
-                return Const(expr.idx, None, expr.operands[0].value ^ expr.operands[1].value, expr.bits, **expr.tags)
+                return Const(expr.idx, None, op0.value ^ op1.value, expr.bits, **expr.tags)
 
         elif expr.op in {"CmpEQ", "CmpLE", "CmpGE"}:
-            if expr.operands[0].likes(expr.operands[1]):
+            if op0.likes(op1):
                 # x == x => 1
                 return Const(expr.idx, None, 1, 1, **expr.tags)
-            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+            if isinstance(op0, Const) and isinstance(op1, Const):
                 if expr.op == "CmpEQ":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value == expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value == op1.value else 0, 1, **expr.tags)
                 if expr.op == "CmpLE":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value <= expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value <= op1.value else 0, 1, **expr.tags)
                 if expr.op == "CmpGE":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value >= expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value >= op1.value else 0, 1, **expr.tags)
 
         elif expr.op in {"CmpNE", "CmpLT", "CmpGT"}:
-            if expr.operands[0].likes(expr.operands[1]):
+            if op0.likes(op1):
                 # x != x => 0
                 return Const(expr.idx, None, 0, 1, **expr.tags)
-            if isinstance(expr.operands[0], Const) and isinstance(expr.operands[1], Const):
+            if isinstance(op0, Const) and isinstance(op1, Const):
                 if expr.op == "CmpNE":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value != expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value != op1.value else 0, 1, **expr.tags)
                 if expr.op == "CmpLT":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value < expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value < op1.value else 0, 1, **expr.tags)
                 if expr.op == "CmpGT":
-                    return Const(
-                        expr.idx, None, 1 if expr.operands[0].value > expr.operands[1].value else 0, 1, **expr.tags
-                    )
+                    return Const(expr.idx, None, 1 if op0.value > op1.value else 0, 1, **expr.tags)
 
         return None
 

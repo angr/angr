@@ -1,15 +1,43 @@
 # pylint:disable=no-member,raise-missing-from
 from __future__ import annotations
 import logging
-import pickle
+import json
 
 from collections import defaultdict
 
+from angr.calling_conventions import SimCC, SimCCUsercall, CC_NAMES
 from angr.codenode import BlockNode, HookNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
+from angr.sim_type import SimType, SimTypeFunction
 from angr.protos import primitives_pb2, function_pb2
+from angr.utils.types import make_type_reference
 
 l = logging.getLogger(name=__name__)
+
+
+class CallingConventionSerializer:
+    """
+    Serialize/deserialize SimCC classes.
+    """
+
+    @staticmethod
+    def to_json(cc: SimCC) -> dict:
+        if isinstance(cc, SimCCUsercall):
+            return {
+                "t": "SimCCUsercall",
+                # TODO: Deserialize the rest of the fields
+            }
+        return {"t": cc.__class__.__name__}
+
+    @staticmethod
+    def from_json(data: dict, arch) -> SimCC | None:
+        cc_type = data.get("t")
+        if cc_type == "SimCCUsercall":
+            return SimCCUsercall(arch, [], None)  # TODO: Deserialize the rest of the fields
+        if cc_type not in CC_NAMES:
+            l.warning("Unknown calling convention type %s", cc_type)
+            return None
+        return CC_NAMES[cc_type](arch)
 
 
 class FunctionParser:
@@ -36,8 +64,17 @@ class FunctionParser:
         obj.alignment = function.is_alignment
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
-        obj.calling_convention = pickle.dumps(function.calling_convention)
-        obj.prototype = pickle.dumps(function.prototype)
+        obj.calling_convention = (
+            json.dumps(CallingConventionSerializer.to_json(function.calling_convention)).encode("utf-8")
+            if function.calling_convention is not None
+            else b""
+        )
+        if function.prototype is None:
+            obj.prototype = b""
+        else:
+            # convert all named structs in the prototype to typerefs; they will be dereferenced when used
+            prototype_ref = make_type_reference(function.prototype)
+            obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
 
@@ -71,6 +108,7 @@ class FunctionParser:
             if dst.addr not in block_addrs_set:
                 external_addrs.add(dst.addr)
             edge.jumpkind = TRANSITION_JK
+            edge.confirmed = 2  # default value
             for key, value in data.items():
                 if key == "type":
                     edge.jumpkind = func_edge_type_to_pb(value)
@@ -82,8 +120,10 @@ class FunctionParser:
                         edge.stmt_idx = value
                 elif key == "outside":
                     edge.is_outside = value
+                elif key == "confirmed":
+                    edge.confirmed = 0 if value is False else 1
                 else:
-                    edge.data[key] = pickle.dumps(value)  # pylint:disable=no-member
+                    l.warning('Unexpected edge data type "%s" encountered during serialization.', key)
             edges.append(edge)
         obj.graph.edges.extend(edges)  # pylint:disable=no-member
         # referenced functions
@@ -101,6 +141,22 @@ class FunctionParser:
         # delayed import
         from .function import Function  # pylint:disable=import-outside-toplevel
 
+        proto = SimType.from_json(json.loads(cmsg.prototype.decode("utf-8"))) if cmsg.prototype else None
+        if proto is not None:
+            if not isinstance(proto, SimTypeFunction):
+                l.warning("Unexpected type of function prototype deserialized: %s", type(proto))
+                proto = None
+            elif project is None:
+                proto = None  # we cannot assign an arch-less prototype to a function
+            else:
+                proto = proto.with_arch(project.arch)
+
+        cc = (
+            CallingConventionSerializer.from_json(json.loads(cmsg.calling_convention.decode("utf-8")), project.arch)
+            if cmsg.calling_convention and project is not None
+            else None
+        )
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -111,8 +167,8 @@ class FunctionParser:
             returning=cmsg.returning,
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
-            calling_convention=pickle.loads(cmsg.calling_convention),
-            prototype=pickle.loads(cmsg.prototype),
+            calling_convention=cc,
+            prototype=proto,
             prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
@@ -189,10 +245,15 @@ class FunctionParser:
                 except KeyError as err:
                     raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
-            data = {k: pickle.loads(v) for k, v in edge_cmsg.data.items()}
-            data["outside"] = edge_cmsg.is_outside
-            data["ins_addr"] = edge_cmsg.ins_addr
-            data["stmt_idx"] = edge_cmsg.stmt_idx
+            data = {
+                "outside": edge_cmsg.is_outside,
+                "ins_addr": edge_cmsg.ins_addr,
+                "stmt_idx": edge_cmsg.stmt_idx,
+            }
+            if edge_cmsg.confirmed == 0:
+                data["confirmed"] = False
+            elif edge_cmsg.confirmed == 1:
+                data["confirmed"] = True
             if edge_type == "fake_return":
                 fake_return_edges[edge_cmsg.src_ea].append((src, dst, data))
             else:

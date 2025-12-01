@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 
+from angr.ailment.expression import Convert
+from angr.ailment.statement import Call
 from angr.engines.vex.claripy.ccall import data
+from angr.procedures.definitions import SIM_LIBRARIES
 from .rewriter_base import CCallRewriterBase
 
 
@@ -10,6 +13,11 @@ X86_CondTypes = data["X86"]["CondTypes"]
 X86_OpTypes = data["X86"]["OpTypes"]
 X86_CondBitMasks = data["X86"]["CondBitMasks"]
 X86_CondBitOffsets = data["X86"]["CondBitOffsets"]
+
+X86_Win32_TIB_Funcs = {
+    0x18: "NtGetCurrentTeb",
+    0x30: "NtGetCurrentPeb",
+}
 
 
 class X86CCallRewriter(CCallRewriterBase):
@@ -296,6 +304,38 @@ class X86CCallRewriter(CCallRewriterBase):
                             **ccall.tags,
                         )
                         return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
+        elif ccall.callee == "x86g_use_seg_selector":
+            seg_selector = ccall.operands[2]
+            virtual_addr = ccall.operands[3]
+            while isinstance(seg_selector, Convert):
+                seg_selector = seg_selector.operands[0]
+            if (
+                self.project.simos.name == "Win32"
+                and seg_selector.was_reg
+                and self.project.arch.register_names.get(seg_selector.reg_offset, "") == "fs"
+                and isinstance(virtual_addr, Expr.Const)
+                and virtual_addr.value_int in X86_Win32_TIB_Funcs
+            ):
+                accessor_name = X86_Win32_TIB_Funcs[virtual_addr.value_int]
+                prototype = SIM_LIBRARIES["ntdll.dll"][0].get_prototype(accessor_name, deref=True)
+                returnty_bits = ccall.bits
+                if prototype is not None:
+                    prototype = prototype.with_arch(self.project.arch)
+                    if prototype.returnty and prototype.returnty.size:
+                        returnty_bits = prototype.returnty.size
+                call_expr = Call(
+                    ccall.idx,
+                    X86_Win32_TIB_Funcs[virtual_addr.value_int],
+                    args=[],
+                    prototype=prototype,
+                    bits=returnty_bits,
+                    **ccall.tags,
+                )
+                call_expr.tags["is_prototype_guessed"] = False
+                ref_expr = Expr.UnaryOp(None, "Reference", call_expr, **ccall.tags)
+                if returnty_bits == ccall.bits:
+                    return ref_expr
+                return Expr.Convert(None, returnty_bits, ccall.bits, False, ref_expr, **ccall.tags)
         return None
 
     @staticmethod

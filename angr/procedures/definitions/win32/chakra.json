@@ -1,0 +1,270 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"chakra.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"JsAddRef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['ref', 'count']}"
+		},
+		"JsBoolToBoolean": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'booleanValue']}"
+		},
+		"JsBooleanToBool": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'boolValue']}"
+		},
+		"JsCallFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['function', 'arguments', 'argumentCount', 'result']}"
+		},
+		"JsCollectGarbage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime']}"
+		},
+		"JsConstructObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'label': 'LPArray'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['function', 'arguments', 'argumentCount', 'result']}"
+		},
+		"JsConvertValueToBoolean": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'booleanValue']}"
+		},
+		"JsConvertValueToNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'numberValue']}"
+		},
+		"JsConvertValueToObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'object']}"
+		},
+		"JsConvertValueToString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'stringValue']}"
+		},
+		"JsCreateArray": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['length', 'result']}"
+		},
+		"JsCreateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'IDebugApplication32', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'debugApplication', 'newContext']}"
+		},
+		"JsCreateError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsCreateExternalObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['data']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['data', 'finalizeCallback', 'object']}"
+		},
+		"JsCreateFunction": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'bool', 'signed': true, 'label': 'Boolean'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['callee', 'isConstructCall', 'arguments', 'argumentCount', 'callbackState']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['nativeFunction', 'callbackState', 'function']}"
+		},
+		"JsCreateObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object']}"
+		},
+		"JsCreateRangeError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsCreateReferenceError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsCreateRuntime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'JsRuntimeAttributes', 'ot': 'int'}, {'_t': '_ref', 'name': 'JsRuntimeVersion', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['callbackState']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}, 'arg_names': ['callback', 'callbackState']}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['attributes', 'runtimeVersion', 'threadService', 'runtime']}"
+		},
+		"JsCreateSyntaxError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsCreateTypeError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsCreateURIError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['message', 'error']}"
+		},
+		"JsDefineProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'propertyDescriptor', 'result']}"
+		},
+		"JsDeleteIndexedProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'index']}"
+		},
+		"JsDeleteProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'useStrictRules', 'result']}"
+		},
+		"JsDisableRuntimeExecution": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime']}"
+		},
+		"JsDisposeRuntime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime']}"
+		},
+		"JsDoubleToNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['doubleValue', 'value']}"
+		},
+		"JsEnableRuntimeExecution": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime']}"
+		},
+		"JsEnumerateHeap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IActiveScriptProfilerHeapEnum', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['enumerator']}"
+		},
+		"JsEquals": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object1', 'object2', 'result']}"
+		},
+		"JsGetAndClearException": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['exception']}"
+		},
+		"JsGetCurrentContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['currentContext']}"
+		},
+		"JsGetExtensionAllowed": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'value']}"
+		},
+		"JsGetExternalData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'externalData']}"
+		},
+		"JsGetFalseValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['falseValue']}"
+		},
+		"JsGetGlobalObject": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['globalObject']}"
+		},
+		"JsGetIndexedProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'index', 'result']}"
+		},
+		"JsGetNullValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['nullValue']}"
+		},
+		"JsGetOwnPropertyDescriptor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'propertyDescriptor']}"
+		},
+		"JsGetOwnPropertyNames": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyNames']}"
+		},
+		"JsGetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'value']}"
+		},
+		"JsGetPropertyIdFromName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['name', 'propertyId']}"
+		},
+		"JsGetPropertyNameFromId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['propertyId', 'name']}"
+		},
+		"JsGetPrototype": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'prototypeObject']}"
+		},
+		"JsGetRuntime": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['context', 'runtime']}"
+		},
+		"JsGetRuntimeMemoryLimit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'memoryLimit']}"
+		},
+		"JsGetRuntimeMemoryUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'memoryUsage']}"
+		},
+		"JsGetStringLength": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['stringValue', 'length']}"
+		},
+		"JsGetTrueValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['trueValue']}"
+		},
+		"JsGetUndefinedValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['undefinedValue']}"
+		},
+		"JsGetValueType": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'JsValueType', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'type']}"
+		},
+		"JsHasException": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['hasException']}"
+		},
+		"JsHasExternalData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'value']}"
+		},
+		"JsHasIndexedProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'index', 'result']}"
+		},
+		"JsHasProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'hasProperty']}"
+		},
+		"JsIdle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['nextIdleTick']}"
+		},
+		"JsIntToNumber": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['intValue', 'value']}"
+		},
+		"JsIsEnumeratingHeap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['isEnumeratingHeap']}"
+		},
+		"JsIsRuntimeExecutionDisabled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'isDisabled']}"
+		},
+		"JsNumberToDouble": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'doubleValue']}"
+		},
+		"JsParseScript": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['script', 'sourceContext', 'sourceUrl', 'result']}"
+		},
+		"JsParseSerializedScript": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['script', 'buffer', 'sourceContext', 'sourceUrl', 'result']}"
+		},
+		"JsPointerToString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['stringValue', 'stringLength', 'value']}"
+		},
+		"JsPreventExtension": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object']}"
+		},
+		"JsRelease": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['ref', 'count']}"
+		},
+		"JsRunScript": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['script', 'sourceContext', 'sourceUrl', 'result']}"
+		},
+		"JsRunSerializedScript": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['script', 'buffer', 'sourceContext', 'sourceUrl', 'result']}"
+		},
+		"JsSerializeScript": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['script', 'buffer', 'bufferSize']}"
+		},
+		"JsSetCurrentContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['context']}"
+		},
+		"JsSetException": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['exception']}"
+		},
+		"JsSetExternalData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'externalData']}"
+		},
+		"JsSetIndexedProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'index', 'value']}"
+		},
+		"JsSetProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'propertyId', 'value', 'useStrictRules']}"
+		},
+		"JsSetPrototype": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'prototypeObject']}"
+		},
+		"JsSetRuntimeBeforeCollectCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['callbackState']}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'callbackState', 'beforeCollectCallback']}"
+		},
+		"JsSetRuntimeMemoryAllocationCallback": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'JsMemoryEventType', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}, 'arg_names': ['callbackState', 'allocationEvent', 'allocationSize']}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'callbackState', 'allocationCallback']}"
+		},
+		"JsSetRuntimeMemoryLimit": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['runtime', 'memoryLimit']}"
+		},
+		"JsStartDebugging": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IDebugApplication32', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['debugApplication']}"
+		},
+		"JsStartProfiling": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IActiveScriptProfilerCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PROFILER_EVENT_MASK', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['callback', 'eventMask', 'context']}"
+		},
+		"JsStopProfiling": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['reason']}"
+		},
+		"JsStrictEquals": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bool', 'signed': true, 'label': 'Boolean'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object1', 'object2', 'result']}"
+		},
+		"JsStringToPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['value', 'stringValue', 'stringLength']}"
+		},
+		"JsValueToVariant": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['object', 'variant']}"
+		},
+		"JsVariantToValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'JsErrorCode', 'ot': 'int'}, 'arg_names': ['variant', 'value']}"
+		}
+	}
+}

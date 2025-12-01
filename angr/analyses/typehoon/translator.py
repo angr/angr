@@ -85,7 +85,7 @@ class TypeTranslator:
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
             internal = self._tc2simtype(tc.basetype)
-        return sim_type.SimTypePointer(internal).with_arch(self.arch)
+        return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
 
     def _translate_Pointer32(self, tc):
         if isinstance(tc.basetype, typeconsts.BottomType):
@@ -93,11 +93,11 @@ class TypeTranslator:
             internal = sim_type.SimTypeBottom(label="void").with_arch(self.arch)
         else:
             internal = self._tc2simtype(tc.basetype)
-        return sim_type.SimTypePointer(internal).with_arch(self.arch)
+        return sim_type.SimTypePointer(internal, label=tc.name).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array) -> sim_type.SimTypeArray:
         elem_type = self._tc2simtype(tc.element)
-        return sim_type.SimTypeArray(elem_type, length=tc.count).with_arch(self.arch)
+        return sim_type.SimTypeArray(elem_type, length=tc.count, label=tc.name).with_arch(self.arch)
 
     def _translate_Struct(self, tc: typeconsts.Struct):
         if tc in self.structs:
@@ -136,26 +136,26 @@ class TypeTranslator:
 
         return s
 
-    def _translate_Int8(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeChar(signed=False).with_arch(self.arch)
+    def _translate_Int8(self, tc):
+        return sim_type.SimTypeChar(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int16(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeShort(signed=False).with_arch(self.arch)
+    def _translate_Int16(self, tc):
+        return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int32(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeInt(signed=False).with_arch(self.arch)
+    def _translate_Int32(self, tc):
+        return sim_type.SimTypeInt(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int64(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeLongLong(signed=False).with_arch(self.arch)
+    def _translate_Int64(self, tc):
+        return sim_type.SimTypeLongLong(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int128(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeInt128(signed=False).with_arch(self.arch)
+    def _translate_Int128(self, tc):
+        return sim_type.SimTypeInt128(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int256(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeInt256(signed=False).with_arch(self.arch)
+    def _translate_Int256(self, tc):
+        return sim_type.SimTypeInt256(signed=False, label=tc.name).with_arch(self.arch)
 
-    def _translate_Int512(self, tc):  # pylint:disable=unused-argument
-        return sim_type.SimTypeInt512(signed=False).with_arch(self.arch)
+    def _translate_Int512(self, tc):
+        return sim_type.SimTypeInt512(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_TypeVariableReference(self, tc):
         if tc.typevar in self.translated:
@@ -164,11 +164,11 @@ class TypeTranslator:
         self._has_nonexistent_ref = True
         return SimTypeTempRef(tc.typevar)
 
-    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimTypeFloat:  # pylint:disable=unused-argument
-        return sim_type.SimTypeFloat().with_arch(self.arch)
+    def _translate_Float32(self, tc: typeconsts.Float32) -> sim_type.SimTypeFloat:
+        return sim_type.SimTypeFloat(label=tc.name).with_arch(self.arch)
 
-    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:  # pylint:disable=unused-argument
-        return sim_type.SimTypeDouble().with_arch(self.arch)
+    def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:
+        return sim_type.SimTypeDouble(label=tc.name).with_arch(self.arch)
 
     #
     # Backpatching
@@ -197,25 +197,28 @@ class TypeTranslator:
     #
 
     def _translate_SimTypeInt128(self, st: sim_type.SimTypeChar) -> typeconsts.Int128:
-        return typeconsts.Int128()
+        return typeconsts.Int128(name=st.label)
 
     def _translate_SimTypeInt256(self, st: sim_type.SimTypeChar) -> typeconsts.Int256:
-        return typeconsts.Int256()
+        return typeconsts.Int256(name=st.label)
 
     def _translate_SimTypeInt512(self, st: sim_type.SimTypeChar) -> typeconsts.Int512:
-        return typeconsts.Int512()
+        return typeconsts.Int512(name=st.label)
 
     def _translate_SimTypeInt(self, st: sim_type.SimTypeInt) -> typeconsts.Int32:
-        return typeconsts.Int32()
+        return typeconsts.Int32(name=st.label)
 
     def _translate_SimTypeLong(self, st: sim_type.SimTypeLong) -> typeconsts.Int32:
-        return typeconsts.Int32()
+        return typeconsts.Int32(name=st.label)
 
     def _translate_SimTypeLongLong(self, st: sim_type.SimTypeLongLong) -> typeconsts.Int64:
-        return typeconsts.Int64()
+        return typeconsts.Int64(name=st.label)
+
+    def _translate_SimTypeShort(self, st: sim_type.SimTypeInt) -> typeconsts.Int16:
+        return typeconsts.Int16(name=st.label)
 
     def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
-        return typeconsts.Int8()
+        return typeconsts.Int8(name=st.label)
 
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
         fields = {}
@@ -224,25 +227,25 @@ class TypeTranslator:
             offset = offsets[name]
             fields[offset] = self._simtype2tc(ty)
 
-        return typeconsts.Struct(fields=fields)
+        return typeconsts.Struct(fields=fields, name=st.label)
 
     def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
         elem_type = self._simtype2tc(st.elem_type)
-        return typeconsts.Array(elem_type, count=st.length)
+        return typeconsts.Array(elem_type, count=st.length, name=st.label)
 
     def _translate_SimTypePointer(self, st: sim_type.SimTypePointer) -> typeconsts.Pointer32 | typeconsts.Pointer64:
         base = self._simtype2tc(st.pts_to)
         if self.arch.bits == 32:
-            return typeconsts.Pointer32(base)
+            return typeconsts.Pointer32(base, name=st.label)
         if self.arch.bits == 64:
-            return typeconsts.Pointer64(base)
+            return typeconsts.Pointer64(base, name=st.label)
         raise TypeError(f"Unsupported pointer size {self.arch.bits}")
 
     def _translate_SimTypeFloat(self, st: sim_type.SimTypeFloat) -> typeconsts.Float32:
-        return typeconsts.Float32()
+        return typeconsts.Float32(name=st.label)
 
     def _translate_SimTypeDouble(self, st: sim_type.SimTypeDouble) -> typeconsts.Float64:
-        return typeconsts.Float64()
+        return typeconsts.Float64(name=st.label)
 
 
 TypeConstHandlers = {
@@ -265,10 +268,11 @@ TypeConstHandlers = {
 
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
+    sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
+    sim_type.SimTypeShort: TypeTranslator._translate_SimTypeShort,
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,
     sim_type.SimTypeLongLong: TypeTranslator._translate_SimTypeLongLong,
-    sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
     sim_type.SimTypeInt128: TypeTranslator._translate_SimTypeInt128,
     sim_type.SimTypeInt256: TypeTranslator._translate_SimTypeInt256,
     sim_type.SimTypeInt512: TypeTranslator._translate_SimTypeInt512,

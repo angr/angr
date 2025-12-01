@@ -5,6 +5,7 @@ All type constants used in type inference. They can be mapped, translated, or re
 from __future__ import annotations
 
 import functools
+import itertools
 
 
 def memoize(f):
@@ -23,6 +24,9 @@ def memoize(f):
 
 class TypeConstant:
     SIZE = None
+
+    def __init__(self, name: str | None = None):
+        self.name = name
 
     def pp_str(self, mapping) -> str:  # pylint:disable=unused-argument
         return repr(self)
@@ -115,7 +119,8 @@ class Int512(Int):
 
 
 class IntVar(Int):
-    def __init__(self, size):
+    def __init__(self, size, name: str | None = None):
+        super().__init__(name)
         self._size = size
 
     @property
@@ -146,7 +151,8 @@ class Float64(Float):
 
 
 class Pointer(TypeConstant):
-    def __init__(self, basetype: TypeConstant | None):
+    def __init__(self, basetype: TypeConstant | None, name: str | None = None):
+        super().__init__(name=name)
         self.basetype: TypeConstant | None = basetype
 
     def __eq__(self, other):
@@ -169,13 +175,15 @@ class Pointer32(Pointer, Int32):
     32-bit pointers.
     """
 
-    def __init__(self, basetype=None):
-        Pointer.__init__(self, basetype)
+    def __init__(self, basetype=None, name: str | None = None):
+        Pointer.__init__(self, basetype, name=name)
+        Int32.__init__(self, name=name)
 
     @memoize
     def __repr__(self, memo=None):
         bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
-        return f"ptr32({bt})"
+        name_str = f"{self.name}#" if self.name else ""
+        return f"{name_str}ptr32({bt})"
 
 
 class Pointer64(Pointer, Int64):
@@ -183,17 +191,20 @@ class Pointer64(Pointer, Int64):
     64-bit pointers.
     """
 
-    def __init__(self, basetype=None):
-        Pointer.__init__(self, basetype)
+    def __init__(self, basetype=None, name: str | None = None):
+        Pointer.__init__(self, basetype, name=name)
+        Int64.__init__(self, name=name)
 
     @memoize
     def __repr__(self, memo=None):
         bt = self.basetype.__repr__(memo=memo) if isinstance(self.basetype, TypeConstant) else repr(self.basetype)
-        return f"ptr64({bt})"
+        name_str = f"{self.name}#" if self.name else ""
+        return f"{name_str}ptr64({bt})"
 
 
 class Array(TypeConstant):
-    def __init__(self, element=None, count=None):
+    def __init__(self, element=None, count=None, name: str | None = None):
+        super().__init__(name=name)
         self.element: TypeConstant | None = element
         self.count: int | None = count
 
@@ -222,18 +233,22 @@ class Array(TypeConstant):
         return self._hash(set())
 
 
+_STRUCT_ID = itertools.count()
+
+
 class Struct(TypeConstant):
-    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False):
+    def __init__(self, fields=None, name=None, field_names=None, is_cppclass: bool = False, idx: int = -1):
+        super().__init__(name=name)
         self.fields = {} if fields is None else fields  # offset to type
-        self.name = name
         self.field_names = field_names
         self.is_cppclass = is_cppclass
+        self.idx = idx if idx != -1 else next(_STRUCT_ID)
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
             return 0
         visited.add(id(self))
-        return hash((type(self), self._hash_fields(visited)))
+        return hash((type(self), self.idx, self._hash_fields(visited)))
 
     def _hash_fields(self, visited: set[int]):
         keys = sorted(self.fields.keys())
@@ -252,6 +267,7 @@ class Struct(TypeConstant):
     @memoize
     def __repr__(self, memo=None):
         prefix = "CppClass" if self.is_cppclass else "struct"
+        prefix += f"#{self.idx}"
         if self.name:
             prefix = f"{prefix} {self.name}"
         return (
@@ -262,14 +278,15 @@ class Struct(TypeConstant):
         )
 
     def __eq__(self, other):
-        return type(other) is type(self) and hash(self) == hash(other)
+        return type(other) is type(self) and self.idx == other.idx and hash(self) == hash(other)
 
     def __hash__(self):
         return self._hash(set())
 
 
 class Function(TypeConstant):
-    def __init__(self, params: list, outputs: list):
+    def __init__(self, params: list, outputs: list, name: str | None = None):
+        super().__init__(name=name)
         self.params = params
         self.outputs = outputs
 
@@ -298,7 +315,8 @@ class Function(TypeConstant):
 
 
 class TypeVariableReference(TypeConstant):
-    def __init__(self, typevar):
+    def __init__(self, typevar, name: str | None = None):
+        super().__init__(name=name)
         self.typevar = typevar
 
     def __repr__(self, memo=None):

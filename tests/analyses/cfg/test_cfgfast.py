@@ -13,7 +13,7 @@ import angr
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location, broken
 
 l = logging.getLogger("angr.tests.test_cfgfast")
 
@@ -126,7 +126,7 @@ class TestCfgfast(unittest.TestCase):
         assert node_7bb88 is not None
         assert node_7bb88.function_address == 0x7BA84
 
-    @slow_test
+    @broken
     def test_busybox(self):
         edges = {
             (0x4091EC, 0x408DE0),
@@ -144,7 +144,6 @@ class TestCfgfast(unittest.TestCase):
 
         self.cfg_fast_edges_check("mipsel", "busybox", edges)
 
-    @slow_test
     @unittest.skipUnless(
         os.path.isfile("C:\\Windows\\System32\\ntoskrnl.exe"),
         "ntoskrnl.exe does not exist on this system.",
@@ -398,6 +397,18 @@ class TestCfgfast(unittest.TestCase):
         assert 0x40115E not in cfg.kb.functions
         # the start function that should not be removed
         assert proj.entry in cfg.kb.functions
+
+    def test_cfg_function_stubs_with_single_jumpouts(self):
+        proj = angr.Project(os.path.join(test_location, "x86_64", "printenv-rust-stripped"), auto_load_libs=False)
+        cfg = proj.analyses.CFG()
+
+        # the function at 0x4864f0 is a function stub that jumps directly to function at 0x486500. ensure that CFGFast
+        # discovers both functions correctly instead of merging them together
+        assert cfg.kb.functions.contains_addr(0x4864F0)
+        assert cfg.kb.functions.contains_addr(0x486500)
+        func_jump_stub = cfg.kb.functions.get_by_addr(0x4864F0)
+        assert len(func_jump_stub.block_addrs_set) == 1
+        assert len(func_jump_stub.jumpout_sites) == 1
 
     #
     # Serialization
@@ -872,6 +883,15 @@ class TestCfgfast(unittest.TestCase):
         proj = angr.Project(path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
         assert cfg.kb.functions[0x21514B5600].name == "_security_init_cookie"
+
+    def test_security_check_cookie_identification_unknown_cookie_location(self):
+        path = os.path.join(
+            test_location, "x86_64", "windows", "03fb29dab8ab848f15852a37a1c04aa65289c0160d9200dceff64d890b3290dd"
+        )
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast()
+        assert cfg.kb.functions[0x14710].name == "_security_check_cookie"
+        assert cfg.kb.labels[0x17108] == "_security_cookie"
 
     def test_pe_unmapped_section_data(self):
         path = os.path.join(

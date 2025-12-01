@@ -345,9 +345,9 @@ class VirtualVariable(Atom):
         ori_str = ""
         match self.category:
             case VirtualVariableCategory.REGISTER:
-                ori_str = f"{{reg {self.reg_offset}}}"
+                ori_str = f"{{r{self.reg_offset}|{self.size}b}}"
             case VirtualVariableCategory.STACK:
-                ori_str = f"{{stack {self.oident}}}"
+                ori_str = f"{{s{self.oident}|{self.size}b}}"
         return f"vvar_{self.varid}{ori_str}"
 
     __hash__ = TaggedObject.__hash__  # type: ignore
@@ -616,7 +616,11 @@ class Convert(UnaryOp):
         self.rounding_mode = rounding_mode
 
     def __str__(self):
-        return f"Conv({self.from_bits}->{'s' if self.is_signed else ''}{self.to_bits}, {self.operand})"
+        from_type = "I" if self.from_type == Convert.TYPE_INT else "F"
+        to_type = "I" if self.to_type == Convert.TYPE_INT else "F"
+        return (
+            f"Conv({self.from_bits}{from_type}->{'s' if self.is_signed else ''}{self.to_bits}{to_type}, {self.operand})"
+        )
 
     def __repr__(self):
         return str(self)

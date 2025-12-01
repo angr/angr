@@ -95,6 +95,8 @@ class CallingConventionAnalysis(Analysis):
                                 calling convention and arguments. This can be time-consuming if there are many call
                                 sites to analyze.
     :ivar cc:           The recovered calling convention for the function.
+    :ivar _collect_facts:       True if we should run FunctionFactCollector to collect input arguments and return
+                                value size. False if input arguments and return value size are provided by the user.
     """
 
     def __init__(
@@ -108,6 +110,7 @@ class CallingConventionAnalysis(Analysis):
         func_graph: networkx.DiGraph | None = None,
         input_args: list[SimRegArg | SimStackArg] | None = None,
         retval_size: int | None = None,
+        collect_facts: bool = False,
     ):
         if func is not None and not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -121,6 +124,7 @@ class CallingConventionAnalysis(Analysis):
         self._func_graph = func_graph
         self._input_args = input_args
         self._retval_size = retval_size
+        self._collect_facts = collect_facts
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -132,6 +136,7 @@ class CallingConventionAnalysis(Analysis):
         self.cc: SimCC | None = None
         self.prototype: SimTypeFunction | None = None
         self.prototype_libname: str | None = None
+        self.proto_from_symbol: bool = False
 
         if self._cfg is None and "CFGFast" in self.kb.cfgs:
             self._cfg = self.kb.cfgs["CFGFast"]
@@ -168,6 +173,7 @@ class CallingConventionAnalysis(Analysis):
             r_demangled = self._analyze_demangled_name(demangled_name)
             if r_demangled is not None:
                 self.cc, self.prototype, self.prototype_libname = r_demangled
+                self.proto_from_symbol = True
                 return
 
         if self._function.is_simprocedure:
@@ -241,6 +247,12 @@ class CallingConventionAnalysis(Analysis):
             if r_plt is not None:
                 self.cc, self.prototype, self.prototype_libname = r_plt
             return
+
+        # we gotta analyze the function properly
+        if self._collect_facts and self._input_args is None and self._retval_size is None:
+            facts = self.project.analyses.FunctionFactCollector(self._function, kb=self.kb)
+            self._input_args = facts.input_args
+            self._retval_size = facts.retval_size
 
         r = self._analyze_function()
         if r is None:
@@ -756,7 +768,10 @@ class CallingConventionAnalysis(Analysis):
                 proto.returnty = SimTypeBottom(label="void")
             else:
                 if proto.returnty is None or isinstance(proto.returnty, SimTypeBottom):
-                    proto.returnty = SimTypeInt().with_arch(self.project.arch)
+                    returnty = {32: SimTypeInt, 16: SimTypeShort, 64: SimTypeLongLong}.get(
+                        self.project.arch.bits, SimTypeInt
+                    )(signed=True)
+                    proto.returnty = returnty.with_arch(self.project.arch)
 
         if (
             update_arguments == UpdateArgumentsOption.AlwaysUpdate

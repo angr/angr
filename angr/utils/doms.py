@@ -32,6 +32,7 @@ class IncrementalDominators:
             doms = networkx.immediate_dominators(t, self.start)
         else:
             doms = networkx.immediate_dominators(self.graph, self.start)
+        doms[self.start] = self.start
         return doms
 
     def init_dfs(self) -> dict[Any, set[Any]]:

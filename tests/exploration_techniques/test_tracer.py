@@ -12,7 +12,7 @@ import unittest
 
 import angr
 
-from tests.common import broken, bin_location, do_trace, load_cgc_pov, slow_test, skip_if_not_linux
+from tests.common import broken, bin_location, do_trace, load_cgc_pov, skip_if_not_linux
 
 
 def tracer_cgc(
@@ -145,7 +145,6 @@ class TestTracer(unittest.TestCase):
         assert simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip)
 
     @broken
-    @slow_test
     def test_cache_stall(self):
         # test a valid palindrome
         b = os.path.join(bin_location, "tests", "cgc", "CROMU_00071")
@@ -643,7 +642,6 @@ class TestTracer(unittest.TestCase):
             add_options=add_options,
         )
 
-    @slow_test
     def test_sseround_register_dependency_unicorn_native_interface(self):
         """
         Test if value of SSEROUND VEX register is saved correctly when it is a dependency of an instruction that needs

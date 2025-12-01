@@ -12,7 +12,7 @@ import unittest
 import angr
 from angr.state_plugins.history import HistoryIter
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -79,7 +79,6 @@ class TestFauxware(unittest.TestCase):
         stdin = pg.found[0].posix.dumps(0)
         assert stdin == b"\x00\x00\x00\x00\x00\x00\x00\x00\x00SOSNEAKY\x00"
 
-    @slow_test
     def _run_fastmem(self, arch):
         p = angr.Project(os.path.join(test_location, arch, "fauxware"), auto_load_libs=False)
         p.analyses.CongruencyCheck(throw=True).set_state_options(right_add_options={"FAST_REGISTERS"}).run()
@@ -180,8 +179,7 @@ class TestFauxware(unittest.TestCase):
     def test_pickling_mips(self):
         self._run_pickling("mips")
 
-    @slow_test
-    def test_fastmen(self):
+    def test_fastmem(self):
         self._run_fastmem("x86_64")
 
     def test_nodecode_i386(self):

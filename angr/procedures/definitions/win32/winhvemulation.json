@@ -1,0 +1,27 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"winhvemulation.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"WHvEmulatorCreateEmulator": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WHV_EMULATOR_CALLBACKS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Callbacks', 'Emulator']}"
+		},
+		"WHvEmulatorDestroyEmulator": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Emulator']}"
+		},
+		"WHvEmulatorTryIoEmulation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WHV_VP_EXIT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WHV_X64_IO_PORT_ACCESS_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'AsUINT32': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Emulator', 'Context', 'VpContext', 'IoInstructionContext', 'EmulatorReturnStatus']}"
+		},
+		"WHvEmulatorTryMmioEmulation": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WHV_VP_EXIT_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WHV_MEMORY_ACCESS_CONTEXT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Anonymous': {'_t': 'struct', 'fields': {'_bitfield': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}, 'AsUINT32': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, 'name': '<anon>'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['Emulator', 'Context', 'VpContext', 'MmioInstructionContext', 'EmulatorReturnStatus']}"
+		}
+	}
+}

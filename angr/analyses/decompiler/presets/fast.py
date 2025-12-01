@@ -22,7 +22,9 @@ from angr.analyses.decompiler.optimization_passes import (
     DeadblockRemover,
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
+    RegisterSaveAreaSimplifierAdvanced,
     DetermineLoadSizes,
+    PostStructuringPeepholeOptimizationPass,
 )
 
 
@@ -32,6 +34,7 @@ preset_fast = DecompilationPreset(
         RegisterSaveAreaSimplifier,
         StackCanarySimplifier,
         WinStackCanarySimplifier,
+        RegisterSaveAreaSimplifierAdvanced,
         BasePointerSaveSimplifier,
         ConstantDereferencesSimplifier,
         RetAddrSaveSimplifier,
@@ -51,6 +54,7 @@ preset_fast = DecompilationPreset(
         CallStatementRewriter,
         ConditionConstantPropagation,
         DetermineLoadSizes,
+        PostStructuringPeepholeOptimizationPass,
     ],
 )
 

@@ -221,7 +221,10 @@ class CFGBase(Analysis):
             else:
                 if not objects:
                     objects = self.project.loader.all_objects
-                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
+                if not regions:
+                    # fall back to using min and max addresses of all objects
+                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
 
         for start, end in regions:
             if end < start:
@@ -759,6 +762,25 @@ class CFGBase(Analysis):
             elif isinstance(b, self._cle_pseudo_objects):
                 pass
 
+            elif hasattr(b, "sections") and b.sections:
+                sections = []
+                # Get all executable sections
+                for section in b.sections:
+                    if section.is_executable:
+                        max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
+                        tpl = (section.min_addr, max_mapped_addr)
+                        sections.append(tpl)
+                memory_regions += sections
+
+            elif hasattr(b, "segments") and b.segments:
+                segments = []
+                for segment in b.segments:
+                    if segment.is_executable:
+                        max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
+                        tpl = (segment.min_addr, max_mapped_addr)
+                        segments.append(tpl)
+                memory_regions += segments
+
             else:
                 l.warning('Unsupported object format "%s". Treat it as an executable.', b.__class__.__name__)
 
@@ -903,7 +925,7 @@ class CFGBase(Analysis):
         except KeyError:
             return None
 
-    def _fast_memory_load_pointer(self, addr, size=None):
+    def _fast_memory_load_pointer(self, addr, size=None) -> int | None:
         """
         Perform a fast memory loading of a pointer.
 
@@ -937,7 +959,7 @@ class CFGBase(Analysis):
         """
 
         addrs = set()
-        if isinstance(self._binary, ELF) and self._binary.has_dwarf_info:
+        if (isinstance(self._binary, ELF) and self._binary.has_dwarf_info) or isinstance(self._binary, PE):
             for function_hint in self._binary.function_hints:
                 if function_hint.source == FunctionHintSource.EH_FRAME:
                     addrs.add(function_hint.addr)
@@ -1921,7 +1943,8 @@ class CFGBase(Analysis):
 
         If the following conditions are met, we will remove the second function and merge it into the first function:
         - The second function is not called by other code.
-        - The first function has only one jumpout site, which points to the second function.
+        - The first function has only one non-empty jumpout site (e.g., the first function contains more than just nops
+          and jumps), which points to the second function.
 
         :param FunctionManager functions:   All functions that angr recovers.
         :return:                            A set of addresses of all removed functions.
@@ -1956,6 +1979,9 @@ class CFGBase(Analysis):
                 if self._is_noop_block(self.project.arch, block):
                     continue
                 if block.vex_nostmt.jumpkind not in ("Ijk_Boring", "Ijk_InvalICache"):
+                    continue
+                if all(isinstance(stmt, pyvex.stmt.IMark) for stmt in block.vex.statements):
+                    # the first block is empty
                     continue
 
                 # does the first block transition to the next function?
@@ -1996,12 +2022,13 @@ class CFGBase(Analysis):
                 if abort:
                     continue
 
-                # Merge block addr_0 and block addr_1
+                # Merge functions addr_0 and addr_1
                 l.debug("Merging function %#x into %#x.", addr_1, addr_0)
 
                 cfgnode_1_merged = False
-                # we only merge two CFG nodes if the first one does not end with a branch instruction
-                if len(func_0.block_addrs_set) == 1 and len(out_edges) == 1:
+                # we only merge two CFG nodes if the first one does not end with a branch instruction and there are no
+                # other predecessors to CFG node addr_1
+                if len(func_0.block_addrs_set) == 1 and len(out_edges) == 1 and len(cfgnode_1_preds) <= 1:
                     outedge_src, outedge_dst, outedge_data = out_edges[0]
                     if (
                         outedge_src.addr == cfgnode_0.addr
@@ -2016,7 +2043,7 @@ class CFGBase(Analysis):
                         adjusted_cfgnodes.add(cfgnode_0)
                         adjusted_cfgnodes.add(cfgnode_1)
 
-                # Merge it
+                # Merge the two functions
                 func_1 = functions[addr_1]
                 for block_addr in func_1.block_addrs:
                     if block_addr == addr_1 and cfgnode_1_merged:

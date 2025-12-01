@@ -109,7 +109,7 @@ class TestSerialization(unittest.TestCase):
 
         gc.collect()
 
-        p, cfg, cfb, vrf = pickle.loads(state)
+        p, cfg, _cfb, _vrf = pickle.loads(state)
         assert p.kb is not None
         assert p.kb.functions is not None
         assert cfg.kb is not None

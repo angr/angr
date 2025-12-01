@@ -1,0 +1,477 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"odbc32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ODBCGetTryWaitValue": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"ODBCSetTryWaitValue": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwValue']}"
+		},
+		"SQLAllocConnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'ConnectionHandle']}"
+		},
+		"SQLAllocEnv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle']}"
+		},
+		"SQLAllocHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'InputHandle', 'OutputHandle']}"
+		},
+		"SQLAllocHandleStd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['fHandleType', 'hInput', 'phOutput']}"
+		},
+		"SQLAllocStmt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'StatementHandle']}"
+		},
+		"SQLBindCol": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ColumnNumber', 'TargetType', 'TargetValue', 'BufferLength', 'StrLen_or_Ind']}"
+		},
+		"SQLBindParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ParameterNumber', 'ValueType', 'ParameterType', 'LengthPrecision', 'ParameterScale', 'ParameterValue', 'StrLen_or_Ind']}"
+		},
+		"SQLBindParameter": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'ipar', 'fParamType', 'fCType', 'fSqlType', 'cbColDef', 'ibScale', 'rgbValue', 'cbValueMax', 'pcbValue']}"
+		},
+		"SQLBrowseConnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szConnStrIn', 'cchConnStrIn', 'szConnStrOut', 'cchConnStrOutMax', 'pcchConnStrOut']}"
+		},
+		"SQLBrowseConnectA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szConnStrIn', 'cbConnStrIn', 'szConnStrOut', 'cbConnStrOutMax', 'pcbConnStrOut']}"
+		},
+		"SQLBrowseConnectW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szConnStrIn', 'cchConnStrIn', 'szConnStrOut', 'cchConnStrOutMax', 'pcchConnStrOut']}"
+		},
+		"SQLBulkOperations": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Operation']}"
+		},
+		"SQLCancel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle']}"
+		},
+		"SQLCancelHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'InputHandle']}"
+		},
+		"SQLCloseCursor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle']}"
+		},
+		"SQLColAttribute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ColumnNumber', 'FieldIdentifier', 'CharacterAttribute', 'BufferLength', 'StringLength', 'NumericAttribute']}"
+		},
+		"SQLColAttributeA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'iCol', 'iField', 'pCharAttr', 'cbCharAttrMax', 'pcbCharAttr', 'pNumAttr']}"
+		},
+		"SQLColAttributeW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'iCol', 'iField', 'pCharAttr', 'cbDescMax', 'pcbCharAttr', 'pNumAttr']}"
+		},
+		"SQLColAttributes": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'icol', 'fDescType', 'rgbDesc', 'cbDescMax', 'pcbDesc', 'pfDesc']}"
+		},
+		"SQLColAttributesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'icol', 'fDescType', 'rgbDesc', 'cbDescMax', 'pcbDesc', 'pfDesc']}"
+		},
+		"SQLColAttributesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'icol', 'fDescType', 'rgbDesc', 'cbDescMax', 'pcbDesc', 'pfDesc']}"
+		},
+		"SQLColumnPrivileges": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'szColumnName', 'cchColumnName']}"
+		},
+		"SQLColumnPrivilegesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName', 'szColumnName', 'cbColumnName']}"
+		},
+		"SQLColumnPrivilegesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'szColumnName', 'cchColumnName']}"
+		},
+		"SQLColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'CatalogName', 'NameLength1', 'SchemaName', 'NameLength2', 'TableName', 'NameLength3', 'ColumnName', 'NameLength4']}"
+		},
+		"SQLColumnsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName', 'szColumnName', 'cbColumnName']}"
+		},
+		"SQLColumnsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'szColumnName', 'cchColumnName']}"
+		},
+		"SQLCompleteAsync": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'Handle', 'AsyncRetCodePtr']}"
+		},
+		"SQLConnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'ServerName', 'NameLength1', 'UserName', 'NameLength2', 'Authentication', 'NameLength3']}"
+		},
+		"SQLConnectA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szDSN', 'cbDSN', 'szUID', 'cbUID', 'szAuthStr', 'cbAuthStr']}"
+		},
+		"SQLConnectW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szDSN', 'cchDSN', 'szUID', 'cchUID', 'szAuthStr', 'cchAuthStr']}"
+		},
+		"SQLCopyDesc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['SourceDescHandle', 'TargetDescHandle']}"
+		},
+		"SQLDataSources": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'Direction', 'ServerName', 'BufferLength1', 'NameLength1Ptr', 'Description', 'BufferLength2', 'NameLength2Ptr']}"
+		},
+		"SQLDataSourcesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'fDirection', 'szDSN', 'cbDSNMax', 'pcbDSN', 'szDescription', 'cbDescriptionMax', 'pcbDescription']}"
+		},
+		"SQLDataSourcesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'fDirection', 'szDSN', 'cchDSNMax', 'pcchDSN', 'wszDescription', 'cchDescriptionMax', 'pcchDescription']}"
+		},
+		"SQLDescribeCol": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ColumnNumber', 'ColumnName', 'BufferLength', 'NameLength', 'DataType', 'ColumnSize', 'DecimalDigits', 'Nullable']}"
+		},
+		"SQLDescribeColA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'icol', 'szColName', 'cbColNameMax', 'pcbColName', 'pfSqlType', 'pcbColDef', 'pibScale', 'pfNullable']}"
+		},
+		"SQLDescribeColW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'icol', 'szColName', 'cchColNameMax', 'pcchColName', 'pfSqlType', 'pcbColDef', 'pibScale', 'pfNullable']}"
+		},
+		"SQLDescribeParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'ipar', 'pfSqlType', 'pcbParamDef', 'pibScale', 'pfNullable']}"
+		},
+		"SQLDisconnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle']}"
+		},
+		"SQLDriverConnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'hwnd', 'szConnStrIn', 'cchConnStrIn', 'szConnStrOut', 'cchConnStrOutMax', 'pcchConnStrOut', 'fDriverCompletion']}"
+		},
+		"SQLDriverConnectA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'hwnd', 'szConnStrIn', 'cbConnStrIn', 'szConnStrOut', 'cbConnStrOutMax', 'pcbConnStrOut', 'fDriverCompletion']}"
+		},
+		"SQLDriverConnectW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'hwnd', 'szConnStrIn', 'cchConnStrIn', 'szConnStrOut', 'cchConnStrOutMax', 'pcchConnStrOut', 'fDriverCompletion']}"
+		},
+		"SQLDrivers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'fDirection', 'szDriverDesc', 'cchDriverDescMax', 'pcchDriverDesc', 'szDriverAttributes', 'cchDrvrAttrMax', 'pcchDrvrAttr']}"
+		},
+		"SQLDriversA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'fDirection', 'szDriverDesc', 'cbDriverDescMax', 'pcbDriverDesc', 'szDriverAttributes', 'cbDrvrAttrMax', 'pcbDrvrAttr']}"
+		},
+		"SQLDriversW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'fDirection', 'szDriverDesc', 'cchDriverDescMax', 'pcchDriverDesc', 'szDriverAttributes', 'cchDrvrAttrMax', 'pcchDrvrAttr']}"
+		},
+		"SQLEndTran": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'Handle', 'CompletionType']}"
+		},
+		"SQLError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'ConnectionHandle', 'StatementHandle', 'Sqlstate', 'NativeError', 'MessageText', 'BufferLength', 'TextLength']}"
+		},
+		"SQLErrorA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'hdbc', 'hstmt', 'szSqlState', 'pfNativeError', 'szErrorMsg', 'cbErrorMsgMax', 'pcbErrorMsg']}"
+		},
+		"SQLErrorW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['henv', 'hdbc', 'hstmt', 'wszSqlState', 'pfNativeError', 'wszErrorMsg', 'cchErrorMsgMax', 'pcchErrorMsg']}"
+		},
+		"SQLExecDirect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'StatementText', 'TextLength']}"
+		},
+		"SQLExecDirectA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szSqlStr', 'cbSqlStr']}"
+		},
+		"SQLExecDirectW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szSqlStr', 'TextLength']}"
+		},
+		"SQLExecute": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle']}"
+		},
+		"SQLExtendedFetch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fFetchType', 'irow', 'pcrow', 'rgfRowStatus']}"
+		},
+		"SQLFetch": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle']}"
+		},
+		"SQLFetchScroll": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'FetchOrientation', 'FetchOffset']}"
+		},
+		"SQLForeignKeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szPkCatalogName', 'cchPkCatalogName', 'szPkSchemaName', 'cchPkSchemaName', 'szPkTableName', 'cchPkTableName', 'szFkCatalogName', 'cchFkCatalogName', 'szFkSchemaName', 'cchFkSchemaName', 'szFkTableName', 'cchFkTableName']}"
+		},
+		"SQLForeignKeysA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szPkCatalogName', 'cbPkCatalogName', 'szPkSchemaName', 'cbPkSchemaName', 'szPkTableName', 'cbPkTableName', 'szFkCatalogName', 'cbFkCatalogName', 'szFkSchemaName', 'cbFkSchemaName', 'szFkTableName', 'cbFkTableName']}"
+		},
+		"SQLForeignKeysW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szPkCatalogName', 'cchPkCatalogName', 'szPkSchemaName', 'cchPkSchemaName', 'szPkTableName', 'cchPkTableName', 'szFkCatalogName', 'cchFkCatalogName', 'szFkSchemaName', 'cchFkSchemaName', 'szFkTableName', 'cchFkTableName']}"
+		},
+		"SQLFreeConnect": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle']}"
+		},
+		"SQLFreeEnv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle']}"
+		},
+		"SQLFreeHandle": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'Handle']}"
+		},
+		"SQLFreeStmt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Option']}"
+		},
+		"SQLGetConnectAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'Attribute', 'Value', 'BufferLength', 'StringLengthPtr']}"
+		},
+		"SQLGetConnectAttrA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fAttribute', 'rgbValue', 'cbValueMax', 'pcbValue']}"
+		},
+		"SQLGetConnectAttrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fAttribute', 'rgbValue', 'cbValueMax', 'pcbValue']}"
+		},
+		"SQLGetConnectOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'Option', 'Value']}"
+		},
+		"SQLGetConnectOptionA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fOption', 'pvParam']}"
+		},
+		"SQLGetConnectOptionW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fOption', 'pvParam']}"
+		},
+		"SQLGetCursorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'CursorName', 'BufferLength', 'NameLengthPtr']}"
+		},
+		"SQLGetCursorNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCursor', 'cbCursorMax', 'pcbCursor']}"
+		},
+		"SQLGetCursorNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCursor', 'cchCursorMax', 'pcchCursor']}"
+		},
+		"SQLGetData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ColumnNumber', 'TargetType', 'TargetValue', 'BufferLength', 'StrLen_or_IndPtr']}"
+		},
+		"SQLGetDescField": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['DescriptorHandle', 'RecNumber', 'FieldIdentifier', 'Value', 'BufferLength', 'StringLength']}"
+		},
+		"SQLGetDescFieldA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdesc', 'iRecord', 'iField', 'rgbValue', 'cbBufferLength', 'StringLength']}"
+		},
+		"SQLGetDescFieldW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdesc', 'iRecord', 'iField', 'rgbValue', 'cbBufferLength', 'StringLength']}"
+		},
+		"SQLGetDescRec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['DescriptorHandle', 'RecNumber', 'Name', 'BufferLength', 'StringLengthPtr', 'TypePtr', 'SubTypePtr', 'LengthPtr', 'PrecisionPtr', 'ScalePtr', 'NullablePtr']}"
+		},
+		"SQLGetDescRecA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdesc', 'iRecord', 'szName', 'cbNameMax', 'pcbName', 'pfType', 'pfSubType', 'pLength', 'pPrecision', 'pScale', 'pNullable']}"
+		},
+		"SQLGetDescRecW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdesc', 'iRecord', 'szName', 'cchNameMax', 'pcchName', 'pfType', 'pfSubType', 'pLength', 'pPrecision', 'pScale', 'pNullable']}"
+		},
+		"SQLGetDiagField": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'Handle', 'RecNumber', 'DiagIdentifier', 'DiagInfo', 'BufferLength', 'StringLength']}"
+		},
+		"SQLGetDiagFieldA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['fHandleType', 'handle', 'iRecord', 'fDiagField', 'rgbDiagInfo', 'cbDiagInfoMax', 'pcbDiagInfo']}"
+		},
+		"SQLGetDiagFieldW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['fHandleType', 'handle', 'iRecord', 'fDiagField', 'rgbDiagInfo', 'cbBufferLength', 'pcbStringLength']}"
+		},
+		"SQLGetDiagRec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['HandleType', 'Handle', 'RecNumber', 'Sqlstate', 'NativeError', 'MessageText', 'BufferLength', 'TextLength']}"
+		},
+		"SQLGetDiagRecA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['fHandleType', 'handle', 'iRecord', 'szSqlState', 'pfNativeError', 'szErrorMsg', 'cbErrorMsgMax', 'pcbErrorMsg']}"
+		},
+		"SQLGetDiagRecW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['fHandleType', 'handle', 'iRecord', 'szSqlState', 'pfNativeError', 'szErrorMsg', 'cchErrorMsgMax', 'pcchErrorMsg']}"
+		},
+		"SQLGetEnvAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'Attribute', 'Value', 'BufferLength', 'StringLength']}"
+		},
+		"SQLGetFunctions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'FunctionId', 'Supported']}"
+		},
+		"SQLGetInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'InfoType', 'InfoValue', 'BufferLength', 'StringLengthPtr']}"
+		},
+		"SQLGetInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fInfoType', 'rgbInfoValue', 'cbInfoValueMax', 'pcbInfoValue']}"
+		},
+		"SQLGetInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fInfoType', 'rgbInfoValue', 'cbInfoValueMax', 'pcbInfoValue']}"
+		},
+		"SQLGetStmtAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Attribute', 'Value', 'BufferLength', 'StringLength']}"
+		},
+		"SQLGetStmtAttrA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fAttribute', 'rgbValue', 'cbValueMax', 'pcbValue']}"
+		},
+		"SQLGetStmtAttrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fAttribute', 'rgbValue', 'cbValueMax', 'pcbValue']}"
+		},
+		"SQLGetStmtOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Option', 'Value']}"
+		},
+		"SQLGetTypeInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'DataType']}"
+		},
+		"SQLGetTypeInfoA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'DataType']}"
+		},
+		"SQLGetTypeInfoW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'DataType']}"
+		},
+		"SQLMoreResults": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt']}"
+		},
+		"SQLNativeSql": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szSqlStrIn', 'cchSqlStrIn', 'szSqlStr', 'cchSqlStrMax', 'pcbSqlStr']}"
+		},
+		"SQLNativeSqlA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szSqlStrIn', 'cbSqlStrIn', 'szSqlStr', 'cbSqlStrMax', 'pcbSqlStr']}"
+		},
+		"SQLNativeSqlW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'szSqlStrIn', 'cchSqlStrIn', 'szSqlStr', 'cchSqlStrMax', 'pcchSqlStr']}"
+		},
+		"SQLNumParams": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'pcpar']}"
+		},
+		"SQLNumResultCols": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ColumnCount']}"
+		},
+		"SQLParamData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Value']}"
+		},
+		"SQLParamOptions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'crow', 'pirow']}"
+		},
+		"SQLPrepare": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'StatementText', 'TextLength']}"
+		},
+		"SQLPrepareA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szSqlStr', 'cbSqlStr']}"
+		},
+		"SQLPrepareW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szSqlStr', 'cchSqlStr']}"
+		},
+		"SQLPrimaryKeys": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName']}"
+		},
+		"SQLPrimaryKeysA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName']}"
+		},
+		"SQLPrimaryKeysW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName']}"
+		},
+		"SQLProcedureColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szProcName', 'cchProcName', 'szColumnName', 'cchColumnName']}"
+		},
+		"SQLProcedureColumnsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szProcName', 'cbProcName', 'szColumnName', 'cbColumnName']}"
+		},
+		"SQLProcedureColumnsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szProcName', 'cchProcName', 'szColumnName', 'cchColumnName']}"
+		},
+		"SQLProcedures": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szProcName', 'cchProcName']}"
+		},
+		"SQLProceduresA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szProcName', 'cbProcName']}"
+		},
+		"SQLProceduresW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szProcName', 'cchProcName']}"
+		},
+		"SQLPutData": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Data', 'StrLen_or_Ind']}"
+		},
+		"SQLRowCount": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'RowCount']}"
+		},
+		"SQLSetConnectAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'Attribute', 'Value', 'StringLength']}"
+		},
+		"SQLSetConnectAttrA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fAttribute', 'rgbValue', 'cbValue']}"
+		},
+		"SQLSetConnectAttrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fAttribute', 'rgbValue', 'cbValue']}"
+		},
+		"SQLSetConnectOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['ConnectionHandle', 'Option', 'Value']}"
+		},
+		"SQLSetConnectOptionA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fOption', 'vParam']}"
+		},
+		"SQLSetConnectOptionW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hdbc', 'fOption', 'vParam']}"
+		},
+		"SQLSetCursorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'CursorName', 'NameLength']}"
+		},
+		"SQLSetCursorNameA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCursor', 'cbCursor']}"
+		},
+		"SQLSetCursorNameW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCursor', 'cchCursor']}"
+		},
+		"SQLSetDescField": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['DescriptorHandle', 'RecNumber', 'FieldIdentifier', 'Value', 'BufferLength']}"
+		},
+		"SQLSetDescFieldW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['DescriptorHandle', 'RecNumber', 'FieldIdentifier', 'Value', 'BufferLength']}"
+		},
+		"SQLSetDescRec": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['DescriptorHandle', 'RecNumber', 'Type', 'SubType', 'Length', 'Precision', 'Scale', 'Data', 'StringLength', 'Indicator']}"
+		},
+		"SQLSetEnvAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'Attribute', 'Value', 'StringLength']}"
+		},
+		"SQLSetParam": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'ParameterNumber', 'ValueType', 'ParameterType', 'LengthPrecision', 'ParameterScale', 'ParameterValue', 'StrLen_or_Ind']}"
+		},
+		"SQLSetPos": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'irow', 'fOption', 'fLock']}"
+		},
+		"SQLSetScrollOptions": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fConcurrency', 'crowKeyset', 'crowRowset']}"
+		},
+		"SQLSetStmtAttr": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Attribute', 'Value', 'StringLength']}"
+		},
+		"SQLSetStmtAttrW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fAttribute', 'rgbValue', 'cbValueMax']}"
+		},
+		"SQLSetStmtOption": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'Option', 'Value']}"
+		},
+		"SQLSpecialColumns": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'IdentifierType', 'CatalogName', 'NameLength1', 'SchemaName', 'NameLength2', 'TableName', 'NameLength3', 'Scope', 'Nullable']}"
+		},
+		"SQLSpecialColumnsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fColType', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName', 'fScope', 'fNullable']}"
+		},
+		"SQLSpecialColumnsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'fColType', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'fScope', 'fNullable']}"
+		},
+		"SQLStatistics": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'CatalogName', 'NameLength1', 'SchemaName', 'NameLength2', 'TableName', 'NameLength3', 'Unique', 'Reserved']}"
+		},
+		"SQLStatisticsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName', 'fUnique', 'fAccuracy']}"
+		},
+		"SQLStatisticsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'fUnique', 'fAccuracy']}"
+		},
+		"SQLTablePrivileges": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName']}"
+		},
+		"SQLTablePrivilegesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName']}"
+		},
+		"SQLTablePrivilegesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName']}"
+		},
+		"SQLTables": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['StatementHandle', 'CatalogName', 'NameLength1', 'SchemaName', 'NameLength2', 'TableName', 'NameLength3', 'TableType', 'NameLength4']}"
+		},
+		"SQLTablesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cbCatalogName', 'szSchemaName', 'cbSchemaName', 'szTableName', 'cbTableName', 'szTableType', 'cbTableType']}"
+		},
+		"SQLTablesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'label': 'LPArray'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['hstmt', 'szCatalogName', 'cchCatalogName', 'szSchemaName', 'cchSchemaName', 'szTableName', 'cchTableName', 'szTableType', 'cchTableType']}"
+		},
+		"SQLTransact": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'short', 'label': 'Int16'}, 'arg_names': ['EnvironmentHandle', 'ConnectionHandle', 'CompletionType']}"
+		}
+	}
+}

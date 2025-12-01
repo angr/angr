@@ -1,0 +1,18 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-service-core-l1-1-3.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GetServiceRegistryStateKey": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SERVICE_STATUS_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_REGISTRY_STATE_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ServiceStatusHandle', 'StateType', 'AccessMask', 'ServiceStateKey']}"
+		}
+	}
+}

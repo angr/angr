@@ -18,7 +18,7 @@ from angr.analyses.cfg.indirect_jump_resolvers import JumpTableResolver
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import IndirectJump
 
-from tests.common import bin_location, slow_test
+from tests.common import bin_location
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -2782,7 +2782,6 @@ class TestJumpTableResolver(unittest.TestCase):
     # Some jump tables are in fact vtables
     #
 
-    @slow_test
     def test_vtable_amd64_libc_ubuntu_2004(self):
         p = angr.Project(
             os.path.join(test_location, "x86_64", "elf_with_static_libc_ubuntu_2004_stripped"), auto_load_libs=False
@@ -3190,6 +3189,47 @@ class TestJumpTableResolver(unittest.TestCase):
             0x400401,
             0x400725,
             0x40073D,
+        ]
+
+    def test_external_default_node(self):
+        p = angr.Project(os.path.join(test_location, "x86_64", "switch_default_abort.o"), auto_load_libs=False)
+        cfg = p.analyses.CFGFast()
+        jt = cfg.model.jump_tables[0x40000D]
+        assert jt.jumptable_entries is not None
+        assert set(jt.jumptable_entries) == {
+            0x400020,
+            0x400030,
+            0x400040,
+            0x400050,
+            0x400060,
+        }
+
+    def test_secondary_jumptable_amd64(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "x86_64", "windows", "9c75d43ec531c76caa65de86dcac0269d6727ba4ec74fe1cac1fda0e176fd2ab"
+            ),
+            auto_load_libs=False,
+        )
+        cfg = proj.analyses.CFGFast()
+        jt = cfg.model.jump_tables[0x140051BBB]
+        assert jt.jumptable is True
+        assert len(jt.jumptables) == 2
+        assert jt.jumptable_addr == 0x140051CA0  # we assume the indirect table is the primary jump table
+        assert jt.jumptable_size == 0x140051CD6 - 0x140051CA0
+        assert jt.jumptable_entry_size == 1
+        assert jt.jumptables[0].addr == 0x140051CA0
+        assert jt.jumptables[1].addr == 0x140051C84
+        assert jt.jumptables[1].entry_size == 4
+        assert jt.jumptables[1].size == 28
+        assert jt.jumptables[1].entries == [
+            0x51C3E,
+            0x51C56,
+            0x51BDE,
+            0x51BF6,
+            0x51C0E,
+            0x51C26,
+            0x51C6E,
         ]
 
 

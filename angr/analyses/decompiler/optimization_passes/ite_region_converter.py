@@ -296,7 +296,7 @@ class ITERegionConverter(OptimizationPass):
                 )
 
             if len(new_src_and_vvars) == 1:
-                new_assignment = Assignment(
+                new_stmt = Assignment(
                     stmt.idx,
                     stmt.dst,
                     new_src_and_vvars[0][1],
@@ -309,13 +309,13 @@ class ITERegionConverter(OptimizationPass):
                     new_src_and_vvars,
                     **stmt.src.tags,
                 )
-                new_assignment = Assignment(
+                new_stmt = Assignment(
                     stmt.idx,
                     stmt.dst,
                     new_phi,
                     **stmt.tags,
                 )
-            stmts.append(new_assignment)
+            stmts.append(new_stmt)
         new_region_tail = Block(region_tail.addr, region_tail.original_size, statements=stmts, idx=region_tail.idx)
 
         #

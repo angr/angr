@@ -125,10 +125,16 @@ class RegionSimplifier(Analysis):
         # before the definition site and the use site.
         var_with_loads = {}
         single_use_variables = []
-        for var, uses in expr_counter.uses.items():
-            if len(uses) == 1 and var in expr_counter.assignments and len(expr_counter.assignments[var]) == 1:
+        for var, outerscope_uses in expr_counter.outerscope_uses.items():
+            all_uses = expr_counter.all_uses[var]
+            if (
+                len(outerscope_uses) == 1
+                and len(all_uses) == 1
+                and var in expr_counter.assignments
+                and len(expr_counter.assignments[var]) == 1
+            ):
                 definition, deps, loc, has_loads = next(iter(expr_counter.assignments[var]))
-                _, use_expr_loc = next(iter(uses))
+                _, use_expr_loc = next(iter(outerscope_uses))
                 if isinstance(use_expr_loc, ExpressionLocation) and use_expr_loc.phi_stmt:
                     # we cannot fold expressions that are used in phi statements
                     continue
@@ -169,7 +175,7 @@ class RegionSimplifier(Analysis):
                     definition.ret_expr = definition.ret_expr.copy()
                     definition.ret_expr.variable = None
             variable_assignments[var] = definition, loc
-            variable_uses[var] = next(iter(expr_counter.uses[var]))
+            variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps
 
         # any variable definition that uses an existing to-be-removed variable cannot be folded

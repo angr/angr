@@ -43,6 +43,7 @@ class RegionIdentifier(Analysis):
         update_graph=True,
         largest_successor_tree_outside_loop=True,
         force_loop_single_exit=True,
+        refine_loops_with_single_successor=False,
         complete_successors=False,
         entry_node_addr: tuple[int, int | None] | None = None,
     ):
@@ -70,6 +71,7 @@ class RegionIdentifier(Analysis):
         self.regions_by_block_addrs = []
         self._largest_successor_tree_outside_loop = largest_successor_tree_outside_loop
         self._force_loop_single_exit = force_loop_single_exit
+        self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
         # we keep a dictionary of node and their traversal order in a quasi-topological traversal and update this
         # dictionary as we update the graph
@@ -265,13 +267,18 @@ class RegionIdentifier(Analysis):
 
         # special case: any node with more than two non-self successors are probably the head of a switch-case. we
         # should include all successors into the loop subgraph.
+        # we must be extra careful here to not include nodes that are reachable from outside the loop subgraph. an
+        # example is in binary 064e1d62c8542d658d83f7e231cc3b935a1f18153b8aea809dcccfd446a91c93, loop 0x40d7b0 should
+        # not include block 0x40d9d5 because this node has a out-of-loop-body predecessor (block 0x40d795).
         while True:
             updated = False
             for node in list(loop_subgraph):
                 nonself_successors = [succ for succ in graph.successors(node) if succ is not node]
                 if len(nonself_successors) > 2:
                     for succ in nonself_successors:
-                        if not loop_subgraph.has_edge(node, succ):
+                        if not loop_subgraph.has_edge(node, succ) and all(
+                            pred in loop_subgraph for pred in graph.predecessors(succ)
+                        ):
                             updated = True
                             loop_subgraph.add_edge(node, succ)
             if not updated:
@@ -280,7 +287,9 @@ class RegionIdentifier(Analysis):
         return set(loop_subgraph)
 
     def _refine_loop(self, graph: networkx.DiGraph, head, initial_loop_nodes, initial_exit_nodes):
-        if len(initial_exit_nodes) <= 1:
+        if (self._refine_loops_with_single_successor and len(initial_exit_nodes) == 0) or (
+            not self._refine_loops_with_single_successor and len(initial_exit_nodes) <= 1
+        ):
             return initial_loop_nodes, initial_exit_nodes
 
         refined_loop_nodes = initial_loop_nodes.copy()
@@ -713,7 +722,7 @@ class RegionIdentifier(Analysis):
 
         # visit the nodes in post-order
         region_created = False
-        for node in list(networkx.dfs_postorder_nodes(graph_copy, source=head)):
+        for node in list(GraphUtils.dfs_postorder_nodes_deterministic(graph_copy, head)):
             if node is dummy_endnode:
                 # skip the dummy endnode
                 continue

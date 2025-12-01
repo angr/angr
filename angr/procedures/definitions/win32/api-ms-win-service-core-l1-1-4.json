@@ -1,0 +1,18 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-service-core-l1-1-4.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GetServiceDirectory": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SERVICE_STATUS_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_DIRECTORY_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hServiceStatus', 'eDirectoryType', 'lpPathBuffer', 'cchPathBufferLength', 'lpcchRequiredBufferLength']}"
+		}
+	}
+}

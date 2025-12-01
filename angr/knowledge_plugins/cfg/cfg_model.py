@@ -1,7 +1,6 @@
 # pylint:disable=no-member
 from __future__ import annotations
 
-import pickle
 import logging
 from typing import TYPE_CHECKING
 from collections.abc import Callable
@@ -144,7 +143,7 @@ class CFGModel(Serializable):
                 elif k == "stmt_idx":
                     edge.stmt_idx = v if v is not None else -1
                 else:
-                    edge.data[k] = pickle.dumps(v)
+                    l.warning('Unexpected edge data type "%s" found during CFG serialization.', k)
             edges.append(edge)
         cmsg.edges.extend(edges)
 
@@ -184,12 +183,11 @@ class CFGModel(Serializable):
             # more than one node at a given address is unsupported, grab the first one
             src = model._nodes_by_addr[edge_pb2.src_ea][0]
             dst = model._nodes_by_addr[edge_pb2.dst_ea][0]
-            data = {}
-            for k, v in edge_pb2.data.items():
-                data[k] = pickle.loads(v)
-            data["jumpkind"] = cfg_jumpkind_from_pb(edge_pb2.jumpkind)
-            data["ins_addr"] = edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None
-            data["stmt_idx"] = edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None
+            data = {
+                "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
+                "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
+                "stmt_idx": edge_pb2.stmt_idx if edge_pb2.stmt_idx != -1 else None,
+            }
             model.graph.add_edge(src, dst, **data)
 
         # memory data

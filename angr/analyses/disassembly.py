@@ -34,7 +34,7 @@ class DisassemblyPiece:
     addr = None
     ident = float("nan")
 
-    def render(self, formatting=None):
+    def render(self, formatting=None) -> list[str]:
         x = self._render(formatting)
         if len(x) == 1:
             return [self.highlight(x[0], formatting)]
@@ -73,7 +73,7 @@ class DisassemblyPiece:
             pass
         return string
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         return False
 
 
@@ -175,7 +175,7 @@ class Instruction(DisassemblyPiece):
         self.arch = self.project.arch
         self.format = ""
         self.components = ()
-        self.opcode = None
+        self.opcode: Opcode = None  # type:ignore
         self.operands = []
 
         # the following members will be filled in after dissecting the instruction
@@ -261,7 +261,11 @@ class Instruction(DisassemblyPiece):
                     if i > 0 and opr_pieces[i - 1] == "-":
                         v = -v
                         cur_operand.pop()
-                    cur_operand.append(Value(v, with_sign))
+                    with_pound_sign = False
+                    if i > 0 and opr_pieces[i - 1] == "#":
+                        with_pound_sign = True
+                        cur_operand.pop()
+                    cur_operand.append(Value(v, with_sign, render_with_pound_sign=with_pound_sign))
                 elif p[0].isalpha() and p in self.arch.registers:
                     cur_operand.append(Register(p))
                 else:
@@ -592,7 +596,7 @@ class Opcode(DisassemblyPiece):
 class Operand(DisassemblyPiece):
     def __init__(self, op_num, children, parentinsn):
         self.addr = parentinsn.addr
-        self.children = children
+        self.children: list = children
         self.parentinsn = parentinsn
         self.op_num = op_num
         self.ident = (self.addr, "operand", self.op_num)
@@ -639,14 +643,33 @@ class Operand(DisassemblyPiece):
         operand = cls(op_num, children, parentinsn)
 
         # Post-processing
-        if cls is MemoryOperand and parentinsn.arch.name in {"AMD64"} and len(operand.values) == 2:
+        if cls is MemoryOperand:
+            operand = Operand._post_process_memory_operand(parentinsn, operand)
+
+        return operand
+
+    @staticmethod
+    def _post_process_memory_operand(parentinsn: Instruction, operand: MemoryOperand) -> Operand:
+        archname = parentinsn.arch.name
+        if archname in {"AMD64", "ARM", "ARMEL", "ARMHF", "ARMCortexM"} and len(operand.values) == 2:
             op0, op1 = operand.values
             if type(op0) is Register and op0.is_ip and type(op1) is Value:
-                # Indirect addressing in x86_64
+                # Indirect addressing in x86-64 and ARM
                 # 400520  push [rip+0x200782] ==>  400520  push [0x600ca8]
-                absolute_addr = parentinsn.addr + parentinsn.size + op1.val
+                # 80410e6  ldr r1, [pc, #0x98]  ==>   80410e6  ldr r1, [0x8041182]
+                match archname:
+                    case "AMD64":
+                        absolute_addr = parentinsn.addr + parentinsn.size + op1.val
+                    case "ARM" | "ARMEL" | "ARMHF" | "ARMCortexM":
+                        if parentinsn.addr & 1:
+                            # thumb mode
+                            absolute_addr = (parentinsn.addr & 0xFFFF_FFFE) + 4 + op1.val
+                        else:
+                            # arm mode
+                            absolute_addr = parentinsn.addr + 8 + op1.val
+                    case _:
+                        raise AngrTypeError(f"Unsupported architecture {archname} for post-processing memory operand.")
                 return MemoryOperand(1, [*operand.prefix, "[", Value(absolute_addr, False), "]"], parentinsn)
-
         return operand
 
 
@@ -680,13 +703,15 @@ class MemoryOperand(Operand):
         # [ '[', Register, ']' ]
         # or
         # [ Value, '(', Register, ')' ]
+        # or
+        # [ Register, ",", Value]
 
         # it will be converted into more meaningful and Pythonic properties
 
         self.segment_selector = None
         self.prefix = []
         self.suffix_str = ""  # could be arm pre index mark "!"
-        self.values = []
+        self.values: list[str | DisassemblyPiece] = []
         self.offset = []
         # offset_location
         # - prefix: -0xff00($gp)
@@ -698,6 +723,10 @@ class MemoryOperand(Operand):
         # - curly: {rax+0x10}
         # - paren: (rax+0x10)
         self.values_style = "square"
+        # separator (between register and value)
+        # - "": rax+0x10
+        # - "comma": r0, #0x10
+        self.separator = ""
 
         try:
             if "[" in self.children:
@@ -711,8 +740,8 @@ class MemoryOperand(Operand):
             l.error("Failed to parse operand children %s. Please report to Fish.", self.children)
 
             # setup all dummy properties
-            self.prefix = None
-            self.values = None
+            self.prefix = []
+            self.values = []
 
     def _parse_memop_squarebracket(self):
         if self.children[0] != "[":
@@ -746,6 +775,27 @@ class MemoryOperand(Operand):
                 raise ValueError
 
         self.values = self.children[square_bracket_pos + 1 : close_square_pos]
+        if len(self.values) >= 3 and self.values[1] == ",":
+            # arm style memory operand: [r0, #0x10], or [pc, r3, lsl #1]
+            self.separator = "comma"
+            # remove all commas and consolidate all remaining strings
+            new_values = []
+            last_item = None
+            for v in self.values:
+                if v == ",":
+                    if last_item is not None:
+                        new_values.append(last_item)
+                        last_item = None
+                elif isinstance(v, str):
+                    last_item = v if last_item is None else last_item + v
+                else:
+                    if last_item is not None:
+                        new_values.append(last_item)
+                        last_item = None
+                    new_values.append(v)
+            if last_item is not None:
+                new_values.append(last_item)
+            self.values = new_values
 
     def _parse_memop_paren(self):
         offset = []
@@ -801,7 +851,8 @@ class MemoryOperand(Operand):
         if custom_values_str is not None:
             value_str = custom_values_str
         else:
-            value_str = "".join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.values)
+            sep = "," if self.separator == "comma" else ""
+            value_str = sep.join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.values)
 
         if values_style == "curly":
             left_paren, right_paren = "{", "}"
@@ -811,7 +862,7 @@ class MemoryOperand(Operand):
             left_paren, right_paren = "[", "]"
 
         if self.offset:
-            offset_str = "".join(x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset)
+            offset_str = "".join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.offset)
 
             # combine values and offsets according to self.offset_location
             if self.offset_location == "prefix":
@@ -829,9 +880,7 @@ class MemoryOperand(Operand):
             prefix_str += " "
 
             if self.offset:
-                offset_str = "".join(
-                    x.render(formatting)[0] if not isinstance(x, (bytes, str)) else x for x in self.offset
-                )
+                offset_str = "".join(x.render(formatting)[0] if not isinstance(x, str) else x for x in self.offset)
 
                 # combine values and offsets according to self.offset_location
                 if self.offset_location == "prefix":
@@ -873,12 +922,14 @@ class Register(OperandPiece):
 
 
 class Value(OperandPiece):
-    def __init__(self, val, render_with_sign):
+    def __init__(self, val, render_with_sign, render_with_pound_sign: bool = False):
         self.val = val
         self.render_with_sign = render_with_sign
+        self.render_with_pound_sign = render_with_pound_sign
 
     @property
     def project(self):
+        assert self.parentop is not None
         return self.parentop.parentinsn.project
 
     def __eq__(self, other):
@@ -888,26 +939,26 @@ class Value(OperandPiece):
         if formatting is not None:
             try:
                 style = formatting["int_styles"][self.ident]
-                if style[0] == "hex":
-                    if self.render_with_sign:
-                        return [f"{self.val:+#x}"]
-                    return [f"{self.val:#x}"]
-                if style[0] == "dec":
-                    if self.render_with_sign:
-                        return [f"{self.val:+d}"]
-                    return [str(self.val)]
                 if style[0] == "label":
                     labeloffset = style[1]
                     if labeloffset == 0:
                         lbl = self.project.kb.labels[self.val]
                         return [lbl]
-                    return [
-                        "{}{}{:#+x}".format(
-                            "+" if self.render_with_sign else "",
-                            self.project.kb.labels[self.val + labeloffset],
-                            labeloffset,
-                        )
-                    ]
+                    s = "{}{}{:#+x}".format(
+                        "+" if self.render_with_sign else "",
+                        self.project.kb.labels[self.val + labeloffset],
+                        labeloffset,
+                    )
+                elif style[0] == "hex":
+                    s = f"{self.val:+#x}" if self.render_with_sign else f"{self.val:#x}"
+                    if self.render_with_pound_sign:
+                        s = "#" + s
+                else:  # "dec"
+                    s = f"{self.val:+d}" if self.render_with_sign else str(self.val)
+
+                if self.render_with_pound_sign:
+                    s = "#" + s
+                return [s]
             except KeyError:
                 pass
 
@@ -927,9 +978,10 @@ class Value(OperandPiece):
             return [("+" if self.render_with_sign else "") + lbl]
         if func is not None:
             return [func.demangled_name]
-        if self.render_with_sign:
-            return [f"{self.val:+#x}"]
-        return [f"{self.val:#x}"]
+        s = f"{self.val:+#x}" if self.render_with_sign else f"{self.val:#x}"
+        if self.render_with_pound_sign:
+            s = "#" + s
+        return [s]
 
 
 class Comment(DisassemblyPiece):
@@ -1079,10 +1131,11 @@ class Disassembly(Analysis):
         if irsb.statements is not None:
             if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
                 addr = None
-                for stmt_idx, op in enumerate(irsb._ops):
+                for stmt_idx, op in enumerate(irsb._ops):  # type:ignore
                     if op.opcode == pypcode.OpCode.IMARK:
                         addr = op.inputs[0].offset
                     else:
+                        assert addr is not None
                         addr_to_ops_map[addr].append(IROp(addr, stmt_idx, op, irsb))
             else:
                 for seq, stmt in enumerate(irsb.statements):
@@ -1166,22 +1219,23 @@ class Disassembly(Analysis):
         buf = []
 
         if formatting is None:
+            colors = (
+                {
+                    "address": "gray",
+                    "bytes": "cyan",
+                    "edge": "yellow",
+                    Label: "bright_yellow",
+                    ConstantOperand: "cyan",
+                    MemoryOperand: "yellow",
+                    Comment: "gray",
+                    Hook: "green",
+                }
+                if ansi_color_enabled and color
+                else {}
+            )
             formatting = {
-                "colors": (
-                    {
-                        "address": "gray",
-                        "bytes": "cyan",
-                        "edge": "yellow",
-                        Label: "bright_yellow",
-                        ConstantOperand: "cyan",
-                        MemoryOperand: "yellow",
-                        Comment: "gray",
-                        Hook: "green",
-                    }
-                    if ansi_color_enabled and color
-                    else {}
-                ),
-                "format_callback": lambda item, s: ansi_color(s, formatting["colors"].get(type(item), None)),
+                "colors": colors,
+                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item), None)),
             }
 
         def col(item: Any) -> str | None:
@@ -1234,12 +1288,14 @@ class Disassembly(Analysis):
                 # Format the instruction's address, bytes, disassembly, and comment
                 s_plain = format_address(item.addr, False)
                 s = format_address(item.addr)
+                bytes_column = 0
                 if show_bytes:
                     bytes_column = len(s_plain)
                     s_plain += format_bytes(insn_bytes[0], False)
                     s += format_bytes(insn_bytes[0])
                 s_plain += item.render()[0]
                 s += item.render(formatting)[0]
+                comment_column = 0
                 if comment is not None:
                     comment_column = len(s_plain)
                     s += format_comment(comment.text[0])

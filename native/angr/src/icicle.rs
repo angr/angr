@@ -7,6 +7,7 @@
 /// https://github.com/icicle-emu/icicle-python
 use std::{collections::HashMap, path::PathBuf};
 
+use icicle_fuzzing::coverage::register_afl_hit_counts_all;
 use icicle_vm::{
     cpu::{
         Cpu, ValueSource,
@@ -198,6 +199,7 @@ struct Icicle {
     architecture: String,
     vm: icicle_vm::Vm,
     path_tracer: Option<PathTracerRef>,
+    edge_count_hitmap: Option<Box<[u8]>>,
 }
 
 #[pymethods]
@@ -207,6 +209,7 @@ impl Icicle {
         architecture: String,
         processors_path: String,
         enable_tracing: bool,
+        enable_edge_count: bool,
     ) -> PyResult<Self> {
         let mut config =
             icicle_vm::cpu::Config::from_target_triple(format!("{architecture}-none").as_str());
@@ -249,10 +252,19 @@ impl Icicle {
                 None
             };
 
+        let edge_count_hitmap = if enable_edge_count {
+            let mut hitmap = vec![0u8; 1 << 16].into_boxed_slice();
+            register_afl_hit_counts_all(&mut vm, hitmap.as_mut_ptr(), 16);
+            Some(hitmap)
+        } else {
+            None
+        };
+
         Ok(Self {
             architecture,
             vm,
             path_tracer,
+            edge_count_hitmap,
         })
     }
 
@@ -387,11 +399,11 @@ impl Icicle {
     }
 
     pub fn run(&mut self, py: Python) -> VmExit {
-        // By calling `py.allow_threads`, we allow Python to release the GIL and
+        // By calling `py.detach`, we allow Python to release the GIL and
         // allow other threads to run while the VM is executing. This allows
         // using multiple engines in parallel within a single Python process.
         let mut wrapped = SendWrapper::new(&mut self.vm);
-        py.allow_threads(|| (*wrapped).run().into())
+        py.detach(|| (*wrapped).run().into())
     }
 
     #[getter]
@@ -413,6 +425,24 @@ impl Icicle {
         } else {
             Vec::new()
         }
+    }
+
+    #[getter]
+    pub fn get_edge_hitmap(&mut self) -> Option<&[u8]> {
+        self.edge_count_hitmap.as_deref()
+    }
+
+    #[setter]
+    pub fn set_edge_hitmap(&mut self, new_hitmap: &[u8]) -> PyResult<()> {
+        if let Some(hitmap) = &mut self.edge_count_hitmap {
+            if hitmap.len() != new_hitmap.len() {
+                return Err(PyRuntimeError::new_err("Hitmap size mismatch"));
+            }
+            hitmap.copy_from_slice(new_hitmap);
+        } else {
+            return Err(PyRuntimeError::new_err("Edge hitmap is not enabled"));
+        }
+        Ok(())
     }
 }
 

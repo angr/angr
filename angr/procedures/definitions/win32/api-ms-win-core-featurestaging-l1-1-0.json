@@ -1,0 +1,30 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-core-featurestaging-l1-1-0.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"GetFeatureEnabledState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FEATURE_CHANGE_TIME', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'FEATURE_ENABLED_STATE', 'ot': 'int'}, 'arg_names': ['featureId', 'changeTime']}"
+		},
+		"RecordFeatureError": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_ERROR', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['featureId', 'error']}"
+		},
+		"RecordFeatureUsage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['featureId', 'kind', 'addend', 'originName']}"
+		},
+		"SubscribeFeatureStateChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_STATE_CHANGE_SUBSCRIPTION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['subscription', 'callback', 'context']}"
+		},
+		"UnsubscribeFeatureStateChangeNotification": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'FEATURE_STATE_CHANGE_SUBSCRIPTION', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['subscription']}"
+		}
+	}
+}

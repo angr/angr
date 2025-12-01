@@ -3,6 +3,8 @@ import itertools
 
 
 class Manager:
+    _block_addr: int
+
     def __init__(self, name: str | None = None, arch=None):
         self.name = name
         self.arch = arch
@@ -16,7 +18,6 @@ class Manager:
         ###
         self.vex_stmt_idx: int | None = None
         self.tyenv = None
-        self.block_addr = None
 
     def next_atom(self):
         return next(self.atom_ctr)

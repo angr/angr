@@ -40,7 +40,6 @@ Program State
 .. automodule:: angr.state_plugins.preconstrainer
 .. automodule:: angr.state_plugins.unicorn_engine
 .. automodule:: angr.state_plugins.loop_data
-.. automodule:: angr.state_plugins.concrete
 .. automodule:: angr.state_plugins.javavm_classloader
 .. automodule:: angr.state_plugins.jni_references
 .. automodule:: angr.state_plugins.heap
@@ -169,7 +168,6 @@ Exploration Techniques
 .. automodule:: angr.exploration_techniques.unique
 .. automodule:: angr.exploration_techniques.tech_builder
 .. automodule:: angr.exploration_techniques.common
-.. automodule:: angr.exploration_techniques.symbion
 .. automodule:: angr.exploration_techniques.memory_watcher
 .. automodule:: angr.exploration_techniques.bucketizer
 .. automodule:: angr.exploration_techniques.suggestions
@@ -188,7 +186,6 @@ Simulation Engines
 .. automodule:: angr.engines.soot
 .. automodule:: angr.engines.soot.engine
 .. automodule:: angr.engines.unicorn
-.. automodule:: angr.engines.concrete
 .. automodule:: angr.engines.pcode
 .. automodule:: angr.engines.pcode.engine
 .. automodule:: angr.engines.pcode.lifter

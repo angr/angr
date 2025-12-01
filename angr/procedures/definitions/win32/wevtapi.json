@@ -1,0 +1,120 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"wevtapi.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"EvtArchiveExportedLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Session', 'LogFilePath', 'Locale', 'Flags']}"
+		},
+		"EvtCancel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Object']}"
+		},
+		"EvtClearLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Session', 'ChannelPath', 'TargetFilePath', 'Flags']}"
+		},
+		"EvtClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Object']}"
+		},
+		"EvtCreateBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['BookmarkXml']}"
+		},
+		"EvtCreateRenderContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['ValuePathsCount', 'ValuePaths', 'Flags']}"
+		},
+		"EvtExportLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Session', 'Path', 'Query', 'TargetFilePath', 'Flags']}"
+		},
+		"EvtFormatMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['PublisherMetadata', 'Event', 'MessageId', 'ValueCount', 'Values', 'Flags', 'BufferSize', 'Buffer', 'BufferUsed']}"
+		},
+		"EvtGetChannelConfigProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_CHANNEL_CONFIG_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ChannelConfig', 'PropertyId', 'Flags', 'PropertyValueBufferSize', 'PropertyValueBuffer', 'PropertyValueBufferUsed']}"
+		},
+		"EvtGetEventInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_EVENT_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Event', 'PropertyId', 'PropertyValueBufferSize', 'PropertyValueBuffer', 'PropertyValueBufferUsed']}"
+		},
+		"EvtGetEventMetadataProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_EVENT_METADATA_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['EventMetadata', 'PropertyId', 'Flags', 'EventMetadataPropertyBufferSize', 'EventMetadataPropertyBuffer', 'EventMetadataPropertyBufferUsed']}"
+		},
+		"EvtGetExtendedStatus": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['BufferSize', 'Buffer', 'BufferUsed']}"
+		},
+		"EvtGetLogInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_LOG_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Log', 'PropertyId', 'PropertyValueBufferSize', 'PropertyValueBuffer', 'PropertyValueBufferUsed']}"
+		},
+		"EvtGetObjectArrayProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ObjectArray', 'PropertyId', 'ArrayIndex', 'Flags', 'PropertyValueBufferSize', 'PropertyValueBuffer', 'PropertyValueBufferUsed']}"
+		},
+		"EvtGetObjectArraySize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ObjectArray', 'ObjectArraySize']}"
+		},
+		"EvtGetPublisherMetadataProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_PUBLISHER_METADATA_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['PublisherMetadata', 'PropertyId', 'Flags', 'PublisherMetadataPropertyBufferSize', 'PublisherMetadataPropertyBuffer', 'PublisherMetadataPropertyBufferUsed']}"
+		},
+		"EvtGetQueryInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_QUERY_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['QueryOrSubscription', 'PropertyId', 'PropertyValueBufferSize', 'PropertyValueBuffer', 'PropertyValueBufferUsed']}"
+		},
+		"EvtNext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ResultSet', 'EventsSize', 'Events', 'Timeout', 'Flags', 'Returned']}"
+		},
+		"EvtNextChannelPath": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ChannelEnum', 'ChannelPathBufferSize', 'ChannelPathBuffer', 'ChannelPathBufferUsed']}"
+		},
+		"EvtNextEventMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['EventMetadataEnum', 'Flags']}"
+		},
+		"EvtNextPublisherId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['PublisherEnum', 'PublisherIdBufferSize', 'PublisherIdBuffer', 'PublisherIdBufferUsed']}"
+		},
+		"EvtOpenChannelConfig": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'ChannelPath', 'Flags']}"
+		},
+		"EvtOpenChannelEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'Flags']}"
+		},
+		"EvtOpenEventMetadataEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['PublisherMetadata', 'Flags']}"
+		},
+		"EvtOpenLog": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'Path', 'Flags']}"
+		},
+		"EvtOpenPublisherEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'Flags']}"
+		},
+		"EvtOpenPublisherMetadata": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'PublisherId', 'LogFilePath', 'Locale', 'Flags']}"
+		},
+		"EvtOpenSession": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_LOGIN_CLASS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['LoginClass', 'Login', 'Timeout', 'Flags']}"
+		},
+		"EvtQuery": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'Path', 'Query', 'Flags']}"
+		},
+		"EvtRender": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Context', 'Fragment', 'Flags', 'BufferSize', 'Buffer', 'BufferUsed', 'PropertyCount']}"
+		},
+		"EvtSaveChannelConfig": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ChannelConfig', 'Flags']}"
+		},
+		"EvtSeek": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ResultSet', 'Position', 'Bookmark', 'Timeout', 'Flags']}"
+		},
+		"EvtSetChannelConfigProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_CHANNEL_CONFIG_PROPERTY_ID', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'EVT_VARIANT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['ChannelConfig', 'PropertyId', 'Flags', 'PropertyValue']}"
+		},
+		"EvtSubscribe": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_SUBSCRIBE_NOTIFY_ACTION', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Action', 'UserContext', 'Event']}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, 'arg_names': ['Session', 'SignalEvent', 'ChannelPath', 'Query', 'Bookmark', 'Context', 'Callback', 'Flags']}"
+		},
+		"EvtUpdateBookmark": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'EVT_HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Bookmark', 'Event']}"
+		}
+	}
+}

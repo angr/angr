@@ -96,7 +96,9 @@ def dereference_simtype(
                 except AngrMissingTypeError:
                     continue
         if real_type is None:
-            raise AngrMissingTypeError(f"Missing type {t.name}")
+            raise AngrMissingTypeError(t.name)
+        if t._arch is not None:
+            real_type = real_type.with_arch(t._arch)
         return dereference_simtype(real_type, type_collections, memo=memo)
 
     # the following code prepares a real_type SimType object that will be returned at the end of this method
@@ -149,3 +151,43 @@ def dereference_simtype_by_lib(t: SimType, libname: str) -> SimType:
     if type_collections:
         return dereference_simtype(t, type_collections)
     return t
+
+
+def make_type_reference(t: SimType, memo: dict[str, SimTypeRef] | None = None) -> SimType:
+    """
+    Take a SimType and convert all SimStruct instances to SimTypeRefs.
+
+    :param t:   The SimType instance to convert.
+    :return:    A converted SimType instance.
+    """
+
+    if memo is None:
+        memo = {}
+
+    if isinstance(t, SimStruct) and t.name:
+        if t.name in memo:
+            ref_t = memo[t.name]
+        else:
+            ref_t = SimTypeRef(t.name, SimStruct)
+            memo[t.name] = ref_t
+    elif isinstance(t, SimTypePointer):
+        ref_pts_to = make_type_reference(t.pts_to, memo=memo)
+        ref_t = SimTypePointer(ref_pts_to, label=t.label, offset=t.offset)
+    elif isinstance(t, SimTypeArray):
+        ref_elem_type = make_type_reference(t.elem_type, memo=memo)
+        ref_t = SimTypeArray(ref_elem_type, length=t.length, label=t.label)
+    elif isinstance(t, SimUnion):
+        ref_members = {k: make_type_reference(v, memo=memo) for k, v in t.members.items()}
+        ref_t = SimUnion(ref_members, label=t.label)
+    elif isinstance(t, SimTypeFunction):
+        ref_args = [make_type_reference(arg, memo=memo) for arg in t.args]
+        ref_return_type = make_type_reference(t.returnty, memo=memo) if t.returnty is not None else None
+        ref_t = t.copy()
+        ref_t.args = tuple(ref_args)
+        ref_t.returnty = ref_return_type
+    else:
+        return t
+
+    if t._arch is not None:
+        ref_t = ref_t.with_arch(t._arch)
+    return ref_t

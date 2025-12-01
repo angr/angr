@@ -9,6 +9,7 @@ from .successors import SimSuccessors, SuccessorsEngine
 from .syscall import SimEngineSyscall
 from .unicorn import SimEngineUnicorn
 from .vex import HeavyResilienceMixin, HeavyVEXMixin, SimInspectMixin, SuperFastpathMixin, TrackActionsMixin
+from .ail import AILMixin
 
 
 class UberEngine(
@@ -21,6 +22,7 @@ class UberEngine(
     SimInspectMixin,
     HeavyResilienceMixin,
     SootMixin,
+    AILMixin,
     HeavyVEXMixin,
 ):
     """

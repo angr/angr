@@ -9,12 +9,13 @@ import networkx
 import angr.ailment as ailment
 from angr.ailment import Block
 from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
-from angr.ailment.statement import Assignment, Label
+from angr.ailment.statement import Assignment, Label, Statement
 
 from angr.code_location import CodeLocation
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis import FunctionGraphVisitor
-from angr.utils.ail import is_head_controlled_loop_block
+from angr.utils.ail import is_head_controlled_loop_block, extract_partial_expr
+from angr.utils.ssa import get_reg_offset_base_and_size, is_phi_assignment
 from .rewriting_engine import SimEngineSSARewriting, DefExprType, AT
 from .rewriting_state import RewritingState
 
@@ -188,10 +189,11 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
     def _reg_predicate(self, node_: Block, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
-            if is_head_controlled_loop_block(node_)
+            if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
         if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+            # we found a perfect hit
             existing_var = out_state.registers[reg_offset][reg_size]
             if existing_var is None:
                 # the vvar is not set. it should never be referenced
@@ -199,6 +201,25 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             vvar = existing_var.copy()
             vvar.idx = self._ail_manager.next_atom()
             return True, vvar
+
+        # try to see if any register writes overlap with the requested one
+        # note that we only support full overlaps for now...
+        for off in out_state.registers:
+            if reg_offset + reg_size <= off or (
+                out_state.registers[off] and reg_offset > off + max(out_state.registers[off])
+            ):
+                continue
+            for sz in sorted(out_state.registers[off], reverse=True):
+                if reg_offset >= off and reg_offset + reg_size <= off + sz:
+                    existing_var = out_state.registers[off][sz]
+                    if existing_var is None:
+                        # the vvar is not set.
+                        return True, None
+
+                    # return the base vvar
+                    base_vvar = existing_var.copy()
+                    base_vvar.idx = self._ail_manager.next_atom()
+                    return True, base_vvar
         return False, None
 
     def _stack_predicate(self, node_: Block, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
@@ -319,19 +340,26 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                 for stmt in node.statements
             ):
                 # there we go
-                new_stmts = []
+                phi_stmts = []
+                phi_extraction_stmts = []
+                other_stmts = []
                 for stmt in node.statements:
-                    if not (
+                    if (
                         isinstance(stmt, Assignment)
                         and isinstance(stmt.dst, VirtualVariable)
                         and isinstance(stmt.src, Phi)
-                        and len(stmt.src.src_and_vvars) == 0  # avoid re-assignment
+                        and len(stmt.src.src_and_vvars) > 0
                     ):
-                        new_stmts.append(stmt)
+                        # avoid re-assignment
+                        phi_stmts.append(stmt)
+                        continue
+                    if not is_phi_assignment(stmt):
+                        other_stmts.append(stmt)
                         continue
 
                     src_and_vvars = []
                     if stmt.dst.was_reg:
+                        perfect_matches = []
                         for pred in self.graph.predecessors(original_node):
                             vvar = self._follow_one_path_backward(
                                 self.graph,
@@ -339,6 +367,36 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                                 partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset, reg_size=stmt.dst.size),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
+                            perfect_matches.append(
+                                (vvar.reg_offset == stmt.dst.reg_offset and vvar.size == stmt.dst.size)
+                                if vvar is not None
+                                else True
+                            )
+                        if all(perfect_matches):
+                            phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
+                            phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                            phi_stmts.append(phi_stmt)
+                        else:
+                            # different sizes of vvars found; we need to resort to the base register and extract the
+                            # requested register out of the base register
+                            # here we rely on the fact that the larger register vvar must be created in this block when
+                            # the smaller register has been created
+                            base_reg_offset, max_reg_size = get_reg_offset_base_and_size(
+                                stmt.dst.reg_offset, self.project.arch, size=stmt.dst.size
+                            )
+                            # find the phi assignment statement of the larger base register
+                            base_vvar = self._find_phi_vvar_for_reg(base_reg_offset, max_reg_size, node.statements)
+                            assert base_vvar is not None
+                            partial_base_vvar = extract_partial_expr(
+                                base_vvar,
+                                stmt.dst.reg_offset - base_reg_offset,
+                                stmt.dst.size,
+                                self._ail_manager,
+                                byte_width=self.project.arch.byte_width,
+                            )
+                            new_stmt = Assignment(stmt.idx, stmt.dst, partial_base_vvar, **base_vvar.tags)
+                            phi_extraction_stmts.append(new_stmt)
+
                     elif stmt.dst.was_stack:
                         for pred in self.graph.predecessors(original_node):
                             vvar = self._follow_one_path_backward(
@@ -351,13 +409,14 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                                 ),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
+
+                        phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
+                        phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
+                        phi_stmts.append(phi_stmt)
                     else:
                         raise NotImplementedError
 
-                    phi_var = Phi(stmt.src.idx, stmt.src.bits, src_and_vvars=src_and_vvars)
-                    new_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
-                    new_stmts.append(new_stmt)
-                node = node.copy(statements=new_stmts)
+                node = node.copy(statements=phi_stmts + phi_extraction_stmts + other_stmts)
                 self.out_blocks[node_key] = node
 
     @staticmethod
@@ -377,3 +436,16 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                 break
             the_node = more_preds[0]
         return return_value
+
+    @staticmethod
+    def _find_phi_vvar_for_reg(reg_offset: int, reg_size: int, stmts: list[Statement]) -> VirtualVariable | None:
+        for stmt in stmts:
+            if (
+                is_phi_assignment(stmt)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_reg
+                and stmt.dst.reg_offset == reg_offset
+                and stmt.dst.size == reg_size
+            ):
+                return stmt.dst
+        return None

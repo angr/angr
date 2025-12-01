@@ -56,7 +56,10 @@ def get_reg_offset_base_and_size(
 
     base_reg_and_size = arch.get_base_register(reg_offset, size=size)
     if resilient and base_reg_and_size is None:
-        return reg_offset, size
+        base_reg_and_size = arch.get_base_register(reg_offset, size=None)
+        if base_reg_and_size is None:
+            # give up
+            return reg_offset, size
     return base_reg_and_size
 
 
@@ -288,9 +291,7 @@ class AILReferenceFinder(AILBlockWalkerBase):
         self.vvar_id = vvar_id
         self.has_references_to_vvar = False
 
-    def _handle_UnaryOp(
-        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
-    ) -> Any:
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None) -> Any:
         if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == self.vvar_id:
             self.has_references_to_vvar = True
             return None
@@ -386,9 +387,7 @@ def has_load_expr_in_between_stmts(
 def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         return True
-    if vvar.was_stack and isinstance(def_stmt, Assignment):
-        if isinstance(def_stmt.src, Const):
-            return True
+    if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
         if (
             isinstance(def_stmt.src, VirtualVariable)
             and def_stmt.src.was_stack

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import copy
 from collections.abc import Callable
 from collections import defaultdict
 
@@ -24,12 +25,16 @@ class RegVVarPredicate:
     Implements a predicate that is used in get_reg_vvar_by_stmt_idx and get_reg_vvar_by_insn.
     """
 
-    def __init__(self, reg_offset: int, vvars: list[VirtualVariable], arch):
+    def __init__(self, reg_offset: int, min_size: int, vvars: list[VirtualVariable], arch):
         self.reg_offset = reg_offset
+        self.min_size = min_size
         self.vvars = vvars
         self.arch = arch
 
     def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
+        if isinstance(stmt.target, str):
+            # pseudo calls do not clobber any registers
+            return set()
         cc = stmt.calling_convention
         if cc is None:
             # get the default calling convention
@@ -49,6 +54,7 @@ class RegVVarPredicate:
             and isinstance(stmt.dst, VirtualVariable)
             and stmt.dst.was_reg
             and stmt.dst.reg_offset == self.reg_offset
+            and stmt.dst.size >= self.min_size
         ):
             if stmt.dst not in self.vvars:
                 self.vvars.append(stmt.dst)
@@ -58,6 +64,7 @@ class RegVVarPredicate:
                 isinstance(stmt.ret_expr, VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.reg_offset == self.reg_offset
+                and stmt.ret_expr.size >= self.min_size
             ):
                 if stmt.ret_expr not in self.vvars:
                     self.vvars.append(stmt.ret_expr)
@@ -143,11 +150,17 @@ class SRDAView:
                         queue.append((pred, None))
 
     def get_reg_vvar_by_stmt(
-        self, reg_offset: int, block_addr: int, block_idx: int | None, stmt_idx: int, op_type: ObservationPointType
+        self,
+        reg_offset: int,
+        min_size: int,
+        block_addr: int,
+        block_idx: int | None,
+        stmt_idx: int,
+        op_type: ObservationPointType,
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
+        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
         self._get_vvar_by_stmt(block_addr, block_idx, stmt_idx, op_type, predicater.predicate)
 
         if not vvars:
@@ -157,7 +170,7 @@ class SRDAView:
                     func_arg_category = func_arg.parameter_category
                     if func_arg_category == VirtualVariableCategory.REGISTER:
                         func_arg_regoff = func_arg.parameter_reg_offset
-                        if func_arg_regoff == reg_offset:
+                        if func_arg_regoff == reg_offset and func_arg.size >= min_size:
                             vvars.append(func_arg)
 
         assert len(vvars) <= 1
@@ -222,11 +235,11 @@ class SRDAView:
         self._get_vvar_by_stmt(the_block.addr, the_block.idx, starting_stmt_idx, op_type, predicate)
 
     def get_reg_vvar_by_insn(
-        self, reg_offset: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
+        self, reg_offset: int, min_size: int, addr: int, op_type: ObservationPointType, block_idx: int | None = None
     ) -> VirtualVariable | None:
         reg_offset = get_reg_offset_base(reg_offset, self.model.arch)
         vvars = []
-        predicater = RegVVarPredicate(reg_offset, vvars, self.model.arch)
+        predicater = RegVVarPredicate(reg_offset, min_size, vvars, self.model.arch)
 
         self._get_vvar_by_insn(addr, op_type, predicater.predicate, block_idx=block_idx)
 
@@ -268,7 +281,7 @@ class SRDAView:
         # TODO: Other types
 
         traversal_order = GraphUtils.quasi_topological_sort_nodes(self.model.func_graph)
-        all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, int]] = defaultdict(dict)
+        all_reg2vvarid: defaultdict[tuple[int, int | None], dict[int, dict[int, int]]] = defaultdict(dict)
 
         observations = {}
         for block in traversal_order:
@@ -277,40 +290,52 @@ class SRDAView:
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_BEFORE:
-                observations[("block", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
+                observations[("node", (block.addr, block.idx), ObservationPointType.OP_BEFORE)] = copy.deepcopy(
+                    reg2vvarid
+                )
 
             last_insn_addr = None
             for stmt_idx, stmt in enumerate(block.statements):
                 if last_insn_addr != stmt.ins_addr:
                     # observe
                     if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = copy.deepcopy(
+                            reg2vvarid
+                        )
                     if stmt.ins_addr in insn_ops and insn_ops[stmt.ins_addr] == ObservationPointType.OP_BEFORE:
-                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
+                        observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = copy.deepcopy(
+                            reg2vvarid
+                        )
                     last_insn_addr = stmt.ins_addr
 
                 stmt_key = (block.addr, block.idx), stmt_idx
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = reg2vvarid.copy()
+                    observations[("stmt", stmt_key, ObservationPointType.OP_BEFORE)] = copy.deepcopy(reg2vvarid)
 
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                     base_offset = get_reg_offset_base(stmt.dst.reg_offset, self.model.arch)
-                    reg2vvarid[base_offset] = stmt.dst.varid
+                    if base_offset not in reg2vvarid:
+                        reg2vvarid[base_offset] = {}
+                    reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
                     base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
-                    reg2vvarid[base_offset] = stmt.ret_expr.varid
+                    if base_offset not in reg2vvarid:
+                        reg2vvarid[base_offset] = {}
+                    reg2vvarid[base_offset][stmt.ret_expr.size] = stmt.ret_expr.varid
 
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_AFTER:
-                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
+                    observations[("stmt", stmt_key, ObservationPointType.OP_AFTER)] = copy.deepcopy(reg2vvarid)
 
             if (block.addr, block.idx) in node_ops and node_ops[
                 (block.addr, block.idx)
             ] == ObservationPointType.OP_AFTER:
-                observations[("block", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = reg2vvarid.copy()
+                observations[("node", (block.addr, block.idx), ObservationPointType.OP_AFTER)] = copy.deepcopy(
+                    reg2vvarid
+                )
 
             for succ in self.model.func_graph.successors(block):
                 if succ is block:
                     continue
-                all_reg2vvarid[succ.addr, succ.idx] = reg2vvarid.copy()
+                all_reg2vvarid[succ.addr, succ.idx] = copy.deepcopy(reg2vvarid)
 
         return observations

@@ -16,7 +16,7 @@ from angr import SIM_TYPE_COLLECTIONS
 from angr.analyses import AnalysesHub
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.block import Block
-from angr.errors import AngrVariableRecoveryError, SimEngineError
+from angr.errors import AngrVariableRecoveryError, SimEngineError, AngrMissingTypeError
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.sim_variable import SimStackVariable, SimRegisterVariable, SimVariable, SimMemoryVariable
@@ -284,6 +284,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._unify_variables = unify_variables
 
         # handle type hints
+        self.type_lifter = TypeLifter(self.project.arch.bits)
         self.vvar_type_hints = {}
         if type_hints:
             self._parse_type_hints(type_hints)
@@ -294,6 +295,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             call_info=call_info,
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
+            type_lifter=self.type_lifter,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -650,11 +652,12 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             # TODO: Handle other types of locations
 
     def _parse_type_hint(self, type_hint_str: str) -> TypeConstant | None:
-        ty = SIM_TYPE_COLLECTIONS["cpp::std"].get(type_hint_str)
-        if ty is None:
+        try:
+            ty = SIM_TYPE_COLLECTIONS["cpp::std"].get(type_hint_str)
+        except AngrMissingTypeError:
             return None
         ty = ty.with_arch(self.project.arch)
-        lifted = TypeLifter(self.project.arch.bits).lift(ty)
+        lifted = self.type_lifter.lift(ty)
         return None if isinstance(lifted, (BottomType, TopType)) else lifted
 
 

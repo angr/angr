@@ -14,6 +14,5 @@ Advanced Topics
    claripy
    concretization_strategies
    java_support
-   symbion
    debug_var
 

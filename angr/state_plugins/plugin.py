@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Generic, cast, TypeVar, Protocol
+# pylint: disable=import-outside-toplevel
+
+from typing import Any, Generic, ParamSpec, cast, TypeVar, Protocol
 from collections.abc import Callable
+from functools import wraps
 
 import logging
 
@@ -12,6 +15,7 @@ l = logging.getLogger(name=__name__)
 
 T = TypeVar("T")
 S_co = TypeVar("S_co", covariant=True)
+P = ParamSpec("P")
 
 
 class _CopyFunc(Protocol, Generic[S_co]):
@@ -20,7 +24,7 @@ class _CopyFunc(Protocol, Generic[S_co]):
     """
 
     @staticmethod
-    def __call__(memo: dict[int, Any] | None = None) -> S_co: ...
+    def __call__(_self: Any, memo: dict[int, Any] | None = None) -> S_co: ...
 
 
 class SimStatePlugin:
@@ -49,6 +53,27 @@ class SimStatePlugin:
         d["state"] = None
         return d
 
+    @staticmethod
+    def memo(f: Callable[[Any, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
+        """
+        A decorator function you should apply to ``copy``
+        """
+
+        @wraps(f)
+        def inner(self: Any, memo: dict[int, Any] | None = None) -> S_co:
+            if memo is None:
+                memo = {}
+            if id(self) in memo:
+                return memo[id(self)]
+            c = f(self, memo)
+            memo[id(self)] = c
+            return c
+
+        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
+        # and we can't express the optional `memo` parameter without a Protocol
+        return inner  # type: ignore
+
+    @memo
     def copy(self, _memo):
         """
         Should return a copy of the plugin without any state attached. Should check the memo first, and add itself to
@@ -64,27 +89,8 @@ class SimStatePlugin:
                         infinite recursion and diverged copies.
         """
         o = type(self).__new__(type(self))
-        o.state = None
+        o.state = None  # type: ignore
         return o
-
-    @staticmethod
-    def memo(f: Callable[[T, dict[int, Any]], S_co]) -> _CopyFunc[S_co]:
-        """
-        A decorator function you should apply to ``copy``
-        """
-
-        def inner(self, memo: dict[int, Any] | None = None, **kwargs: Any) -> S_co:
-            if memo is None:
-                memo = {}
-            if id(self) in memo:
-                return memo[id(self)]
-            c = f(self, memo, **kwargs)
-            memo[id(self)] = c
-            return c
-
-        # Type-checking fails here because we can't express the `self` partial-application with a Protocol
-        # and we can't express the optional `memo` parameter without a Protocol
-        return inner  # type: ignore
 
     def merge(self, others, merge_conditions, common_ancestor=None):  # pylint:disable=unused-argument
         """

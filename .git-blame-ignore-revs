@@ -7,3 +7,4 @@
 74e8f34cebf66f9efc27f8c4aa6968f2dd456852 # prefer builtins
 1961c860f3be91cbec9b8153f5a3f5be23a4658c # Black 2023
 9368fc12e9af6a6a1ad97481fd29889d07ad809a # unittest adoption
+c3d18694750de7a0a5a816c439c38444aa451b1e # black definitions

@@ -1,0 +1,1080 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"opengl32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"glAccum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['op', 'value']}"
+		},
+		"glAlphaFunc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['func', 'ref']}"
+		},
+		"glAreTexturesResident": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['n', 'textures', 'residences']}"
+		},
+		"glArrayElement": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['i']}"
+		},
+		"glBegin": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glBindTexture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'texture']}"
+		},
+		"glBitmap": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['width', 'height', 'xorig', 'yorig', 'xmove', 'ymove', 'bitmap']}"
+		},
+		"glBlendFunc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['sfactor', 'dfactor']}"
+		},
+		"glCallList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['list']}"
+		},
+		"glCallLists": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['n', 'type', 'lists']}"
+		},
+		"glClear": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glClearAccum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glClearColor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glClearDepth": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['depth']}"
+		},
+		"glClearIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glClearStencil": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s']}"
+		},
+		"glClipPlane": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['plane', 'equation']}"
+		},
+		"glColor3b": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3bv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3ub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3ubv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3ui": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3uiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor3us": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue']}"
+		},
+		"glColor3usv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4b": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4bv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4ub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4ubv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4ui": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4uiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColor4us": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColor4usv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glColorMask": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['red', 'green', 'blue', 'alpha']}"
+		},
+		"glColorMaterial": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'mode']}"
+		},
+		"glColorPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size', 'type', 'stride', 'pointer']}"
+		},
+		"glCopyPixels": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height', 'type']}"
+		},
+		"glCopyTexImage1D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'internalFormat', 'x', 'y', 'width', 'border']}"
+		},
+		"glCopyTexImage2D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'internalFormat', 'x', 'y', 'width', 'height', 'border']}"
+		},
+		"glCopyTexSubImage1D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'xoffset', 'x', 'y', 'width']}"
+		},
+		"glCopyTexSubImage2D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'xoffset', 'yoffset', 'x', 'y', 'width', 'height']}"
+		},
+		"glCullFace": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glDeleteLists": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['list', 'range']}"
+		},
+		"glDeleteTextures": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['n', 'textures']}"
+		},
+		"glDepthFunc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['func']}"
+		},
+		"glDepthMask": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['flag']}"
+		},
+		"glDepthRange": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['zNear', 'zFar']}"
+		},
+		"glDisable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cap']}"
+		},
+		"glDisableClientState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['array']}"
+		},
+		"glDrawArrays": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode', 'first', 'count']}"
+		},
+		"glDrawBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glDrawElements": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode', 'count', 'type', 'indices']}"
+		},
+		"glDrawPixels": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['width', 'height', 'format', 'type', 'pixels']}"
+		},
+		"glEdgeFlag": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['flag']}"
+		},
+		"glEdgeFlagPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['stride', 'pointer']}"
+		},
+		"glEdgeFlagv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['flag']}"
+		},
+		"glEnable": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cap']}"
+		},
+		"glEnableClientState": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['array']}"
+		},
+		"glEnd": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glEndList": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glEvalCoord1d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalCoord1dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalCoord1f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalCoord1fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalCoord2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u', 'v']}"
+		},
+		"glEvalCoord2dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalCoord2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u', 'v']}"
+		},
+		"glEvalCoord2fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['u']}"
+		},
+		"glEvalMesh1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode', 'i1', 'i2']}"
+		},
+		"glEvalMesh2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode', 'i1', 'i2', 'j1', 'j2']}"
+		},
+		"glEvalPoint1": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['i']}"
+		},
+		"glEvalPoint2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['i', 'j']}"
+		},
+		"glFeedbackBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size', 'type', 'buffer']}"
+		},
+		"glFinish": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glFlush": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glFogf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glFogfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glFogi": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glFogiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glFrontFace": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glFrustum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['left', 'right', 'bottom', 'top', 'zNear', 'zFar']}"
+		},
+		"glGenLists": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['range']}"
+		},
+		"glGenTextures": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['n', 'textures']}"
+		},
+		"glGetBooleanv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glGetClipPlane": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['plane', 'equation']}"
+		},
+		"glGetDoublev": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glGetError": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"glGetFloatv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glGetIntegerv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glGetLightfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'params']}"
+		},
+		"glGetLightiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'params']}"
+		},
+		"glGetMapdv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'query', 'v']}"
+		},
+		"glGetMapfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'query', 'v']}"
+		},
+		"glGetMapiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'query', 'v']}"
+		},
+		"glGetMaterialfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'params']}"
+		},
+		"glGetMaterialiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'params']}"
+		},
+		"glGetPixelMapfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'values']}"
+		},
+		"glGetPixelMapuiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'values']}"
+		},
+		"glGetPixelMapusv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'values']}"
+		},
+		"glGetPointerv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glGetPolygonStipple": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glGetString": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, 'arg_names': ['name']}"
+		},
+		"glGetTexEnvfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glGetTexEnviv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glGetTexGendv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glGetTexGenfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glGetTexGeniv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glGetTexImage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'format', 'type', 'pixels']}"
+		},
+		"glGetTexLevelParameterfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'pname', 'params']}"
+		},
+		"glGetTexLevelParameteriv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'pname', 'params']}"
+		},
+		"glGetTexParameterfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glGetTexParameteriv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glHint": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'mode']}"
+		},
+		"glIndexMask": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glIndexPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['type', 'stride', 'pointer']}"
+		},
+		"glIndexd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexdv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexi": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexsv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexub": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glIndexubv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['c']}"
+		},
+		"glInitNames": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glInterleavedArrays": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['format', 'stride', 'pointer']}"
+		},
+		"glIsEnabled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['cap']}"
+		},
+		"glIsList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['list']}"
+		},
+		"glIsTexture": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'arg_names': ['texture']}"
+		},
+		"glLightModelf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glLightModelfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glLightModeli": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glLightModeliv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'params']}"
+		},
+		"glLightf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'param2']}"
+		},
+		"glLightfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'params']}"
+		},
+		"glLighti": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'param2']}"
+		},
+		"glLightiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['light', 'pname', 'params']}"
+		},
+		"glLineStipple": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['factor', 'pattern']}"
+		},
+		"glLineWidth": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['width']}"
+		},
+		"glListBase": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['base']}"
+		},
+		"glLoadIdentity": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glLoadMatrixd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['m']}"
+		},
+		"glLoadMatrixf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['m']}"
+		},
+		"glLoadName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['name']}"
+		},
+		"glLogicOp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['opcode']}"
+		},
+		"glMap1d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'u1', 'u2', 'stride', 'order', 'points']}"
+		},
+		"glMap1f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'u1', 'u2', 'stride', 'order', 'points']}"
+		},
+		"glMap2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'u1', 'u2', 'ustride', 'uorder', 'v1', 'v2', 'vstride', 'vorder', 'points']}"
+		},
+		"glMap2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'u1', 'u2', 'ustride', 'uorder', 'v1', 'v2', 'vstride', 'vorder', 'points']}"
+		},
+		"glMapGrid1d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['un', 'u1', 'u2']}"
+		},
+		"glMapGrid1f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['un', 'u1', 'u2']}"
+		},
+		"glMapGrid2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['un', 'u1', 'u2', 'vn', 'v1', 'v2']}"
+		},
+		"glMapGrid2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['un', 'u1', 'u2', 'vn', 'v1', 'v2']}"
+		},
+		"glMaterialf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'param2']}"
+		},
+		"glMaterialfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'params']}"
+		},
+		"glMateriali": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'param2']}"
+		},
+		"glMaterialiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'pname', 'params']}"
+		},
+		"glMatrixMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glMultMatrixd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['m']}"
+		},
+		"glMultMatrixf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['m']}"
+		},
+		"glNewList": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['list', 'mode']}"
+		},
+		"glNormal3b": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}, {'_t': 'char', 'signed': true, 'label': 'SByte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nx', 'ny', 'nz']}"
+		},
+		"glNormal3bv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glNormal3d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nx', 'ny', 'nz']}"
+		},
+		"glNormal3dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glNormal3f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nx', 'ny', 'nz']}"
+		},
+		"glNormal3fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glNormal3i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nx', 'ny', 'nz']}"
+		},
+		"glNormal3iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glNormal3s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nx', 'ny', 'nz']}"
+		},
+		"glNormal3sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glNormalPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['type', 'stride', 'pointer']}"
+		},
+		"glOrtho": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['left', 'right', 'bottom', 'top', 'zNear', 'zFar']}"
+		},
+		"glPassThrough": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['token']}"
+		},
+		"glPixelMapfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'mapsize', 'values']}"
+		},
+		"glPixelMapuiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'mapsize', 'values']}"
+		},
+		"glPixelMapusv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['map', 'mapsize', 'values']}"
+		},
+		"glPixelStoref": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glPixelStorei": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glPixelTransferf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glPixelTransferi": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pname', 'param1']}"
+		},
+		"glPixelZoom": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['xfactor', 'yfactor']}"
+		},
+		"glPointSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size']}"
+		},
+		"glPolygonMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['face', 'mode']}"
+		},
+		"glPolygonOffset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['factor', 'units']}"
+		},
+		"glPolygonStipple": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glPopAttrib": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glPopClientAttrib": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glPopMatrix": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glPopName": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glPrioritizeTextures": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['n', 'textures', 'priorities']}"
+		},
+		"glPushAttrib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glPushClientAttrib": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glPushMatrix": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': []}"
+		},
+		"glPushName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['name']}"
+		},
+		"glRasterPos2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glRasterPos2dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glRasterPos2fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos2i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glRasterPos2iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos2s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glRasterPos2sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos3d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glRasterPos3dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos3f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glRasterPos3fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos3i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glRasterPos3iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos3s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glRasterPos3sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos4d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glRasterPos4dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos4f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glRasterPos4fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos4i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glRasterPos4iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glRasterPos4s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glRasterPos4sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glReadBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glReadPixels": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height', 'format', 'type', 'pixels']}"
+		},
+		"glRectd": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x1', 'y1', 'x2', 'y2']}"
+		},
+		"glRectdv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v1', 'v2']}"
+		},
+		"glRectf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x1', 'y1', 'x2', 'y2']}"
+		},
+		"glRectfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v1', 'v2']}"
+		},
+		"glRecti": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x1', 'y1', 'x2', 'y2']}"
+		},
+		"glRectiv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v1', 'v2']}"
+		},
+		"glRects": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x1', 'y1', 'x2', 'y2']}"
+		},
+		"glRectsv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v1', 'v2']}"
+		},
+		"glRenderMode": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['mode']}"
+		},
+		"glRotated": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['angle', 'x', 'y', 'z']}"
+		},
+		"glRotatef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['angle', 'x', 'y', 'z']}"
+		},
+		"glScaled": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glScalef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glScissor": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height']}"
+		},
+		"glSelectBuffer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size', 'buffer']}"
+		},
+		"glShadeModel": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mode']}"
+		},
+		"glStencilFunc": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['func', 'ref', 'mask']}"
+		},
+		"glStencilMask": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['mask']}"
+		},
+		"glStencilOp": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['fail', 'zfail', 'zpass']}"
+		},
+		"glTexCoord1d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s']}"
+		},
+		"glTexCoord1dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord1f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s']}"
+		},
+		"glTexCoord1fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord1i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s']}"
+		},
+		"glTexCoord1iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord1s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s']}"
+		},
+		"glTexCoord1sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't']}"
+		},
+		"glTexCoord2dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't']}"
+		},
+		"glTexCoord2fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord2i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't']}"
+		},
+		"glTexCoord2iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord2s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't']}"
+		},
+		"glTexCoord2sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord3d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r']}"
+		},
+		"glTexCoord3dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord3f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r']}"
+		},
+		"glTexCoord3fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord3i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r']}"
+		},
+		"glTexCoord3iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord3s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r']}"
+		},
+		"glTexCoord3sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord4d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r', 'q']}"
+		},
+		"glTexCoord4dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord4f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r', 'q']}"
+		},
+		"glTexCoord4fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord4i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r', 'q']}"
+		},
+		"glTexCoord4iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoord4s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['s', 't', 'r', 'q']}"
+		},
+		"glTexCoord4sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glTexCoordPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size', 'type', 'stride', 'pointer']}"
+		},
+		"glTexEnvf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'param2']}"
+		},
+		"glTexEnvfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glTexEnvi": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'param2']}"
+		},
+		"glTexEnviv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glTexGend": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'param2']}"
+		},
+		"glTexGendv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glTexGenf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'param2']}"
+		},
+		"glTexGenfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glTexGeni": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'param2']}"
+		},
+		"glTexGeniv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['coord', 'pname', 'params']}"
+		},
+		"glTexImage1D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'internalformat', 'width', 'border', 'format', 'type', 'pixels']}"
+		},
+		"glTexImage2D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'internalformat', 'width', 'height', 'border', 'format', 'type', 'pixels']}"
+		},
+		"glTexParameterf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'param2']}"
+		},
+		"glTexParameterfv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glTexParameteri": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'param2']}"
+		},
+		"glTexParameteriv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'pname', 'params']}"
+		},
+		"glTexSubImage1D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'xoffset', 'width', 'format', 'type', 'pixels']}"
+		},
+		"glTexSubImage2D": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['target', 'level', 'xoffset', 'yoffset', 'width', 'height', 'format', 'type', 'pixels']}"
+		},
+		"glTranslated": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glTranslatef": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glVertex2d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glVertex2dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex2f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glVertex2fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex2i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glVertex2iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex2s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y']}"
+		},
+		"glVertex2sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex3d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glVertex3dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex3f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glVertex3fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex3i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glVertex3iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex3s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z']}"
+		},
+		"glVertex3sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex4d": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glVertex4dv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex4f": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glVertex4fv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex4i": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glVertex4iv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertex4s": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}, {'_t': 'short', 'label': 'Int16'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'z', 'w']}"
+		},
+		"glVertex4sv": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'Int16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['v']}"
+		},
+		"glVertexPointer": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['size', 'type', 'stride', 'pointer']}"
+		},
+		"glViewport": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['x', 'y', 'width', 'height']}"
+		},
+		"wglCopyContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"wglCreateContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, 'arg_names': ['param0']}"
+		},
+		"wglCreateLayerContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"wglDeleteContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0']}"
+		},
+		"wglDescribeLayerPlane": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LAYERPLANEDESCRIPTOR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3', 'param4']}"
+		},
+		"wglGetCurrentContext": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"wglGetCurrentDC": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, 'arg_names': []}"
+		},
+		"wglGetLayerPaletteEntries": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COLORREF', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3', 'param4']}"
+		},
+		"wglGetProcAddress": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': []}}, 'arg_names': ['param0']}"
+		},
+		"wglMakeCurrent": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"wglRealizeLayerPalette": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}"
+		},
+		"wglSetLayerPaletteEntries": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'COLORREF', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0', 'param1', 'param2', 'param3', 'param4']}"
+		},
+		"wglShareLists": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HGLRC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"wglSwapLayerBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"wglSwapMultipleBuffers": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WGLSWAP', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0', 'param1']}"
+		},
+		"wglUseFontBitmapsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"wglUseFontBitmapsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3']}"
+		},
+		"wglUseFontOutlinesA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLYPHMETRICSFLOAT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3', 'param4', 'param5', 'param6', 'param7']}"
+		},
+		"wglUseFontOutlinesW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'GLYPHMETRICSFLOAT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2', 'param3', 'param4', 'param5', 'param6', 'param7']}"
+		}
+	}
+}

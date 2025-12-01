@@ -3,25 +3,25 @@ from __future__ import annotations
 import copy
 import os
 import logging
+import json
 import inspect
 from collections import defaultdict
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
+import msgspec
 import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
-from angr.sim_type import parse_cpp_file, SimTypeFunction, SimTypeBottom
-from angr.calling_conventions import DEFAULT_CC
+from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES
 from angr.misc import autoimport
 from angr.misc.ux import once
-from angr.sim_type import parse_file
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
 from angr.procedures.stubs.syscall_stub import syscall as stub_syscall
 
 if TYPE_CHECKING:
     from angr.calling_conventions import SimCCSyscall
-    from angr.sim_type import SimType
 
 
 l = logging.getLogger(name=__name__)
@@ -37,6 +37,10 @@ class SimTypeCollection:
     def __init__(self):
         self.names: list[str] | None = None
         self.types: dict[str, SimType] = {}
+        self.types_json: dict[str, Any] = {}
+
+    def __contains__(self, name: str) -> bool:
+        return name in self.types or name in self.types_json
 
     def set_names(self, *names: str):
         self.names = list(names)
@@ -61,10 +65,23 @@ class SimTypeCollection:
         :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
         :return:        The SimType object.
         """
-        if bottom_on_missing and name not in self.types:
+        if bottom_on_missing and name not in self:
             return SimTypeBottom(label=name)
-        if name not in self.types:
-            raise AngrMissingTypeError(f"Type {name} is missing")
+        if name not in self:
+            raise AngrMissingTypeError(name)
+        if name not in self.types and name in self.types_json:
+            d = self.types_json[name]
+            if isinstance(d, str):
+                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+            try:
+                t = SimType.from_json(d)
+            except (TypeError, ValueError) as ex:
+                l.warning("Failed to load type %s from JSON", name, exc_info=True)
+                # the type is missing
+                if bottom_on_missing:
+                    return SimTypeBottom(label=name)
+                raise AngrMissingTypeError(name) from ex
+            self.types[name] = t
         return self.types[name]
 
     def init_str(self) -> str:
@@ -80,8 +97,31 @@ class SimTypeCollection:
 
         return "\n".join(lines)
 
+    def to_json(self, types_as_string: bool = False) -> dict[str, Any]:
+        d = {"_t": "types", "names": [*self.names] if self.names else [], "types": {}}
+        for name in sorted(self.types):
+            t = self.types[name]
+            d["types"][name] = json.dumps(t.to_json()).replace('"', "'") if types_as_string else t.to_json()
+        return d
+
+    @classmethod
+    def from_json(cls, d: dict[str, Any]) -> SimTypeCollection:
+        typelib = SimTypeCollection()
+        if d.get("_t", "") != "types":
+            raise TypeError("Not a SimTypeCollection JSON object")
+        if "names" in d:
+            typelib.set_names(*d["names"])
+        if "types" in d:
+            for name, t_value in d["types"].items():
+                typelib.types_json[name] = t_value
+        return typelib
+
     def __repr__(self):
-        return f"<SimTypeCollection with {len(self.types)} types>"
+        keys = set(self.types) | set(self.types_json)
+        return f"<SimTypeCollection with {len(keys)} types>"
+
+
+_ARCH_NAME_CACHE: dict[str, str] = {}
 
 
 class SimLibrary:
@@ -102,10 +142,34 @@ class SimLibrary:
         self.procedures = {}
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
+        self.prototypes_json: dict[str, Any] = {}
         self.default_ccs = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
+
+    @staticmethod
+    def from_json(d: dict[str, Any]) -> SimLibrary:
+        lib = SimLibrary()
+        if d.get("_t", "") != "lib":
+            raise TypeError("Not a SimLibrary JSON object")
+        if "type_collection_names" in d:
+            lib.type_collection_names = d["type_collection_names"]
+        if "default_cc" in d:
+            if not isinstance(d["default_cc"], dict):
+                raise TypeError("default_cc must be a dict")
+            for arch_name, cc_name in d["default_cc"].items():
+                cc = CC_NAMES[cc_name]
+                lib.set_default_cc(arch_name, cc)
+        if "library_names" in d:
+            lib.set_library_names(*d["library_names"])
+        else:
+            raise KeyError("library_names is required")
+        if "non_returning" in d:
+            lib.set_non_returning(*d["non_returning"])
+        if "functions" in d:
+            lib.prototypes_json = {k: v["proto"] for k, v in d["functions"].items() if "proto" in v}
+        return lib
 
     def copy(self):
         """
@@ -117,6 +181,7 @@ class SimLibrary:
         o.procedures = dict(self.procedures)
         o.non_returning = set(self.non_returning)
         o.prototypes = dict(self.prototypes)
+        o.prototypes_json = self.prototypes_json
         o.default_ccs = dict(self.default_ccs)
         o.names = list(self.names)
         return o
@@ -159,7 +224,9 @@ class SimLibrary:
         :param arch_name:   The string name of the architecture, i.e. the ``.name`` field from archinfo.
         :parm cc_cls:       The SimCC class (not an instance!) to use
         """
-        arch_name = archinfo.arch_from_id(arch_name).name
+        if arch_name not in _ARCH_NAME_CACHE:
+            _ARCH_NAME_CACHE[arch_name] = archinfo.arch_from_id(arch_name).name
+        arch_name = _ARCH_NAME_CACHE[arch_name]
         self.default_ccs[arch_name] = cc_cls
 
     def set_non_returning(self, *names):
@@ -171,7 +238,7 @@ class SimLibrary:
         for name in names:
             self.non_returning.add(name)
 
-    def set_prototype(self, name, proto):
+    def set_prototype(self, name, proto: SimTypeFunction) -> None:
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -180,7 +247,7 @@ class SimLibrary:
         """
         self.prototypes[name] = proto
 
-    def set_prototypes(self, protos):
+    def set_prototypes(self, protos: dict[str, SimTypeFunction]) -> None:
         """
         Set the prototypes of many functions
 
@@ -188,13 +255,12 @@ class SimLibrary:
         """
         self.prototypes.update(protos)
 
-    def set_c_prototype(self, c_decl):
+    def set_c_prototype(self, c_decl: str) -> tuple[str, SimTypeFunction]:
         """
         Set the prototype of a function in the form of a C-style function declaration.
 
         :param str c_decl: The C-style declaration of the function.
         :return:           A tuple of (function name, function prototype)
-        :rtype:            tuple
         """
 
         parsed = parse_file(c_decl)
@@ -240,8 +306,8 @@ class SimLibrary:
             new_procedure = copy.deepcopy(old_procedure)
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
-            if name in self.prototypes:
-                self.prototypes[alt] = self.prototypes[name]
+            if self.has_prototype(name):
+                self.prototypes[alt] = self.get_prototype(name)  # type:ignore
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
@@ -250,8 +316,8 @@ class SimLibrary:
             proc.cc = self.default_ccs[arch.name](arch)
         if proc.cc is None and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
-        if proc.display_name in self.prototypes:
-            proc.prototype = self.prototypes[proc.display_name].with_arch(arch)
+        if self.has_prototype(proc.display_name):
+            proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type:ignore
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
@@ -294,17 +360,40 @@ class SimLibrary:
         self._apply_metadata(proc, arch)
         return proc
 
-    def get_prototype(self, name: str, arch=None) -> SimTypeFunction | None:
+    def get_prototype(self, name: str, arch=None, deref: bool = False) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture.
 
         :param name:    Name of the function.
         :param arch:    The architecture to specialize to.
+        :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
-        proto = self.prototypes.get(name, None)
+        if name not in self.prototypes and name in self.prototypes_json:
+            d = self.prototypes_json[name]
+            if isinstance(d, str):
+                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+            if not isinstance(d, dict):
+                l.warning("Failed to load prototype %s from JSON", name)
+                proto = None
+            else:
+                try:
+                    proto = SimTypeFunction.from_json(d)
+                except (TypeError, ValueError):
+                    l.warning("Failed to load prototype %s from JSON", name, exc_info=True)
+                    proto = None
+            if proto is not None:
+                assert isinstance(proto, SimTypeFunction)
+                self.prototypes[name] = proto
+        else:
+            proto = self.prototypes.get(name, None)
         if proto is None:
             return None
+        if deref:
+            from angr.utils.types import dereference_simtype_by_lib  # pylint:disable=import-outside-toplevel
+
+            proto = dereference_simtype_by_lib(proto, self.name)
+            assert isinstance(proto, SimTypeFunction)
         if arch is not None:
             return proto.with_arch(arch)
         return proto
@@ -316,7 +405,7 @@ class SimLibrary:
         :param name:    The name of the function as a string
         :return:        A bool indicating if anything is known about the function
         """
-        return self.has_implementation(name) or name in self.non_returning or name in self.prototypes
+        return self.has_implementation(name) or name in self.non_returning or self.has_prototype(name)
 
     def has_implementation(self, name):
         """
@@ -336,7 +425,16 @@ class SimLibrary:
         :rtype:               bool
         """
 
-        return func_name in self.prototypes
+        return func_name in self.prototypes or func_name in self.prototypes_json
+
+    def is_returning(self, name: str) -> bool:
+        """
+        Check if a function is known to return.
+
+        :param name:    The name of the function.
+        :return:        A bool indicating if the function is known to return or not.
+        """
+        return name not in self.non_returning
 
 
 class SimCppLibrary(SimLibrary):
@@ -406,17 +504,18 @@ class SimCppLibrary(SimLibrary):
                     stub.num_args = len(stub.prototype.args)
         return stub
 
-    def get_prototype(self, name: str, arch=None) -> SimTypeFunction | None:
+    def get_prototype(self, name: str, arch=None, deref: bool = False) -> SimTypeFunction | None:
         """
         Get a prototype of the given function name, optionally specialize the prototype to a given architecture. The
         function name will be demangled first.
 
         :param name:    Name of the function.
         :param arch:    The architecture to specialize to.
+        :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
         :return:        Prototype of the function, or None if the prototype does not exist.
         """
         demangled_name = self._try_demangle(name)
-        return super().get_prototype(demangled_name, arch=arch)
+        return super().get_prototype(demangled_name, arch=arch, deref=deref)
 
     def has_metadata(self, name):
         """
@@ -537,7 +636,8 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.default_cc_mapping[abi] = cc_cls
 
-    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
+    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # type:ignore
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -547,7 +647,8 @@ class SimSyscallLibrary(SimLibrary):
         """
         self.syscall_prototypes[abi][name] = proto
 
-    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ
+    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # type:ignore
         """
         Set the prototypes of many syscalls.
 
@@ -573,14 +674,42 @@ class SimSyscallLibrary(SimLibrary):
         if abi in self.default_cc_mapping:
             cc = self.default_cc_mapping[abi](arch)
             proc.cc = cc
+        elif arch.name in self.default_ccs:
+            proc.cc = self.default_ccs[arch.name](arch)
         # a bit of a hack.
         name = proc.display_name
-        if self.syscall_prototypes[abi].get(name, None) is not None:
+        if self.has_prototype(abi, name):
             proc.guessed_prototype = False
-            proc.prototype = self.syscall_prototypes[abi][name].with_arch(arch)
+            proto = self.get_prototype(abi, name, deref=True)
+            assert proto is not None
+            proc.prototype = proto.with_arch(arch)
+
+    def add_alias(self, name, *alt_names):
+        """
+        Add some duplicate names for a given function. The original function's implementation must already be
+        registered.
+
+        :param name:        The name of the function for which an implementation is already present
+        :param alt_names:   Any number of alternate names may be passed as varargs
+        """
+        old_procedure = self.procedures[name]
+        for alt in alt_names:
+            new_procedure = copy.deepcopy(old_procedure)
+            new_procedure.display_name = alt
+            self.procedures[alt] = new_procedure
+            for abi in self.syscall_prototypes:
+                if self.has_prototype(abi, name):
+                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)  # type:ignore
+            if name in self.non_returning:
+                self.non_returning.add(alt)
+
+    def _apply_metadata(self, proc, arch):
+        # this function is a no-op in SimSyscallLibrary; users are supposed to explicitly call
+        # _apply_numerical_metadata instead.
+        pass
 
     # pylint: disable=arguments-differ
-    def get(self, number, arch, abi_list=()):
+    def get(self, number, arch, abi_list=()):  # type:ignore
         """
         The get() function for SimSyscallLibrary looks a little different from its original version.
 
@@ -602,7 +731,7 @@ class SimSyscallLibrary(SimLibrary):
         self._apply_numerical_metadata(proc, number, arch, abi)
         return proc
 
-    def get_stub(self, number, arch, abi_list=()):
+    def get_stub(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.get_stub() and SimSyscallLibrary.get().
 
@@ -617,7 +746,9 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
-    def get_prototype(self, abi: str, name: str, arch=None) -> SimTypeFunction | None:
+    def get_prototype(  # type:ignore
+        self, abi: str, name: str, arch=None, deref: bool = False
+    ) -> SimTypeFunction | None:
         """
         Get a prototype of the given syscall name and its ABI, optionally specialize the prototype to a given
         architecture.
@@ -625,6 +756,7 @@ class SimSyscallLibrary(SimLibrary):
         :param abi:     ABI of the prototype to get.
         :param name:    Name of the syscall.
         :param arch:    The architecture to specialize to.
+        :param deref:   True if any SimTypeRefs in the prototype should be dereferenced using library information.
         :return:        Prototype of the syscall, or None if the prototype does not exist.
         """
         if abi not in self.syscall_prototypes:
@@ -632,9 +764,14 @@ class SimSyscallLibrary(SimLibrary):
         proto = self.syscall_prototypes[abi].get(name, None)
         if proto is None:
             return None
+        if deref:
+            from angr.utils.types import dereference_simtype_by_lib  # pylint:disable=import-outside-toplevel
+
+            proto = dereference_simtype_by_lib(proto, self.name)
+            assert isinstance(proto, SimTypeFunction)
         return proto.with_arch(arch=arch)
 
-    def has_metadata(self, number, arch, abi_list=()):
+    def has_metadata(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.has_metadata() and SimSyscallLibrary.get().
 
@@ -643,10 +780,12 @@ class SimSyscallLibrary(SimLibrary):
         :param abi_list:    A list of ABI names that could be used
         :return:            A bool of whether or not any implementation or metadata is known about the given syscall
         """
-        name, _, _ = self._canonicalize(number, arch, abi_list)
-        return super().has_metadata(name)
+        name, _, abi = self._canonicalize(number, arch, abi_list)
+        return (
+            name in self.procedures or name in self.non_returning or (abi is not None and self.has_prototype(abi, name))
+        )
 
-    def has_implementation(self, number, arch, abi_list=()):
+    def has_implementation(self, number, arch, abi_list=()):  # type:ignore
         """
         Pretty much the intersection of SimLibrary.has_implementation() and SimSyscallLibrary.get().
 
@@ -658,7 +797,7 @@ class SimSyscallLibrary(SimLibrary):
         name, _, _ = self._canonicalize(number, arch, abi_list)
         return super().has_implementation(name)
 
-    def has_prototype(self, abi: str, name: str) -> bool:
+    def has_prototype(self, abi: str, name: str) -> bool:  # type:ignore
         """
         Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
 
@@ -685,26 +824,86 @@ _DEFINITIONS_BASEDIR = os.path.dirname(os.path.realpath(__file__))
 _EXTERNAL_DEFINITIONS_DIRS: list[str] | None = None
 
 
-def load_type_collections(skip=None) -> None:
+def load_type_collections(only=None, skip=None) -> None:
     if skip is None:
         skip = set()
 
+    # recursively list and load all _types.json files
+    types_json_files = []
+    for root, _, files in os.walk(_DEFINITIONS_BASEDIR):
+        for filename in files:
+            if filename.endswith(".json") and filename.startswith("_types_"):
+                module_name = filename[7:-5]
+                if only is not None and module_name not in only:
+                    continue
+                if module_name in skip:
+                    continue
+                types_json_files.append(os.path.join(root, filename))
+
+    for f in types_json_files:
+        with open(f, "rb") as fp:
+            data = fp.read()
+            d = msgspec.json.decode(data)
+            if not isinstance(d, dict) or d.get("_t", "") != "types":
+                l.warning("Invalid type collection JSON file: %s", f)
+                continue
+            if (
+                "names" in d
+                and isinstance(d["names"], list)
+                and any(libname in SIM_TYPE_COLLECTIONS for libname in d["names"])
+            ):
+                # the type collection is already loaded
+                continue
+            try:
+                SimTypeCollection.from_json(d)
+            except TypeError:
+                l.warning("Failed to load type collection from %s", f, exc_info=True)
+
+    # supporting legacy type collections defined as Python files
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         _DEFINITIONS_BASEDIR,
-        filter_func=lambda module_name: module_name.startswith("types_") and module_name not in skip,
+        filter_func=lambda module_name: module_name.startswith("types_")
+        and (only is None or (only is not None and module_name[6:] in only))
+        and module_name[6:] not in skip,
     ):
         pass
 
 
 def load_win32_type_collections() -> None:
     if once("load_win32_type_collections"):
-        for _ in autoimport.auto_import_modules(
-            "angr.procedures.definitions",
-            _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name == "types_win32",
-        ):
-            pass
+        load_type_collections(only={"win32"})
+
+
+def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str] | None = None):
+    if skip is None:
+        skip = set()
+
+    for f in os.listdir(base_dir):
+        if f.endswith(".json") and not f.startswith("_types_"):
+            module_name = f[:-5]
+            if only is not None and module_name not in only:
+                continue
+            if module_name in skip:
+                continue
+            with open(os.path.join(base_dir, f), "rb") as f:
+                d = msgspec.json.decode(f.read())
+                if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
+                    l.warning("Invalid SimLibrary JSON file: %s", f)
+                    continue
+                try:
+                    SimLibrary.from_json(d)
+                except (TypeError, KeyError):
+                    l.warning("Failed to load SimLibrary from %s", f, exc_info=True)
+
+    # support for loading legacy prototype definitions defined as Python modules
+    for _ in autoimport.auto_import_modules(
+        "angr.procedures.definitions",
+        base_dir,
+        filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
+        and module_name not in skip,
+    ):
+        pass
 
 
 def load_external_definitions():
@@ -729,27 +928,93 @@ def load_external_definitions():
         load_all_definitions()
 
         for d in _EXTERNAL_DEFINITIONS_DIRS:
-            for _ in autoimport.auto_import_source_files(d):
-                pass
+            _load_definitions(d)
+
+
+def _update_libkernel32(lib: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    lib.add_all_from_dict(P["win32"])
+    lib.add_alias("EncodePointer", "DecodePointer")
+    lib.add_alias("GlobalAlloc", "LocalAlloc")
+
+    lib.add("lstrcatA", P["libc"]["strcat"])
+    lib.add("lstrcmpA", P["libc"]["strcmp"])
+    lib.add("lstrcpyA", P["libc"]["strcpy"])
+    lib.add("lstrcpynA", P["libc"]["strncpy"])
+    lib.add("lstrlenA", P["libc"]["strlen"])
+    lib.add("lstrcmpW", P["libc"]["wcscmp"])
+    lib.add("lstrcmpiW", P["libc"]["wcscasecmp"])
+
+
+def _update_libntdll(lib: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    lib.add("RtlEncodePointer", P["win32"]["EncodePointer"])
+    lib.add("RtlDecodePointer", P["win32"]["EncodePointer"])
+    lib.add("RtlAllocateHeap", P["win32"]["HeapAlloc"])
+
+
+def _update_libuser32(lib: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+    from angr.calling_conventions import SimCCCdecl  # pylint:disable=import-outside-toplevel
+
+    lib.add_all_from_dict(P["win_user32"])
+    lib.add("wsprintfA", P["libc"]["sprintf"], cc=SimCCCdecl(archinfo.ArchX86()))
+
+
+def _update_libntoskrnl(lib: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    lib.add_all_from_dict(P["win32_kernel"])
+
+
+def _update_glibc(libc: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    libc.add_all_from_dict(P["libc"])
+    libc.add_all_from_dict(P["posix"])
+    libc.add_all_from_dict(P["glibc"])
+    # gotta do this since there's no distinguishing different libcs without analysis. there should be no naming
+    # conflicts in the functions.
+    libc.add_all_from_dict(P["uclibc"])
+
+    # aliases for SimProcedures
+    libc.add_alias("abort", "__assert_fail", "__stack_chk_fail")
+    libc.add_alias("memcpy", "memmove", "bcopy")
+    libc.add_alias("getc", "_IO_getc")
+    libc.add_alias("putc", "_IO_putc")
+    libc.add_alias("gets", "_IO_gets")
+    libc.add_alias("puts", "_IO_puts")
+    libc.add_alias("exit", "_exit", "_Exit")
+    libc.add_alias("sprintf", "siprintf")
+    libc.add_alias("snprintf", "sniprintf")
 
 
 def load_win32api_definitions():
     load_win32_type_collections()
     if once("load_win32api_definitions"):
-        for _ in autoimport.auto_import_modules(
-            "angr.procedures.definitions",
-            _DEFINITIONS_BASEDIR,
-            filter_func=lambda module_name: module_name.startswith(("win32_", "wdk_"))
-            or module_name in {"ntoskrnl", "ntdll", "user32"},
-        ):
-            pass
+        api_base_dirs = ["win32", "wdk"]
+        for api_base_dir in api_base_dirs:
+            base_dir = os.path.join(_DEFINITIONS_BASEDIR, api_base_dir)
+            if not os.path.isdir(base_dir):
+                continue
+            _load_definitions(base_dir)
+
+        if "kernel32.dll" in SIM_LIBRARIES:
+            _update_libkernel32(SIM_LIBRARIES["kernel32.dll"][0])
+        if "ntdll.dll" in SIM_LIBRARIES:
+            _update_libntdll(SIM_LIBRARIES["ntdll.dll"][0])
+        if "user32.dll" in SIM_LIBRARIES:
+            _update_libuser32(SIM_LIBRARIES["user32.dll"][0])
+        if "ntoskrnl.exe" in SIM_LIBRARIES:
+            _update_libntoskrnl(SIM_LIBRARIES["ntoskrnl.exe"][0])
 
 
 def load_all_definitions():
     load_type_collections(skip=set())
     if once("load_all_definitions"):
-        for _ in autoimport.auto_import_modules("angr.procedures.definitions", _DEFINITIONS_BASEDIR):
-            pass
+        _load_definitions(_DEFINITIONS_BASEDIR)
 
 
 COMMON_LIBRARIES = {
@@ -767,13 +1032,10 @@ COMMON_LIBRARIES = {
 
 
 # Load common types
-load_type_collections(skip={"types_win32"})
+load_type_collections(skip={"win32"})
 
 
 # Load common definitions
-for _ in autoimport.auto_import_modules(
-    "angr.procedures.definitions",
-    _DEFINITIONS_BASEDIR,
-    filter_func=lambda module_name: module_name in COMMON_LIBRARIES,
-):
-    pass
+_load_definitions(os.path.join(_DEFINITIONS_BASEDIR, "common"), only=COMMON_LIBRARIES)
+_load_definitions(_DEFINITIONS_BASEDIR, only=COMMON_LIBRARIES)
+_update_glibc(SIM_LIBRARIES["libc.so"][0])

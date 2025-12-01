@@ -12,13 +12,17 @@ from angr.errors import AngrError
 # pylint:disable=abstract-method
 
 
-def make_bv_sizes_equal(bv1: BV, bv2: BV) -> tuple[BV, BV]:
+def make_bv_sizes_equal(bv1: BV, bv2: BV, zero_ext: bool = False) -> tuple[BV, BV]:
     """
     Makes two BVs equal in length through sign extension.
     """
     if bv1.size() < bv2.size():
+        if zero_ext:
+            return (bv1.zero_extend(bv2.size() - bv1.size()), bv2)
         return (bv1.sign_extend(bv2.size() - bv1.size()), bv2)
     if bv1.size() > bv2.size():
+        if zero_ext:
+            return (bv1, bv2.zero_extend(bv1.size() - bv2.size()))
         return (bv1, bv2.sign_extend(bv1.size() - bv2.size()))
     return (bv1, bv2)
 
@@ -33,11 +37,11 @@ class OpBehavior:
     """
 
     __slots__ = ("is_special", "is_unary", "opcode")
-    opcode: int
+    opcode: OpCode
     is_unary: bool
     is_special: bool
 
-    def __init__(self, opcode: int, is_unary: bool, is_special: bool = False) -> None:
+    def __init__(self, opcode: OpCode, is_unary: bool, is_special: bool = False) -> None:
         self.opcode = opcode
         self.is_unary = is_unary
         self.is_special = is_special
@@ -340,7 +344,7 @@ class OpBehaviorIntRight(OpBehavior):
         super().__init__(OpCode.INT_RIGHT, False)
 
     def evaluate_binary(self, size_out: int, size_in: int, in1: BV, in2: BV) -> BV:
-        in1, in2 = make_bv_sizes_equal(in1, in2)
+        in1, in2 = make_bv_sizes_equal(in1, in2, zero_ext=True)
         return in1.LShR(in2)
 
 
@@ -912,7 +916,7 @@ class BehaviorFactory:
         if OpCode:
             self._register_behaviors()
 
-    def get_behavior_for_opcode(self, opcode: int) -> OpBehavior:
+    def get_behavior_for_opcode(self, opcode: OpCode) -> OpBehavior:
         return self._behaviors[opcode]
 
     def _register_behaviors(self) -> None:

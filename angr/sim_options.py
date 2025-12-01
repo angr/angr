@@ -312,18 +312,16 @@ CGC_NON_BLOCKING_FDS = "CGC_NON_BLOCKING_FDS"
 # Sacrifice performance for more fine tune memory read size
 MEMORY_CHUNK_INDIVIDUAL_READS = "MEMORY_CHUNK_INDIVIDUAL_READS"
 
-# Synchronize memory mapping reported by angr with the concrete process.
-SYMBION_SYNC_CLE = "SYMBION_SYNC_CLE"
-# Removes stubs SimProc on synchronization with concrete process.
-# We will execute SimProc for functions for which we have one, and the real function for the one we have not.
-SYMBION_KEEP_STUBS_ON_SYNC = "SYMBION_KEEP_STUBS_ON_SYNC"
-
 # Activate the heuristic that tries to understand if an unknown method (e. g. library call) gets or sets an
 # attribute inside the object. Turn on this option to have a better approximation of the internal structure of the
 # symbolic object.
 JAVA_IDENTIFY_GETTER_SETTER = "JAVA_IDENTIFY_GETTER_SETTER"
 # Activate attributes tracking for objects.
 JAVA_TRACK_ATTRIBUTES = "JAVA_TRACK_ATTRIBUTES"
+
+# Tell the SimProcedure engine to activate if we're sitting at a PLT stub for a hooked function
+# Useful for the AIL engine
+RUN_HOOKS_AT_PLT = "RUN_HOOKS_AT_PLT"
 
 #
 # Register those variables as Boolean state options

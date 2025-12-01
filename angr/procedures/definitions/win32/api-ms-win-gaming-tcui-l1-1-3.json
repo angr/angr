@@ -1,0 +1,21 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-gaming-tcui-l1-1-3.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"ShowGameInviteUIWithContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['serviceConfigurationId', 'sessionTemplateName', 'sessionId', 'invitationDisplayText', 'customActivationContext', 'completionRoutine', 'context']}"
+		},
+		"ShowGameInviteUIWithContextForUser": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'bot', 'label': 'IInspectable'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'bot', 'label': 'HSTRING'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['returnCode', 'context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'serviceConfigurationId', 'sessionTemplateName', 'sessionId', 'invitationDisplayText', 'customActivationContext', 'completionRoutine', 'context']}"
+		}
+	}
+}

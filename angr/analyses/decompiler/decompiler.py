@@ -21,12 +21,13 @@ from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .ailgraph_walker import AILGraphWalker
 from .condition_processor import ConditionProcessor
-from .decompilation_options import DecompilationOption
+from .decompilation_options import DecompilationOption, PARAM_TO_OPTION
 from .decompilation_cache import DecompilationCache
 from .utils import remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
+from .notes import DecompilationNote
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -66,8 +67,8 @@ class Decompiler(Analysis):
         binop_operators=None,
         decompile=True,
         regen_clinic=True,
-        inline_functions=frozenset(),
-        desired_variables=frozenset(),
+        inline_functions=None,
+        desired_variables=None,
         update_memory_data: bool = True,
         generate_code: bool = True,
         use_cache: bool = True,
@@ -79,8 +80,11 @@ class Decompiler(Analysis):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
+
+        if cfg is None:
+            cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
-        self._options = options or []
+        self._options = self._parse_options(options) if options else []
 
         if preset is None and optimization_passes:
             self._optimization_passes = optimization_passes
@@ -108,8 +112,8 @@ class Decompiler(Analysis):
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
         self._generate_code = generate_code
-        self._inline_functions = inline_functions
-        self._desired_variables = desired_variables
+        self._inline_functions = frozenset(inline_functions) if inline_functions else set()
+        self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -145,6 +149,7 @@ class Decompiler(Analysis):
         self._copied_var_ids: set[int] = set()
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
+        self.notes: dict[str, DecompilationNote] = {}
 
         if decompile:
             with self._resilience():
@@ -170,6 +175,20 @@ class Decompiler(Analysis):
         a, b = self._cache_parameters, cache.parameters
         id_checks = {"cfg", "variable_kb"}
         return all(a[k] is b[k] if k in id_checks else a[k] == b[k] for k in self._cache_parameters)
+
+    @staticmethod
+    def _parse_options(options: list[tuple[DecompilationOption | str, Any]]) -> list[tuple[DecompilationOption, Any]]:
+        """
+        Parse the options and return a list of option tuples.
+        """
+
+        converted_options = []
+        for o, v in options:
+            if isinstance(o, str):
+                # convert to DecompilationOption
+                o = PARAM_TO_OPTION[o]
+            converted_options.append((o, v))
+        return converted_options
 
     @timethis
     def _decompile(self):
@@ -222,6 +241,7 @@ class Decompiler(Analysis):
         # determine a few arguments according to the structuring algorithm
         fold_callexprs_into_conditions = False
         self._force_loop_single_exit = True
+        self._refine_loops_with_single_successor = False
         self._complete_successors = False
         self._recursive_structurer_params = self.options_to_params(self.options_by_class["recursive_structurer"])
         if "structurer_cls" not in self._recursive_structurer_params:
@@ -229,6 +249,7 @@ class Decompiler(Analysis):
         # is the algorithm based on Phoenix (a schema-based algorithm)?
         if issubclass(self._recursive_structurer_params["structurer_cls"], PhoenixStructurer):
             self._force_loop_single_exit = False
+            # self._refine_loops_with_single_successor = True
             self._complete_successors = True
             fold_callexprs_into_conditions = True
 
@@ -261,10 +282,12 @@ class Decompiler(Analysis):
                 desired_variables=self._desired_variables,
                 optimization_scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
+                refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
+                notes=self.notes,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -375,6 +398,7 @@ class Decompiler(Analysis):
                 const_formats=old_codegen.const_formats if old_codegen is not None else None,
                 externs=clinic.externs,
                 binop_depth_cutoff=self.expr_collapse_depth,
+                notes=self.notes,
                 **self.options_to_params(self.options_by_class["codegen"]),
             )
 
@@ -396,6 +420,7 @@ class Decompiler(Analysis):
             cond_proc=condition_processor,
             update_graph=update_graph,
             force_loop_single_exit=self._force_loop_single_exit,
+            refine_loops_with_single_successor=self._refine_loops_with_single_successor,
             complete_successors=self._complete_successors,
             entry_node_addr=self.clinic.entry_node_addr,
             **self.options_to_params(self.options_by_class["region_identifier"]),
@@ -444,6 +469,7 @@ class Decompiler(Analysis):
                 entry_node_addr=self.clinic.entry_node_addr,
                 scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
+                refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
                 **kwargs,
             )
@@ -507,6 +533,7 @@ class Decompiler(Analysis):
                 entry_node_addr=self.clinic.entry_node_addr,
                 scratch=self._optimization_scratch,
                 force_loop_single_exit=self._force_loop_single_exit,
+                refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
                 peephole_optimizations=self._peephole_optimizations,
                 avoid_vvar_ids=self._copied_var_ids,
@@ -538,7 +565,13 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
-            a = pass_(self.func, seq=seq_node, scratch=self._optimization_scratch, **kwargs)
+            a = pass_(
+                self.func,
+                seq=seq_node,
+                scratch=self._optimization_scratch,
+                peephole_optimizations=self._peephole_optimizations,
+                **kwargs,
+            )
             if a.out_seq:
                 seq_node = a.out_seq
 
@@ -555,14 +588,21 @@ class Decompiler(Analysis):
                     SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
                 )
 
-    def reflow_variable_types(
-        self, type_constraints: dict[TypeVariable, set[TypeConstraint]], func_typevar, var_to_typevar: dict, codegen
-    ):
+    def reflow_variable_types(self, cache: DecompilationCache):
         """
         Re-run type inference on an existing variable recovery result, then rerun codegen to generate new results.
 
         :return:
         """
+
+        # extract everything from the cache
+        type_constraints: dict[TypeVariable, set[TypeConstraint]] = cache.type_constraints
+        func_typevar = cache.func_typevar
+        var_to_typevar = cache.var_to_typevar
+        arg_vvars = cache.arg_vvars
+        stack_offset_typevars = cache.stack_offset_typevars
+        stackvar_max_sizes = cache.stackvar_max_sizes
+        codegen = cache.codegen
 
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
@@ -579,6 +619,12 @@ class Decompiler(Analysis):
                     for typevar in var_to_typevar[variable]:
                         groundtruth[typevar] = vartype
 
+        if self.func.prototype is not None and not self.func.is_prototype_guessed:
+            for arg_i, (_, variable) in arg_vvars.items():
+                if arg_i < len(self.func.prototype.args):
+                    for tv in var_to_typevar[variable]:
+                        groundtruth[tv] = self.func.prototype.args[arg_i]
+
         # variables that must be interpreted as structs
         if self._vars_must_struct:
             must_struct = set()
@@ -588,6 +634,16 @@ class Decompiler(Analysis):
                         must_struct.add(typevar)
         else:
             must_struct = None
+
+        tv_max_sizes = {}
+        for v, s in stackvar_max_sizes.items():
+            assert isinstance(v, SimStackVariable)
+            if v in var_to_typevar:
+                for tv in var_to_typevar[v]:
+                    tv_max_sizes[tv] = s
+            if v.offset in stack_offset_typevars:
+                tv = stack_offset_typevars[v.offset]
+                tv_max_sizes[tv] = s
 
         # Type inference
         try:
@@ -599,6 +655,8 @@ class Decompiler(Analysis):
                 var_mapping=var_to_typevar,
                 must_struct=must_struct,
                 ground_truth=groundtruth,
+                stack_offset_tvs=stack_offset_typevars,
+                stackvar_max_sizes=tv_max_sizes,
             )
             tp.update_variable_types(
                 self.func.addr,
@@ -609,7 +667,7 @@ class Decompiler(Analysis):
                 {v: t for v, t in var_to_typevar.items() if isinstance(v, (SimRegisterVariable, SimStackVariable))},
             )
             # update the function prototype if needed
-            if self.func.prototype is not None and self.func.prototype.args:
+            if self.func.is_prototype_guessed and self.func.prototype is not None and self.func.prototype.args:
                 var_manager = var_kb.variables[self.func.addr]
                 for i, arg in enumerate(codegen.cfunc.arg_list):
                     if i >= len(self.func.prototype.args):

@@ -277,7 +277,10 @@ class SimEngineVRBase(
         variable, _ = existing_vars[0]
 
         if not self.state.typevars.has_type_variable_for(variable):
-            variable_typevar = typevars.TypeVariable()
+            if isinstance(variable, SimStackVariable) and variable.offset in self.state.stack_offset_typevars:
+                variable_typevar = self.state.stack_offset_typevars[variable.offset]
+            else:
+                variable_typevar = typevars.TypeVariable()
             self.state.typevars.add_type_variable(variable, variable_typevar)
         # we do not add any type constraint here because we are not sure if the given memory address will ever be
         # accessed or not
@@ -435,7 +438,7 @@ class SimEngineVRBase(
                     ident=self.state.variable_manager[self.func_addr].next_variable_ident("register"),
                     region=self.func_addr,
                 )
-                self.state.variable_manager[self.func_addr].add_variable("register", vvar.oident, variable)
+                self.state.variable_manager[self.func_addr].add_variable("register", vvar.reg_offset, variable)
             elif vvar.was_tmp:
                 # FIXME: we treat all tmp vvars as registers
                 assert vvar.tmp_idx is not None
@@ -479,6 +482,11 @@ class SimEngineVRBase(
                 # the constraint below is a default constraint that may conflict with more specific ones with different
                 # sizes; we post-process at the very end of VRA to remove conflicting default constraints.
                 self.state.add_type_constraint(typevars.Subtype(typevar, typeconsts.int_type(variable.size * 8)))
+
+            # add existing (delayed) type constraints
+            if richr.type_constraints is not None:
+                for tc in richr.type_constraints:
+                    self.state.add_type_constraint(tc)
 
         return variable
 

@@ -202,6 +202,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
     _handle_binop_CmpGT = _handle_binop_Default
     _handle_binop_CmpEQ = _handle_binop_Default
     _handle_binop_CmpNE = _handle_binop_Default
+    _handle_binop_CmpORD = _handle_binop_Default
     _handle_binop_Add = _handle_binop_Default
     _handle_binop_AddF = _handle_binop_Default
     _handle_binop_AddV = _handle_binop_Default

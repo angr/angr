@@ -1,7 +1,7 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset
+from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Call, Store
 
 from angr import SIM_LIBRARIES
@@ -21,12 +21,12 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
 
     def optimize(self, stmts: list[Call], **kwargs):
         last_stmt, stmt = stmts
-        if InlinedStrcpyConsolidation._is_inlined_strcpy(last_stmt):
+        if InlinedStrcpy.is_inlined_strcpy(last_stmt):
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedStrcpyConsolidation._is_inlined_strcpy(stmt):
+            if isinstance(stmt, Call) and InlinedStrcpy.is_inlined_strcpy(stmt):
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
                 addr_curr = stmt.args[0]
@@ -75,21 +75,18 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         return None
 
     @staticmethod
-    def _is_inlined_strcpy(stmt: Call):
-        return (
-            isinstance(stmt.target, str)
-            and stmt.target == "strncpy"
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and hasattr(stmt.args[1], "custom_string")
-        )
-
-    @staticmethod
     def _parse_addr(addr: Expression) -> tuple[Expression, int]:
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
             return StackBaseOffset(None, addr.bits, 0), addr.offset
+        if (
+            isinstance(addr, UnaryOp)
+            and addr.op == "Reference"
+            and isinstance(addr.operand, VirtualVariable)
+            and addr.operand.was_stack
+        ):
+            return StackBaseOffset(None, addr.bits, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const):
                 base_0, offset_0 = InlinedStrcpyConsolidation._parse_addr(addr.operands[0])

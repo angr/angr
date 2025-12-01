@@ -9,7 +9,9 @@ import pydemumble
 from archinfo import Endness
 
 import angr
+from angr import AngrMissingTypeError
 from angr.sim_type import (
+    SimType,
     SimTypeFunction,
     SimTypeInt,
     SimTypePointer,
@@ -28,6 +30,7 @@ from angr.sim_type import (
     SimTypeString,
     SimTypeCppFunction,
     SimTypeArray,
+    SimTypeRef,
 )
 from angr.utils.library import convert_cproto_to_py, convert_cppproto_to_py
 from angr.utils.types import dereference_simtype
@@ -361,6 +364,35 @@ class TestTypes(unittest.TestCase):
         assert t.size is not None
         assert t.size > 0  # an exception is raised if anonymous structs are not handled correctly
 
+    def test_win32_struct_type_declaration(self):
+        t = angr.sim_type.parse_type("struct IMAGE_NT_HEADERS64*")
+        ref_t = angr.utils.types.make_type_reference(t)
+        expected = SimTypePointer(SimTypeRef("IMAGE_NT_HEADERS64", SimStruct))
+        assert ref_t == expected
+        assert t != expected
+
+    def test_win32_struct_type_declaration_dereference_succeeds(self):
+        angr.procedures.definitions.load_win32_type_collections()
+        t = angr.sim_type.parse_type("struct IMAGE_NT_HEADERS64*")
+        ref_t = angr.utils.types.make_type_reference(t)
+
+        deref_t = dereference_simtype(ref_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        assert isinstance(deref_t, SimTypePointer)
+        assert isinstance(deref_t.pts_to, SimStruct)
+        assert list(deref_t.pts_to.fields) == ["Signature", "FileHeader", "OptionalHeader"]
+
+    def test_win32_struct_type_declaration_dereference_fails(self):
+        angr.procedures.definitions.load_win32_type_collections()
+        t = angr.sim_type.parse_type("struct IMAGE_NT_HEADERS96*")
+        ref_t = angr.utils.types.make_type_reference(t)
+
+        try:
+            _deref_t = dereference_simtype(ref_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        except AngrMissingTypeError as ex:
+            assert ex.missing_type == "IMAGE_NT_HEADERS96"
+        else:
+            assert False, "The expected AngrMissingTypeError was not raised"
+
     def test_simunion_size_bottom_types(self):
         union_type = SimUnion(
             {"filterType": SimTypeBottom(label="Guid"), "calloutKey": SimTypeBottom(label="Guid")},
@@ -380,6 +412,17 @@ class TestTypes(unittest.TestCase):
 
         wchar_array = SimTypeArray(SimTypeWideChar(endness=Endness.LE), length=5).with_arch(proj.arch)
         assert wchar_array.extract(state, 0xC000_0000, concrete=True) == ["a", "b", "c", "D", "E"]
+
+    def test_serialize_recursive_types(self):
+        angr.procedures.definitions.load_win32_type_collections()
+        t = angr.SIM_TYPE_COLLECTIONS["win32"].get("DEVICE_OBJECT")
+        deref_t = dereference_simtype(t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        d = deref_t.to_json()
+        assert isinstance(d, dict)  # shall not raise
+
+        new_t = SimType.from_json(d)
+        deref_new_t = dereference_simtype(new_t, [angr.SIM_TYPE_COLLECTIONS["win32"]])
+        assert deref_t == deref_new_t
 
 
 if __name__ == "__main__":

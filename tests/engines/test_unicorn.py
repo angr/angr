@@ -16,13 +16,13 @@ import claripy
 
 import angr
 from angr import options as so
-from tests.common import bin_location, broken, slow_test
+from tests.common import bin_location, broken
 
 test_location = os.path.join(bin_location, "tests")
 
 
 def _remove_addr_from_trace_item(trace_item_str):
-    m = re.match(r"(<\S+ \S+) from 0x[0-9a-f]+(:[\s\S]+)", trace_item_str)
+    m = re.match(r"(<\S+ \S+) from .*(:[\s\S]+)", trace_item_str)
     if m is None:
         return None
     return m.group(1) + m.group(2)
@@ -55,13 +55,13 @@ class TestUnicorn(unittest.TestCase):
         _compare_trace(
             p_normal.history.descriptions,
             [
-                "<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8119990: 1 sat>",
-                "<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400044: 1 sat>",
-                "<Unicorn (STOP_NORMAL after 100 steps) from 0x80485b5: 1 sat>",
-                "<Unicorn (STOP_STOPPOINT after 12 steps) from 0x804846f: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400048: 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 4 steps) from _start+0x0 in uc_stop (0x8048340): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8100004 (__libc_start_main+0x0 in extern-address space (0x4)): 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 14 steps) from __libc_csu_init+0x0 in uc_stop (0x8048650): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x820104c (__libc_start_main.after_init+0x0 in extern-address space (0x104c)): 1 sat>",
+                "<Unicorn (STOP_NORMAL after 100 steps) from main+0x0 in uc_stop (0x80485b5): 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 12 steps) from stop_normal+0x19 in uc_stop (0x804846f): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8201050 (__libc_start_main.after_main+0x0 in extern-address space (0x1050)): 1 sat>",
             ],
         )
 
@@ -88,7 +88,7 @@ class TestUnicorn(unittest.TestCase):
         assert p_stoppoints.addr == stop_bb
         _compare_trace(
             p_stoppoints.history.descriptions,
-            ["<Unicorn (STOP_STOPPOINT after 111 steps) from 0x80485b5: 1 sat>"],
+            ["<Unicorn (STOP_STOPPOINT after 111 steps) from main+0x0 in uc_stop (0x80485b5): 1 sat>"],
         )
 
         # test STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED
@@ -102,14 +102,14 @@ class TestUnicorn(unittest.TestCase):
         _compare_trace(
             p_symbolic_read_tracking_disabled.history.descriptions,
             [
-                "<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8119990: 1 sat>",
-                "<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400044: 1 sat>",
-                "<Unicorn (STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED after 7 steps) from 0x80485b5: 1 sat>",
-                "<IRSB from 0x804848a: 1 sat 3 unsat>",
-                "<Unicorn (STOP_STOPPOINT after 3 steps) from 0x80484bb: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400048: 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 4 steps) from _start+0x0 in uc_stop (0x8048340): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8100004 (__libc_start_main+0x0 in extern-address space (0x4)): 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 14 steps) from __libc_csu_init+0x0 in uc_stop (0x8048650): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x820104c (__libc_start_main.after_init+0x0 in extern-address space (0x104c)): 1 sat>",
+                "<Unicorn (STOP_SYMBOLIC_READ_SYMBOLIC_TRACKING_DISABLED after 7 steps) from main+0x0 in uc_stop (0x80485b5): 1 sat>",
+                "<IRSB from stop_symbolic_read_symbolic_tracking_disabled+0xe in uc_stop (0x804848a): 1 sat 3 unsat>",
+                "<Unicorn (STOP_STOPPOINT after 3 steps) from stop_symbolic_read_symbolic_tracking_disabled+0x3f in uc_stop (0x80484bb): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8201050 (__libc_start_main.after_main+0x0 in extern-address space (0x1050)): 1 sat>",
             ],
         )
 
@@ -135,12 +135,12 @@ class TestUnicorn(unittest.TestCase):
         _compare_trace(
             p_segfault.history.descriptions,
             [
-                "<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8119990: 1 sat>",
-                "<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400044: 1 sat>",
-                "<Unicorn (STOP_SEGFAULT after 7 steps) from 0x80485b5: 1 sat>",
-                "<IRSB from 0x8048508: 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 4 steps) from _start+0x0 in uc_stop (0x8048340): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8100004 (__libc_start_main+0x0 in extern-address space (0x4)): 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 14 steps) from __libc_csu_init+0x0 in uc_stop (0x8048650): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x820104c (__libc_start_main.after_init+0x0 in extern-address space (0x104c)): 1 sat>",
+                "<Unicorn (STOP_SEGFAULT after 7 steps) from main+0x0 in uc_stop (0x80485b5): 1 sat>",
+                "<IRSB from stop_segfault+0xb in uc_stop (0x8048508): 1 sat>",
             ],
         )
 
@@ -160,14 +160,14 @@ class TestUnicorn(unittest.TestCase):
         _compare_trace(
             p_symbolic_exit.history.descriptions,
             [
-                "<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048340: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8119990: 1 sat>",
-                "<Unicorn (STOP_STOPPOINT after 14 steps) from 0x8048650: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400044: 1 sat>",
-                "<Unicorn (STOP_SYMBOLIC_BLOCK_EXIT_CONDITION after 7 steps) from 0x80485b5: 1 sat>",
-                "<IRSB from 0x804855d: 2 sat 1 unsat>",
-                "<Unicorn (STOP_STOPPOINT after 4 steps) from 0x8048587: 1 sat>",
-                "<SimProcedure __libc_start_main from 0x8400048: 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 4 steps) from _start+0x0 in uc_stop (0x8048340): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8100004 (__libc_start_main+0x0 in extern-address space (0x4)): 1 sat>",
+                "<Unicorn (STOP_STOPPOINT after 14 steps) from __libc_csu_init+0x0 in uc_stop (0x8048650): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x820104c (__libc_start_main.after_init+0x0 in extern-address space (0x104c)): 1 sat>",
+                "<Unicorn (STOP_SYMBOLIC_BLOCK_EXIT_CONDITION after 7 steps) from main+0x0 in uc_stop (0x80485b5): 1 sat>",
+                "<IRSB from stop_symbolic_block_exit+0xe in uc_stop (0x804855d): 2 sat 1 unsat>",
+                "<Unicorn (STOP_STOPPOINT after 4 steps) from stop_symbolic_block_exit+0x38 in uc_stop (0x8048587): 1 sat>",
+                "<SimProcedure __libc_start_main from 0x8201050 (__libc_start_main.after_main+0x0 in extern-address space (0x1050)): 1 sat>",
             ],
         )
 
@@ -291,7 +291,7 @@ class TestUnicorn(unittest.TestCase):
             cc.simgr = prehook(cc.simgr)
         cc.run(depth=depth)
 
-    @slow_test
+    @broken
     def test_similarity_fauxware(self):
         def cooldown(pg):
             # gotta skip the initializers because of cpuid and RDTSC

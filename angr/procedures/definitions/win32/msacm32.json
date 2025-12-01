@@ -1,0 +1,141 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"msacm32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"acmDriverAddA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phadid', 'hinstModule', 'lParam', 'dwPriority', 'fdwAdd']}"
+		},
+		"acmDriverAddW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phadid', 'hinstModule', 'lParam', 'dwPriority', 'fdwAdd']}"
+		},
+		"acmDriverClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'fdwClose']}"
+		},
+		"acmDriverDetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMDRIVERDETAILSA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hadid', 'padd', 'fdwDetails']}"
+		},
+		"acmDriverDetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMDRIVERDETAILSW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hadid', 'padd', 'fdwDetails']}"
+		},
+		"acmDriverEnum": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmDriverID": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMOBJ', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hao', 'phadid', 'fdwDriverID']}"
+		},
+		"acmDriverMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'LRESULT', 'ot': 'ptr'}, 'arg_names': ['had', 'uMsg', 'lParam1', 'lParam2']}"
+		},
+		"acmDriverOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HACMDRIVER', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phad', 'hadid', 'fdwOpen']}"
+		},
+		"acmDriverPriority": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hadid', 'dwPriority', 'fdwPriority']}"
+		},
+		"acmDriverRemove": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hadid', 'fdwRemove']}"
+		},
+		"acmFilterChooseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERCHOOSEA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pafltrc']}"
+		},
+		"acmFilterChooseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERCHOOSEW', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pafltrc']}"
+		},
+		"acmFilterDetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fdwDetails']}"
+		},
+		"acmFilterDetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fdwDetails']}"
+		},
+		"acmFilterEnumA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'pafd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFilterEnumW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'pafd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFilterTagDetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fdwDetails']}"
+		},
+		"acmFilterTagDetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fdwDetails']}"
+		},
+		"acmFilterTagEnumA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'paftd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFilterTagEnumW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFILTERTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'paftd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFormatChooseA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATCHOOSEA', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pafmtc']}"
+		},
+		"acmFormatChooseW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATCHOOSEW', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pafmtc']}"
+		},
+		"acmFormatDetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATDETAILSA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fdwDetails']}"
+		},
+		"acmFormatDetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'tACMFORMATDETAILSW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fdwDetails']}"
+		},
+		"acmFormatEnumA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'pafd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFormatEnumW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'tACMFORMATDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'tACMFORMATDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'pafd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pafd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFormatSuggest": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WAVEFORMATEX', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WAVEFORMATEX', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'pwfxSrc', 'pwfxDst', 'cbwfxDst', 'fdwSuggest']}"
+		},
+		"acmFormatTagDetailsA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fdwDetails']}"
+		},
+		"acmFormatTagDetailsW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fdwDetails']}"
+		},
+		"acmFormatTagEnumA": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'paftd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmFormatTagEnumW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMDRIVERID', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMFORMATTAGDETAILSW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hadid', 'paftd', 'dwInstance', 'fdwSupport']}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['had', 'paftd', 'fnCallback', 'dwInstance', 'fdwEnum']}"
+		},
+		"acmGetVersion": {
+			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
+		},
+		"acmMetrics": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMOBJ', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hao', 'uMetric', 'pMetric']}"
+		},
+		"acmStreamClose": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'fdwClose']}"
+		},
+		"acmStreamConvert": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMSTREAMHEADER', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'pash', 'fdwConvert']}"
+		},
+		"acmStreamMessage": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'uMsg', 'lParam1', 'lParam2']}"
+		},
+		"acmStreamOpen": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HACMSTREAM', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'HACMDRIVER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WAVEFORMATEX', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WAVEFORMATEX', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WAVEFILTER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['phas', 'had', 'pwfxSrc', 'pwfxDst', 'pwfltr', 'dwCallback', 'dwInstance', 'fdwOpen']}"
+		},
+		"acmStreamPrepareHeader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMSTREAMHEADER', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'pash', 'fdwPrepare']}"
+		},
+		"acmStreamReset": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'fdwReset']}"
+		},
+		"acmStreamSize": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'cbInput', 'pdwOutputBytes', 'fdwSize']}"
+		},
+		"acmStreamUnprepareHeader": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HACMSTREAM', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ACMSTREAMHEADER', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['has', 'pash', 'fdwUnprepare']}"
+		}
+	}
+}

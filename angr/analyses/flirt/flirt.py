@@ -35,7 +35,7 @@ class FlirtAnalysis(Analysis):
       current binary, and then match all possible signatures for the architecture.
     """
 
-    def __init__(self, sig: FlirtSignature | str | None = None, max_mismatched_bytes: int = 0):
+    def __init__(self, sig: FlirtSignature | str | None = None, max_mismatched_bytes: int = 0, dry_run: bool = False):
 
         from angr.flirt import FLIRT_SIGNATURES_BY_ARCH  # pylint:disable=import-outside-toplevel
 
@@ -94,9 +94,10 @@ class FlirtAnalysis(Analysis):
                 sig_ = path_to_sig.get(max_suggestion_sig_path)
                 assert sig_ is not None
                 _l.info("Applying FLIRT signature %s for library %s.", sig_, lib)
-                self._apply_changes(
-                    sig_.sig_name if not self._temporary_sig else None, sig_to_suggestions[max_suggestion_sig_path]
-                )
+                if not dry_run:
+                    self._apply_changes(
+                        sig_.sig_name if not self._temporary_sig else None, sig_to_suggestions[max_suggestion_sig_path]
+                    )
                 self.matched_suggestions[lib] = (sig_, sig_to_suggestions[max_suggestion_sig_path])
 
     def _find_hits_by_strings(self, regions: list[bytes]) -> Generator[FlirtSignature]:
@@ -204,26 +205,30 @@ class FlirtAnalysis(Analysis):
                 return callee.name
         return None
 
+    def _get_func_for_addr(self, func_addr) -> Function | None:
+        try:
+            return self.kb.functions.get_by_addr(func_addr)
+        except KeyError:
+            # the function is not found. Try the THUMB version
+            if self._is_arm:
+                with contextlib.suppress(KeyError):
+                    return self.kb.functions.get_by_addr(func_addr + 1)
+        return None
+
     def _on_func_matched(self, func: Function, base_addr: int, flirt_func: FlirtFunction):
         func_addr = base_addr + flirt_func.offset
         _l.debug(
             "_on_func_matched() is called with func_addr %#x with a suggested name %s.", func_addr, flirt_func.name
         )
-        if func_addr != base_addr and (self._is_arm and func_addr != base_addr + 1):
+        if func_addr != base_addr or (self._is_arm and func_addr != base_addr + 1):
             # get the correct function
-            try:
-                func = self.kb.functions.get_by_addr(func_addr)
-            except KeyError:
-                # the function is not found. Try the THUMB version
-                if self._is_arm:
-                    with contextlib.suppress(KeyError):
-                        func = self.kb.functions.get_by_addr(func_addr + 1)
-
-            if func is None:
+            matched_func = self._get_func_for_addr(func_addr)
+            if matched_func is None:
                 _l.debug(
                     "FlirtAnalysis identified a function at %#x but it does not exist in function manager.", func_addr
                 )
                 return
+            func = matched_func
 
         if func.is_default_name:
             # set the function name

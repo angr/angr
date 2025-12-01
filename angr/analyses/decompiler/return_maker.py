@@ -3,6 +3,7 @@ import logging
 
 import angr.ailment as ailment
 
+from angr.utils.types import dereference_simtype_by_lib
 from angr.sim_type import SimTypeBottom
 from angr.calling_conventions import SimRegArg
 from .ailgraph_walker import AILGraphWalker
@@ -38,7 +39,12 @@ class ReturnMaker(AILGraphWalker):
             and type(self.function.prototype.returnty) is not SimTypeBottom
         ):
             new_stmt = stmt.copy()
-            ret_val = self.function.calling_convention.return_val(self.function.prototype.returnty)
+            returnty = (
+                dereference_simtype_by_lib(self.function.prototype.returnty, self.function.prototype_libname)
+                if self.function.prototype_libname
+                else self.function.prototype.returnty
+            )
+            ret_val = self.function.calling_convention.return_val(returnty)
             if isinstance(ret_val, SimRegArg):
                 reg = self.arch.registers[ret_val.reg_name]
                 new_stmt.ret_exprs.append(

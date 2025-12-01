@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing_extensions import override
 
 import pypcode
-from archinfo import Arch, Endness
+from archinfo import Arch, ArchPcode, Endness, ArchARMCortexM
 
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
@@ -72,6 +72,8 @@ class IcicleEngine(ConcreteEngine):
         accurate, just a set of heuristics to get the right architecture. When
         adding a new architecture, this function may need to be updated.
         """
+        if isinstance(arch, ArchARMCortexM) or (isinstance(arch, ArchPcode) and arch.pcode_arch == "ARM:LE:32:Cortex"):
+            return "armv7m"
         if arch.linux_name == "arm":
             return "armv7a" if arch.memory_endness == Endness.LE else "armeb"
         return arch.linux_name
@@ -84,11 +86,20 @@ class IcicleEngine(ConcreteEngine):
         return icicle_arch.startswith(("arm", "thumb"))
 
     @staticmethod
-    def __is_thumb(icicle_arch: str, addr: int) -> bool:
+    def __is_cortex_m(angr_arch: Arch, icicle_arch: str) -> bool:
+        """
+        Check if the architecture is cortex-m based on the address.
+        """
+        return isinstance(angr_arch, ArchARMCortexM) or icicle_arch == "armv7m"
+
+    @staticmethod
+    def __is_thumb(angr_arch: Arch, icicle_arch: str, addr: int) -> bool:
         """
         Check if the architecture is thumb based on the address.
         """
-        return IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
+        return IcicleEngine.__is_cortex_m(angr_arch, icicle_arch) or (
+            IcicleEngine.__is_arm(icicle_arch) and addr & 1 == 1
+        )
 
     @staticmethod
     def __get_pages(state: HeavyConcreteState) -> set[int]:
@@ -123,7 +134,7 @@ class IcicleEngine(ConcreteEngine):
         if proj is None:
             raise ValueError("IcicleEngine requires a project to be set")
 
-        emu = Icicle(icicle_arch, PROCESSORS_DIR, True)
+        emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
 
         copied_registers = set()
 
@@ -132,13 +143,16 @@ class IcicleEngine(ConcreteEngine):
         for register in state.arch.register_list:
             register = register.vex_name.lower() if register.vex_name is not None else register.name
             try:
-                emu.reg_write(register, state.solver.eval(state.registers.load(register), cast_to=int))
+                emu.reg_write(
+                    register,
+                    state.solver.eval(state.registers.load(register), cast_to=int),
+                )
                 copied_registers.add(register)
             except KeyError:
                 log.debug("Register %s not found in icicle", register)
 
         # Unset the thumb bit if necessary
-        if IcicleEngine.__is_thumb(icicle_arch, state.addr):
+        if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
             emu.pc = state.addr & ~1
             emu.isa_mode = 1
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
@@ -173,6 +187,11 @@ class IcicleEngine(ConcreteEngine):
             writable_pages=writable_pages,
             initial_cpu_icount=emu.cpu_icount,
         )
+
+        # 3. Copy edge hitmap
+        edge_hitmap = state.history.last_edge_hitmap
+        if edge_hitmap is not None:
+            emu.edge_hitmap = edge_hitmap
 
         return (emu, translation_data)
 
@@ -221,8 +240,11 @@ class IcicleEngine(ConcreteEngine):
         # Skip the last block, because it will be added by Successors
         state.history.recent_bbl_addrs.extend([b[0] for b in emu.recent_blocks][:-1])
 
-        # 4. Set history.recent_instruction_count
+        # 3.3. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount
+
+        # 3.4. Set edge hitmap
+        state.history.edge_hitmap = emu.edge_hitmap
 
         return state
 
@@ -234,11 +256,13 @@ class IcicleEngine(ConcreteEngine):
     @override
     def add_breakpoint(self, addr: int) -> None:
         """Add a breakpoint at the given address."""
+        addr = addr & ~1  # Clear thumb bit if set
         self.breakpoints.add(addr)
 
     @override
     def remove_breakpoint(self, addr: int) -> None:
         """Remove a breakpoint at the given address, if present."""
+        addr = addr & ~1  # Clear thumb bit if set
         self.breakpoints.discard(addr)
 
     @override

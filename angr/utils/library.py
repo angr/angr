@@ -206,6 +206,7 @@ def get_cpp_function_name(demangled_name: str) -> str:
     :param demangled_name: The demangled C++ function name.
     :return:               The qualified function name, excluding return type and parameters.
     """
+    demangled_name = demangled_name.strip()
     func_decls, _ = parse_cpp_file(demangled_name)
     if func_decls and len(func_decls) == 1:
         return next(iter(func_decls))

@@ -79,14 +79,14 @@ class SimEngineRDVEX(
         self._set_codeloc()
 
         function_handled = False
-        if self.block.vex.jumpkind == "Ijk_Call":
+        if self.block.vex.jumpkind == "Ijk_Call" and self.block.vex.next is not None:
             # it has to be a function
             block_next = self.block.vex.next
             assert isinstance(block_next, pyvex.expr.IRExpr)
             addr = self._expr_bv(block_next)
             self._handle_function(addr)
             function_handled = True
-        elif self.block.vex.jumpkind == "Ijk_Boring":
+        elif self.block.vex.jumpkind == "Ijk_Boring" and self.block.vex.next is not None:
             # test if the target addr is a function or not
             block_next = self.block.vex.next
             assert isinstance(block_next, pyvex.expr.IRExpr)
@@ -100,7 +100,7 @@ class SimEngineRDVEX(
                     function_handled = True
 
         # take care of OP_AFTER during statement processing for function calls in a block
-        if self.state.analysis and function_handled:
+        if self.state.analysis and function_handled and self.block.vex.statements:
             self.state.analysis.stmt_observe(
                 self.stmt_idx, self.block.vex.statements[-1], self.block, self.state, OP_AFTER
             )
@@ -434,8 +434,9 @@ class SimEngineRDVEX(
         size = bits // self.arch.byte_width
 
         # convert addr from MultiValues to a list of valid addresses
-        if (one_addr := addr.one_value()) is not None:
-            return self._load_core([one_addr], size, expr.endness)
+        if addr.count() == 1 and 0 in addr:
+            addrs = list(addr[0])
+            return self._load_core(addrs, size, expr.endness)
 
         top = self.state.top(bits)
         # annotate it
@@ -1088,7 +1089,7 @@ class SimEngineRDVEX(
             if e0 is e1:
                 return MultiValues(claripy.BVV(0x2, bits))
 
-        return MultiValues(self.state.top(1))
+        return MultiValues(self.state.top(bits))
 
     def _handle_expr_CCall(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         bits = expr.result_size(self.tyenv)

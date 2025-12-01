@@ -203,6 +203,24 @@ class TestThumb(TestCase):
         assert successors[0].regs.pc.concrete_value == 0xD
         assert successors[0].regs.r2.concrete_value == 0x3
 
+    def test_cortex_m_thumb_only(self):
+        """Test that the Icicle engine automatically uses thumb mode for Cortex-M."""
+
+        # Shellcode to add 1 and 2 in Thumb mode
+        shellcode = "mov r0, 0x1; mov r1, 0x2; add r2, r0, r1;"
+        project = angr.load_shellcode(shellcode, archinfo.ArchARMCortexM())
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.entry_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        successors = engine.process(init_state, num_inst=3)
+        assert len(successors.successors) == 1
+        assert successors[0].regs.pc.concrete_value == 0xD
+        assert successors[0].regs.r2.concrete_value == 0x3
+
     def test_thumb_switching(self):
         """Test that the Icicle engine can handle switching between ARM and Thumb instructions."""
 
@@ -271,6 +289,35 @@ class TestThumb(TestCase):
         assert successors[0].history.jumpkind != "Ijk_SigSEGV"
         assert successors[0].regs.pc.concrete_value == 0x1004
         assert successors[0].regs.r2.concrete_value == 0x3
+
+    def test_thumb_breakpoint(self):
+        """Test that breakpoints work in Thumb mode."""
+        # Shellcode to add 1 and 2 in Thumb mode
+        shellcode = "mov r0, 0x1; mov r1, 0x2; add r2, r0, r1;"
+        project = angr.load_shellcode(shellcode, "armel", thumb=True)
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Add a breakpoint at the second instruction (mov r1, 0x2)
+        breakpoint_addr = project.entry + 4
+        engine.add_breakpoint(breakpoint_addr)
+
+        # Process up to the breakpoint
+        successors = engine.process(init_state)
+        assert len(successors.successors) == 1
+        state_after_bp = successors.successors[0]
+        assert state_after_bp.addr == breakpoint_addr
+        assert state_after_bp.regs.r0.concrete_value == 1
+
+        # Continue execution
+        successors2 = engine.process(state_after_bp, num_inst=2)
+        assert len(successors2.successors) == 1
+        final_state = successors2.successors[0]
+        assert final_state.regs.r2.concrete_value == 3
 
 
 class TestFauxware(TestCase):
@@ -552,3 +599,110 @@ class TestTracing(TestCase):
             0x4007D3,
             0x801058,
         ]
+
+
+class TestEdgeHitmap(TestCase):
+    """Unit tests for the edge_hitmap functionality in the Icicle engine."""
+
+    def test_edge_hitmap_populated(self):
+        """Test that the edge hitmap is populated after execution."""
+
+        project = angr.load_shellcode("je $+2; nop; nop; nop", "x86_64")
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+        )
+        result = engine.process(init_state, num_inst=10)
+        hitmap = result.successors[0].history.edge_hitmap
+
+        assert hitmap is not None
+        assert len(hitmap) == 65536
+        assert any(x > 0 for x in hitmap)
+
+    def test_edge_hitmap_reproducibility(self):
+        project = angr.load_shellcode("nop; nop; nop; nop; nop", "x86_64")
+        engine = IcicleEngine(project)
+
+        state_1 = project.factory.blank_state(remove_options={*o.symbolic})
+        result_1 = engine.process(state_1, num_inst=3)
+        hitmap_1 = result_1.successors[0].history.edge_hitmap
+
+        assert hitmap_1 is not None
+        assert any(x > 0 for x in hitmap_1)
+
+        state_2 = project.factory.blank_state(remove_options={*o.symbolic})
+        result_2 = engine.process(state_2, num_inst=5)
+        hitmap_2 = result_2.successors[0].history.edge_hitmap
+
+        assert hitmap_1 == hitmap_2
+
+    def test_edge_hitmap_multiple_blocks(self):
+        shellcode = "xor rax, rax; inc rax; cmp rax, 5; jne $-8; nop"
+        project = angr.load_shellcode(shellcode, "x86_64")
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Run a small number of instructions first
+        result1 = engine.process(init_state, num_inst=5)
+        s1 = result1.successors[0]
+        hitmap1 = s1.history.edge_hitmap
+        assert hitmap1 is not None
+        assert any(x > 0 for x in hitmap1)
+        assert s1.history.recent_instruction_count == 5
+        print("Initial hitmap:", hitmap1[:100])
+
+        # Continue execution for more instructions
+        result2 = engine.process(s1, num_inst=45)
+        s2 = result2.successors[0]
+        hitmap2 = s2.history.edge_hitmap
+        assert hitmap2 is not None
+        assert any(x > 0 for x in hitmap2)
+        assert s2.history.recent_instruction_count == 45
+        print("Extended hitmap:", hitmap2[:100])
+
+        # The second hitmap should be additive (all edges from first plus possibly more)
+        bad = []
+        for i in range(65536):
+            if hitmap2[i] < hitmap1[i]:
+                bad.append((i, hitmap1[i], hitmap2[i]))
+
+        assert not bad, f"Edge hitmap values decreased for edges: {bad}"
+
+    def test_fauxware_reproducibility(self):
+        """Test that the edge hitmap is reproducible across runs of the fauxware binary."""
+        project = angr.Project(os.path.join(bin_location, "tests", "x86_64", "fauxware"), auto_load_libs=False)
+        init_state = project.factory.entry_state(
+            stdin=b"username\nSOSNEAKY\n",
+            args=["fauxware"],
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        engine = UberIcicleEngine(project)
+
+        state1 = init_state.copy()
+        while state1.history.jumpkind != "Ijk_Exit":
+            successors = engine.process(state1)
+            assert len(successors.successors) == 1
+            assert successors.successors[0].history.jumpkind != "Ijk_SigSEGV"
+            state1 = successors.successors[0]
+
+        hitmap1 = state1.history.last_edge_hitmap
+
+        assert hitmap1 is not None
+        assert any(x > 0 for x in hitmap1)
+
+        # Reset and run again
+        state2 = init_state.copy()
+        while state2.history.jumpkind != "Ijk_Exit":
+            successors = engine.process(state2)
+            assert len(successors.successors) == 1
+            assert successors.successors[0].history.jumpkind != "Ijk_SigSEGV"
+            state2 = successors.successors[0]
+
+        hitmap2 = state2.history.last_edge_hitmap
+
+        assert hitmap1 == hitmap2

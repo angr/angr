@@ -2,16 +2,15 @@
 from __future__ import annotations
 
 import json
-import codecs
 import sys
+import os
 import logging
 from collections import OrderedDict, defaultdict
 from argparse import ArgumentParser
 from pathlib import Path
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeLong
-from angr.utils.library import parsedcprotos2py
+from angr.sim_type import SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
 
@@ -22,6 +21,16 @@ altnames = set()
 
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
+
+# add Guid
+guid_fields = OrderedDict()
+guid_fields["Data1"] = angr.types.SimTypeInt(signed=False)
+guid_fields["Data2"] = angr.types.SimTypeShort(signed=False)
+guid_fields["Data3"] = angr.types.SimTypeShort(signed=False)
+guid_fields["Data4"] = angr.types.SimTypeFixedSizeArray(angr.types.SimTypeChar(signed=False), length=8)
+guid = angr.types.SimStruct(guid_fields, name="Guid", pack=True, align=1)
+typelib.add("Guid", guid)
+
 known_struct_names: set[str] = set()
 
 
@@ -61,27 +70,32 @@ def get_angr_type_from_name(name):
     if name == "Boolean":
         return angr.types.SimTypeBool(label="Boolean")
     if name == "Guid":
-        # FIXME
-        return angr.types.SimTypeBottom(label="Guid")
+        return angr.types.SimTypeRef("Guid", angr.types.SimStruct)
     print(f"Unhandled Native Type: {name}")
     sys.exit(-1)
 
 
-def get_typeref_from_struct_type(t: angr.types.SimType) -> angr.types.SimType:
+def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
     if isinstance(t, angr.types.SimStruct) and t.name and not is_anonymous_struct(t.name):
         # replace it with a SimTypeRef to avoid duplicate definition
         t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
+    if t.label is not None and t.label in typelib:
+        t = angr.types.SimTypeRef(t.label, t.__class__)
     return t
 
 
 def handle_json_type(t, create_missing: bool = False):
+    if t["Kind"] == "NativeTypedef":
+        ty = handle_json_type(t["Def"], create_missing=create_missing)
+        ty.label = t["Name"]
+        return ty
     if t["Kind"] == "Native":
         return get_angr_type_from_name(t["Name"])
     if t["Kind"] == "PointerTo":
-        pts_to = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to)
     if t["Kind"] == "Array":
-        elem = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        elem = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         if t["Shape"]:
             return angr.types.SimTypeFixedSizeArray(elem, length=int(t["Shape"]["Size"]))
         return angr.types.SimTypePointer(elem)
@@ -92,24 +106,24 @@ def handle_json_type(t, create_missing: bool = False):
             if t["Name"] in known_struct_names:
                 return angr.types.SimTypeRef(t["Name"], angr.types.SimStruct)
             raise
-        return get_typeref_from_struct_type(named_type)
+        return get_typeref_if_available(named_type)
     if t["Kind"] == "Struct":
         for nested_type in t["NestedTypes"]:
             typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
         fields = OrderedDict()
         for field in t["Fields"]:
-            child_type = get_typeref_from_struct_type(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
             fields[field["Name"]] = child_type
         return angr.types.SimStruct(fields, name=t["Name"])
     if t["Kind"] == "LPArray":
-        pts_to = get_typeref_from_struct_type(handle_json_type(t["Child"], create_missing=create_missing))
+        pts_to = get_typeref_if_available(handle_json_type(t["Child"], create_missing=create_missing))
         return angr.types.SimTypePointer(pts_to, label="LPArray")
     if t["Kind"] == "Union":
         for nested_type in t["NestedTypes"]:
             typelib.add(nested_type["Name"], handle_json_type(nested_type, create_missing=create_missing))
         members = {}
         for field in t["Fields"]:
-            child_type = get_typeref_from_struct_type(handle_json_type(field["Type"], create_missing=create_missing))
+            child_type = get_typeref_if_available(handle_json_type(field["Type"], create_missing=create_missing))
             members[field["Name"]] = child_type
         return angr.types.SimUnion(members)
     if t["Kind"] == "MissingClrType":
@@ -120,11 +134,41 @@ def handle_json_type(t, create_missing: bool = False):
 
 def create_angr_type_from_json(t):
     if t["Kind"] == "NativeTypedef":
-        new_typedef = handle_json_type(t["Def"])
+        new_typedef = handle_json_type(t)
         typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
         # TODO: Handle Enums
-        ty = angr.types.SimTypeInt(signed=False, label=t["Name"])
+        match t["IntegerBase"]:
+            case "SByte":
+                ty_cls = angr.types.SimTypeChar
+                signed = True
+            case "Byte":
+                ty_cls = angr.types.SimTypeChar
+                signed = False
+            case "Int16":
+                ty_cls = angr.types.SimTypeShort
+                signed = True
+            case "UInt16":
+                ty_cls = angr.types.SimTypeShort
+                signed = False
+            case "Int32":
+                ty_cls = angr.types.SimTypeInt
+                signed = True
+            case "UInt32":
+                ty_cls = angr.types.SimTypeInt
+                signed = False
+            case "Int64":
+                ty_cls = angr.types.SimTypeLongLong
+                signed = True
+            case "UInt64":
+                ty_cls = angr.types.SimTypeLongLong
+                signed = False
+            case None:
+                ty_cls = angr.types.SimTypeInt
+                signed = False
+            case _:
+                raise NotImplementedError(f"Unsupported IntegerBase {t['IntegerBase']}")
+        ty = ty_cls(signed=signed, label=t["Name"])
         typelib.add(t["Name"], ty)
     elif t["Kind"] == "Struct":
         known_struct_names.add(t["Name"])
@@ -154,14 +198,14 @@ def create_angr_type_from_json(t):
         print(f"Found unknown type kind: {t['Kind']}")
 
 
-def do_it(in_dir, out_file):
+def do_it(in_dir):
     p = Path(in_dir)
 
     files = p.glob("*.json")
 
     for file in files:
         logging.info("Found file %s", file)
-        with codecs.open(file, "r", "utf-8-sig") as f:
+        with open(file, encoding="utf-8-sig") as f:
             api_namespaces[file.stem] = json.load(f)
 
     logging.info("Making a bunch of types...")
@@ -169,8 +213,7 @@ def do_it(in_dir, out_file):
     while True:
         nosuchtype = 0
         missing_types = set()
-        for namespace in api_namespaces:
-            metadata = api_namespaces[namespace]
+        for metadata in api_namespaces.values():
             types = metadata["Types"]
             for t in types:
                 try:
@@ -193,9 +236,8 @@ def do_it(in_dir, out_file):
     i = 1
     func_count = 0
     parsed_cprotos = defaultdict(list)
-    for namespace in api_namespaces:
-        metadata = api_namespaces[namespace]
-        logging.debug(f"+++ Processing namespace {namespace} ({i} of {len(api_namespaces)})")
+    for namespace, metadata in api_namespaces.items():
+        logging.debug("+++ %d/%d: Processing namespace %s", i, len(api_namespaces), namespace)
         i += 1
         funcs = metadata["Functions"]
         if namespace.startswith("Windows.Win32"):
@@ -230,6 +272,11 @@ def do_it(in_dir, out_file):
     # Some missing function declarations
     missing_declarations = defaultdict(dict)
 
+    missing_declarations[("wdk", "ntoskrnl", "exe")] = {
+        "__fastfail": SimTypeFunction(
+            [SimTypeInt(signed=False, label="Int")], SimTypeBottom(label="void"), arg_names=["code"]
+        )
+    }
     missing_declarations[("win32", "kernel32", "dll")] = {
         "InterlockedCompareExchange": SimTypeFunction((SimTypeLong(),) * 3, SimTypeLong()),
         "InterlockedCompareExchange64": SimTypeFunction((SimTypeLong(),) * 5, SimTypeLong()),
@@ -2419,124 +2466,64 @@ def do_it(in_dir, out_file):
         ),
         "MD5Final": SimTypeFunction([SimTypeLong(signed=True)], SimTypeLong(signed=True)),
     }
+    missing_declarations[("win32", "ntdll", "dll")] = {
+        "NtGetCurrentTeb": SimTypeFunction(
+            [], angr.types.SimTypePointer(angr.types.SimTypeRef("TEB", angr.types.SimStruct))
+        ),
+        "NtGetCurrentPeb": SimTypeFunction(
+            [], angr.types.SimTypePointer(angr.types.SimTypeRef("PEB", angr.types.SimStruct))
+        ),
+    }
 
     for (prefix, lib, suffix), decls in missing_declarations.items():
+
         for func, proto in decls.items():
+            # ensure the declaration does not exist anywhere else
+            exists = False
+            for cprotos in parsed_cprotos.values():
+                if any(f == func for f, _, _ in cprotos):
+                    exists = True
+                    break
+            if exists:
+                logging.warning("Declaration for function %s in %s.%s already exists. Skipping...", func, lib, suffix)
+                continue
+
             parsed_cprotos[(prefix, lib, suffix)].append((func, proto, ""))
 
-    # Write to files
+    non_returning_functions = {
+        "KeBugCheck",
+        "KeBugCheckEx",
+    }
 
-    header = """# pylint:disable=line-too-long
-import logging
-from collections import OrderedDict
-
-from ...sim_type import (SimTypeFunction,
-    SimTypeShort,
-    SimTypeInt,
-    SimTypeLong,
-    SimTypeLongLong,
-    SimTypeDouble,
-    SimTypeFloat,
-    SimTypePointer,
-    SimTypeChar,
-    SimStruct,
-    SimTypeArray,
-    SimTypeBottom,
-    SimUnion,
-    SimTypeBool,
-    SimTypeRef,
-)
-from ...calling_conventions import SimCCStdcall, SimCCMicrosoftAMD64
-from .. import SIM_PROCEDURES as P
-from . import SimLibrary
-
-
-_l = logging.getLogger(name=__name__)
-
-
-lib = SimLibrary()
-lib.type_collection_names = ["win32"]
-lib.set_default_cc("X86", SimCCStdcall)
-lib.set_default_cc("AMD64", SimCCMicrosoftAMD64)
-"""
-    footer = """    }
-
-lib.set_prototypes(prototypes)
-"""
-
-    # Dump function prototypes
-
+    # dump to JSON files
     for (prefix, libname, suffix), parsed_cprotos_per_lib in parsed_cprotos.items():
-        filename = prefix + "_" + libname.replace(".", "_") + ".py"
+        filename = libname.replace(".", "_") + ".json"
+        os.makedirs(prefix, exist_ok=True)
         logging.debug("Writing to file %s...", filename)
-        with open(filename, "w") as f:
-            f.write(header)
-            if (prefix, libname) == ("win32", "kernel32"):
-                f.write(
-                    """lib.add_all_from_dict(P['win32'])
-lib.add_alias('EncodePointer', 'DecodePointer')
-lib.add_alias('GlobalAlloc', 'LocalAlloc')
+        non_returning = []
+        d = {
+            "_t": "lib",
+            "type_collection_names": ["win32"],
+            "library_names": [libname if not suffix else f"{libname}.{suffix}"],
+            "default_cc": {"X86": "SimCCStdcall", "AMD64": "SimCCMicrosoftAMD64"},
+            "non_returning": non_returning,
+            "functions": OrderedDict(),
+        }
+        for func, cproto, doc in sorted(parsed_cprotos_per_lib, key=lambda x: x[0]):
+            d["functions"][func] = {"proto": json.dumps(cproto.to_json()).replace('"', "'")}
+            if doc:
+                d["functions"][func]["doc"] = doc
+            if func in non_returning_functions:
+                non_returning.append(func)
+        if not non_returning:
+            del d["non_returning"]
+        with open(os.path.join(prefix, filename), "w", encoding="utf-8") as f:
+            f.write(json.dumps(d, indent="\t"))
 
-lib.add('lstrcatA', P['libc']['strcat'])
-lib.add('lstrcmpA', P['libc']['strcmp'])
-lib.add('lstrcpyA', P['libc']['strcpy'])
-lib.add('lstrcpynA', P['libc']['strncpy'])
-lib.add('lstrlenA', P['libc']['strlen'])
-lib.add('lstrcmpW', P['libc']['wcscmp'])
-lib.add('lstrcmpiW', P['libc']['wcscasecmp'])
-"""
-                )
-            elif (prefix, libname) == ("win32", "ntdll"):
-                f.write(
-                    """lib.add('RtlEncodePointer', P['win32']['EncodePointer'])
-lib.add('RtlDecodePointer', P['win32']['EncodePointer'])
-lib.add('RtlAllocateHeap', P['win32']['HeapAlloc'])
-"""
-                )
-            elif (prefix, libname) == ("win32", "user32"):
-                f.write(
-                    """import archinfo
-from ...calling_conventions import SimCCCdecl
-
-lib.add_all_from_dict(P['win_user32'])
-lib.add('wsprintfA', P['libc']['sprintf'], cc=SimCCCdecl(archinfo.ArchX86()))
-"""
-                )
-            elif (prefix, libname) == ("wdk", "ntoskrnl"):
-                f.write(
-                    """lib.add_all_from_dict(P["win32_kernel"])
-"""
-                )
-
-            if suffix:
-                f.write(f'lib.set_library_names("{libname}.{suffix}")\n')
-            else:
-                f.write(f'lib.set_library_names("{libname}")\n')
-            f.write("prototypes = \\\n    {\n")
-            f.write(parsedcprotos2py(parsed_cprotos_per_lib))
-            f.write(footer)
-
-    # Dump the type collection
-    with open("types_win32.py", "w") as f:
-        f.write(
-            """# pylint:disable=line-too-long
-from collections import OrderedDict
-
-from angr.procedures.definitions import SimTypeCollection
-from angr.sim_type import SimTypeFunction, \
-    SimTypeShort, SimTypeInt, SimTypeLong, SimTypeLongLong, SimTypeDouble, SimTypeFloat, \
-    SimTypePointer, \
-    SimTypeChar, \
-    SimStruct, \
-    SimTypeArray, \
-    SimTypeBottom, \
-    SimUnion, \
-    SimTypeBool, \
-    SimTypeRef
-
-"""
-        )
-        f.write(typelib.init_str())
+    # Dump the type collection to a JSON file
+    with open("win32/_types_win32.json", "w", encoding="utf-8") as f:
+        logging.debug("Writing to file win32/win32_types.json...")
+        f.write(json.dumps(typelib.to_json(types_as_string=True), indent="\t"))
 
 
 def main():
@@ -2546,7 +2533,7 @@ def main():
     args = _args.parse_args()
     if args.v is not None:
         logging.root.setLevel(level=max(30 - (args.v * 10), 0))
-    do_it(args.win32json_api_directory, None)
+    do_it(args.win32json_api_directory)
 
 
 if __name__ == "__main__":

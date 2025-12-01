@@ -6,13 +6,17 @@ from . import SimCppLibrary
 
 libstdcpp = SimCppLibrary()
 
-libstdcpp.set_library_names('libstdc++.so', 'libstdc++.so.6')
+libstdcpp.set_library_names("libstdc++.so", "libstdc++.so.6")
 libstdcpp.add_all_from_dict(P["libstdcpp"])
 
 
 _decls = {
-    "std::__throw_logic_error(char const*)": SimTypeFunction([SimTypePointer(SimTypeChar())], SimTypeBottom(label="void"), arg_names=("error",)),
-    "std::__throw_length_error(char const*)": SimTypeFunction([SimTypePointer(SimTypeChar())], SimTypeBottom(label="void"), arg_names=("error",)),
+    "std::__throw_logic_error(char const*)": SimTypeFunction(
+        [SimTypePointer(SimTypeChar())], SimTypeBottom(label="void"), arg_names=("error",)
+    ),
+    "std::__throw_length_error(char const*)": SimTypeFunction(
+        [SimTypePointer(SimTypeChar())], SimTypeBottom(label="void"), arg_names=("error",)
+    ),
 }
 
 

@@ -1,0 +1,105 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"ninput.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"AddPointerInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'pointerId']}"
+		},
+		"BufferPointerPacketsInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINTER_INFO', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'entriesCount', 'pointerInfo']}"
+		},
+		"CreateInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		},
+		"DestroyInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		},
+		"GetCrossSlideParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CROSS_SLIDE_THRESHOLD', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'threshold', 'distance']}"
+		},
+		"GetHoldParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HOLD_PARAMETER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"GetInertiaParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'INERTIA_PARAMETER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'inertiaParameter', 'value']}"
+		},
+		"GetInteractionConfigurationInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_CONFIGURATION', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'configurationCount', 'configuration']}"
+		},
+		"GetMouseWheelParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MOUSE_WHEEL_PARAMETER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"GetPropertyInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_PROPERTY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'contextProperty', 'value']}"
+		},
+		"GetStateInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINTER_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERACTION_STATE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'pointerInfo', 'state']}"
+		},
+		"GetTapParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TAP_PARAMETER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"GetTranslationParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TRANSLATION_PARAMETER', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'float'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"ProcessBufferedPacketsInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		},
+		"ProcessInertiaInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		},
+		"ProcessPointerFramesInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'POINTER_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'entriesCount', 'pointerCount', 'pointerInfo']}"
+		},
+		"RegisterOutputCallbackInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_OUTPUT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['clientData', 'output']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'outputCallback', 'clientData']}"
+		},
+		"RegisterOutputCallbackInteractionContext2": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_OUTPUT2', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['clientData', 'output']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'outputCallback', 'clientData']}"
+		},
+		"RemovePointerInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'pointerId']}"
+		},
+		"ResetInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		},
+		"SetCrossSlideParametersInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CROSS_SLIDE_PARAMETER', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameterCount', 'crossSlideParameters']}"
+		},
+		"SetHoldParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HOLD_PARAMETER', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"SetInertiaParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'INERTIA_PARAMETER', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'inertiaParameter', 'value']}"
+		},
+		"SetInteractionConfigurationInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_CONFIGURATION', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'configurationCount', 'configuration']}"
+		},
+		"SetMouseWheelParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MOUSE_WHEEL_PARAMETER', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"SetPivotInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': 'float'}, {'_t': 'float'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'x', 'y', 'radius']}"
+		},
+		"SetPropertyInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'INTERACTION_CONTEXT_PROPERTY', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'contextProperty', 'value']}"
+		},
+		"SetTapParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TAP_PARAMETER', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"SetTranslationParameterInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'TRANSLATION_PARAMETER', 'ot': 'int'}, {'_t': 'float'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext', 'parameter', 'value']}"
+		},
+		"StopInteractionContext": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINTERACTIONCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['interactionContext']}"
+		}
+	}
+}

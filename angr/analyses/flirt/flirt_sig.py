@@ -145,7 +145,7 @@ class FlirtSignatureParsed:
 
         name_lst = []
         name_end = False  # in case the function name is too long...
-        for _ in range(1024):  # max length of a function name
+        for _ in range(8192):  # max length of a function name
             if next_byte < 0x20 or next_byte >= 0x80:
                 name_end = True
                 break

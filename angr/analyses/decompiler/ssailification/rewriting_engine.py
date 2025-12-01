@@ -98,6 +98,19 @@ class SimEngineSSARewriting(
         return self._current_vvar_id
 
     #
+    # Util functions
+    #
+
+    @staticmethod
+    def _is_head_controlled_loop_jump(block, jump_stmt: ConditionalJump) -> bool:
+        concrete_targets = []
+        if isinstance(jump_stmt.true_target, Const):
+            concrete_targets.append(jump_stmt.true_target.value)
+        if isinstance(jump_stmt.false_target, Const):
+            concrete_targets.append(jump_stmt.false_target.value)
+        return not all(block.addr <= t < block.addr + block.original_size for t in concrete_targets)
+
+    #
     # Handlers
     #
 
@@ -140,7 +153,7 @@ class SimEngineSSARewriting(
         else:
             new_dst = self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.dst)
 
-        stmt_base_reg = None
+        additional_stmts = []
         if new_dst is not None:
             if isinstance(stmt.dst, Register):
                 # remove everything else that is an alias
@@ -150,10 +163,11 @@ class SimEngineSSARewriting(
 
                 self.state.registers[stmt.dst.reg_offset][stmt.dst.size] = new_dst
 
-                # generate an assignment that updates the base register if needed
                 base_offset, base_size = get_reg_offset_base_and_size(
                     stmt.dst.reg_offset, self.arch, size=stmt.dst.size
                 )
+
+                # generate an assignment that updates the base register if needed
                 if base_offset != stmt.dst.reg_offset or base_size != stmt.dst.size:
                     base_reg_expr = Register(
                         self.ail_manager.next_atom(),
@@ -167,15 +181,25 @@ class SimEngineSSARewriting(
                         self.block.addr, self.block.idx, self.stmt_idx, base_reg_expr
                     )
                     assert base_reg_vvar is not None
+                    base_reg_value = self._partial_update_expr(
+                        existing_base_reg_vvar,
+                        base_offset,
+                        base_size,
+                        new_dst,
+                        stmt.dst.reg_offset,
+                        stmt.dst.size,
+                    )
                     stmt_base_reg = Assignment(
                         self.ail_manager.next_atom(),
                         base_reg_vvar,
-                        self._partial_update_expr(
-                            existing_base_reg_vvar, base_offset, base_size, new_dst, stmt.dst.reg_offset, stmt.dst.size
-                        ),
+                        base_reg_value,
                         **stmt.tags,
                     )
+                    additional_stmts.append(stmt_base_reg)
                     self.state.registers[base_offset][base_size] = base_reg_vvar
+                else:
+                    base_reg_vvar = new_dst
+
             elif isinstance(stmt.dst, Tmp):
                 pass
             else:
@@ -188,8 +212,8 @@ class SimEngineSSARewriting(
                 stmt.src if new_src is None else new_src,
                 **stmt.tags,
             )
-            if stmt_base_reg is not None:
-                return new_stmt, stmt_base_reg
+            if additional_stmts:
+                return new_stmt, *additional_stmts
             return new_stmt
         return None
 
@@ -303,7 +327,7 @@ class SimEngineSSARewriting(
         new_true_target = self._expr(stmt.true_target) if stmt.true_target is not None else None
         new_false_target = self._expr(stmt.false_target) if stmt.false_target is not None else None
 
-        if self.stmt_idx != len(self.block.statements) - 1:
+        if self.stmt_idx != len(self.block.statements) - 1 and self._is_head_controlled_loop_jump(self.block, stmt):
             # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
             # we need to make a copy of the state and use the state of this point in its successor
             self.head_controlled_loop_outstate = self.state.copy()
@@ -599,12 +623,12 @@ class SimEngineSSARewriting(
         existing_vvar: Expression,
         base_offset: int,
         base_size: int,
-        new_vvar: VirtualVariable,
+        new_value: Expression,
         offset: int,
         size: int,
     ) -> VirtualVariable | Expression:
         if offset == base_offset and base_size == size:
-            return new_vvar
+            return new_value
         if base_offset > offset:
             raise ValueError(f"Base offset {base_offset} is greater than expression offset {offset}")
 
@@ -626,8 +650,8 @@ class SimEngineSSARewriting(
             size * self.arch.byte_width,
             base_size * self.arch.byte_width,
             False,
-            new_vvar,
-            **new_vvar.tags,
+            new_value,
+            **new_value.tags,
         )
         if base_offset < offset:
             shift_amount = Const(
@@ -996,6 +1020,7 @@ class SimEngineSSARewriting(
     _handle_binop_CmpLE = _unreachable
     _handle_binop_CmpLT = _unreachable
     _handle_binop_CmpNE = _unreachable
+    _handle_binop_CmpORD = _unreachable
     _handle_binop_Concat = _unreachable
     _handle_binop_Div = _unreachable
     _handle_binop_DivF = _unreachable

@@ -1,0 +1,78 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"icm32.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"CMCheckColors": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'gray': {'_t': '_ref', 'name': 'GRAYCOLOR', 'ot': '_ref'}, 'rgb': {'_t': '_ref', 'name': 'RGBCOLOR', 'ot': '_ref'}, 'cmyk': {'_t': '_ref', 'name': 'CMYKCOLOR', 'ot': '_ref'}, 'XYZ': {'_t': '_ref', 'name': 'XYZCOLOR', 'ot': '_ref'}, 'Yxy': {'_t': '_ref', 'name': 'YxyCOLOR', 'ot': '_ref'}, 'Lab': {'_t': '_ref', 'name': 'LabCOLOR', 'ot': '_ref'}, 'gen3ch': {'_t': '_ref', 'name': 'GENERIC3CHANNEL', 'ot': '_ref'}, 'named': {'_t': '_ref', 'name': 'NAMEDCOLOR', 'ot': '_ref'}, 'hifi': {'_t': '_ref', 'name': 'HiFiCOLOR', 'ot': '_ref'}, 'Anonymous': {'_t': 'struct', 'fields': {'reserved1': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'reserved2': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'COLORTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpaInputColors', 'nColors', 'ctInput', 'lpaResult']}"
+		},
+		"CMCheckColorsInGamut": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RGBTRIPLE', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpaRGBTriple', 'lpaResult', 'nCount']}"
+		},
+		"CMCheckRGBs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BMFORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpSrcBits', 'bmInput', 'dwWidth', 'dwHeight', 'dwStride', 'lpaResult', 'pfnCallback', 'ulCallbackData']}"
+		},
+		"CMConvertColorNameToIndex": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hProfile', 'paColorName', 'paIndex', 'dwCount']}"
+		},
+		"CMConvertIndexToColorName": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'SByte'}}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hProfile', 'paIndex', 'paColorName', 'dwCount']}"
+		},
+		"CMCreateDeviceLinkProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pahProfiles', 'nProfiles', 'padwIntents', 'nIntents', 'dwFlags', 'lpProfileData']}"
+		},
+		"CMCreateMultiProfileTransform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['pahProfiles', 'nProfiles', 'padwIntents', 'nIntents', 'dwFlags']}"
+		},
+		"CMCreateProfile": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpColorSpace', 'lpProfileData']}"
+		},
+		"CMCreateProfileW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpColorSpace', 'lpProfileData']}"
+		},
+		"CMCreateTransform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['lpColorSpace', 'lpDevCharacter', 'lpTargetDevCharacter']}"
+		},
+		"CMCreateTransformExt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['lpColorSpace', 'lpDevCharacter', 'lpTargetDevCharacter', 'dwFlags']}"
+		},
+		"CMCreateTransformExtW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['lpColorSpace', 'lpDevCharacter', 'lpTargetDevCharacter', 'dwFlags']}"
+		},
+		"CMCreateTransformW": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'LOGCOLORSPACEW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, 'arg_names': ['lpColorSpace', 'lpDevCharacter', 'lpTargetDevCharacter']}"
+		},
+		"CMDeleteTransform": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform']}"
+		},
+		"CMGetInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwInfo']}"
+		},
+		"CMGetNamedProfileInfo": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NAMED_PROFILE_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hProfile', 'pNamedProfileInfo']}"
+		},
+		"CMIsProfileValid": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hProfile', 'lpbValid']}"
+		},
+		"CMTranslateColors": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'gray': {'_t': '_ref', 'name': 'GRAYCOLOR', 'ot': '_ref'}, 'rgb': {'_t': '_ref', 'name': 'RGBCOLOR', 'ot': '_ref'}, 'cmyk': {'_t': '_ref', 'name': 'CMYKCOLOR', 'ot': '_ref'}, 'XYZ': {'_t': '_ref', 'name': 'XYZCOLOR', 'ot': '_ref'}, 'Yxy': {'_t': '_ref', 'name': 'YxyCOLOR', 'ot': '_ref'}, 'Lab': {'_t': '_ref', 'name': 'LabCOLOR', 'ot': '_ref'}, 'gen3ch': {'_t': '_ref', 'name': 'GENERIC3CHANNEL', 'ot': '_ref'}, 'named': {'_t': '_ref', 'name': 'NAMEDCOLOR', 'ot': '_ref'}, 'hifi': {'_t': '_ref', 'name': 'HiFiCOLOR', 'ot': '_ref'}, 'Anonymous': {'_t': 'struct', 'fields': {'reserved1': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'reserved2': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'COLORTYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'gray': {'_t': '_ref', 'name': 'GRAYCOLOR', 'ot': '_ref'}, 'rgb': {'_t': '_ref', 'name': 'RGBCOLOR', 'ot': '_ref'}, 'cmyk': {'_t': '_ref', 'name': 'CMYKCOLOR', 'ot': '_ref'}, 'XYZ': {'_t': '_ref', 'name': 'XYZCOLOR', 'ot': '_ref'}, 'Yxy': {'_t': '_ref', 'name': 'YxyCOLOR', 'ot': '_ref'}, 'Lab': {'_t': '_ref', 'name': 'LabCOLOR', 'ot': '_ref'}, 'gen3ch': {'_t': '_ref', 'name': 'GENERIC3CHANNEL', 'ot': '_ref'}, 'named': {'_t': '_ref', 'name': 'NAMEDCOLOR', 'ot': '_ref'}, 'hifi': {'_t': '_ref', 'name': 'HiFiCOLOR', 'ot': '_ref'}, 'Anonymous': {'_t': 'struct', 'fields': {'reserved1': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'reserved2': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}, 'name': '_Anonymous_e__Struct', 'anonymous': true}}, 'name': '<anon>'}, 'label': 'LPArray'}, {'_t': '_ref', 'name': 'COLORTYPE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpaInputColors', 'nColors', 'ctInput', 'lpaOutputColors', 'ctOutput']}"
+		},
+		"CMTranslateRGB": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'ColorRef', 'lpColorRef', 'dwFlags']}"
+		},
+		"CMTranslateRGBs": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BMFORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BMFORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpSrcBits', 'bmInput', 'dwWidth', 'dwHeight', 'dwStride', 'lpDestBits', 'bmOutput', 'dwTranslateDirection']}"
+		},
+		"CMTranslateRGBsExt": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BMFORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'BMFORMAT', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['param0', 'param1', 'param2']}}, {'_t': '_ref', 'name': 'LPARAM', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hcmTransform', 'lpSrcBits', 'bmInput', 'dwWidth', 'dwHeight', 'dwInputStride', 'lpDestBits', 'bmOutput', 'dwOutputStride', 'lpfnCallback', 'ulCallbackData']}"
+		}
+	}
+}

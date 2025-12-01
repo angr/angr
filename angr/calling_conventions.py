@@ -33,7 +33,10 @@ from .sim_type import (
     SimUnion,
     SimTypeBottom,
     parse_signature,
-    SimTypeReference, SimTypedef, SimConst,
+    SimTypeReference,
+    SimTypedef,
+    SimConst,
+    SimTypeBool,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -1212,10 +1215,13 @@ class SimCC:
     def _guess_arg_count(cls, args, limit: int = 64) -> int:
         # pylint:disable=not-callable
         assert cls.ARCH is not None
+        if hasattr(cls, "LANGUAGE"):  # noqa: SIM108
+            # this is a PCode SimCC where cls.ARCH is directly callable
+            stack_arg_size = cls.ARCH().bytes  # type:ignore
+        else:
+            stack_arg_size = cls.ARCH(archinfo.Endness.LE).bytes
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
-        stack_arg_count = (
-            (max(a.stack_offset for a in stack_args) // cls.ARCH(archinfo.Endness.LE).bytes + 1) if stack_args else 0
-        )
+        stack_arg_count = (max(a.stack_offset for a in stack_args) // stack_arg_size + 1) if stack_args else 0
         return min(limit, max(len(args), stack_arg_count))
 
     @staticmethod
@@ -1279,13 +1285,15 @@ class SimLyingRegArg(SimRegArg):
         # val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = state.registers.load(self.reg_name).raw_to_fp()
         if self._real_size == 4:
-            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)
+            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)  # type:ignore
         return val
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ,unused-argument
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
-            value = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE)
+            value = claripy.fpToFP(
+                claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE  # type:ignore
+            )
         state.registers.store(self.reg_name, value)
         # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
 
@@ -1372,7 +1380,9 @@ class SimCCMicrosoftThiscall(SimCCCdecl):
         session = self.arg_session(prototype.returnty)
         if not prototype.args:
             return []
-        return [SimRegArg("ecx", self.arch.bytes)] + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]]
+        return [SimRegArg("ecx", self.arch.bytes)] + [
+            self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]
+        ]  # type:ignore
 
 
 class SimCCStdcall(SimCCMicrosoftCdecl):
@@ -1387,12 +1397,8 @@ class SimCCMicrosoftFastcall(SimCC):
     ARCH = archinfo.ArchX86
 
 
-class MicrosoftAMD64ArgSession:
-    def __init__(self, cc):
-        self.cc = cc
-        self.int_iter = cc.int_args
-        self.fp_iter = cc.fp_args
-        self.both_iter = cc.memory_args
+class MicrosoftAMD64ArgSession(ArgSession):
+    pass
 
 
 class SimCCMicrosoftAMD64(SimCC):
@@ -1433,7 +1439,7 @@ class SimCCMicrosoftAMD64(SimCC):
         return SimReferenceArgument(int_loc, referenced_loc)
 
     def return_in_implicit_outparam(self, ty):
-        if isinstance(ty, SimTypeBottom):
+        if isinstance(ty, (SimTypeBottom, SimTypeRef)):
             return False
         return not isinstance(ty, SimTypeFloat) and ty.size > self.STRUCT_RETURN_THRESHOLD
 
@@ -1466,6 +1472,7 @@ class SimCCMicrosoftAMD64(SimCC):
                 ptr_loc = self.RETURN_VAL
             else:
                 ptr_loc = self.next_arg(self.ArgSession(self), SimTypePointer(SimTypeBottom()).with_arch(self.arch))
+            assert ptr_loc is not None
             return SimReferenceArgument(ptr_loc, referenced_loc)
 
         return refine_locs_with_struct_type(self.arch, [self.RETURN_VAL], ty)
@@ -1476,7 +1483,7 @@ class SimCCSyscall(SimCC):
     The base class of all syscall CCs.
     """
 
-    ERROR_REG: SimRegArg = None
+    ERROR_REG: SimRegArg = None  # type:ignore
     SYSCALL_ERRNO_START = None
 
     @staticmethod
@@ -1851,7 +1858,9 @@ class SimCCARM(SimCC):
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
         nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
-        if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
+        if isinstance(
+            ty, (SimTypeInt, SimTypeChar, SimTypeBool, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)
+        ):
             return ["INTEGER"] * nchunks
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
@@ -1901,6 +1910,10 @@ class SimCCARM(SimCC):
                     return None
                 for suboffset, subsubty_list in subresult.items():
                     result[offset + suboffset] += subsubty_list
+            if not result:
+                # the struct is empty (because somehow we do not know its members), so we treat it as a single INTEGER
+                # at offset 0
+                result[0].append(SimTypeInt().with_arch(self.arch))
         elif isinstance(ty, SimTypeFixedSizeArray):
             assert ty.length is not None and ty.elem_type.size is not None
             subresult = self._flatten(ty.elem_type)
@@ -2426,7 +2439,9 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
 
 
 def register_default_cc(arch: str, cc: type[SimCC], platform: str = "Linux"):
-    DEFAULT_CC[arch] = {platform: cc}
+    if arch not in DEFAULT_CC:
+        DEFAULT_CC[arch] = {}
+    DEFAULT_CC[arch][platform] = cc
     if arch not in CC:
         CC[arch] = {}
     if platform not in CC[arch]:
@@ -2582,6 +2597,17 @@ def register_syscall_cc(arch, os, cc):
     if arch not in SYSCALL_CC:
         SYSCALL_CC[arch] = {}
     SYSCALL_CC[arch][os] = cc
+
+
+CC_NAMES = {}
+
+cls_queue = [SimCC]
+while cls_queue:
+    cls_ = cls_queue.pop()
+    if not cls_.__subclasses__():
+        CC_NAMES[cls_.__name__] = cls_
+    else:
+        cls_queue.extend(cls_.__subclasses__())
 
 
 SyscallCC = SYSCALL_CC

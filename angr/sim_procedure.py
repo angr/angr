@@ -9,6 +9,7 @@ import claripy
 from cle import SymbolType
 from archinfo.arch_soot import SootAddressDescriptor
 
+import angr
 from angr import sim_options as o
 from angr.errors import SimProcedureError, SimShadowStackError
 from angr.state_plugins.sim_action import SimActionExit
@@ -25,7 +26,6 @@ from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type
 
 if TYPE_CHECKING:
-    import angr
     import archinfo
     from angr.sim_state import SimState
 
@@ -206,8 +206,11 @@ class SimProcedure:
         provide arguments to the function.
         """
         # fill out all the fun stuff we don't want to frontload
-        if self.addr is None and not state.regs._ip.symbolic:
-            self.addr = state.addr
+        if self.addr is None:
+            if isinstance(state._ip, tuple):
+                self.addr = state._ip[0]
+            elif not state.regs._ip.symbolic:
+                self.addr = state.addr
         if self.arch is None:
             self.arch = state.arch
         if self.project is None:
@@ -256,6 +259,14 @@ class SimProcedure:
             if self.is_java:
                 sim_args = self._setup_args(inst, state, arguments)  # pylint:disable=assignment-from-no-return
                 self.use_state_arguments = False
+            elif (
+                arguments is None
+                and isinstance(state.callstack, angr.engines.ail.AILCallStack)
+                and state.callstack.passed_args is not None
+            ):
+                sim_args = state.callstack.passed_args
+                self.use_state_arguments = False
+                self.ret_to = state.callstack.return_addr
 
             # handle if this is a continuation from a return
             elif inst.is_continuation:
@@ -407,7 +418,7 @@ class SimProcedure:
             return result
 
         if index is not None:
-            raise Exception("you think you're so fucking smart? you implement this logic then")
+            raise SimProcedureError("you think you're so fucking smart? you implement this logic then")
 
         if type(ty) is str:
             ty = parse_type(ty, arch=self.arch)
@@ -468,6 +479,10 @@ class SimProcedure:
         # when calling the function ret. at the calling point the attribute is set to False
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
+        elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
+            ret_addr = self.state.callstack.return_addr
+            self.state.callstack.pop()
+            self.state.callstack.passed_rets = ((expr,),)
         elif self.use_state_arguments:
             # in case we guess the prototype wrong, use the return value's size as a hint to fix it
             if (

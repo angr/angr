@@ -13,8 +13,6 @@ from unique_log_filter import UniqueLogFilter
 
 
 from angr.utils.graph import GraphUtils
-from angr.utils.lazy_import import lazy_import
-from angr.utils import is_pyinstaller
 from angr.utils.graph import dominates, inverted_idoms
 from angr.utils.ail import is_head_controlled_loop_block
 from angr.block import Block, BlockNode
@@ -36,12 +34,6 @@ from .structuring.structurer_nodes import (
 )
 from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
-
-if is_pyinstaller():
-    # PyInstaller is not happy with lazy import
-    import sympy
-else:
-    sympy = lazy_import("sympy")
 
 
 l = logging.getLogger(__name__)
@@ -247,6 +239,24 @@ class ConditionProcessor:
         condition translation if possible.
         """
 
+        if isinstance(src, SequenceNode) and src.nodes and isinstance(src.nodes[-1], ConditionNode):
+            cond_node = src.nodes[-1]
+            if (
+                isinstance(cond_node.true_node, ailment.Block)
+                and isinstance(cond_node.false_node, ailment.Block)
+                and cond_node.true_node.statements
+                and cond_node.false_node.statements
+            ):
+                last_stmt_true = self.get_last_statement(cond_node.true_node)
+                last_stmt_false = self.get_last_statement(cond_node.false_node)
+                if (
+                    isinstance(last_stmt_true, ailment.Stmt.Jump)
+                    and isinstance(last_stmt_false, ailment.Stmt.Jump)
+                    and isinstance(last_stmt_true.target, ailment.Expr.Const)
+                    and isinstance(last_stmt_false.target, ailment.Expr.Const)
+                ):
+                    return {last_stmt_true.target.value, last_stmt_false.target.value} == {dst0.addr, dst1.addr}
+
         if src in graph and graph.out_degree[src] == 2 and graph.has_edge(src, dst0) and graph.has_edge(src, dst1):
             # sometimes the last statement is the conditional jump. sometimes it's the first statement of the block
             if isinstance(src, ailment.Block) and src.statements and is_head_controlled_loop_block(src):
@@ -255,7 +265,10 @@ class ConditionProcessor:
                 )
                 assert last_stmt is not None
             else:
-                last_stmt = self.get_last_statement(src)
+                try:
+                    last_stmt = self.get_last_statement(src)
+                except EmptyBlockNotice:
+                    last_stmt = None
 
             if isinstance(last_stmt, ailment.Stmt.ConditionalJump):
                 return True
@@ -266,6 +279,28 @@ class ConditionProcessor:
         return claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right)  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
+
+        def _check_condnode_and_get_condition(cond_node: ConditionNode) -> claripy.ast.Bool | None:
+            for cond_block, negate in [(cond_node.true_node, False), (cond_node.false_node, True)]:
+                if isinstance(cond_block, ailment.Block) and cond_block.statements:
+                    last_stmt = self.get_last_statement(cond_block)
+                    if (
+                        isinstance(last_stmt, ailment.Stmt.Jump)
+                        and isinstance(last_stmt.target, ailment.Expr.Const)
+                        and last_stmt.target.value == dst.addr
+                    ):
+                        return claripy.Not(cond_node.condition) if negate else cond_node.condition
+            return None
+
+        if isinstance(src, SequenceNode) and src.nodes and isinstance(src.nodes[-1], ConditionNode):
+            predicate = _check_condnode_and_get_condition(src.nodes[-1])
+            if predicate is not None:
+                return predicate
+        if isinstance(src, ConditionNode):
+            predicate = _check_condnode_and_get_condition(src)
+            if predicate is not None:
+                return predicate
+
         edge = src, dst
         edge_data = graph.get_edge_data(*edge)
         edge_type = edge_data.get("type", "transition") if edge_data is not None else "transition"
@@ -953,6 +988,9 @@ class ConditionProcessor:
 
     @staticmethod
     def claripy_ast_to_sympy_expr(ast, memo=None):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         if ast.op == "And":
             return sympy.And(*(ConditionProcessor.claripy_ast_to_sympy_expr(arg, memo=memo) for arg in ast.args))
         if ast.op == "Or":
@@ -974,6 +1012,9 @@ class ConditionProcessor:
 
     @staticmethod
     def sympy_expr_to_claripy_ast(expr, memo: dict):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         if expr.is_Symbol:
             return memo[expr]
         if isinstance(expr, sympy.Or):
@@ -990,6 +1031,9 @@ class ConditionProcessor:
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
+
+        import sympy  # pylint:disable=import-outside-toplevel
+
         memo = {}
         if cond.depth > depth_limit or len(cond.variables) > variables_limit:
             return cond

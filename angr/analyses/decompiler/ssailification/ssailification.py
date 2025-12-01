@@ -85,9 +85,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         )
 
         # calculate virtual variables and phi nodes
-        self._udef_to_phiid: dict[tuple, set[int]] = None
-        self._phiid_to_loc: dict[int, tuple[int, int | None]] = None
-        self._stackvar_locs: dict[int, set[int]] = None
+        self._udef_to_phiid: dict[tuple, set[int]] = {}
+        self._phiid_to_loc: dict[int, tuple[int, int | None]] = {}
+        self._stackvar_locs: dict[int, set[int]] = {}
         self._calculate_virtual_variables(ail_graph, traversal.def_to_loc, traversal.loc_to_defs)
 
         # insert phi variables and rewrite uses
@@ -140,14 +140,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             # handle function arguments
             if self._func_args:
                 for func_arg in self._func_args:
-                    if func_arg.oident[0] == VirtualVariableCategory.STACK:
-                        stackvar_locs[func_arg.oident[1]] = {func_arg.size}
+                    if func_arg.parameter_category == VirtualVariableCategory.STACK:
+                        assert isinstance(func_arg.parameter_stack_offset, int)
+                        stackvar_locs[func_arg.parameter_stack_offset] = {func_arg.size}
             sorted_stackvar_offs = sorted(stackvar_locs)
         else:
             stackvar_locs = {}
             sorted_stackvar_offs = []
 
         # compute phi node locations for each unified definition
+        # compute udef_to_blockkeys
         udef_to_defs = defaultdict(set)
         udef_to_blockkeys = defaultdict(set)
         for def_, loc in def_to_loc:

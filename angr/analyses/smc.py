@@ -112,9 +112,8 @@ class SelfModifyingCodeAnalysis(Analysis):
         if subject is None:
             subject = self.project.entry
         if isinstance(subject, str):
-            try:
-                addr = self.project.kb.labels.lookup(subject)
-            except KeyError:
+            addr = self.project.kb.labels.lookup(subject)
+            if addr is None:
                 addr = self.project.kb.functions[subject].addr
         elif isinstance(subject, Function):
             addr = subject.addr
@@ -146,7 +145,7 @@ class SelfModifyingCodeAnalysis(Analysis):
 
         for n in range(100):
             self._update_progress(n)
-            simgr.step(n=3)
+            simgr.run(n=3)
             random.shuffle(simgr.active)
             simgr.split(from_stash="active", to_stash=simgr.DROP, limit=10)
 

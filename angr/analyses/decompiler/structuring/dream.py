@@ -548,7 +548,7 @@ class DreamStructurer(StructurerBase):
         cmp = switch_extract_cmp_bounds(last_stmt)
         if not cmp:
             return False
-        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
 
         # the real indirect jump
         if len(addr2nodes[target]) != 1:
@@ -619,7 +619,7 @@ class DreamStructurer(StructurerBase):
         cmp = switch_extract_cmp_bounds(last_stmt)
         if not cmp:
             return False
-        cmp_expr, cmp_lb, cmp_ub = cmp  # pylint:disable=unused-variable
+        cmp_expr, cmp_lb, _cmp_ub = cmp  # pylint:disable=unused-variable
 
         jumptable_entries = jump_table.jumptable_entries
         assert jumptable_entries is not None

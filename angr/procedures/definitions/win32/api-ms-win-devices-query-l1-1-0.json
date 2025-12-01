@@ -1,0 +1,42 @@
+{
+	"_t": "lib",
+	"type_collection_names": [
+		"win32"
+	],
+	"library_names": [
+		"api-ms-win-devices-query-l1-1-0.dll"
+	],
+	"default_cc": {
+		"X86": "SimCCStdcall",
+		"AMD64": "SimCCMicrosoftAMD64"
+	},
+	"functions": {
+		"DevCloseObjectQuery": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDEVQUERY', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDevQuery']}"
+		},
+		"DevCreateObjectQuery": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DEV_OBJECT_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPCOMPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROP_FILTER_EXPRESSION', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDEVQUERY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEV_QUERY_RESULT_ACTION_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDevQuery', 'pContext', 'pActionData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDEVQUERY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ObjectType', 'QueryFlags', 'cRequestedProperties', 'pRequestedProperties', 'cFilterExpressionCount', 'pFilter', 'pCallback', 'pContext', 'phDevQuery']}"
+		},
+		"DevCreateObjectQueryFromId": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DEV_OBJECT_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPCOMPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROP_FILTER_EXPRESSION', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDEVQUERY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEV_QUERY_RESULT_ACTION_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDevQuery', 'pContext', 'pActionData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDEVQUERY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ObjectType', 'pszObjectId', 'QueryFlags', 'cRequestedProperties', 'pRequestedProperties', 'cFilterExpressionCount', 'pFilter', 'pCallback', 'pContext', 'phDevQuery']}"
+		},
+		"DevCreateObjectQueryFromIds": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DEV_OBJECT_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPCOMPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROP_FILTER_EXPRESSION', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDEVQUERY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEV_QUERY_RESULT_ACTION_DATA', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hDevQuery', 'pContext', 'pActionData']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HDEVQUERY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ObjectType', 'pszzObjectIds', 'QueryFlags', 'cRequestedProperties', 'pRequestedProperties', 'cFilterExpressionCount', 'pFilter', 'pCallback', 'pContext', 'phDevQuery']}"
+		},
+		"DevFindProperty": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPKEY', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DEVPROPSTORE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}}, 'arg_names': ['pKey', 'Store', 'pszLocaleName', 'cProperties', 'pProperties']}"
+		},
+		"DevFreeObjectProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cPropertyCount', 'pProperties']}"
+		},
+		"DevFreeObjects": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEV_OBJECT', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['cObjectCount', 'pObjects']}"
+		},
+		"DevGetObjectProperties": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DEV_OBJECT_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPCOMPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPERTY', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ObjectType', 'pszObjectId', 'QueryFlags', 'cRequestedProperties', 'pRequestedProperties', 'pcPropertyCount', 'ppProperties']}"
+		},
+		"DevGetObjects": {
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DEV_OBJECT_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROPCOMPKEY', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVPROP_FILTER_EXPRESSION', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEV_OBJECT', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ObjectType', 'QueryFlags', 'cRequestedProperties', 'pRequestedProperties', 'cFilterExpressionCount', 'pFilter', 'pcObjectCount', 'ppObjects']}"
+		}
+	}
+}

@@ -35,6 +35,8 @@ from .switch_reused_entry_rewriter import SwitchReusedEntryRewriter
 from .condition_constprop import ConditionConstantPropagation
 from .determine_load_sizes import DetermineLoadSizes
 from .eager_std_string_concatenation import EagerStdStringConcatenationPass
+from .peephole_simplifier import PostStructuringPeepholeOptimizationPass
+from .register_save_area_simplifier_adv import RegisterSaveAreaSimplifierAdvanced
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.presets import DecompilationPreset
@@ -72,6 +74,8 @@ ALL_OPTIMIZATION_PASSES = [
     ConditionConstantPropagation,
     DetermineLoadSizes,
     EagerStdStringConcatenationPass,
+    PostStructuringPeepholeOptimizationPass,
+    RegisterSaveAreaSimplifierAdvanced,
 ]
 
 # these passes may duplicate code to remove gotos or improve the structure of the graph
@@ -136,6 +140,7 @@ __all__ = (
     "ModSimplifier",
     "OptimizationPassStage",
     "RegisterSaveAreaSimplifier",
+    "RegisterSaveAreaSimplifierAdvanced",
     "RetAddrSaveSimplifier",
     "ReturnDeduplicator",
     "ReturnDuplicatorHigh",
