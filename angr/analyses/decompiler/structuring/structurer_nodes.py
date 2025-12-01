@@ -1,10 +1,12 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 from typing import Any
+from collections.abc import Iterable
 from collections import OrderedDict
 
 import claripy
 import angr.ailment as ailment
+from angr.ailment.block import Block
 
 
 INDENT_DELTA = 2
@@ -21,11 +23,11 @@ class MultiNode:
         "nodes",
     )
 
-    def __init__(self, nodes, addr=None, idx=None):
+    def __init__(self, nodes: Iterable[Block], addr: int | None = None, idx: int | None = None):
         # delayed import
         from angr.analyses.decompiler.graph_region import GraphRegion  # pylint:disable=import-outside-toplevel
 
-        self.nodes = []
+        self.nodes: list[Block] = []
 
         for node in nodes:
             if type(node) is MultiNode or type(node) is GraphRegion:
@@ -36,8 +38,8 @@ class MultiNode:
         self.addr = addr if addr is not None else self.nodes[0].addr
         self.idx = idx if idx is not None else self.nodes[0].idx if isinstance(self.nodes[0], ailment.Block) else None
 
-    def copy(self):
-        return MultiNode(self.nodes[::], addr=self.addr, idx=self.idx)
+    def copy(self) -> MultiNode:
+        return MultiNode(self.nodes, addr=self.addr, idx=self.idx)
 
     def __repr__(self):
         addrs = []
@@ -56,7 +58,7 @@ class MultiNode:
     def __eq__(self, other):
         return isinstance(other, MultiNode) and self.nodes == other.nodes
 
-    def dbg_repr(self, indent=0):
+    def dbg_repr(self, indent=0) -> str:
         s = ""
         for node in self.nodes:
             s += node.dbg_repr(indent=indent + INDENT_DELTA)

@@ -7,7 +7,7 @@ import networkx
 
 from angr.ailment.block import Block
 
-from .structuring.structurer_nodes import MultiNode
+from .structuring.structurer_nodes import ConditionNode, MultiNode
 
 
 l = logging.getLogger(name=__name__)
@@ -39,9 +39,9 @@ class GraphRegion:
     def __init__(
         self,
         head,
-        graph: networkx.DiGraph[Block | GraphRegion] | None,
-        successors: set[Block | GraphRegion] | None,
-        graph_with_successors: networkx.DiGraph[Block | GraphRegion] | None,
+        graph: networkx.DiGraph[Block | GraphRegion | MultiNode | ConditionNode] | None,
+        successors: set[Block | GraphRegion | MultiNode | ConditionNode] | None,
+        graph_with_successors: networkx.DiGraph[Block | GraphRegion | MultiNode | ConditionNode] | None,
         cyclic,
         full_graph: networkx.DiGraph[Block] | None,
         cyclic_ancestor: bool = False,
