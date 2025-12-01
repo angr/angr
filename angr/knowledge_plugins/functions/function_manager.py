@@ -1,6 +1,8 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
+from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
+from collections.abc import Iterator
 import contextlib
 from collections.abc import Generator
 import logging
@@ -9,7 +11,6 @@ import re
 import weakref
 import bisect
 import os
-from sortedcontainers import SortedDict
 
 import networkx
 
@@ -21,25 +22,45 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
 
+K = TypeVar("K", int, SootMethodDescriptor)
+T = TypeVar("T")
+
+if TYPE_CHECKING:
+    from angr import KnowledgeBase
+
+    class SortedDict(Generic[K, T], dict[K, T]):
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+
+else:
+    from sortedcontainers import SortedDict
+
 
 QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 
 l = logging.getLogger(name=__name__)
+_missing = object()
 
 
-class FunctionDict(SortedDict):
+class FunctionDict(Generic[K], SortedDict[K, Function]):
     """
     FunctionDict is a dict where the keys are function starting addresses and
     map to the associated :class:`Function`.
     """
 
-    def __init__(self, backref, *args, **kwargs):
-        self._backref = weakref.proxy(backref) if backref is not None else None
-        self._key_types = kwargs.pop("key_types", int)
+    def __init__(self, backref: FunctionManager[K] | None, *args, key_types: type = int, **kwargs):
+        self._backref = (
+            cast(FunctionManager[K], backref if isinstance(backref, weakref.ProxyType) else weakref.proxy(backref))
+            if backref is not None
+            else None
+        )
+        self._key_types = key_types
         super().__init__(*args, **kwargs)
 
-    def __getitem__(self, addr):
+    def copy(self) -> FunctionDict[K]:
+        return FunctionDict(self._backref, self, key_types=self._key_types)
+
+    def __getitem__(self, addr: K) -> Function:
         try:
             return super().__getitem__(addr)
         except KeyError as ex:
@@ -56,8 +77,20 @@ class FunctionDict(SortedDict):
                 self._backref._function_added(t)
             return t
 
-    def get(self, addr):
-        return super().__getitem__(addr)
+    @overload
+    def get(self, key: K, default: None = None, /) -> Function: ...
+    @overload
+    def get(self, key: K, default: Function, /) -> Function: ...
+    @overload
+    def get(self, key: K, default: T, /) -> Function | T: ...
+
+    def get(self, addr, default=_missing, /):
+        try:
+            return super().__getitem__(addr)
+        except KeyError:
+            if default is _missing:
+                raise
+            return default
 
     def floor_addr(self, addr):
         try:
@@ -79,17 +112,17 @@ class FunctionDict(SortedDict):
         return dict(self.items())
 
 
-class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
+class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
     """
     This is a function boundaries management tool. It takes in intermediate
     results during CFG generation, and manages a function map of the binary.
     """
 
-    def __init__(self, kb):
+    def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: FunctionDict[int, Function] = FunctionDict(self, key_types=self.function_address_types)
+        self._function_map: FunctionDict[K] = FunctionDict(self, key_types=self.function_address_types)
         self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
@@ -490,7 +523,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
             name = matches.group(3)
 
             if selector is not None and ADDR_PATTERN.fullmatch(selector):
-                addr = int(matches.group(2), 0)
+                addr = cast(K, int(matches.group(2), 0))
                 try:
                     func = self._function_map.get(addr)
                     if func.name == name or (check_previous_names and name in func.previous_names):
@@ -530,7 +563,7 @@ class FunctionManager(KnowledgeBasePlugin, collections.abc.Mapping):
 
             # then enter the syntactic sugar mode
             try:
-                addr = int(name.split("_")[-1], 16)
+                addr = cast(K, int(name.split("_")[-1], 16))
                 name = None
             except ValueError:
                 pass

@@ -46,6 +46,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
+from angr.analyses.typehoon import Typehoon
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .return_maker import ReturnMaker
@@ -135,7 +136,7 @@ class Clinic(Analysis):
             Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
         ) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
-        variable_kb=None,
+        variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
         rewrite_ites_to_diamonds=True,
         cache: DecompilationCache | None = None,
@@ -155,6 +156,7 @@ class Clinic(Analysis):
         ail_graph: networkx.DiGraph | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
+        end_stage: ClinicStage | None = None,
         notes: dict[str, DecompilationNote] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
@@ -177,6 +179,8 @@ class Clinic(Analysis):
         self._init_ail_graph = ail_graph
         self._init_arg_vvars = arg_vvars
         self._start_stage = start_stage if start_stage is not None else ClinicStage.INITIALIZATION
+        self._end_stage = end_stage if end_stage is not None else max(ClinicStage.__members__.values())
+
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
 
@@ -229,10 +233,10 @@ class Clinic(Analysis):
         self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
         self.copied_var_ids: set[int] = set()
 
-        self._new_block_addrs = set()
+        self._new_block_addrs: set[int] = set()
 
         # a reference to the Typehoon type inference engine; useful for debugging and loading stats post decompilation
-        self.typehoon = None
+        self.typehoon: Typehoon | None = None
 
         # sanity checks
         if not self.kb.functions:
@@ -368,7 +372,7 @@ class Clinic(Analysis):
 
         return self._apply_callsite_prototype_and_calling_convention(ail_graph)
 
-    def _slice_variables(self, ail_graph):
+    def _slice_variables(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
         assert self.variable_kb is not None and self._desired_variables is not None
 
         nodes_index = {(n.addr, n.idx): n for n in ail_graph.nodes()}
@@ -377,6 +381,8 @@ class Clinic(Analysis):
         for v_name in self._desired_variables:
             v = next(iter(vv for vv in vfm._unified_variables if vv.name == v_name))
             for va in vfm.get_variable_accesses(v):
+                assert va.location.block_addr is not None
+                assert va.location.stmt_idx is not None
                 nodes_index[(va.location.block_addr, va.location.block_idx)].statements[va.location.stmt_idx].tags[
                     "keep_in_slice"
                 ] = True
@@ -395,9 +401,11 @@ class Clinic(Analysis):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
                 if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+                    assert self.function._function_manager is not None
                     callee = self.function._function_manager.function(stmt.target.value)
                     if (
-                        callee.addr == self.function.addr
+                        callee is None
+                        or callee.addr == self.function.addr
                         or callee.addr in self._inlining_parents
                         or callee not in self._inline_functions
                         or callee.is_plt
@@ -420,7 +428,7 @@ class Clinic(Analysis):
                 new_stmt = ailment.Stmt.Assignment(stmt.idx, stmt.dst, new_src, **stmt.tags)
                 block.statements[idx] = new_stmt
 
-    def _inline_call(self, ail_graph, caller_block, call_idx, callee):
+    def _inline_call(self, ail_graph: networkx.DiGraph, caller_block: ailment.Block, call_idx: int, callee: Function):
         callee_clinic = self.project.analyses.Clinic(
             callee,
             mode=ClinicMode.DECOMPILE,
@@ -477,7 +485,8 @@ class Clinic(Analysis):
                     break
 
         # update the call edge
-        caller_block.statements[call_idx] = None  # remove the call statement
+        # first, remove the call statement. this is a type error but will be resolved later
+        caller_block.statements[call_idx] = None  # type: ignore
         if (
             isinstance(caller_block.statements[call_idx - 2], ailment.Stmt.Store)
             and caller_block.statements[call_idx - 2].data.value == caller_successor.addr
@@ -562,7 +571,7 @@ class Clinic(Analysis):
         }
 
         for stage in sorted(stages):
-            if stage < self._start_stage:
+            if stage < self._start_stage or stage > self._end_stage:
                 continue
             stages[stage]()
 
@@ -1201,7 +1210,7 @@ class Clinic(Analysis):
                 [],
                 bits=0,
             )
-            statements = [
+            statements: list[ailment.Statement] = [
                 ailment.Stmt.DirtyStatement(
                     self._ail_manager.next_atom(),
                     dirty_expr,
@@ -1932,11 +1941,12 @@ class Clinic(Analysis):
             )
         else:
             try:
-                tp = self.project.analyses.Typehoon(
-                    vr.type_constraints,
-                    vr.func_typevar,
+                tp = self.project.analyses[Typehoon].prep(
                     kb=tmp_kb,
                     fail_fast=self._fail_fast,
+                )(
+                    vr.type_constraints,
+                    vr.func_typevar,
                     var_mapping=vr.var_to_typevars,
                     stack_offset_tvs=vr.stack_offset_typevars,
                     must_struct=must_struct,
@@ -3382,7 +3392,9 @@ class Clinic(Analysis):
 
         if alloca_node is not None and sp_equal_to is not None:
             stmt0 = alloca_node.statements[1]
-            statements = [ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)]
+            statements: list[ailment.Statement] = [
+                ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)
+            ]
             new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)
             # replace the node
             preds = [pred for pred in ail_graph.predecessors(alloca_node) if pred is not alloca_node]

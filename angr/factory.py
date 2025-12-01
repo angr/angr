@@ -7,6 +7,8 @@ from typing import overload, TYPE_CHECKING
 import archinfo
 from archinfo.arch_soot import ArchSoot, SootAddressDescriptor
 
+from angr.exploration_techniques.base import ExplorationTechnique
+
 from .knowledge_plugins.functions import Function
 from .sim_state import SimState
 from .calling_conventions import default_cc, SimRegArg, SimStackArg, PointerWrapper, SimCCUnknown
@@ -23,6 +25,7 @@ try:
     from .engines.pcode import register_pcode_arch_default_cc
 except ImportError:
     UberEnginePcode = None
+    register_pcode_arch_default_cc = None
 
 if TYPE_CHECKING:
     from angr import Project, SimCC
@@ -58,6 +61,7 @@ class AngrObjectFactory:
             self.default_engine_factory = default_engine
 
         if isinstance(project.arch, archinfo.ArchPcode):
+            assert register_pcode_arch_default_cc is not None
             register_pcode_arch_default_cc(project.arch)
 
         self.project = project
@@ -86,6 +90,7 @@ class AngrObjectFactory:
             return HookNode(addr, size, self.project.hooked_by(addr))
         if self.project.simos.is_syscall_addr(addr):
             syscall = self.project.simos.syscall_from_addr(addr)
+            assert syscall is not None
             size = syscall.kwargs.get("length", 0)
             return SyscallNode(addr, size, syscall)
         return self.block(addr, **block_opts).codenode  # pylint: disable=no-member
@@ -104,6 +109,7 @@ class AngrObjectFactory:
         """
         if engine is not None:
             return engine.process(*args, **kwargs)
+        assert self.default_engine is not None
         return self.default_engine.process(*args, **kwargs)
 
     def blank_state(self, **kwargs):
@@ -247,6 +253,7 @@ class AngrObjectFactory:
         add_options=None,
         remove_options=None,
         step_limit: int | None = None,
+        techniques: list[ExplorationTechnique] | None = None,
     ):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -280,6 +287,7 @@ class AngrObjectFactory:
             add_options=add_options,
             remove_options=remove_options,
             step_limit=step_limit,
+            techniques=techniques,
         )
 
     def cc(self):
@@ -292,6 +300,7 @@ class AngrObjectFactory:
         For stack arguments, offsets are relative to the stack pointer on function entry.
         """
 
+        assert self._default_cc is not None
         return self._default_cc(arch=self.project.arch)
 
     def function_prototype(self):

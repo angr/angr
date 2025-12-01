@@ -11,6 +11,7 @@ import networkx
 import angr.ailment as ailment
 
 import angr
+from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
 from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
@@ -895,7 +896,7 @@ def peephole_optimize_expr(expr, expr_opts):
     return walker._handle_expr(0, expr, 0, None, None)
 
 
-def copy_graph(graph: networkx.DiGraph):
+def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     """
     Copy AIL Graph.
 
