@@ -9,6 +9,7 @@ from angr import Analysis
 
 _l = logging.getLogger(name=__name__)
 
+
 class ScopeOpsWalker(CStructuredCodeWalker):
     def __init__(self):
         self.current_addr = None
@@ -49,7 +50,7 @@ class ScopeOpsAnalyzer(Analysis):
     def __init__(self, decomp: Decompiler):
         if not decomp.codegen:
             _l.warning("ScopeOpsAnalyzer called with an unsuccessful decompilation %s", decomp)
-            self.scope_ops = { }
+            self.scope_ops = {}
             return
         self.scope_ops = ScopeOpsWalker().handle(decomp.codegen.cfunc)
 
