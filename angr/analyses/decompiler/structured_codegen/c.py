@@ -1415,8 +1415,9 @@ class CFunctionCall(CStatement, CExpression):
         else:
             yield from CExpression._try_c_repr_chunks(this_ref)
 
-        yield ".", None
-        yield func_name, self
+        if func_name != "<ctor>":
+            yield ".", None
+            yield func_name, self
 
         # the remaining arguments
         paren = CClosingObject("(")
@@ -3212,7 +3213,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     #
 
     def _handle(
-        self, node, is_expr: bool = True, lvalue: bool = False, likely_signed=False, type_: SimType | None = None
+        self,
+        node,
+        is_expr: bool = True,
+        lvalue: bool = False,
+        likely_signed=False,
+        type_: SimType | None = None,
+        ref: bool = False,
     ):
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
@@ -3223,7 +3230,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             converted = (
                 handler(node, is_expr=is_expr)
                 if isinstance(node, Stmt.Call)
-                else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_)
+                else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
@@ -3760,10 +3767,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_UnaryOp(self, expr, type_: SimType | None = None, **kwargs):
         data_type = None
-        if expr.op == "Reference" and isinstance(type_, SimTypePointer) and not isinstance(type_.pts_to, SimTypeBottom):
-            data_type = type_.pts_to
+        ref = False
+        if expr.op == "Reference":
+            ref = True
+            if isinstance(type_, SimTypePointer) and not isinstance(type_.pts_to, SimTypeBottom):
+                data_type = type_.pts_to
 
-        operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type)
+        operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type, ref=ref)
 
         if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
             # cancel out
@@ -3878,7 +3888,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CMultiStatementExpression(cstmts, cexpr, tags=expr.tags, codegen=self)
 
     def _handle_VirtualVariable(
-        self, expr: Expr.VirtualVariable, lvalue: bool = False, type_: SimType | None = None, **kwargs
+        self,
+        expr: Expr.VirtualVariable,
+        lvalue: bool = False,
+        type_: SimType | None = None,
+        ref: bool = False,
+        **kwargs,
     ):
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
             # we do not allow returning a struct for a primitive type
@@ -3891,7 +3906,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if expr.variable is not None:
             if "struct_member_info" in expr.tags:
                 offset, var, _ = expr.struct_member_info
-                cbasevar = self._variable(var, expr.size, vvar_id=expr.varid)
+                if ref:  # noqa:SIM108
+                    # this virtual variable is only used as the operand of a & operation, so the size is unreliable
+                    size = var.size // self.project.arch.byte_width
+                else:
+                    size = expr.size
+                cbasevar = self._variable(var, size, vvar_id=expr.varid)
                 data_type = type_
                 if data_type is None:
                     # try to determine the type of this variable read
@@ -3908,9 +3928,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                             .get(expr.bits, data_type)
                             .with_arch(self.project.arch)
                         )
-                cvar = self._access_constant_offset(
-                    self._get_variable_reference(cbasevar), offset, data_type, lvalue, negotiate
-                )
+                if ref and offset == 0:
+                    cvar = cbasevar
+                else:
+                    cvar = self._access_constant_offset(
+                        self._get_variable_reference(cbasevar), offset, data_type, lvalue, negotiate
+                    )
             else:
                 cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
 
