@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 
 import networkx
 from angr.ailment import Block
@@ -202,6 +203,52 @@ class SLivenessAnalysis(Analysis):
                         graph.add_edge(arg_vvar.varid, live_vvar)
 
         return graph
+
+    def live_vars_by_stmt(self) -> defaultdict[tuple[int, int | None], dict[int, set[int]]]:
+        """
+        Get a mapping from statements to live variables at the point of the statement.
+
+        :return: A dictionary mapping statements to sets of live variable IDs.
+        """
+        live_vars = defaultdict(dict)
+
+        for block in self.func_graph.nodes():
+            live = self.model.live_outs[(block.addr, block.idx)].copy()
+
+            if is_head_controlled_loop_block(block):
+                # this is a head-controlled loop block; we start scanning from the first condition jump backwards
+                condjump_idx = next(
+                    iter(i for i, stmt in enumerate(block.statements) if isinstance(stmt, ConditionalJump)), None
+                )
+                assert condjump_idx is not None
+                stmts = block.statements[: condjump_idx + 1]
+            else:
+                stmts = block.statements
+
+            block_key = block.addr, block.idx
+
+            for i, stmt in enumerate(reversed(stmts)):
+                stmt_idx = len(stmts) - i - 1
+                if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
+                    def_vvar = stmt.dst.varid
+                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                    def_vvar = stmt.ret_expr.varid
+                else:
+                    def_vvar = None
+
+                # handle the statement: add used vvars to the live set
+                vvar_use_collector = VVarUsesCollector()
+                vvar_use_collector.walk_statement(stmt)
+
+                live_vars[block_key][stmt_idx] = live.copy()
+                if def_vvar is not None:
+                    for live_vvar in live:
+                        live_vars[block_key][stmt_idx].add(live_vvar)
+                    live.discard(def_vvar)
+
+                live |= vvar_use_collector.vvars
+
+        return live_vars
 
 
 register_analysis(SLivenessAnalysis, "SLiveness")

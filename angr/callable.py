@@ -64,6 +64,7 @@ class Callable:
                 project.arch
             )
         )
+        self._techniques = techniques
         self._deadend_addr = project.simos.return_deadend
         self._func_ty = prototype
         self._add_options = add_options if add_options else set()
@@ -105,9 +106,7 @@ class Callable:
             remove_options=self._remove_options,
         )
 
-        caller = self._project.factory.simulation_manager(state)
-        for technique in self._techniques:
-            caller.use_technique(technique)
+        caller = self._project.factory.simulation_manager(state, techniques=self._techniques)
         caller.run(step_func=self._step_func).unstash(from_stash="deadended")
         caller.prune(filter_func=lambda pt: pt.addr == self._deadend_addr)
 
