@@ -5311,6 +5311,21 @@ class TestDecompiler(unittest.TestCase):
         for case_no in [0, 2, 3, 4, 5]:
             assert f"case {case_no}:" in dec.codegen.text
 
+    def test_decompiling_assign_ite(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "ite.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+        func = proj.kb.functions["assign_ite"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert "char * assign_ite(unsigned int a0, char *a1, char *a2)" in dec.codegen.text
+        assert "char *v0" in dec.codegen.text
+        assert "v0 = (!a0 ? a2 : a1)" in dec.codegen.text
+        assert "return v0" in dec.codegen.text
+
 
 if __name__ == "__main__":
     unittest.main()
