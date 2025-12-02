@@ -2108,11 +2108,9 @@ class AILSimplifier(Analysis):
             v = False
 
         def _handle_VEXCCallExpression(
-            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
+            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ) -> Expression:
             r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
-            if r_expr is None:
-                r_expr = expr
             rewriter = rewriter_cls(r_expr, self.project, rename_ccalls=self._should_rename_ccalls)
             if rewriter.result is not None:
                 _any_update.v = True
@@ -2165,11 +2163,9 @@ class AILSimplifier(Analysis):
             return stmt
 
         def _handle_DirtyExpression(
-            expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+            expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ):
             r_expr = AILBlockWalker._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
-            if r_expr is None:
-                r_expr = expr
             rewriter = rewriter_cls(r_expr, self.project.arch)
             if rewriter.result is not None:
                 _any_update.v = True

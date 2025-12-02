@@ -515,7 +515,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
     #
 
     def _handle_Load(
-        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         addr = self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
         changed = addr is not expr.addr
@@ -527,7 +527,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         changed = False
 
@@ -550,7 +550,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_BinaryOp(
-        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         operand_0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         changed = operand_0 is not expr.operands[0]
@@ -566,7 +566,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_UnaryOp(
-        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
         changed = new_operand is not expr.operand
@@ -578,7 +578,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_Convert(
-        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
         changed = new_operand is not expr.operand
@@ -588,7 +588,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_Reinterpret(
-        self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operand = self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
         changed = new_operand is not expr.operand
@@ -599,7 +599,9 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
             )
         return expr
 
-    def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Block | None) -> Expression:
+    def _handle_ITE(
+        self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
         cond = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
         changed = cond is not expr.cond
 
@@ -644,7 +646,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_DirtyExpression(
-        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         changed = False
         new_operands = [self._handle_expr(0, operand, stmt_idx, stmt, block) for operand in expr.operands]
@@ -670,7 +672,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_VEXCCallExpression(
-        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_operands = [
             self._handle_expr(idx, operand, stmt_idx, stmt, block) for idx, operand in enumerate(expr.operands)
@@ -684,7 +686,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         return expr
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Expression:
         new_statements = [self._handle_stmt(idx, stmt_, None) for idx, stmt_ in enumerate(expr.stmts)]
         changed = any(new is not old for new, old in zip(new_statements, expr.stmts))
