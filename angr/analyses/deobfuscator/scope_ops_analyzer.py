@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import logging
+
 from collections import Counter
 from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeWalker
 from angr.analyses.decompiler import Decompiler
 from angr import Analysis
 
+_l = logging.getLogger(name=__name__)
 
 class ScopeOpsWalker(CStructuredCodeWalker):
     def __init__(self):
@@ -44,6 +47,10 @@ class ScopeOpsAnalyzer(Analysis):
     """
 
     def __init__(self, decomp: Decompiler):
+        if not decomp.codegen:
+            _l.warning("ScopeOpsAnalyzer called with an unsuccessful decompilation %s", decomp)
+            self.scope_ops = { }
+            return
         self.scope_ops = ScopeOpsWalker().handle(decomp.codegen.cfunc)
 
     def filter_scopes(self, wanted_ops: set, min_count):
