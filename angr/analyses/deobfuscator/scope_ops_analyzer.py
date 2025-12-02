@@ -31,7 +31,7 @@ class ScopeOpsWalker(CStructuredCodeWalker):
             "CIfElse",
         ]:
             old_addr = self.current_addr
-            self.current_addr = obj.tags["ins_addr"] if "ins_addr" in obj.tags else obj.addr
+            self.current_addr = obj.tags.get("ins_addr", obj.addr)
             self.found_ops.setdefault(self.current_addr, Counter())
             super().handle(obj)
             self.current_addr = old_addr
