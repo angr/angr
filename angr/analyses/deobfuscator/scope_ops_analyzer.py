@@ -11,6 +11,11 @@ _l = logging.getLogger(name=__name__)
 
 
 class ScopeOpsWalker(CStructuredCodeWalker):
+    """
+    ScopeOpsWalker walks a C construct (typically a C function) and extracts counts of all operations in each scope.
+    Its intended use is to reason about the intent of different parts of functions (e.g., crypto implementations).
+    """
+
     def __init__(self):
         self.current_addr = None
         self.found_ops = {}
