@@ -37,7 +37,7 @@ from angr.ailment.expression import (
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SRDAModel
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
 from angr.utils.ail import is_phi_assignment, HasExprWalker, is_expr_used_as_reg_base_value
 from angr.utils.ssa import (
     has_call_in_between_stmts,
@@ -97,7 +97,7 @@ class AILBlockTempCollector(AILBlockWalkerBase[None, None, None]):
         self.expr_handlers[Tmp] = self._handle_Tmp
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block):
+    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block):
         if isinstance(expr, Tmp):
             self.temps.add(expr)
 
@@ -318,13 +318,17 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        rd = self.project.analyses.SReachingDefinitions(
-            subject=self.func,
-            func_graph=self.func_graph,
-            func_args=func_args,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            # track_tmps=True,
-        ).model
+        rd = (
+            self.project.analyses[SReachingDefinitionsAnalysis]
+            .prep()(
+                subject=self.func,
+                func_graph=self.func_graph,
+                func_args=func_args,
+                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                # track_tmps=True,
+            )
+            .model
+        )
         self._reaching_definitions = rd
         return rd
 
