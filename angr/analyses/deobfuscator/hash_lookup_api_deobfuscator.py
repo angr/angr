@@ -13,13 +13,14 @@ from angr.knowledge_plugins.functions.function import Function
 
 
 class HashLookupAPIDeobfuscator(Analysis):
+    """
+    An analysis that finds functions accessing loader metadata which take concrete arguments and executes them to
+    see if they resolve symbols.
+    """
+
     def __init__(
         self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], functions: Sequence[Function] | None = None
     ):
-        """
-        An analysis that finds functions accessing loader metadata which take concrete arguments and executes them to
-        see if they resolve symbols.
-        """
         self.lifter = lifter
         self.results: dict[int, str] = {}
         for func in functions or self.kb.functions.values():
@@ -91,7 +92,8 @@ class FindCallsTo(AILBlockWalkerBase):
         self.target = target
 
     def _handle_Call(self, stmt_idx: int, stmt: ailment.statement.Call, block: ailment.Block | None):
-        # pretty sure this is more readable than a gigantic boolean expression at the cost of one duplicated statement
+        # if I try to make this more readable, pre-commit changes it back to this nonsense...
+        # pylint: disable=too-many-boolean-expressions
         if (
             (isinstance(self.target, str) and stmt.target == self.target)
             or (
@@ -105,12 +107,9 @@ class FindCallsTo(AILBlockWalkerBase):
                 and stmt.prototype.returnty == self.target
             )
         ):
-            pass
-        else:
-            return super()._handle_Call(stmt_idx, stmt, block)
+            assert block is not None
+            self.found_calls.append((block, stmt_idx, stmt))
 
-        assert block is not None
-        self.found_calls.append((block, stmt_idx, stmt))
         return super()._handle_Call(stmt_idx, stmt, block)
 
     def _handle_CallExpr(
