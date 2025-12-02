@@ -11,6 +11,7 @@ from angr.ailment.expression import VirtualVariableCategory
 
 import angr
 from angr.analyses.decompiler.decompiler import Decompiler
+from angr.analyses.outliner import Outliner
 from angr.sim_type import SimStruct, SimTypeArray, SimTypeWideChar, SimTypeChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.analyses.decompiler.clinic import ClinicStage
@@ -34,7 +35,7 @@ class TestOutliner(TestCase):
         assert dec.clinic is not None
         print(dec.codegen.text)
 
-        outliner = proj.analyses.Outliner(
+        outliner = proj.analyses[Outliner](
             func,
             dec.ail_graph,
             src_loc=(0x4017BD, None),  # frontier=[(0x401847, None), (0x401867, 2)]
@@ -57,7 +58,7 @@ class TestOutliner(TestCase):
 
         # the second function
         out_funcargs = {}
-        for arg_idx, arg_vvar in enumerate(outliner.out_funcargs):
+        for arg_idx, arg_vvar in enumerate(outliner.child_funcargs):
             if arg_vvar.was_parameter:
                 if arg_vvar.parameter_category == VirtualVariableCategory.REGISTER:
                     simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
@@ -71,13 +72,13 @@ class TestOutliner(TestCase):
                 simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
             else:
                 raise NotImplementedError
-            out_funcargs[arg_vvar.varid] = arg_vvar, simvar
+            out_funcargs[arg_idx] = arg_vvar, simvar
 
         dec_inner = proj.analyses[Decompiler].prep(
             fail_fast=True,
         )(
-            outliner.out_func,
-            clinic_graph=outliner.out_graph,
+            outliner.child_func,
+            clinic_graph=outliner.child_graph,
             clinic_arg_vvars=out_funcargs,
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             cfg=cfg.model,
@@ -190,6 +191,8 @@ class TestOutliner(TestCase):
     def test_liveness_density_notepad_npinit(self):
         bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad_edited.exe"
         # bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad.exe"
+        if not os.path.exists(bin_path):
+            raise unittest.SkipTest("Hey, you're not Fish...")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         # proj.analyses.CompleteCallingConventions()
