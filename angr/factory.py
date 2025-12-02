@@ -254,7 +254,6 @@ class AngrObjectFactory:
         remove_options=None,
         techniques: list[ExplorationTechnique] | None = None,
         step_limit: int | None = None,
-        techniques: list[ExplorationTechnique] | None = None,
     ):
         """
         A Callable is a representation of a function in the binary that can be interacted with like a native python
@@ -289,7 +288,6 @@ class AngrObjectFactory:
             remove_options=remove_options,
             techniques=techniques,
             step_limit=step_limit,
-            techniques=techniques,
         )
 
     def cc(self):
