@@ -41,7 +41,7 @@ all: ${LIB_UNICORNLIB}
 %.o: %.c
 	${CC} ${CFLAGS} -c -o $@ $<
 
-${LIB_UNICORNLIB}: ${OBJS} sim_unicorn.cpp
+${LIB_UNICORNLIB}: ${OBJS} sim_unicorn.cpp procedures.cpp
 	${CXX} ${CXXFLAGS} ${CPPFLAGS} -o $@ $^ ${LDLIBS} ${LDFLAGS}
 
 clean:

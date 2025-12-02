@@ -4,5 +4,5 @@ CFLAGS=/EHsc /MD /LD /O2 $(INCFLAGS) /Zi
 LDFLAGS=/link "$(PYVEX_LIB_FILE)" /DEF:unicornlib.def /DEBUG
 
 unicornlib.dll: sim_unicorn.cpp unicornlib.def
-	$(CC) $(CFLAGS) sim_unicorn.cpp unicorn_dynamic.c $(LDFLAGS) /OUT:unicornlib.dll
+	$(CC) $(CFLAGS) sim_unicorn.cpp procedures.cpp unicorn_dynamic.c $(LDFLAGS) /OUT:unicornlib.dll
 

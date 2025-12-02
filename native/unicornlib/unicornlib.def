@@ -46,3 +46,6 @@ EXPORTS
   simunicorn_get_count_of_writes_to_reexecute
   simunicorn_get_concrete_writes_to_reexecute
   simunicorn_set_fp_regs_fp_ops_vex_codes
+  simunicorn_get_heap_base
+  simunicorn_set_heap_base
+  simunicorn_set_ucproc

@@ -1,9 +1,20 @@
 #ifndef SIM_UNICORN_HPP
 #define SIM_UNICORN_HPP
 
+#include <vector>
+#include <unordered_map>
+#include <cstring>
+#include <unordered_set>
+#include <set>
+#include <map>
+
 extern "C" {
+	#include <libvex.h>
+	#include <pyvex.h>
 	#include <libvex_guest_offsets.h>
 }
+
+#include <unicorn/unicorn.h>
 
 // Maximum size of a qemu/unicorn basic block
 // See State::step for why this is necessary
@@ -481,7 +492,7 @@ struct caches_t {
 
 typedef taint_t PageBitmap[ANGR_PAGE_SIZE];
 typedef std::unordered_map<address_t, block_taint_entry_t> BlockTaintCache;
-std::map<uint64_t, caches_t> global_cache;
+extern std::map<uint64_t, caches_t> global_cache;
 
 typedef std::unordered_set<vex_reg_offset_t> RegisterSet;
 typedef std::unordered_set<vex_tmp_id_t> TempSet;
@@ -540,7 +551,6 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 static void hook_intr(uc_engine *uc, uint32_t intno, void *user_data);
 
 class State {
-	uc_engine *uc;
 	PageCache *page_cache;
 	BlockTaintCache block_taint_cache;
 	bool hooked;
@@ -743,6 +753,8 @@ class State {
 	}
 
 	public:
+		uc_engine *uc;
+
 		std::vector<address_t> bbl_addrs;
 		std::vector<address_t> stack_pointers;
 		std::unordered_set<address_t> executed_pages;
@@ -814,6 +826,9 @@ class State {
 		// Floating point registers
 		std::pair<uint64_t, uint64_t> fp_reg_vex_data;
 
+		std::unordered_map<uint64_t, void (*)(State *)> uc_procedures;
+		uint64_t heap_base;
+
 		State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls);
 
 		~State() {
@@ -842,7 +857,7 @@ class State {
 
 		void stop(stop_t reason, bool do_commit=false, uint64_t commit_addr=0);
 
-		void step(address_t current_address, int32_t size, bool check_stop_points=true);
+		bool step(address_t current_address, int32_t size, bool check_stop_points=true);
 
 		/*
 		* commit all memory actions.
@@ -936,5 +951,10 @@ class State {
 			return (is_symbolic_tracking_disabled() || curr_block_details.vex_lift_failed);
 		}
 };
+
+// procedures.cpp
+
+void ucproc_malloc(State *state);
+void ucproc_memset(State *state);
 
 #endif /* SIM_UNICORN_HPP */

@@ -14,9 +14,10 @@ import cffi  # lmao
 import archinfo
 import claripy
 import pyvex
+
+import angr
 from angr.engines.vex.claripy import ccall
 from angr.sim_state import SimState
-
 from angr import sim_options as options
 from angr.engines.vex.claripy.irop import operations as irop_ops
 from angr.errors import SimMemoryError, SimSegfaultError, SimUnicornError, SimUnicornUnsupport, SimValueError
@@ -548,6 +549,27 @@ def _load_native():
             ctypes.c_uint64,
             ctypes.POINTER(ctypes.c_uint64),
             ctypes.c_uint32,
+        )
+        _setup_prototype(
+            h,
+            "get_heap_base",
+            ctypes.c_uint64,
+            state_t,
+        )
+        _setup_prototype(
+            h,
+            "set_heap_base",
+            None,
+            state_t,
+            ctypes.c_uint64,
+        )
+        _setup_prototype(
+            h,
+            "set_ucproc",
+            ctypes.c_bool,
+            state_t,
+            ctypes.c_uint64,
+            ctypes.c_char_p,
         )
 
         l.info("native plugin is enabled")
@@ -1277,6 +1299,16 @@ class Unicorn(SimStatePlugin):
                 cgc_random_addr,
             )
 
+        _UC_NATIVE.set_heap_base(self._uc_state, self.state.heap.heap_base)
+
+        implemented_procedures = {
+            angr.SIM_PROCEDURES["libc"]["malloc"],
+            angr.SIM_PROCEDURES["libc"]["memset"],
+        }
+        for addr, proc in self.state.project._sim_procedures.items():
+            if type(proc) in implemented_procedures:
+                _UC_NATIVE.set_ucproc(self._uc_state, addr, type(proc).__name__.split(".")[-1].encode())
+
         # set memory map callback so we can call it explicitly
         _UC_NATIVE.set_map_callback(self._uc_state, self._bullshit_cb)
 
@@ -1433,6 +1465,8 @@ class Unicorn(SimStatePlugin):
 
         # should this be in destroy?
         _UC_NATIVE.disable_symbolic_reg_tracking(self._uc_state)
+
+        state.heap.heap_base = _UC_NATIVE.get_heap_base(self._uc_state)
 
         # synchronize memory contents - head is a linked list of memory updates
         head = _UC_NATIVE.sync(self._uc_state)
