@@ -311,7 +311,7 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
         if all(new is None or new is old for new, old in zip(stmt_results, block.statements)):
             return block
         statements = [new or old for new, old in zip(stmt_results, block.statements)]
-        if self._update_block:
+        if not self._update_block:
             return block.copy(statements=statements)
         block.statements = statements
         return block
