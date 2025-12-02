@@ -456,6 +456,10 @@ class AILSimplifier(Analysis):
             if not repeat:
                 break
 
+        if not narrowables:
+            # nothing to narrow
+            return False
+
         # let's narrow them (finally)
         narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
         for old_block in addr_and_idx_to_block.values():
