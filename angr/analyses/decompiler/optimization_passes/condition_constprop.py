@@ -51,7 +51,7 @@ class CCondPropBlockWalker(AILBlockWalker):
         return super()._handle_stmt(stmt_idx, stmt, block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Statement:
-        if isinstance(stmt.dst, VirtualVariable) and stmt.dst_varid == self.vvar_id:
+        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == self.vvar_id:
             # we see the assignment of this virtual variable; this is the original block that creates this variable
             # and checks if this variable is equal to a constant value. as such, we stop processing this block.
             # an example appears in binary 1de5cda760f9ed80bb6f4a35edcebc86ccec14c49cf4775ddf2ffc3e05ff35f4, function
