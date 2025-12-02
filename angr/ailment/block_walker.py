@@ -1,6 +1,6 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
-from typing import Generic, TypeVar, cast
+from typing import Any, Generic, TypeVar, cast
 from collections.abc import Callable
 
 from . import Block
@@ -46,7 +46,7 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
     """
 
     def __init__(self, stmt_handlers=None, expr_handlers=None):
-        _default_stmt_handlers = {
+        _default_stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = {
             Assignment: self._handle_Assignment,
             WeakAssignment: self._handle_WeakAssignment,
             CAS: self._handle_CAS,
@@ -58,7 +58,7 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
             DirtyStatement: self._handle_DirtyStatement,
         }
 
-        _default_expr_handlers = {
+        _default_expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = {
             Call: self._handle_CallExpr,
             Load: self._handle_Load,
             BinaryOp: self._handle_BinaryOp,
@@ -76,8 +76,12 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
             Phi: self._handle_Phi,
         }
 
-        self.stmt_handlers: dict[type, Callable] = stmt_handlers if stmt_handlers else _default_stmt_handlers
-        self.expr_handlers: dict[type, Callable] = expr_handlers if expr_handlers else _default_expr_handlers
+        self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
+            stmt_handlers if stmt_handlers else _default_stmt_handlers
+        )
+        self.expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = (
+            expr_handlers if expr_handlers else _default_expr_handlers
+        )
 
     def walk(self, block: Block) -> BlockType:
         i = 0
@@ -185,12 +189,14 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(0, stmt.dirty, stmt_idx, stmt, block)
         return self._stmt_top(stmt_idx, stmt, block)
 
-    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None) -> ExprType:
+    def _handle_Load(
+        self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         if not isinstance(expr.target, str):
             self._handle_expr(-1, expr.target, stmt_idx, stmt, block)
@@ -200,62 +206,68 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(
-        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_UnaryOp(
-        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Convert(
-        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Reinterpret(
-        self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Reinterpret, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Block | None) -> ExprType:
+    def _handle_ITE(
+        self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
         self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
         self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
         self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Tmp(self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement, block: Block | None) -> ExprType:
+    def _handle_Tmp(
+        self, expr_idx: int, expr: Tmp, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Register(
-        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Register, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Const(
-        self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(
-        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Phi(self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None) -> ExprType:
+    def _handle_Phi(
+        self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
         for idx, (_, vvar) in enumerate(expr.src_and_vvars):
             if vvar is not None:
                 self._handle_expr(idx, vvar, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_MultiStatementExpression(
-        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx, expr: MultiStatementExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         for idx, stmt_ in enumerate(expr.stmts):
             self._handle_stmt(idx, stmt_, None)
@@ -263,7 +275,7 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_DirtyExpression(
-        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         for idx, operand in enumerate(expr.operands):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
@@ -272,7 +284,7 @@ class AILBlockWalkerBase(Generic[ExprType, StmtType, BlockType]):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
-        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> ExprType:
         for idx, operand in enumerate(expr.operands):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
@@ -605,7 +617,9 @@ class AILBlockWalker(AILBlockWalkerBase[Expression, Statement, Block]):
             return new_expr
         return expr
 
-    def _handle_Phi(self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None) -> Expression:
+    def _handle_Phi(
+        self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
         if not self._replace_phi_stmt:
             # fallback to the read-only version
             super()._handle_Phi(expr_idx, expr, stmt_idx, stmt, block)

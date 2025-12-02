@@ -44,7 +44,7 @@ class HasCallExprWalker(AILBlockWalkerBase):
         self.has_call_expr = True
 
     def _handle_CallExpr(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         self.has_call_expr = True
 
