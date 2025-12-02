@@ -4998,8 +4998,11 @@ class TestDecompiler(unittest.TestCase):
             "evNqGU9fDnzPVPIo6EY3FMe5ckwJmYpyOjmbZ05"
         ) in dec.codegen.text
         # assert C++ class methods are properly rewritten
-        assert ".size()" in dec.codegen.text
-        assert ".c_str()" in dec.codegen.text
+        m = re.search(r"([^\s=]+)\.size\(\);", dec.codegen.text)
+        assert m is not None
+        str_name = m.group(1)
+        assert f"{str_name}();" in dec.codegen.text
+        assert f"{str_name}.c_str()" in dec.codegen.text
         # assert there exists a stack-based buffer that is 12-byte long
         # this is to test the type hint that strncpy provides
         m = re.search(r"char (v\d+)\[16];", dec.codegen.text)
