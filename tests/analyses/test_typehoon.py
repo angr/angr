@@ -202,9 +202,9 @@ class TestTypehoon(unittest.TestCase):
         # };
         sols = dec.clinic.typehoon.simtypes_solution
         tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
-        assert len(tvs) == 2
-        assert sols[tvs[0]] == sols[tvs[1]]
-        sol = sols[tvs[0]]
+        assert len(tvs) == 3
+        assert sols[tvs[1]] == sols[tvs[2]]
+        sol = sols[tvs[1]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
         assert len(sol.pts_to.fields) == 2
@@ -247,8 +247,8 @@ class TestTypehoon(unittest.TestCase):
         # } struct_1;
         sols = dec.clinic.typehoon.simtypes_solution
         tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
-        assert len(tvs) == 1
-        sol = sols[tvs[0]]
+        assert len(tvs) == 2
+        sol = sols[tvs[1]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
         assert len(sol.pts_to.fields) == 2
