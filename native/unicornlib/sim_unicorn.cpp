@@ -1,5 +1,9 @@
 #define __STDC_FORMAT_MACROS 1
 #define NOMINMAX
+#ifdef _MSC_VER
+// get this out of the way... it's requried deep within unicorn
+#include <windows.h>
+#endif
 
 #include <algorithm>
 #include <cassert>

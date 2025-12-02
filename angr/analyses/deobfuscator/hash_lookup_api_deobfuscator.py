@@ -16,6 +16,10 @@ class HashLookupAPIDeobfuscator(Analysis):
     def __init__(
         self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], functions: Sequence[Function] | None = None
     ):
+        """
+        An analysis that finds functions accessing loader metadata which take concrete arguments and executes them to
+        see if they resolve symbols.
+        """
         self.lifter = lifter
         self.results: dict[int, str] = {}
         for func in functions or self.kb.functions.values():
@@ -77,12 +81,17 @@ class HashLookupAPIDeobfuscator(Analysis):
 
 
 class FindCallsTo(AILBlockWalkerBase):
+    """
+    Walker which stores calls with a given target.
+    """
+
     def __init__(self, *args, target: str | int, **kwargs):
         super().__init__(*args, **kwargs)
         self.found_calls: list[tuple[ailment.Block, int, ailment.statement.Call]] = []
         self.target = target
 
     def _handle_Call(self, stmt_idx: int, stmt: ailment.statement.Call, block: ailment.Block | None):
+        # pretty sure this is more readable than a gigantic boolean expression at the cost of one duplicated statement
         if (
             (isinstance(self.target, str) and stmt.target == self.target)
             or (
@@ -96,8 +105,12 @@ class FindCallsTo(AILBlockWalkerBase):
                 and stmt.prototype.returnty == self.target
             )
         ):
-            assert block is not None
-            self.found_calls.append((block, stmt_idx, stmt))
+            pass
+        else:
+            return super()._handle_Call(stmt_idx, stmt, block)
+
+        assert block is not None
+        self.found_calls.append((block, stmt_idx, stmt))
         return super()._handle_Call(stmt_idx, stmt, block)
 
     def _handle_CallExpr(
