@@ -598,8 +598,8 @@ class ForwardAnalysisForClinic(
                     assert isinstance(stmt.dst, ailment.expression.VirtualVariable)
                     for pred, vvar in stmt.src.src_and_vvars:
                         if pred == (node.addr, node.idx):
-                            assert vvar is not None
-                            self._handle_phi(node, succ, result, stmt.dst, vvar)
+                            if vvar is not None:
+                                self._handle_phi(node, succ, result, stmt.dst, vvar)
                             break
                     else:
                         raise AngrForwardAnalysisError("Failed to find appropriate predecessor")
