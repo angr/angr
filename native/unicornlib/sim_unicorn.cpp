@@ -1,5 +1,9 @@
 #define __STDC_FORMAT_MACROS 1
 #define NOMINMAX
+#ifdef _MSC_VER
+// get this out of the way... it's requried deep within unicorn
+#include <windows.h>
+#endif
 
 #include <algorithm>
 #include <cassert>
@@ -18,12 +22,14 @@
 extern "C" {
 #include <libvex.h>
 #include <pyvex.h>
+#include <unicorn/unicorn.h>
 }
 
-#include <unicorn/unicorn.h>
 
 #include "sim_unicorn.hpp"
 //#include "log.h"
+
+std::map<uint64_t, caches_t> global_cache;
 
 State::State(uc_engine *_uc, uint64_t cache_key, simos_t curr_os, bool symb_addrs, bool symb_cond, bool symb_syscalls):
   uc(_uc), simos(curr_os), handle_symbolic_addrs(symb_addrs), handle_symbolic_conditions(symb_cond),
@@ -191,7 +197,8 @@ void State::stop(stop_t reason, bool do_commit, uint64_t commit_addr) {
 	}
 }
 
-void State::step(address_t current_address, int32_t size, bool check_stop_points) {
+bool State::step(address_t current_address, int32_t size, bool check_stop_points) {
+        bool result = false;
 	if (track_bbls) {
 		bbl_addrs.push_back(current_address);
 	}
@@ -204,6 +211,10 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 
 	if (cur_steps >= max_steps) {
 		stop(STOP_NORMAL);
+	} else if (uc_procedures.count(current_address) != 0) {
+  	        uc_procedures[current_address](this);
+  	        result = true;
+  	        commit(current_address);
 	} else if (check_stop_points) {
 		// If size is zero, that means that the current basic block was too large for qemu
 		// and it got split into multiple parts. unicorn will only call this hook for the
@@ -233,6 +244,7 @@ void State::step(address_t current_address, int32_t size, bool check_stop_points
 	if (!stopped) {
 		executed_blocks_count++;
 	}
+	return result;
 }
 
 void State::commit(uint64_t addr) {
@@ -2833,9 +2845,9 @@ static void hook_block(uc_engine *uc, uint64_t address, int32_t size, void *user
 	}
 	state->commit(address);
 	state->set_curr_block_details(address, size);
-	state->step(address, size);
+	bool hooked = state->step(address, size);
 
-	if (!state->stopped) {
+	if (!hooked && !state->stopped) {
 		state->start_propagating_taint();
 	}
 	return;
@@ -3063,6 +3075,32 @@ void simunicorn_set_cgc_syscall_details(State *state, uint32_t transmit_num, uin
 	state->cgc_receive_max_size = receive_size;
 	state->cgc_transmit_sysno = transmit_num;
 	state->cgc_transmit_bbl = transmit_bbl;
+}
+
+extern "C"
+bool simunicorn_set_ucproc(State *state, uint64_t hook_addr, char *proc_name) {
+  void (*func)(State *) = nullptr;
+  std::string name(proc_name);
+  if (name == "malloc") {
+    func = ucproc_malloc;
+  } else if (name == "memset") {
+    func = ucproc_memset;
+  } else {
+    return false;
+  }
+
+  state->uc_procedures[hook_addr] = func;
+  return true;
+}
+
+extern "C"
+uint64_t simunicorn_get_heap_base(State *state) {
+  return state->heap_base;
+}
+
+extern "C"
+void simunicorn_set_heap_base(State *state, uint64_t base) {
+  state->heap_base = base;
 }
 
 extern "C"

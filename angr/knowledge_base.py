@@ -7,6 +7,8 @@ import logging
 
 from typing import TYPE_CHECKING, TypeVar
 
+from angr.knowledge_plugins.obfuscations import Obfuscations
+
 from .knowledge_plugins.plugin import default_plugins, KnowledgeBasePlugin
 
 if TYPE_CHECKING:
@@ -42,6 +44,7 @@ class KnowledgeBase:
     propagations: PropagationManager
     xrefs: XRefManager
     decompilations: StructuredCodeManager
+    obfuscations: Obfuscations
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:

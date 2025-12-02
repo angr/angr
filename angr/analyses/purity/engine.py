@@ -70,7 +70,7 @@ class ResultType:
     """
 
     uses: MutableMapping[DataSource, DataUsage] = field(default_factory=lambda: defaultdict(DataUsage))
-    # keyed as: block addr, block idx, stmt idx, call addr, call arg
+    # keyed as: block addr, block idx, stmt idx, call target, call arg idx
     call_args: MutableMapping[tuple[int, int | None, int, Function | None, int], DataType_co] = field(
         default_factory=lambda: defaultdict(frozenset)
     )
@@ -86,6 +86,33 @@ class ResultType:
             self.ret_vals[arg] |= val
         for arg, val in other.other_storage.items():
             self.other_storage[arg] |= val
+
+    def is_pure(
+        self,
+        pure_functions: set[str] | None = None,
+        allow_read_arguments: bool = True,
+        allow_write_arguments: bool = False,
+        allow_read_globals: bool = True,
+        allow_write_globals: bool = False,
+    ) -> bool:
+        for loc, use in self.uses.items():
+            if loc.constant_value is not None and use.ptr_store and not allow_write_globals:
+                return False
+            if loc.constant_value is not None and use.ptr_load and not allow_read_globals:
+                return False
+            if loc.function_arg is not None and use.ptr_store and not allow_write_arguments:
+                return False
+            if loc.function_arg is not None and use.ptr_load and not allow_read_arguments:
+                return False
+            if loc.callee_return is not None and (
+                pure_functions is None or loc.callee_return.name not in pure_functions
+            ):
+                return False
+        for (_, _, _, func, _), _ in self.call_args.items():
+            if pure_functions is None or func is None or func.name not in pure_functions:
+                return False
+
+        return True
 
 
 DataType_co: TypeAlias = frozenset[DataSource]

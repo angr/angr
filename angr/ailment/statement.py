@@ -6,6 +6,8 @@ from collections.abc import Sequence
 from abc import ABC, abstractmethod
 from typing_extensions import Self
 
+from angr.sim_type import SimTypeFunction
+
 try:
     import claripy
 except ImportError:
@@ -526,7 +528,7 @@ class Call(Expression, Statement):
         idx: int | None,
         target: Expression | str,
         calling_convention: SimCC | None = None,
-        prototype=None,
+        prototype: SimTypeFunction | None = None,
         args: Sequence[Expression] | None = None,
         ret_expr: Expression | None = None,
         fp_ret_expr: Expression | None = None,
