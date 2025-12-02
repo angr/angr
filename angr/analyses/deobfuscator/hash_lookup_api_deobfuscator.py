@@ -22,7 +22,7 @@ class HashLookupAPIDeobfuscator(Analysis):
         self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], functions: Sequence[Function] | None = None
     ):
         self.lifter = lifter
-        self.results: dict[int, str] = {}
+        self.results: dict[int, tuple[str, str]] = {}
 
         candidates_l0 = {
             func.addr for func in functions or self.kb.functions.values() if self._is_metadata_accessor_candidate(func)
@@ -89,7 +89,7 @@ class HashLookupAPIDeobfuscator(Analysis):
                     result_bv.concrete
                     and (result_sym := self.project.loader.find_symbol(result_bv.concrete_value)) is not None
                 ):
-                    self.results[call_expr.ins_addr] = result_sym.name
+                    self.results[call_expr.ins_addr] = (result_sym.owner.provides or "", result_sym.name)
 
 
 class FindCallsTo(AILBlockWalkerBase):

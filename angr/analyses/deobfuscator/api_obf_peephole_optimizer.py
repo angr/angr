@@ -2,6 +2,7 @@ from __future__ import annotations
 from angr.ailment.expression import Const, Load
 
 from angr import SIM_LIBRARIES
+from angr.ailment.statement import Call
 from angr.calling_conventions import default_cc
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
@@ -48,4 +49,24 @@ class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
         return None
 
 
+class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
+    """
+    Integrate type-3 deobfuscated APIs (calls with const arguments which return APIs) into the decompilation output.
+    """
+
+    __slots__ = ()
+
+    NAME = "Simplify Type 3 API obfuscation references"
+    expr_classes = (Call,)
+
+    def optimize(self, expr: Call, **kwargs):
+        funcbits = self.kb.obfuscations.type3_deobfuscated_apis.get(expr.ins_addr, None)
+        if funcbits is None:
+            return None
+        dll, api = funcbits
+        sym = self.project.loader.shared_objects[dll].get_symbol(api)
+        return Const(expr.idx, None, sym.rebased_addr, expr.bits, **expr.tags)
+
+
 EXPR_OPTS.append(APIObfType1PeepholeOptimizer)
+EXPR_OPTS.append(APIObfType3PeepholeOptimizer)
