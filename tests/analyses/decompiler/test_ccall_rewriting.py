@@ -28,6 +28,7 @@ class TestCCallRewriting(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None
 
+        assert "PEB * sub_401030()" in dec.codegen.text
         assert "PEB *v0;" in dec.codegen.text
         assert "v0 = NtGetCurrentPeb();" in dec.codegen.text
 
