@@ -1,22 +1,21 @@
 from __future__ import annotations
 
+# pylint: disable=missing-class-docstring,no-self-use
+
 import logging
 import os.path
 from unittest import TestCase
+import unittest
 
 from angr.ailment.expression import VirtualVariableCategory
 
 import angr
+from angr.analyses.decompiler.decompiler import Decompiler
 from angr.sim_type import SimStruct, SimTypeArray, SimTypeWideChar, SimTypeChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.analyses.decompiler.clinic import ClinicStage
 
-from tests.common import bin_location, is_testing
-
-
-def prompt_if_not_testing(prompt: str) -> None:
-    if not is_testing:
-        input(prompt)
+from tests.common import bin_location
 
 
 class TestOutliner(TestCase):
@@ -29,10 +28,11 @@ class TestOutliner(TestCase):
         func = proj.kb.functions["verify_password"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         print("[+] Original function:")
-        assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.codegen is not None
+        assert dec.codegen.text is not None
+        assert dec._variable_kb is not None
+        assert dec.clinic is not None
         print(dec.codegen.text)
-
-        prompt_if_not_testing("[+] Press any key to continue to outlining...")
 
         outliner = proj.analyses.Outliner(
             func,
@@ -40,18 +40,18 @@ class TestOutliner(TestCase):
             src_loc=(0x4017BD, None),  # frontier=[(0x401847, None), (0x401867, 2)]
         )
 
-        prompt_if_not_testing("[+] Function outlined. Press any key to continue...")
-
         # now we have two graphs; gotta decompile them individually
         del dec._variable_kb.variables[func.addr]
-        dec_outer = proj.analyses.Decompiler(
+        dec_outer = proj.analyses[Decompiler].prep(
+            fail_fast=True,
+        )(
             func,
             clinic_graph=dec.ail_graph,
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             clinic_arg_vvars=dec.clinic.arg_vvars,
             cfg=cfg.model,
-            fail_fast=True,
         )
+        assert dec_outer.codegen is not None
         print("[+] Post-outlining:")
         print(dec_outer.codegen.text)
 
@@ -73,19 +73,23 @@ class TestOutliner(TestCase):
                 raise NotImplementedError
             out_funcargs[arg_vvar.varid] = arg_vvar, simvar
 
-        dec_inner = proj.analyses.Decompiler(
+        dec_inner = proj.analyses[Decompiler].prep(
+            fail_fast=True,
+        )(
             outliner.out_func,
             clinic_graph=outliner.out_graph,
             clinic_arg_vvars=out_funcargs,
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             cfg=cfg.model,
-            fail_fast=True,
         )
+        assert dec_inner.codegen is not None
         print(dec_inner.codegen.text)
 
     def test_outlining_notepad_npinit(self):
         bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad_edited.exe"
         # bin_path = r"F:\My Documents\Emotion Labs\ire\driver_samples\notepad.exe"
+        if not os.path.exists(bin_path):
+            raise unittest.SkipTest("Hey, you're not Fish...")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         # proj.analyses.CompleteCallingConventions()
@@ -93,12 +97,13 @@ class TestOutliner(TestCase):
         func = proj.kb.functions[0x1400135D0]
         print(f"[+] Decompiling {func.name}...")
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
-        assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.codegen is not None
+        assert dec.codegen.text is not None
+        assert dec._variable_kb is not None
+        assert dec.clinic is not None
         print(dec.codegen.text)
 
-        prompt_if_not_testing("[+] Press any key to continue to outlining...")
-
-        outlining_setups = [
+        outlining_setups: list[tuple[tuple[int, int | None], list[tuple[int, int | None]] | None]] = [
             ((0x140014172, None), None),  # [(0x1400144DF, None), (0x14001472C, None)]),
             # (
             #     (0x140015368, None),
@@ -130,8 +135,6 @@ class TestOutliner(TestCase):
             )
             outliner_vvar_id, outliner_block_addr = outliner.vvar_id_start, outliner.block_addr_start
 
-            prompt_if_not_testing("[+] Function outlined. Press any key to continue...")
-
             # the newly outlined function
             out_funcargs = {}
             for arg_idx, arg_vvar in enumerate(outliner.out_funcargs):
@@ -150,34 +153,38 @@ class TestOutliner(TestCase):
                     raise NotImplementedError
                 out_funcargs[arg_vvar.varid] = arg_vvar, simvar
 
-            dec_inner = proj.analyses.Decompiler(
+            dec_inner = proj.analyses[Decompiler].prep(
+                fail_fast=True,
+            )(
                 outliner.out_func,
                 clinic_graph=outliner.out_graph,
                 clinic_arg_vvars=out_funcargs,
                 clinic_start_stage=ClinicStage.POST_CALLSITES,
                 cfg=cfg.model,
-                fail_fast=True,
             )
+            assert dec_inner.codegen is not None
             print(dec_inner.codegen.text)
 
             if not outliner.out_funcargs:
-                t = SimStruct({"module_name": SimTypeArray(SimTypeWideChar(), 10), "api": SimTypeChar(10)})
-                final_state, data = outliner.execute()
-                breakpoint()
+                t = SimStruct(
+                    {"module_name": SimTypeArray(SimTypeWideChar(), 10), "api": SimTypeArray(SimTypeChar(), 10)}
+                )
+                final_state, _ = outliner.execute()
                 tt = t.with_arch(proj.arch)
                 extracted = tt.extract(final_state, 0xC000_0000)
                 print(extracted)
-                breakpoint()
 
         del dec._variable_kb.variables[func.addr]
-        dec_outer = proj.analyses.Decompiler(
+        dec_outer = proj.analyses[Decompiler].prep(
+            fail_fast=True,
+        )(
             func,
             clinic_graph=dec.ail_graph,
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             clinic_arg_vvars=dec.clinic.arg_vvars,
             cfg=cfg.model,
-            fail_fast=True,
         )
+        assert dec_outer.codegen is not None
         print(dec_outer.codegen.text)
 
     def test_liveness_density_notepad_npinit(self):

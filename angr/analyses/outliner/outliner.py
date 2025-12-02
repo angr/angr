@@ -1,6 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 import logging
+from typing import TypeVar
 
 import networkx
 
@@ -18,6 +19,13 @@ from angr.exploration_techniques import Explorer
 
 
 _l = logging.getLogger(__name__)
+
+T = TypeVar("T")
+
+
+def unwrap(x: T | None) -> T:
+    assert x is not None
+    return x
 
 
 class Outliner(Analysis):
@@ -108,7 +116,7 @@ class Outliner(Analysis):
 
         srda = self.project.analyses[SReachingDefinitionsAnalysis].prep()(func, func_graph=g).model
 
-        blocks = {(node.addr, node.idx): node for node in g}
+        blocks: dict[tuple[int, int | None], Block] = {(node.addr, node.idx): node for node in g}
 
         # find undefined vvars
         undef_vvars = []
@@ -117,7 +125,7 @@ class Outliner(Analysis):
                 # remove undefined vvars that are only ever used in phi assignments
                 use_locs = srda.all_vvar_uses[vvar_id]
                 use_stmts = [
-                    blocks[loc.block_addr, loc.block_idx].statements[loc.stmt_idx]
+                    blocks[unwrap(loc.block_addr), loc.block_idx].statements[unwrap(loc.stmt_idx)]
                     for _, loc in use_locs
                     if not isinstance(loc, ExternalCodeLocation)
                 ]
@@ -266,7 +274,7 @@ class Outliner(Analysis):
                     # only source block is replaced by a new one
                     old_addr = next(iter(old_addrs))
                     new_addr = next(iter(new_addrs))
-                    for idx in range(len(stmt.src.src_and_vvars)):
+                    for idx, _ in enumerate(stmt.src.src_and_vvars):
                         src, vvars = stmt.src.src_and_vvars[idx]
                         if src == old_addr:
                             stmt.src.src_and_vvars[idx] = new_addr, vvars
@@ -318,7 +326,7 @@ class Outliner(Analysis):
                 "New frontier for node (%#x, %s): %s",
                 node.addr,
                 node.idx,
-                list(map(self._node_addr_to_str, new_frontier)),
+                [self._node_addr_to_str(x) for x in new_frontier],
             )
 
             frontiers |= new_frontier
@@ -388,15 +396,15 @@ class Outliner(Analysis):
         base_state.regs._r12 = 0
         base_state.regs._rdi = 0xFFFF_FFFF
 
-        callable = self.project.factory.callable(
+        callme = self.project.factory.callable(
             self.child_func.addr,
             base_state=base_state,
             techniques=[Explorer(avoid={addr for addr, _ in self.frontier_locs})],
         )
-        callable()
-        assert callable.result_path_group is not None
-        print(callable.result_path_group.active)
-        state = callable.result_path_group.active[0]
+        callme()
+        assert callme.result_path_group is not None
+        print(callme.result_path_group.active)
+        state = callme.result_path_group.active[0]
 
         heap_addr = 0xC000_0000
         buffer = state.solver.eval(state.memory.load(heap_addr, 824), cast_to=bytes)

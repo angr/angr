@@ -252,6 +252,7 @@ class AngrObjectFactory:
         cc=None,
         add_options=None,
         remove_options=None,
+        techniques: list[ExplorationTechnique] | None = None,
         step_limit: int | None = None,
         techniques: list[ExplorationTechnique] | None = None,
     ):
@@ -286,6 +287,7 @@ class AngrObjectFactory:
             cc=cc,
             add_options=add_options,
             remove_options=remove_options,
+            techniques=techniques,
             step_limit=step_limit,
             techniques=techniques,
         )
