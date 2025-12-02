@@ -2497,6 +2497,8 @@ def default_cc(  # pylint:disable=unused-argument
                 return default
             if "Linux" in cc_map[arch]:
                 return cc_map[arch]["Linux"]
+            if "default" in cc_map[arch]:
+                return cc_map[arch]["default"]
         return cc_map[arch][platform]
 
     alias = unify_arch_name(arch)
