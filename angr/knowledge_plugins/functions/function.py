@@ -26,7 +26,7 @@ from angr.calling_conventions import DEFAULT_CC, default_cc
 from angr.sim_type import SimTypeFunction, parse_defns
 from angr.calling_conventions import SimCC
 from angr.project import Project
-from angr.utils.library import get_cpp_function_name
+from angr.utils.library import get_cpp_function_name_and_metadata
 from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
@@ -1677,8 +1677,25 @@ class Function(Serializable):
         if self.is_rust_function():
             ast = pydemumble.demangle(self.name)
             return Function._rust_fmt_node(ast.split("::")[-2])
-        func_name = get_cpp_function_name(self.demangled_name)
-        return func_name.split("::")[-1]
+        func_name, meta = get_cpp_function_name_and_metadata(self.demangled_name)
+        if meta["ctor"]:
+            return "<ctor>"
+        if meta["dtor"]:
+            return "<dtor>"
+        if "<" and ">" in func_name:
+            # remove template arguments
+            depth = 0
+            new_name_chars = []
+            for c in func_name:
+                if c == "<":
+                    depth += 1
+                elif c == ">":
+                    depth -= 1
+                else:
+                    if depth == 0:
+                        new_name_chars.append(c)
+            func_name = "".join(new_name_chars)
+        return func_name.split("::")[-1] if "::" in func_name else func_name
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
         """
