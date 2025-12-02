@@ -242,6 +242,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         low_priority=False,
         track_sp=True,
         func_args: list[SimVariable] | None = None,
+        func_ret_var: SimVariable | None = None,
         store_live_variables=False,
         unify_variables=True,
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
@@ -281,6 +282,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
         self._func_arg_vvars = func_arg_vvars
+        self._func_ret_var = func_ret_var
         self._unify_variables = unify_variables
 
         # handle type hints
@@ -296,6 +298,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
             type_lifter=self.type_lifter,
+            func_ret_var=self._func_ret_var,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -323,6 +326,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def _pre_analysis(self):
         self.typevars = TypeVariables()
+        if self._func_ret_var is not None:
+            self.typevars.add_type_variable(self._func_ret_var, TypeVariable())
         self.type_constraints = defaultdict(set)
         self.delayed_type_constraints = defaultdict(set)
 

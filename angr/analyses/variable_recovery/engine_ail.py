@@ -5,6 +5,7 @@ import logging
 
 import angr.ailment as ailment
 from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.sim_variable import SimVariable
 import claripy
 from unique_log_filter import UniqueLogFilter
 
@@ -38,6 +39,7 @@ class SimEngineVRAIL(
         call_info=None,
         vvar_to_vvar: dict[int, int] | None,
         vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
+        func_ret_var: SimVariable | None = None,
         **kwargs,
     ):
         super().__init__(*args, vvar_type_hints=vvar_type_hints, **kwargs)
@@ -46,6 +48,7 @@ class SimEngineVRAIL(
         self.call_info = call_info or {}
         self.vvar_to_vvar = vvar_to_vvar
         self.type_lifter = type_lifter
+        self.func_ret_var = func_ret_var
 
     def _mapped_vvarid(self, vvar_id: int) -> int | None:
         if self.vvar_to_vvar is not None and vvar_id in self.vvar_to_vvar:
@@ -343,8 +346,22 @@ class SimEngineVRAIL(
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:
+            if self.func_ret_var is None:
+                ret_typevar = None
+            elif self.state.typevars.has_type_variable_for(self.func_ret_var):
+                ret_typevar = self.state.typevars.get_type_variable(self.func_ret_var)
+            else:
+                ret_typevar = typevars.TypeVariable()
+                self.state.typevars.add_type_variable(self.func_ret_var, ret_typevar)
+
             for ret_expr in stmt.ret_exprs:
-                self._expr(ret_expr)
+                src = self._expr(ret_expr)
+                if isinstance(src, RichR) and src.typevar is not None and ret_typevar is not None:
+                    if src.type_constraints is not None:
+                        for tc in src.type_constraints:
+                            self.state.add_type_constraint(tc)
+                    tc = typevars.Subtype(ret_typevar, src.typevar)
+                    self.state.add_type_constraint(tc)
 
     def _handle_expr_DirtyExpression(self, expr: ailment.Expr.DirtyExpression) -> RichR:
         for op in expr.operands:

@@ -171,6 +171,7 @@ class Clinic(Analysis):
         self.arg_list = None
         self.arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None
         self.func_args = None
+        self.func_ret_var = SimVariable(0, "__retvar", "__retvar")
         self.variable_kb = variable_kb
         self.externs: set[SimMemoryVariable] = set()
         self.data_refs: dict[int, list[DataRefDesc]] = {}  # data address to data reference description
@@ -1866,10 +1867,12 @@ class Clinic(Analysis):
 
             func_args.append(func_arg)
 
-        if self.function.prototype is not None and self.function.prototype.returnty is not None:
-            returnty = self.function.prototype.returnty
-        else:
-            returnty = SimTypeInt()
+        returnty = variables.get_variable_type(self.func_ret_var)
+        if returnty is None or isinstance(returnty, SimTypeBottom):
+            if self.function.prototype is not None and self.function.prototype.returnty is not None:
+                returnty = self.function.prototype.returnty
+            else:
+                returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.is_prototype_guessed = False
@@ -1894,6 +1897,7 @@ class Clinic(Analysis):
             kb=tmp_kb,  # type:ignore
             track_sp=False,
             func_args=arg_list,
+            func_ret_var=self.func_ret_var,
             unify_variables=False,
             func_arg_vvars=arg_vvars,
             vvar_to_vvar=vvar2vvar,
@@ -1963,7 +1967,7 @@ class Clinic(Analysis):
                     {
                         v: t
                         for v, t in vr.var_to_typevars.items()
-                        if isinstance(v, (SimRegisterVariable, SimStackVariable))
+                        if isinstance(v, (SimRegisterVariable, SimStackVariable)) or v is self.func_ret_var
                     },
                     vr.stack_offset_typevars,
                 )
