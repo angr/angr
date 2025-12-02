@@ -9,7 +9,7 @@ import networkx as nx
 import angr.ailment as ailment
 from angr.ailment.block import Block
 from angr.ailment.statement import ConditionalJump, Jump, Assignment, Return, Label
-from angr.ailment.expression import Const, Register, Convert, Expression
+from angr.ailment.expression import Const, Register, Convert, Expression, VirtualVariable
 
 from .ail_merge_graph import AILMergeGraph, AILBlockSplit
 from .errors import SAILRSemanticError
@@ -146,7 +146,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         candidates = sorted(candidates, key=len)
         _l.debug("Located %d candidates for merging: %s", len(candidates), candidates)
 
-        candidate = sorted(candidates[0], key=lambda x: x.addr)
+        candidate = sorted(candidates[0])
         _l.debug("Selecting the candidate: %s", candidate)
         return candidate[0], candidate[1]
 
@@ -342,7 +342,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                 continue
 
             # we have multiple nodes with the same address
-            duplicate_addr_nodes = sorted(nodes, key=lambda x: (x.idx or -1), reverse=True)
+            duplicate_addr_nodes = sorted(nodes, reverse=True)
             for duplicate_node in duplicate_addr_nodes:
                 new_node = duplicate_node.copy()
                 new_node.idx = None
@@ -350,6 +350,8 @@ class DuplicationReverter(StructuringOptimizationPass):
                 new_node.addr = new_addr
                 for i, stmt in enumerate(new_node.statements):
                     if stmt.tags and "ins_addr" in stmt.tags:
+                        if "orig_ins_addr" not in stmt.tags:
+                            stmt.tags["orig_ins_addr"] = stmt.tags["ins_addr"]
                         stmt.tags["ins_addr"] = new_addr + i + 1
 
                 new_nodes[duplicate_node] = new_node
@@ -996,7 +998,11 @@ class DuplicationReverter(StructuringOptimizationPass):
                 # TOP = const | register
                 if isinstance(stmt0, Assignment):
                     src = stmt0.src.operand if isinstance(stmt0.dst, Convert) else stmt0.src
-                    if isinstance(src, Register) or (isinstance(src, Const) and src.bits > 2):
+                    if (
+                        isinstance(src, Register)
+                        or (isinstance(src, VirtualVariable) and src.was_reg)
+                        or (isinstance(src, Const) and src.bits > 2)
+                    ):
                         continue
 
                 for stmt1 in b1.statements:
@@ -1024,7 +1030,7 @@ class DuplicationReverter(StructuringOptimizationPass):
             new_level_blocks = []
             for lblock in level_blocks:
                 block_lvls[lblock] = lvl + 1
-                new_level_blocks += list(graph.predecessors(lblock))
+                new_level_blocks += sorted(graph.predecessors(lblock))
 
             blocks += new_level_blocks
             level_blocks = new_level_blocks
@@ -1047,8 +1053,7 @@ class DuplicationReverter(StructuringOptimizationPass):
         """
         # first, find all the goto edges, since these locations will always be the base of the merge
         # graph we create; therefore, we only need search around gotos
-        goto_edges = self._goto_manager.find_goto_edges(self.read_graph)
-        goto_edges = sorted(goto_edges, key=lambda x: x[0].addr + x[1].addr)
+        goto_edges = sorted(self._goto_manager.find_goto_edges(self.read_graph))
 
         candidates = []
         for goto_src, goto_dst in goto_edges:
@@ -1056,13 +1061,13 @@ class DuplicationReverter(StructuringOptimizationPass):
             goto_candidates = []
             for b0, b1 in combinations(candidate_subgraph, 2):
                 if self._is_valid_candidate(b0, b1):
-                    pair = tuple(sorted([b0, b1], key=lambda x: x.addr))
+                    pair = tuple(sorted([b0, b1]))
                     goto_candidates.append(pair)
 
             # eliminate any that are already blacklisted
             goto_candidates = [c for c in goto_candidates if c not in self.candidate_blacklist]
             # re-sort candidates by address (for tiebreakers)
-            goto_candidates = sorted(goto_candidates, key=lambda x: x[0].addr + x[1].addr, reverse=True)
+            goto_candidates = sorted(goto_candidates, reverse=True)
 
             # choose only a single candidate for this goto, make it the one nearest to the head
             best = None
@@ -1084,9 +1089,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
                 candidates.append(best)
 
-        candidates = list(set(candidates))
-        candidates.sort(key=lambda x: x[0].addr + x[1].addr)
-        return candidates
+        return sorted(set(candidates))
 
     def _filter_candidates(self, candidates, merge_candidates=True):
         """
@@ -1158,8 +1161,8 @@ class DuplicationReverter(StructuringOptimizationPass):
                 candidates = merged_candidates + remaining_candidates
 
             candidates = list(set(candidates))
-            candidates = [tuple(sorted(candidate, key=lambda x: x.addr)) for candidate in candidates]
-            candidates = sorted(candidates, key=lambda x: sum(c.addr for c in x))
+            candidates = [tuple(sorted(candidate)) for candidate in candidates]
+            candidates = sorted(candidates)
 
         return candidates
 
@@ -1211,7 +1214,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
             # if no dominators found, move up a level
             seen_nodes.update(set(node_level))
-            next_level = list(itertools.chain.from_iterable([list(graph.predecessors(cnode)) for cnode in node_level]))
+            next_level = itertools.chain.from_iterable([sorted(graph.predecessors(cnode)) for cnode in node_level])
             # only add nodes we have never seen
             node_level = set(next_level).difference(seen_nodes)
 

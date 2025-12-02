@@ -7,8 +7,8 @@ from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
-import angr.ailment as ailment
 
+from angr import ailment
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_base import KnowledgeBase
@@ -70,12 +70,15 @@ class Decompiler(Analysis):
         inline_functions=None,
         desired_variables=None,
         update_memory_data: bool = True,
+        want_full_graph: bool = False,
         generate_code: bool = True,
         use_cache: bool = True,
         expr_collapse_depth: int = 16,
         clinic_graph=None,
         clinic_arg_vvars=None,
         clinic_start_stage=None,
+        clinic_end_stage=None,
+        clinic_skip_stages=(),
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -111,6 +114,7 @@ class Decompiler(Analysis):
         self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
+        self._want_full_graph = want_full_graph
         self._generate_code = generate_code
         self._inline_functions = frozenset(inline_functions) if inline_functions else set()
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
@@ -139,6 +143,8 @@ class Decompiler(Analysis):
         self._clinic_graph = clinic_graph
         self._clinic_arg_vvars = clinic_arg_vvars
         self._clinic_start_stage = clinic_start_stage
+        self._clinic_end_stage = clinic_end_stage
+        self._clinic_skip_stages = clinic_skip_stages
         self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
@@ -150,6 +156,7 @@ class Decompiler(Analysis):
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
         self.notes: dict[str, DecompilationNote] = {}
+        self.region_identifier = None
 
         if decompile:
             with self._resilience():
@@ -160,7 +167,7 @@ class Decompiler(Analysis):
                 for error in self.errors:
                     self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
-                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
+                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
                     if preset != DECOMPILATION_PRESETS["basic"]:
                         self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
                             self.project.arch, self.project.simos.name
@@ -287,6 +294,8 @@ class Decompiler(Analysis):
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
+                end_stage=self._clinic_end_stage,
+                skip_stages=self._clinic_skip_stages,
                 notes=self.notes,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
@@ -324,23 +333,24 @@ class Decompiler(Analysis):
         delay_graph_updates = any(
             pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
-        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+        self.region_identifier = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
 
         self._update_progress(73.0, text="Running region-simplification passes")
 
         # run optimizations that may require re-RegionIdentification
-        clinic.graph, ri = self._run_region_simplification_passes(
+        clinic.graph, self.region_identifier = self._run_region_simplification_passes(
             clinic.graph,
-            ri,
+            self.region_identifier,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
             arg_vvars=set(clinic.arg_vvars),
             edges_to_remove=clinic.edges_to_remove,
         )
 
-        # finally (no more graph-based simplifications will run in the future), we can remove the edges that should be
-        # removed!
-        remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
+        if not self._want_full_graph:
+            # finally (no more graph-based simplifications will run in the future),
+            # we can remove the edges that should be removed!
+            remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = clinic.copy_graph()
@@ -354,7 +364,7 @@ class Decompiler(Analysis):
 
             # structure it
             rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb, fail_fast=self._fail_fast)(
-                ri.region,
+                self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
                 **self._recursive_structurer_params,

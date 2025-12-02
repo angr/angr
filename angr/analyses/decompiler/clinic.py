@@ -157,6 +157,7 @@ class Clinic(Analysis):
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         start_stage: ClinicStage | None = ClinicStage.INITIALIZATION,
         end_stage: ClinicStage | None = None,
+        skip_stages: tuple[ClinicStage, ...] = (),
         notes: dict[str, DecompilationNote] | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
@@ -180,6 +181,7 @@ class Clinic(Analysis):
         self._init_arg_vvars = arg_vvars
         self._start_stage = start_stage if start_stage is not None else ClinicStage.INITIALIZATION
         self._end_stage = end_stage if end_stage is not None else max(ClinicStage.__members__.values())
+        self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
         self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
@@ -571,7 +573,7 @@ class Clinic(Analysis):
         }
 
         for stage in sorted(stages):
-            if stage < self._start_stage or stage > self._end_stage:
+            if stage < self._start_stage or stage > self._end_stage or stage in self._skip_stages:
                 continue
             stages[stage]()
 
