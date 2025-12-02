@@ -7,11 +7,13 @@ from .string_obf_peephole_optimizer import StringObfType1PeepholeOptimizer
 from .string_obf_opt_passes import StringObfType3Rewriter
 from .api_obf_finder import APIObfuscationFinder
 from .api_obf_peephole_optimizer import APIObfType1PeepholeOptimizer
+from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
 
 
 __all__ = (
     "APIObfType1PeepholeOptimizer",
     "APIObfuscationFinder",
+    "HashLookupAPIDeobfuscator",
     "StringObfType1PeepholeOptimizer",
     "StringObfType3Rewriter",
     "StringObfuscationFinder",
