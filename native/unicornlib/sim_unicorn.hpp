@@ -12,9 +12,9 @@ extern "C" {
 	#include <libvex.h>
 	#include <pyvex.h>
 	#include <libvex_guest_offsets.h>
+	#include <unicorn/unicorn.h>
 }
 
-#include <unicorn/unicorn.h>
 
 // Maximum size of a qemu/unicorn basic block
 // See State::step for why this is necessary

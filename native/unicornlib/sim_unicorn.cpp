@@ -18,9 +18,9 @@
 extern "C" {
 #include <libvex.h>
 #include <pyvex.h>
+#include <unicorn/unicorn.h>
 }
 
-#include <unicorn/unicorn.h>
 
 #include "sim_unicorn.hpp"
 //#include "log.h"
