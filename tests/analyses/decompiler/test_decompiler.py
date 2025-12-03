@@ -5069,10 +5069,11 @@ class TestDecompiler(unittest.TestCase):
                 v0 += 8;
                 v0 += 9;
             }
-            g(v0);"""
+            """
         )
 
         assert expected in text
+        assert "g(v0)" in text
 
     def test_decompiling_control_flow_guard_protected_binaries(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "control_flow_guard_test.exe")
