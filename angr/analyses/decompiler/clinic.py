@@ -1358,13 +1358,27 @@ class Clinic(Analysis):
             if not self.kb.functions.contains_addr(target):
                 continue
             target_func = self.kb.functions.get_by_addr(target)
-            if target_func.name in {"_security_check_cookie"}:
+            if target_func.name == "_security_check_cookie" and self.project.arch.name in {"X86", "AMD64"}:
+                arg = SimRegArg("ecx", 32) if self.project.arch.bits == 32 else SimRegArg("rcx", 64)
+                arg_offset, arg_bits = self.project.arch.registers[arg.reg_name]
+                arg_expr = ailment.Expr.Register(
+                    self._ail_manager.next_atom(),
+                    None,
+                    arg_offset,
+                    arg_bits * self.project.arch.byte_width,
+                    **last_stmt.tags,
+                )
+                IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
                 call_stmt = ailment.Stmt.Call(
                     None,
                     last_stmt.target.copy(),
-                    calling_convention=SimCCUsercall(self.project.arch, [], []),
-                    prototype=SimTypeFunction([], SimTypeBottom(label="void")).with_arch(self.project.arch),
+                    calling_convention=SimCCUsercall(self.project.arch, [arg], []),
+                    prototype=SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(
+                        self.project.arch
+                    ),
+                    args=[arg_expr],
                     ret_expr=None,
+                    is_prototype_guessed=False,
                     **last_stmt.tags,
                 )
                 block.statements[-1] = call_stmt
