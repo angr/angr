@@ -246,14 +246,19 @@ class Typehoon(Analysis):
                 memo.add(sol)
 
         # special handling for function argument types; replace ptr(array[N]) with ptr(element)
-        for v, tvs in self._var_mapping.items():
-            if isinstance(v, (SimRegisterVariable, SimStackVariable)) and v.ident.startswith("arg_"):
-                for tv in tvs:
-                    sol = self.solution.get(tv, None)
-                    if sol is None:
-                        continue
-                    if isinstance(sol, Pointer) and isinstance(sol.basetype, Array):
-                        self.solution[tv] = sol.__class__(sol.basetype.element)
+        if self._var_mapping is not None:
+            for v, tvs in self._var_mapping.items():
+                if (
+                    isinstance(v, (SimRegisterVariable, SimStackVariable))
+                    and isinstance(v.ident, str)
+                    and v.ident.startswith("arg_")
+                ):
+                    for tv in tvs:
+                        sol = self.solution.get(tv, None)
+                        if sol is None:
+                            continue
+                        if isinstance(sol, Pointer) and isinstance(sol.basetype, Array):
+                            self.solution[tv] = sol.__class__(sol.basetype.element)
 
     def _specialize_struct(self, tc, memo: set | None = None):
         if isinstance(tc, Pointer):
