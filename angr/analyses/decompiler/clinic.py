@@ -113,6 +113,7 @@ class ClinicStage(enum.IntEnum):
     MAKE_CALLSITES = 11
     POST_CALLSITES = 12
     RECOVER_VARIABLES = 13
+    COLLECT_EXTERNS = 14
 
 
 class Clinic(Analysis):
@@ -258,9 +259,13 @@ class Clinic(Analysis):
         if self.project.arch.call_pushes_ret:
             self.stack_items[0] = StackItem(0, self.project.arch.bytes, "ret_addr", StackItemType.RET_ADDR)
 
+        # Set up the function graph according to configurations
+        self._set_function_graph()
+
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()
-            self._constrain_callee_prototypes()
+            if self._end_stage >= ClinicStage.MAKE_CALLSITES:
+                self._constrain_callee_prototypes()
         elif self._mode == ClinicMode.COLLECT_DATA_REFS:
             self._analyze_for_data_refs()
         else:
@@ -324,10 +329,6 @@ class Clinic(Analysis):
 
     def _decompilation_graph_recovery(self):
         is_pcode_arch = ":" in self.project.arch.name
-
-        # Set up the function graph according to configurations
-        self._update_progress(0.0, text="Setting up function graph")
-        self._set_function_graph()
 
         # Remove alignment blocks
         self._update_progress(5.0, text="Removing alignment blocks")
@@ -575,6 +576,7 @@ class Clinic(Analysis):
             ClinicStage.MAKE_CALLSITES: self._stage_make_function_callsites,
             ClinicStage.POST_CALLSITES: self._stage_post_callsite_simplifications,
             ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
+            ClinicStage.COLLECT_EXTERNS: self._stage_collect_externs,
         }
 
         for stage in sorted(stages):
@@ -587,7 +589,6 @@ class Clinic(Analysis):
         # note that there are still edges to remove before we can structure this graph!
 
         self.cc_graph = self.copy_graph(self._ail_graph)
-        self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
         return self._ail_graph
 
     def _stage_make_return_sites(self) -> None:
@@ -789,15 +790,15 @@ class Clinic(Analysis):
             preserve_vvar_ids=self._preserve_vvar_ids,
         )
 
-        self._update_progress(79.0, text="Running simplifications 4")
-        self._ail_graph = self._run_simplification_passes(
-            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
-        )
-
     def _stage_post_callsite_simplifications(self) -> None:
         self.arg_list = []
         self.vvar_to_vvar = {}
         self.copied_var_ids = set()
+
+        self._update_progress(79.0, text="Running simplifications 4")
+        self._ail_graph = self._run_simplification_passes(
+            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+        )
 
         assert self.arg_vvars is not None
 
@@ -833,11 +834,10 @@ class Clinic(Analysis):
 
         self.variable_kb = variable_kb
 
-    def _analyze_for_data_refs(self):
-        # Set up the function graph according to configurations
-        self._update_progress(0.0, text="Setting up function graph")
-        self._set_function_graph()
+    def _stage_collect_externs(self) -> None:
+        self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
 
+    def _analyze_for_data_refs(self):
         # Remove alignment blocks
         self._update_progress(5.0, text="Removing alignment blocks")
         self._remove_alignment_blocks()
