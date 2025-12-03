@@ -334,14 +334,20 @@ class DataTransformationEmbedder(Analysis):
         start = None
 
         for _step in range(6):
+            _l.debug("Attempt %d: Attempting outlining at block %#x, ", block.addr, _step + 1)
             r, o, d = self._attempt_outlining((block.addr, block.idx))
 
             if r and not o.child_funcargs:
+                _l.debug("Outlining at block %#x produced a function without arguments.", block.addr)
+                _l.debug("%s", d.codegen.text)
+
                 outliner = o
                 dec_outlined = d
                 start = block.addr, block.idx
                 break
+
             # has arguments - can't partial evaluate
+            _l.debug("Outlining at block %#x produced arguments, backtracking...", block.addr)
 
             preds = [
                 pred
@@ -358,6 +364,7 @@ class DataTransformationEmbedder(Analysis):
         r = False
 
         # run loop analysis
+        _l.debug("Running loop analysis on outlined function...")
         loop_analysis = self.project.analyses.LoopAnalysis(dec_outlined.codegen.cfunc)
 
         for _loop_key, loop_meta in loop_analysis.result.items():
@@ -477,7 +484,7 @@ class DataTransformationEmbedder(Analysis):
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             fail_fast=True,
         )
-        print(dec_inner.codegen.text)
+        # print(dec_inner.codegen.text)
 
         return True, outliner, dec_inner
 
