@@ -5327,6 +5327,52 @@ class TestDecompiler(unittest.TestCase):
         assert "v0 = (!a0 ? a2 : a1)" in dec.codegen.text
         assert "return v0" in dec.codegen.text
 
+    def test_decompiling_ioport_intrinsics(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "intrinsics.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        def decomp(func_name: str) -> str:
+            func = proj.kb.functions[func_name]
+            dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+            assert dec.codegen is not None and dec.codegen.text is not None
+            print_decompilation_result(dec)
+            return normalize_whitespace(dec.codegen.text)
+
+        assert "__outbyte(233, a0);" in decomp("test_io_outb")
+        assert "return __inbyte(233);" in decomp("test_io_inb")
+        assert "__outword(a0, a1);" in decomp("test_io_outw")
+        assert "return __inword(a0);" in decomp("test_io_inw")
+        assert (
+            normalize_whitespace(
+                """
+            __outdword(3320, a0);
+            __outdword(3324, a1);
+            """
+            )
+            in decomp("test_io_outl")
+        )
+        assert (
+            normalize_whitespace(
+                """
+            __outdword(3320, a0);
+            return __indword(3324)
+            """
+            )
+            in decomp("test_io_inl")
+        )
+        assert (
+            normalize_whitespace(
+                """
+                if (!(char)__inbyte(233))
+                    return 456;
+                return 123;
+                """
+            )
+            in decomp("test_in_cond")
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
