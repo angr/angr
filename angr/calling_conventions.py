@@ -604,7 +604,7 @@ class UsercallArgSession:
 
     def __init__(self, cc):
         self.cc = cc
-        self.real_args = SerializableListIterator(self.cc.arg_locs)
+        self.real_args = SerializableListIterator(self.cc.args)
 
     def getstate(self):
         return self.real_args.getstate()
