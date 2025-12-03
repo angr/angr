@@ -126,7 +126,7 @@ class LoopUnroller(Analysis):
             (old_node.addr, old_node.idx): (new_node.addr, new_node.idx) for old_node, new_node in mapping.items()
         }
         for new_node in mapping.values():
-            self._update_block_statements(new_node, graph, block_addr_mapping)
+            self._update_block_statements(new_node, block_addr_mapping)
 
         copied_subgraph = graph.subgraph(subgraph_nodes).copy()
         relabelled: networkx.DiGraph = networkx.relabel_nodes(copied_subgraph, mapping, copy=True)
@@ -136,7 +136,6 @@ class LoopUnroller(Analysis):
     def _update_block_statements(
         self,
         block: Block,
-        graph: networkx.DiGraph,
         block_addr_mapping: dict[tuple[int, int | None], tuple[int, int | None]],
     ) -> None:
         for idx, stmt in enumerate(block.statements):

@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
@@ -17,10 +18,16 @@ if TYPE_CHECKING:
 
 
 class ASTNodeBase:
-    pass
+    """
+    The base node for AST nodes used in loop analysis.
+    """
 
 
 class VarNode(ASTNodeBase):
+    """
+    Represents a variable node in the AST; corresponds to a virtual variable in AIL.
+    """
+
     def __init__(self, var_ident: str):
         self.var_ident = var_ident
 
@@ -34,6 +41,10 @@ class VarNode(ASTNodeBase):
 
 
 class ConstNode(ASTNodeBase):
+    """
+    Represents a constant value.
+    """
+
     def __init__(self, value: int):
         self.value = value
 
@@ -47,6 +58,10 @@ class ConstNode(ASTNodeBase):
 
 
 class BinOpNode(ASTNodeBase):
+    """
+    Represents a binary operation between a variable and a constant.
+    """
+
     def __init__(self, op: str, lhs: VarNode, rhs: ConstNode):
         self.op = op
         self.lhs = lhs
@@ -62,6 +77,10 @@ class BinOpNode(ASTNodeBase):
 
 
 class AssignmentNode(ASTNodeBase):
+    """
+    Represents an assignment operation in the AST.
+    """
+
     def __init__(self, lhs: VarNode, rhs: ASTNodeBase):
         self.lhs = lhs
         self.rhs = rhs
@@ -76,6 +95,10 @@ class AssignmentNode(ASTNodeBase):
 
 
 class AssignmentToASTVisitor(CStructuredCodeWalker):
+    """
+    A visitor that converts AIL assignments into AST nodes.
+    """
+
     def handle_CAssignment(self, obj: CAssignment) -> AssignmentNode | None:
         lhs = self.handle(obj.lhs)
         if lhs is None:
@@ -125,6 +148,10 @@ class AssignmentToASTVisitor(CStructuredCodeWalker):
 
 
 class LoopBodyControlStatementCollector(CStructuredCodeWalker):
+    """
+    A visitor that determines if there are control statements (break, continue, goto) within a loop body.
+    """
+
     def __init__(self):
         super().__init__()
         self.has_break = False
@@ -154,6 +181,10 @@ class LoopBodyControlStatementCollector(CStructuredCodeWalker):
 
 
 class LoopBodyAssignmentCollector(CStructuredCodeWalker):
+    """
+    A visitor that collects assignments to specific variables within a loop body.
+    """
+
     def __init__(self, var_idents: set[str]):
         super().__init__()
 
@@ -200,6 +231,10 @@ class LoopBodyAssignmentCollector(CStructuredCodeWalker):
 
 
 class LoopVisitor(CStructuredCodeWalker):
+    """
+    A visitor that analyzes loop structures in CStructuredCode and collects relevant information for loops.
+    """
+
     def __init__(self):
         super().__init__()
 

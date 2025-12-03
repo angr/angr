@@ -130,7 +130,7 @@ class DataTransformationEmbedder(Analysis):
             callee_dec = self.project.analyses.Decompiler(callee, preset="malware")
             try:
                 purity = self.project.analyses[AILPurityAnalysis].prep()(callee_dec.clinic)
-            except Exception:
+            except Exception:  # pylint:disable=broad-exception-caught
                 continue
 
             # checks:
@@ -205,7 +205,7 @@ class DataTransformationEmbedder(Analysis):
         callee_func = self.project.kb.functions[callee_addr]
         _callee_dec = self.project.analyses.Decompiler(callee_func, preset="malware")
 
-        callable = self.project.factory.callable(
+        call = self.project.factory.callable(
             trans_desc["callee"],
             concrete_only=True,
             prototype=callee_func.prototype,
@@ -241,9 +241,9 @@ class DataTransformationEmbedder(Analysis):
                 return False
 
         try:
-            ret = callable(*concrete_args)
-            final_state = callable.result_state
-        except Exception:
+            ret = call(*concrete_args)
+            final_state = call.result_state
+        except Exception:  # pylint:disable=broad-exception-caught
             return False
 
         # execution succeeded! extract the result and then embed it into the block
@@ -398,7 +398,7 @@ class DataTransformationEmbedder(Analysis):
                     def lifter(_addr: int):
                         return d.clinic  # noqa:B023
 
-                    callable = AILCallable(
+                    call = AILCallable(
                         self.project,
                         start,
                         lifter,
@@ -408,10 +408,13 @@ class DataTransformationEmbedder(Analysis):
                             sim_options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
                         },
                     )
-                    callable()
+                    try:
+                        call()
+                    except Exception:  # pylint:disable=broad-exception-caught
+                        continue
 
                     # update frontier variable assignments with values post-execution if needed
-                    new_vvars_list = callable.result_state.globals["vvars"].get(start, [])
+                    new_vvars_list = call.result_state.globals["vvars"].get(start, [])
                     if not new_vvars_list or len(new_vvars_list) > 1:
                         # no vvars exist or there are more than one
                         continue
@@ -424,8 +427,8 @@ class DataTransformationEmbedder(Analysis):
                             frontier_var_values[vvar_id] = new_vvars[vvar_id]
                             if isinstance(initial_assignment.args[-1], Const):
                                 heap_buffer_size = initial_assignment.args[-1].value_int
-                                data = callable.result_state.solver.eval(
-                                    callable.result_state.memory.load(
+                                data = call.result_state.solver.eval(
+                                    call.result_state.memory.load(
                                         new_vvars[vvar_id].concrete_value, heap_buffer_size, endness="Iend_BE"
                                     ),
                                     cast_to=bytes,
