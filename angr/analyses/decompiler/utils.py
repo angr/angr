@@ -779,7 +779,7 @@ def structured_node_is_simple_return(
         last_block = node
 
     valid_last_stmt = last_block is not None
-    if valid_last_stmt and last_block.statements:
+    if last_block is not None and last_block.statements:
         valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
 
     if use_packed_successors:
@@ -1133,7 +1133,9 @@ def call_stmts_in_graph(
     counter = AILBlockCallCounter()
     for node in graph.nodes:
         counter.walk(node)
-    return counter.call_stmts, counter.call_exprs
+    # the above has an interface which includes nullable addresses because block can be none
+    # but we always specify block here so we can ignore the Nones
+    return counter.call_stmts, counter.call_exprs  # type: ignore
 
 
 def has_addr_dups(graph: networkx.DiGraph[Block]) -> bool:
