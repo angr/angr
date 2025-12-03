@@ -3483,11 +3483,14 @@ class Clinic(Analysis):
                         t = None
                         if isinstance(arg_expr, ailment.Expr.VirtualVariable):
                             # a function arg
-                            for idx, (func_arg_vvar, _) in self.arg_vvars.items():
-                                if arg_expr.likes(func_arg_vvar):
+                            for func_arg_vvar, func_arg_simvar in self.arg_vvars.values():
+                                if arg_expr.likes(func_arg_vvar) and func_arg_simvar.ident.startswith("arg_"):
+                                    # FIXME: Parsing arg_idx out of argument ident is hacky
+                                    arg_idx = int(func_arg_simvar.ident[4:])
                                     assert self.function.prototype is not None
-                                    t = self.function.prototype.args[idx]
-                                    break
+                                    if arg_idx < len(self.function.prototype.args):
+                                        t = self.function.prototype.args[arg_idx]
+                                        break
 
                         if t is None:
                             # maybe not a function arg
