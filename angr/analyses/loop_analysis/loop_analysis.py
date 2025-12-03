@@ -205,11 +205,30 @@ class LoopVisitor(CStructuredCodeWalker):
 
         self.var_values: dict[str, int | None] = {}
         self.result: dict[str, dict] = {}
-        # TODO: Actually make it a stack to support nested loops
-        self._block_addrs: set[int] = set()
+        self._block_addrs_stack: list[set[int]] = []
+
+    def _enter_loop(self):
+        self._block_addrs_stack.append(set())
+
+    def _leave_loop(self):
+        if self._block_addrs_stack:
+            self._block_addrs_stack.pop()
+
+    def _push_block_addr(self, addr: int):
+        for frame in self._block_addrs_stack:
+            frame.add(addr)
+
+    def _top_loop_block_addrs(self) -> set[int]:
+        return self._block_addrs_stack[-1] if self._block_addrs_stack else set()
+
+    def handle_CIfElse(self, obj):
+        addr = obj.tags.get("ins_addr", None)
+        if addr is not None:
+            self._push_block_addr(addr)
+        return super().handle_CIfElse(obj)
 
     def handle_CStatements(self, obj: CStatements):
-        self._block_addrs.add(obj.addr)
+        self._push_block_addr(obj.addr)
         return super().handle_CStatements(obj)
 
     def handle_CAssignment(self, obj: CAssignment):
@@ -223,7 +242,13 @@ class LoopVisitor(CStructuredCodeWalker):
         self.result[obj.idx] = {
             "loop_type": "while",
         }
-        return super().handle_CWhileLoop(obj)
+
+        self._enter_loop()
+        ret = super().handle_CWhileLoop(obj)
+        if obj.idx in self.result:
+            self.result[obj.idx]["block_addrs"] = sorted(self._top_loop_block_addrs())
+        self._leave_loop()
+        return ret
 
     def handle_CDoWhileLoop(self, obj: CDoWhileLoop):
         cond, body = obj.condition, obj.body
@@ -357,18 +382,23 @@ class LoopVisitor(CStructuredCodeWalker):
                                 "fixed_iterations": fixed_iterations,
                             }
 
-        self._block_addrs = set()
+        self._enter_loop()
         ret = super().handle_CDoWhileLoop(obj)
         if obj.idx in self.result:
-            self.result[obj.idx]["block_addrs"] = sorted(self._block_addrs)
-        self._block_addrs = set()
+            self.result[obj.idx]["block_addrs"] = sorted(self._top_loop_block_addrs())
+        self._leave_loop()
         return ret
 
     def handle_CForLoop(self, obj: CForLoop):
         self.result[obj.idx] = {
             "loop_type": "for",
         }
-        return super().handle_CForLoop(obj)
+        self._enter_loop()
+        ret = super().handle_CForLoop(obj)
+        if obj.idx in self.result:
+            self.result[obj.idx]["block_addrs"] = sorted(self._top_loop_block_addrs())
+        self._leave_loop()
+        return ret
 
 
 class LoopAnalysis(Analysis):
