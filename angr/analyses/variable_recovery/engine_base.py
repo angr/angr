@@ -1182,7 +1182,7 @@ class SimEngineVRBase(
         is_store: bool,
         size: int | None,
         offset: int,
-    ) -> DerivedTypeVariable:
+    ) -> TypeVariable | DerivedTypeVariable:
         if isinstance(typevar, DerivedTypeVariable):
             if isinstance(typevar.labels[-1], AddN):
                 offset += typevar.labels[-1].n
@@ -1198,8 +1198,23 @@ class SimEngineVRBase(
                     typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
+
+        if offset >= 4096 and self._likely_pointer(offset):
+            # typevar is the actual offset
+            return TypeVariable()
+
         return DerivedTypeVariable(
             typevar,
             None,
             labels=(lbl, typevars.HasField(bits, offset)),
         )
+
+    def _likely_pointer(self, offset: int) -> bool:
+        obj = self.project.loader.find_object_containing(offset)
+        if obj is None:
+            return False
+        seg = self.project.loader.find_segment_containing(offset)
+        if seg is not None:
+            return True
+        sec = self.project.loader.find_section_containing(offset)
+        return sec is not None
