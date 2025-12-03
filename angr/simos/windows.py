@@ -286,9 +286,9 @@ class SimWindows(SimOS):
 
                 for obj in mem_order:
                     fuck_load(obj)
-                load_order = [self.project.loader.main_object, *init_order]
-                assert load_order[0] is load_order[-1]
-                load_order.pop()
+                load_order = [self.project.loader.main_object] + [
+                    obj for obj in init_order if obj is not self.project.loader.main_object
+                ]
 
                 def link(a, b):
                     state.mem[a].dword = b
