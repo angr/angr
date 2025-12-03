@@ -18,14 +18,17 @@ class AILBlockCallCounter(AILBlockWalkerBase):
     as well as their locations.
     """
 
-    def __init__(self):
+    def __init__(self, consider_conditions: bool = False):
         super().__init__()
         self.calls: int = 0
+        self.consider_conditions = consider_conditions
         self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
         self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
-        return
+        if not self.consider_conditions:
+            return
+        super()._handle_ConditionalJump(stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
         self.calls += 1
@@ -44,25 +47,29 @@ class AILCallCounter(SequenceWalker):
     expressions as well as their locations.
     """
 
-    def __init__(self):
+    def __init__(self, consider_conditions: bool = False):
         handlers = {
             Block: self._handle_Block,
         }
         super().__init__(handlers)
         self.calls = 0
         self.non_label_stmts = 0
+        self.consider_conditions = consider_conditions
         self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
         self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
 
     def _handle_Condition(self, node, **kwargs):
-        # do not count calls in conditions
-        if node.true_node is not None:
-            super()._handle(node.true_node, **kwargs)
-        if node.false_node is not None:
-            super()._handle(node.false_node, **kwargs)
+        if self.consider_conditions:
+            super()._handle(node, **kwargs)
+        else:
+            # do not count calls in conditions
+            if node.true_node is not None:
+                super()._handle(node.true_node, **kwargs)
+            if node.false_node is not None:
+                super()._handle(node.false_node, **kwargs)
 
     def _handle_Block(self, node: Block, **kwargs):  # pylint:disable=unused-argument
-        ctr = AILBlockCallCounter()
+        ctr = AILBlockCallCounter(consider_conditions=self.consider_conditions)
         ctr.walk(node)
         self.calls += ctr.calls
         self.call_stmts += ctr.call_stmts

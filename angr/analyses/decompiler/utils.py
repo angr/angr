@@ -1113,11 +1113,11 @@ def decompile_functions(
     return decompilation
 
 
-def calls_in_graph(graph: networkx.DiGraph) -> int:
+def calls_in_graph(graph: networkx.DiGraph, consider_conditions: bool = False) -> int:
     """
-    Counts the number of calls in an graph full of AIL Blocks
+    Counts the number of calls in a graph full of AIL Blocks
     """
-    counter = AILBlockCallCounter()
+    counter = AILBlockCallCounter(consider_conditions=consider_conditions)
     for node in graph.nodes:
         counter.walk(node)
 
@@ -1125,12 +1125,12 @@ def calls_in_graph(graph: networkx.DiGraph) -> int:
 
 
 def call_stmts_in_graph(
-    graph: networkx.DiGraph,
+    graph: networkx.DiGraph, consider_conditions: bool = False
 ) -> tuple[list[tuple[tuple[Address, int], ailment.Stmt.Call]], list[tuple[tuple[Address, int], ailment.Stmt.Call]]]:
     """
     Return lists of call statements and call expressions in a given AIL graph.
     """
-    counter = AILBlockCallCounter()
+    counter = AILBlockCallCounter(consider_conditions=consider_conditions)
     for node in graph.nodes:
         counter.walk(node)
     # the above has an interface which includes nullable addresses because block can be none
