@@ -396,6 +396,8 @@ class FactCollector(Analysis):
             queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
+                if isinstance(node, BlockNode) and node in traversed:
+                    continue
                 traversed.add(node)
 
                 if depth > 3:
@@ -435,7 +437,9 @@ class FactCollector(Analysis):
                     if isinstance(func_succ, (BlockNode, HookNode)) and self.kb.functions.contains_addr(func_succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(func_succ.addr)
-                    if isinstance(func_succ, Function):
+                    if isinstance(func_succ, Function) and func_succ.name not in {  # noqa:SIM102
+                        "_security_check_cookie"
+                    }:
                         if (
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None
@@ -457,7 +461,7 @@ class FactCollector(Analysis):
                             else:
                                 retval_size = returnty_size // self.project.arch.byte_width
                             retval_sizes.append(retval_size)
-                        continue
+                            continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
                 # scan the block statements backwards to find writes to the return value register
