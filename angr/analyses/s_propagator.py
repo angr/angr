@@ -147,10 +147,6 @@ class SPropagatorAnalysis(Analysis):
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
-            if not vvar.was_reg and not vvar.was_parameter:
-                continue
-
-            vvarid_to_vvar[vvar_id] = vvar
             if isinstance(defloc, ExternalCodeLocation):
                 continue
 
@@ -160,6 +156,13 @@ class SPropagatorAnalysis(Analysis):
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             r, v = is_const_assignment(stmt)
+            if r and v is not None and hasattr(v, "always_propagate") and v.always_propagate:
+                pass
+            elif not vvar.was_reg and not vvar.was_parameter:
+                continue
+
+            vvarid_to_vvar[vvar_id] = vvar
+
             if r:
                 # replace wherever it's used
                 assert v is not None
