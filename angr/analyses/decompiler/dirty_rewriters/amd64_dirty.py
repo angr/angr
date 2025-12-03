@@ -35,7 +35,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     prototype=None,
                     args=(portno,),
                     ret_expr=None,
-                    bits=bits,
+                    bits=dirty.bits,
                     **dirty.tags,
                 )
             case "amd64g_dirtyhelper_OUT":
