@@ -43,8 +43,16 @@ class DataSource:
 
     constant_value: int | None = None
     function_arg: int | None = None
-    callee_return: Function | None = None
+    callee_return: Function | str | None = None
     reference_to: int | None = None
+
+    @property
+    def callee_return_name(self) -> str | None:
+        if self.callee_return is None:
+            return None
+        if isinstance(self.callee_return, Function):
+            return self.callee_return.name
+        return self.callee_return
 
 
 @dataclass
@@ -71,7 +79,7 @@ class ResultType:
 
     uses: MutableMapping[DataSource, DataUsage] = field(default_factory=lambda: defaultdict(DataUsage))
     # keyed as: block addr, block idx, stmt idx, call target, call arg idx
-    call_args: MutableMapping[tuple[int, int | None, int, Function | None, int], DataType_co] = field(
+    call_args: MutableMapping[tuple[int, int | None, int, Function | str | None, int], DataType_co] = field(
         default_factory=lambda: defaultdict(frozenset)
     )
     ret_vals: MutableMapping[int, DataType_co] = field(default_factory=lambda: defaultdict(frozenset))
@@ -105,13 +113,16 @@ class ResultType:
             if loc.function_arg is not None and use.ptr_load and not allow_read_arguments:
                 return False
             if loc.callee_return is not None and (
-                pure_functions is None or loc.callee_return.name not in pure_functions
+                pure_functions is None or loc.callee_return_name not in pure_functions
             ):
                 return False
         for (_, _, _, func, _), _ in self.call_args.items():
-            if pure_functions is None or func is None or func.name not in pure_functions:
+            if pure_functions is None:
                 return False
-
+            if isinstance(func, Function) and func.name not in pure_functions:
+                return False
+            if func not in pure_functions:
+                return False
         return True
 
 
