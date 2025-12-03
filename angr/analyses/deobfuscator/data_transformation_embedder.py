@@ -508,7 +508,8 @@ class DataTransformationEmbedder(Analysis):
         analyzer = self.project.analyses[ScopeOpsAnalyzer].prep()(self.cfunc)
         return analyzer.crypto_scopes()
 
-    def _create_function_arguments(self, child_funcargs):
+    @staticmethod
+    def _create_function_arguments(child_funcargs):
         funcargs = {}
         for arg_idx, arg_vvar in enumerate(child_funcargs):
             if arg_vvar.was_parameter:

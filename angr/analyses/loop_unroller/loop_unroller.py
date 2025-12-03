@@ -133,8 +133,8 @@ class LoopUnroller(Analysis):
 
         return relabelled, mapping[loop_head], [mapping[src] for src in loop_exit_srcs]
 
+    @staticmethod
     def _update_block_statements(
-        self,
         block: Block,
         block_addr_mapping: dict[tuple[int, int | None], tuple[int, int | None]],
     ) -> None:

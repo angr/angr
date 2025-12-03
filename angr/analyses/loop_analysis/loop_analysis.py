@@ -307,7 +307,7 @@ class LoopVisitor(CStructuredCodeWalker):
                     # do { b = a; c = b + A; a = c; } while (b ? M)
                     # we convert it into case 2 by eliminating c
                     if len(assignments) == 3:
-                        assign1, assign2, assign3 = assignments
+                        assign1, assign2, assign3 = assignments  # pylint:disable=unbalanced-tuple-unpacking
                         if (
                             isinstance(assign2.rhs, BinOpNode)
                             and assign2.rhs.op in {"+", "-"}
