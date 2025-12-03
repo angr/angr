@@ -15,6 +15,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
+from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
@@ -400,25 +401,26 @@ class Decompiler(Analysis):
             if self._cfg is not None and self._update_memory_data:
                 self.find_data_references_and_update_memory_data(seq_node)
 
-            self._update_progress(85.0, text="Generating code")
-            codegen = self.project.analyses.StructuredCodeGenerator(
-                self.func,
-                seq_node,
-                cfg=self._cfg,
-                ail_graph=clinic.graph,
-                flavor=self._flavor,
-                func_args=clinic.arg_list,
-                kb=self.kb,
-                fail_fast=self._fail_fast,
-                variable_kb=clinic.variable_kb,
-                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
-                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
-                const_formats=old_codegen.const_formats if old_codegen is not None else None,
-                externs=clinic.externs,
-                binop_depth_cutoff=self.expr_collapse_depth,
-                notes=self.notes,
-                **self.options_to_params(self.options_by_class["codegen"]),
-            )
+            if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
+                self._update_progress(85.0, text="Generating code")
+                codegen = self.project.analyses.StructuredCodeGenerator(
+                    self.func,
+                    seq_node,
+                    cfg=self._cfg,
+                    ail_graph=clinic.graph,
+                    flavor=self._flavor,
+                    func_args=clinic.arg_list,
+                    kb=self.kb,
+                    fail_fast=self._fail_fast,
+                    variable_kb=clinic.variable_kb,
+                    expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+                    stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                    const_formats=old_codegen.const_formats if old_codegen is not None else None,
+                    externs=clinic.externs,
+                    binop_depth_cutoff=self.expr_collapse_depth,
+                    notes=self.notes,
+                    **self.options_to_params(self.options_by_class["codegen"]),
+                )
 
         self._update_progress(90.0, text="Finishing up")
         self.seq_node = seq_node
