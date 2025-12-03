@@ -160,7 +160,7 @@ class Outliner(Analysis):
             (node, frontier_node)
             for frontier_node in frontier
             for node in self.parent_graph.pred[frontier_node]
-            if node not in frontier
+            if node in subgraph and node not in frontier
         ]
 
         # remove the subgraph from the original graph
