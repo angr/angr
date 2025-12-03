@@ -18,7 +18,7 @@ _l = logging.getLogger(name=__name__)
 
 class EagerStdStringConcatenationPass(OptimizationPass):
     """
-    TODO: Unfinished
+    Concatenate multiple constant std::string creation calls into one when possible.
     """
 
     ARCHES = None
@@ -33,6 +33,9 @@ class EagerStdStringConcatenationPass(OptimizationPass):
 
     def _check(self):
         callgraph = self.kb.functions.callgraph
+        if self._func.addr not in callgraph:
+            # this is a manually created function - always run this optimization pass
+            return True, {}
         callees = set(callgraph.successors(self._func.addr))
         string_construction_calls_found = False
         for callee_addr in callees:
@@ -231,19 +234,3 @@ class EagerStdStringConcatenationPass(OptimizationPass):
         if isinstance(t, SimTypePointer) and isinstance(t.pts_to, SimTypeChar):
             return True
         return EagerStdStringConcatenationPass._is_std_string_type(t)
-
-
-#
-# old_block = self.blocks_by_addr_and_idx[block_key]
-# block = old_block.copy()
-# old_stmt = block.statements[stmt_idx]
-# block.statements[stmt_idx] = ailment.Stmt.Assignment(
-#     old_stmt.idx,
-#     ailment.Expr.Register(None, None, pcreg_offset, 32, reg_name=getpc_reg),
-#     ailment.Expr.Const(None, None, getpc_reg_value, 32),
-#     **old_stmt.tags,
-# )
-# # remove the statement that pushes return address onto the stack
-# if stmt_idx > 0 and isinstance(block.statements[stmt_idx - 1], ailment.Stmt.Store):
-#     block.statements = block.statements[: stmt_idx - 1] + block.statements[stmt_idx:]
-# self._update_block(old_block, block)
