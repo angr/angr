@@ -5,7 +5,7 @@ from angr.ailment import Statement, Block, Assignment, BinaryOp
 from angr.ailment.expression import Const, VirtualVariable, Load
 from angr.ailment.block_walker import AILBlockWalkerBase, AILBlockWalker
 from angr.ailment.statement import Call
-from angr.sim_type import SimTypeWideChar, SimTypePointer
+from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -120,39 +120,58 @@ class VVarRewritingVisitor(AILBlockWalker):
                     and arg.varid in self._static_vvars
                     and isinstance(self._static_vvars[arg.varid], FixedBufferPtr)
                 ):
-                    if isinstance(arg_type, SimTypePointer) and isinstance(arg_type.pts_to, SimTypeWideChar):
-                        # wchar*
-                        data = self._static_buffers[self._static_vvars[arg.varid].buffer_ident].content
-                        offset = self._static_vvars[arg.varid].offset
-                        str_bytes = bytearray()
-                        idx = offset
-                        while idx + 2 <= len(data):
-                            wchar_bytes = data[idx : idx + 2]
-                            if wchar_bytes == b"\x00\x00":
-                                break
-                            str_bytes += wchar_bytes
-                            idx += 2
-                        str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
-                        str_id_arg = Const(
-                            None,
-                            None,
-                            str_id,
-                            arg.bits,
-                            custom_string=True,
-                            **arg.tags,
-                        )
-                        if new_args is None:
-                            new_args = expr.args[:arg_idx]
-                        new_args.append(str_id_arg)
+                    if isinstance(arg_type, SimTypePointer):
+                        if isinstance(arg_type.pts_to, SimTypeChar):
+                            # char*
+                            data = self._static_buffers[self._static_vvars[arg.varid].buffer_ident].content
+                            offset = self._static_vvars[arg.varid].offset
+                            str_bytes = bytearray()
+                            idx = offset
+                            while idx < len(data):
+                                byte = data[idx : idx + 1]
+                                if byte == b"\x00":
+                                    break
+                                str_bytes += byte
+                                idx += 1
+                            str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
+                            str_id_arg = Const(
+                                None,
+                                None,
+                                str_id,
+                                arg.bits,
+                                custom_string=True,
+                                **arg.tags,
+                            )
+                            if new_args is None:
+                                new_args = expr.args[:arg_idx]
+                            new_args.append(str_id_arg)
+                            continue
 
-                        # FIXME: Remove this hack
-                        expr.prototype.args = (
-                            *expr.prototype.args[:arg_idx],
-                            SimTypePointer(SimTypeWideChar()).with_arch(expr.prototype._arch),
-                            *expr.prototype.args[arg_idx + 1 :],
-                        )
-
-                        continue
+                        if isinstance(arg_type.pts_to, SimTypeWideChar):
+                            # wchar*
+                            data = self._static_buffers[self._static_vvars[arg.varid].buffer_ident].content
+                            offset = self._static_vvars[arg.varid].offset
+                            str_bytes = bytearray()
+                            idx = offset
+                            while idx + 2 <= len(data):
+                                wchar_bytes = data[idx : idx + 2]
+                                if wchar_bytes == b"\x00\x00":
+                                    break
+                                str_bytes += wchar_bytes
+                                idx += 2
+                            str_id = self.kb.custom_strings.allocate(bytes(str_bytes))
+                            str_id_arg = Const(
+                                None,
+                                None,
+                                str_id,
+                                arg.bits,
+                                custom_string=True,
+                                **arg.tags,
+                            )
+                            if new_args is None:
+                                new_args = expr.args[:arg_idx]
+                            new_args.append(str_id_arg)
+                            continue
 
                 if new_args is not None:
                     new_args.append(arg)
