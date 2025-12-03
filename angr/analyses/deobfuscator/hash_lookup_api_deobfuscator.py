@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections.abc import Callable, Sequence
+from collections.abc import Iterator
 
 import claripy
 
@@ -24,16 +25,29 @@ class HashLookupAPIDeobfuscator(Analysis):
         self.lifter = lifter
         self.results: dict[int, tuple[str, str]] = {}
 
-        candidates_l0 = {
-            func.addr for func in functions or self.kb.functions.values() if self._is_metadata_accessor_candidate(func)
-        }
+        candidates_l0 = set()
+        functions = list(functions or self.kb.functions.values())
+        for idx, func in enumerate(functions):
+            self._update_progress(0.0 + 20.0 * idx / len(functions), "Finding l0 candidates")
+            if self._is_metadata_accessor_candidate(func):
+                candidates_l0.add(func.addr)
 
         # Consider predecessors to handle metadata loader wrappers
         # TODO: Constrain this more efficiently
         candidates_l1 = {p for c in candidates_l0 for p in self.kb.functions.callgraph.predecessors(c)}
+        candidates_exec = []
+        working = sorted(candidates_l0 | candidates_l1)
+        for idx, func_addr in enumerate(working):
+            self._update_progress(
+                20.0 + 20.0 * idx / len(working), f"Finding execution candidates [{idx + 1}/{len(working)}]"
+            )
+            candidates_exec.extend(self._analyze1(self.kb.functions[func_addr]))
 
-        for func_addr in sorted(candidates_l0 | candidates_l1):
-            self._analyze(self.kb.functions[func_addr])
+        for idx, (a, b, c) in enumerate(candidates_exec):
+            self._update_progress(
+                40.0 + 60.0 * idx / len(candidates_exec), f"Executing candidates [{idx + 1}/{len(candidates_exec)}]"
+            )
+            self._analyze2(a, b, c)
 
         self.kb.obfuscations.type3_deobfuscated_apis.update(self.results)
 
@@ -47,7 +61,7 @@ class HashLookupAPIDeobfuscator(Analysis):
             walker0.walk(node)
         return bool(walker0.found_calls)
 
-    def _analyze(self, function: Function):
+    def _analyze1(self, function: Function) -> Iterator[tuple[int, Callable[..., claripy.ast.BV], list[int]]]:
         clinic = self.lifter(function)
         assert clinic.graph is not None
 
@@ -81,15 +95,15 @@ class HashLookupAPIDeobfuscator(Analysis):
                     break
                 conc_args.append(arg.value)
             else:
-                try:
-                    result_bv: claripy.ast.BV = callme(*conc_args)  # type: ignore
-                except AngrCallableError:
-                    continue
-                if (
-                    result_bv.concrete
-                    and (result_sym := self.project.loader.find_symbol(result_bv.concrete_value)) is not None
-                ):
-                    self.results[call_expr.ins_addr] = (result_sym.owner.provides or "", result_sym.name)
+                yield call_expr.ins_addr, callme, conc_args  # type: ignore
+
+    def _analyze2(self, ins_addr: int, callme: Callable[..., claripy.ast.BV], conc_args: list[int]):
+        try:
+            result_bv: claripy.ast.BV = callme(*conc_args)  # type: ignore
+        except AngrCallableError:
+            return
+        if result_bv.concrete and (result_sym := self.project.loader.find_symbol(result_bv.concrete_value)) is not None:
+            self.results[ins_addr] = (result_sym.owner.provides or "", result_sym.name)
 
 
 class FindCallsTo(AILBlockWalkerBase):
