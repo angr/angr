@@ -94,9 +94,6 @@ class VVarRewritingVisitor(AILBlockWalker):
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        return super()._handle_Call(stmt_idx, stmt, block)
-
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.target in {"strlen", "wcslen"} and expr.args:
             arg = expr.args[0]
@@ -197,7 +194,6 @@ class VVarAliasVisitor(AILBlockWalkerBase):
             and isinstance(src, FixedBufferPtr)
         ):
             self._static_vvars[dst.varid] = src
-        return None
 
     def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
