@@ -333,13 +333,15 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 exit_stmt_idx=self.stmt_idx,
                 exit_ins_addr=self.ins_addr,
             )
-        return False
+            return False
+        return True
 
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> bool:
         ret_values = tuple(self._expr_bits(e) for e in stmt.ret_exprs)
         target = self.frame.return_addr
         this_frame = self.frame
         # store vvars if needed
+        # TODO move this to the history plugin
         if this_frame.vars:
             if "vvars" not in self.state.globals:
                 self.state.globals["vvars"] = {}
