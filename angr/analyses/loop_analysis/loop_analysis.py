@@ -220,14 +220,14 @@ class LoopVisitor(CStructuredCodeWalker):
         return super().handle_CAssignment(obj)
 
     def handle_CWhileLoop(self, obj: CWhileLoop):
-        self.result[obj.ident] = {
+        self.result[obj.idx] = {
             "loop_type": "while",
         }
         return super().handle_CWhileLoop(obj)
 
     def handle_CDoWhileLoop(self, obj: CDoWhileLoop):
         cond, body = obj.condition, obj.body
-        self.result[obj.ident] = {
+        self.result[obj.idx] = {
             "loop_type": "do-while",
         }
         comp_ops = {"CmpNE", "CmpEQ", "CmpLT", "CmpLE", "CmpGT", "CmpGE"}
@@ -346,7 +346,7 @@ class LoopVisitor(CStructuredCodeWalker):
                             controls.handle(obj)
                             fixed_iterations = not (controls.has_goto or controls.has_break or controls.has_continue)
 
-                            self.result[obj.ident] = {
+                            self.result[obj.idx] = {
                                 "loop_type": "do-while",
                                 "loop_variable": cond_node.lhs.var_ident,
                                 "initial_value": init_value,
@@ -359,13 +359,13 @@ class LoopVisitor(CStructuredCodeWalker):
 
         self._block_addrs = set()
         ret = super().handle_CDoWhileLoop(obj)
-        if obj.ident in self.result:
-            self.result[obj.ident]["block_addrs"] = sorted(self._block_addrs)
+        if obj.idx in self.result:
+            self.result[obj.idx]["block_addrs"] = sorted(self._block_addrs)
         self._block_addrs = set()
         return ret
 
     def handle_CForLoop(self, obj: CForLoop):
-        self.result[obj.ident] = {
+        self.result[obj.idx] = {
             "loop_type": "for",
         }
         return super().handle_CForLoop(obj)

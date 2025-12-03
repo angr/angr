@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+import logging
 
 import networkx
 
@@ -17,10 +18,15 @@ from angr.ail_callable import AILCallable
 from angr.analyses.decompiler.utils import call_stmts_in_graph
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.calling_conventions import PointerWrapper
+from .scope_ops_analyzer import ScopeOpsAnalyzer
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
     from angr.analyses.decompiler.clinic import Clinic
+    from angr.analyses.decompiler.structured_codegen.c import CFunction
+
+
+_l = logging.getLogger(__name__)
 
 
 class DataTransformationEmbedder(Analysis):
@@ -32,9 +38,10 @@ class DataTransformationEmbedder(Analysis):
     - We assume the data transformation logic is inlined completely within a single function.
     """
 
-    def __init__(self, func: Function, clinic: Clinic, preset: str = "malware"):
+    def __init__(self, func: Function, clinic: Clinic, cfunc: CFunction | None, preset: str = "malware"):
         self.func = func
         self.clinic = clinic
+        self.cfunc = cfunc
         self._preset = preset
 
         # intermediate state
@@ -47,15 +54,15 @@ class DataTransformationEmbedder(Analysis):
 
     def _analyze(self):
 
+        _l.debug("Look for partially evaluatable calls that are likely data transformation functions.")
         r = self._analyze_concrete_calls_to_data_transformation_functions()
         if r:
             return
 
-        # TODO: find decryption routine
-        encryption_routine_block_addrs = []
-
-        for enc_addr in encryption_routine_block_addrs:
-            self._analyze_one_inlined_encryption_block(enc_addr)
+        encryption_scope_addrs = self._find_encryption_scope_addrs()
+        _l.debug("Found %d encryption routine block candidates.", len(encryption_scope_addrs))
+        for enc_addr in encryption_scope_addrs:
+            self._analyze_one_inlined_encryption_scope(enc_addr)
 
     #
     # Static calls to pure data transformation functions
@@ -63,12 +70,19 @@ class DataTransformationEmbedder(Analysis):
 
     def _analyze_concrete_calls_to_data_transformation_functions(self) -> bool:
         candidates = self._find_constant_data_transformation_call_candidates()
+        _l.debug("Found %d constant data transformation call candidates.", len(candidates))
         if not candidates:
             return False
 
         r = False
         for candidate in candidates:
-            r |= self._apply_data_transformation_candidate(candidate)
+            ret = self._apply_data_transformation_candidate(candidate)
+            _l.debug(
+                "Apply data transformation candidate at callsite %#x: %s",
+                candidate["callsite_insaddr"],
+                "Succeeded" if ret else "Failed",
+            )
+            r |= ret
         return r
 
     def _find_constant_data_transformation_call_candidates(self):
@@ -311,7 +325,7 @@ class DataTransformationEmbedder(Analysis):
     # Inlined data transformation loops
     #
 
-    def _analyze_one_inlined_encryption_block(self, enc_block_addr: int) -> bool:
+    def _analyze_one_inlined_encryption_scope(self, enc_block_addr: int) -> bool:
         nodes_dict = {(b.addr, b.idx): b for b in self.clinic.cc_graph}
 
         block = nodes_dict[(enc_block_addr, None)]
@@ -377,7 +391,16 @@ class DataTransformationEmbedder(Analysis):
                     def lifter(_addr: int):
                         return d.clinic  # noqa:B023
 
-                    callable = AILCallable(self.project, start, lifter, boundary=set(frontier))
+                    callable = AILCallable(
+                        self.project,
+                        start,
+                        lifter,
+                        boundary=set(frontier),
+                        add_options={
+                            sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                            sim_options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+                        },
+                    )
                     callable()
 
                     # update frontier variable assignments with values post-execution if needed
@@ -468,6 +491,12 @@ class DataTransformationEmbedder(Analysis):
     #
     # Utility methods
     #
+
+    def _find_encryption_scope_addrs(self):
+        if self.cfunc is None:
+            return []
+        analyzer = self.project.analyses[ScopeOpsAnalyzer].prep()(self.cfunc)
+        return analyzer.crypto_scopes()
 
     def _create_function_arguments(self, child_funcargs):
         funcargs = {}
