@@ -17,6 +17,8 @@ from .typevars import (
     TypeVariable,
     DerivedTypeVariable,
     HasField,
+    AddN,
+    SubN,
     IsArray,
     TypeConstraint,
     Load,
@@ -1620,6 +1622,7 @@ class SimpleSolver:
             fields = {}
 
             candidate_bases = SortedDict()
+            ptr_offs: set[int] = set()
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
@@ -1630,6 +1633,10 @@ class SimpleSolver:
                     candidate_bases[last_label.offset].add(
                         1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
                     )
+                elif isinstance(last_label, AddN):
+                    ptr_offs.add(last_label.n)
+                elif isinstance(last_label, SubN):
+                    ptr_offs.add(-last_label.n)
 
             # determine possible bases and map each offset to its base
             offset_to_base = SortedDict()
@@ -1685,6 +1692,21 @@ class SimpleSolver:
                     elem_type = int_type(elem_size * 8)
                     sol = elem_type if array_size == elem_size else Array(elem_type, array_size // elem_size)
                 fields[offset] = sol
+
+            if len(fields) >= 2:
+                # we only trigger this logic when there are at least two identified fields, which means it's going to
+                # be either a struct or an array
+                # see TestDecompiler.test_simple_strcpy for an example with only one member in fields and a +1 access,
+                # due to ptr arithmetic
+                if any(off < 0 for off in ptr_offs):
+                    # we see references to negative offsets
+                    # we resolve this guy as a pointer to an Int8 type
+                    result = self._pointer_class()(Int8_)
+                else:
+                    for off in ptr_offs:
+                        if off not in fields:
+                            # missing field at this offset
+                            fields[off] = Int8_  # not sure how it's accessed
 
             if not fields:
                 result = Top_
