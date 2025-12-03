@@ -243,7 +243,7 @@ class FactCollector(Analysis):
     decision on the calling convention and prototype of a function.
     """
 
-    def __init__(self, func: Function, max_depth: int = 30):
+    def __init__(self, func: Function, max_depth: int = 100):
         self.function = func
         self._max_depth = max_depth
 
