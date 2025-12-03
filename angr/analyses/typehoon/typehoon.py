@@ -6,7 +6,7 @@ from collections import defaultdict
 from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
 from angr.errors import AngrRuntimeError
 from angr.analyses.analysis import Analysis, AnalysesHub
-from angr.sim_variable import SimVariable, SimStackVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
@@ -244,6 +244,16 @@ class Typehoon(Analysis):
                 self.solution[tv] = specialized
             else:
                 memo.add(sol)
+
+        # special handling for function argument types; replace ptr(array[N]) with ptr(element)
+        for v, tvs in self._var_mapping.items():
+            if isinstance(v, (SimRegisterVariable, SimStackVariable)) and v.ident.startswith("arg_"):
+                for tv in tvs:
+                    sol = self.solution.get(tv, None)
+                    if sol is None:
+                        continue
+                    if isinstance(sol, Pointer) and isinstance(sol.basetype, Array):
+                        self.solution[tv] = sol.__class__(sol.basetype.element)
 
     def _specialize_struct(self, tc, memo: set | None = None):
         if isinstance(tc, Pointer):
