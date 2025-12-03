@@ -23,22 +23,33 @@ class HashLookupAPIDeobfuscator(Analysis):
     ):
         self.lifter = lifter
         self.results: dict[int, str] = {}
-        for func in functions or self.kb.functions.values():
-            if func.is_simprocedure or func.is_plt or func.is_alignment:
-                continue
-            self._analyze(func)
+
+        candidates_l0 = {
+            func.addr for func in functions or self.kb.functions.values() if self._is_metadata_accessor_candidate(func)
+        }
+
+        # Consider predecessors to handle metadata loader wrappers
+        # TODO: Constrain this more efficiently
+        candidates_l1 = {p for c in candidates_l0 for p in self.kb.functions.callgraph.predecessors(c)}
+
+        for func_addr in sorted(candidates_l0 | candidates_l1):
+            self._analyze(self.kb.functions[func_addr])
 
         self.kb.obfuscations.type3_deobfuscated_apis.update(self.results)
+
+    def _is_metadata_accessor_candidate(self, function: Function) -> bool:
+        if function.is_simprocedure or function.is_plt or function.is_alignment:
+            return False
+        clinic = self.lifter(function)
+        assert clinic.graph is not None
+        walker0 = FindCallsTo(target="NtGetCurrentPeb")
+        for node in clinic.graph:
+            walker0.walk(node)
+        return bool(walker0.found_calls)
 
     def _analyze(self, function: Function):
         clinic = self.lifter(function)
         assert clinic.graph is not None
-        # walker0 = FindCallsTo(target="NtCurrentPeb")
-        walker0 = FindCallsTo(target=0x401030)
-        for node in clinic.graph:
-            walker0.walk(node)
-        if not walker0.found_calls:
-            return
 
         walker1 = FindCallsTo(target=function.addr)
         seen = set()
