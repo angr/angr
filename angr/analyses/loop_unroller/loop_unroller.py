@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
+import logging
 
 import networkx
 
@@ -9,6 +10,8 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ail import is_phi_assignment
 
+_l = logging.getLogger(__name__)
+
 
 class LoopUnroller(Analysis):
     """
@@ -16,7 +19,12 @@ class LoopUnroller(Analysis):
     """
 
     def __init__(
-        self, graph: networkx.DiGraph, loop_body: set[tuple[int, int | None]], unroll_times: int, save_original: bool
+        self,
+        graph: networkx.DiGraph,
+        loop_body: set[tuple[int, int | None]],
+        unroll_times: int,
+        save_original: bool,
+        loop_body_incomplete: bool = False,
     ):
         self.graph = graph
         self.loop_body = loop_body
@@ -28,9 +36,20 @@ class LoopUnroller(Analysis):
         for node in self.graph.nodes:
             if (node.addr, node.idx) in self.loop_body:
                 self.loop_body_nodes.add(node)
-                self._block_min_ids[node.addr] = max(
-                    self._block_min_ids[node.addr], node.idx if node.idx is not None else 0
+
+        if loop_body_incomplete:
+            # fill in the loop body by including missing nodes between existing ones
+            full_nodes = self._find_missing_loop_body_nodes(self.loop_body_nodes, self.graph)
+            if full_nodes:
+                _l.debug(
+                    "Loop body was incomplete. Filled in %d missing nodes.", len(full_nodes) - len(self.loop_body_nodes)
                 )
+                self.loop_body_nodes |= full_nodes
+
+        for node in self.loop_body_nodes:
+            self._block_min_ids[node.addr] = max(
+                self._block_min_ids[node.addr], node.idx if node.idx is not None else 0
+            )
 
         self.out_graph: networkx.DiGraph | None = networkx.DiGraph(self.graph)
 
@@ -183,6 +202,22 @@ class LoopUnroller(Analysis):
                         **stmt.tags,
                     )
                     block.statements[idx] = new_stmt
+
+    @staticmethod
+    def _find_missing_loop_body_nodes(existing_nodes: set, graph):
+        nodes = set(existing_nodes)
+        updated = True
+        while updated:
+            updated = False
+            for node in list(nodes):
+                for succ in graph.successors(node):
+                    if succ in nodes:
+                        continue
+                    succ_succs = list(graph.successors(succ))
+                    if any(s in nodes for s in succ_succs):
+                        updated = True
+                        nodes.add(succ)
+        return nodes
 
 
 register_analysis(LoopUnroller, "LoopUnroller")
