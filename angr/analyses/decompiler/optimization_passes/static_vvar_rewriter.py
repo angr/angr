@@ -108,7 +108,10 @@ class VVarRewritingVisitor(AILBlockWalker):
                     data = buffer.content[v.offset :]
                     str_len = 0
                     word_size = 2 if expr.target == "wcslen" else 1
-                    while str_len < len(data) and data[str_len : str_len + word_size] != b"\x00" * word_size:
+                    while (
+                        str_len < len(data)
+                        and data[str_len * word_size : str_len * word_size + word_size] != b"\x00" * word_size
+                    ):
                         str_len += 1
                     return Const(None, None, str_len, expr.bits, **expr.tags)
 
