@@ -1389,7 +1389,12 @@ class CFunctionCall(CStatement, CExpression):
         elif isinstance(self.callee_target, str):
             yield self.callee_target, self
         else:
-            yield from CExpression._try_c_repr_chunks(self.callee_target)
+            chunks = list(CExpression._try_c_repr_chunks(self.callee_target))
+            if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
+                yield "(", None
+            yield from chunks
+            if isinstance(self.callee_target, (CUnaryOp, CBinaryOp)):
+                yield ")", None
 
         paren = CClosingObject("(")
         yield "(", paren
@@ -3501,9 +3506,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            target = self._handle(stmt.target) if not isinstance(stmt.target, str) else stmt.target
+            target = self._handle(stmt.target, lvalue=True) if not isinstance(stmt.target, str) else stmt.target
         except UnsupportedNodeTypeError:
             target = stmt.target
+
+        if (
+            isinstance(target, CUnaryOp)
+            and target.op == "Reference"
+            and isinstance(target.operand, CVariable)
+            and isinstance(target.operand.variable, SimMemoryVariable)
+            and not isinstance(target.operand.variable, SimStackVariable)
+            and target.operand.variable.size == 1
+        ):
+            # special case: convert &global_var to just global_var if it's used as the call target
+            target = target.operand
 
         target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
