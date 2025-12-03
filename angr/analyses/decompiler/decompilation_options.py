@@ -250,6 +250,16 @@ options = [
         clears_cache=False,
     ),
     O(
+        "Truncate long constant strings",
+        "Truncate long constant strings in the decompilation output.",
+        int,
+        "codegen",
+        "max_str_len",
+        category="Display",
+        default_value=50,
+        clears_cache=False,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,
