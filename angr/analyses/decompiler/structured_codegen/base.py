@@ -144,8 +144,8 @@ class BaseStructuredCodeGenerator:
         self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
         self.idx_counters: dict[str, count] = {}
 
+    @staticmethod
     def adjust_mapping_positions(
-        self,
         offset: int,
         pos_to_node: PositionMapping,
         pos_to_addr: PositionMapping,
@@ -190,4 +190,4 @@ class BaseStructuredCodeGenerator:
         return f"{key}_{next(self.idx_counters[key])}"
 
     def reset_idx_counters(self) -> None:
-        self.ident_counters = {}
+        self.idx_counters = {}
