@@ -2,6 +2,7 @@ from __future__ import annotations
 from angr.ailment.expression import Const, Load
 
 from angr import SIM_LIBRARIES
+from angr.ailment.statement import Call
 from angr.calling_conventions import default_cc
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
@@ -48,4 +49,32 @@ class APIObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
         return None
 
 
+class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
+    """
+    Integrate type-3 deobfuscated APIs (calls with const arguments which return APIs) into the decompilation output.
+    """
+
+    __slots__ = ()
+
+    NAME = "Simplify Type 3 API obfuscation references"
+    expr_classes = (Call,)
+
+    def optimize(self, expr: Call, **kwargs):
+        funcbits = self.kb.obfuscations.type3_deobfuscated_apis.get(expr.ins_addr, None)
+        if funcbits is None:
+            return None
+        dll, api = funcbits
+        if not dll:
+            # it's likely the main binary
+            callees = list(self.project.kb.functions.get_by_name(api, check_previous_names=True))
+            if len(callees) == 1:
+                return Const(expr.idx, None, callees[0].addr, expr.bits, **expr.tags)
+            return None
+        if dll not in self.project.loader.shared_objects:
+            return None
+        sym = self.project.loader.shared_objects[dll].get_symbol(api)
+        return Const(expr.idx, None, sym.rebased_addr, expr.bits, **expr.tags)
+
+
 EXPR_OPTS.append(APIObfType1PeepholeOptimizer)
+EXPR_OPTS.append(APIObfType3PeepholeOptimizer)
