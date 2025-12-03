@@ -312,11 +312,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         target_true_addr = self._expr_bv(stmt.true_target)
         assert target_true_addr.concrete
         if stmt.false_target is None:
-            # fallthrough
-            target_false_addr = claripy.BVV(self.block.addr + self.block.original_size, self.project.arch.bits)
+            target_false_addr = None
         else:
             target_false_addr = self._expr_bv(stmt.false_target)
-        assert target_false_addr.concrete
+            assert target_false_addr.concrete
         self.successors.add_successor(
             state_true,
             (target_true_addr.concrete_value, stmt.true_target_idx),
@@ -325,14 +324,15 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             exit_stmt_idx=self.stmt_idx,
             exit_ins_addr=self.ins_addr,
         )
-        self.successors.add_successor(
-            state_false,
-            (target_false_addr.concrete_value, stmt.false_target_idx),
-            ~condition,  # type: ignore
-            "Ijk_Boring",
-            exit_stmt_idx=self.stmt_idx,
-            exit_ins_addr=self.ins_addr,
-        )
+        if target_false_addr is not None:
+            self.successors.add_successor(
+                state_false,
+                (target_false_addr.concrete_value, stmt.false_target_idx),
+                ~condition,  # type: ignore
+                "Ijk_Boring",
+                exit_stmt_idx=self.stmt_idx,
+                exit_ins_addr=self.ins_addr,
+            )
         return False
 
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> bool:
