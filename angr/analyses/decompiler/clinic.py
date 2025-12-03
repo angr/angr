@@ -159,6 +159,8 @@ class Clinic(Analysis):
         end_stage: ClinicStage | None = None,
         skip_stages: tuple[ClinicStage, ...] = (),
         notes: dict[str, DecompilationNote] | None = None,
+        static_vvars: dict | None = None,
+        static_buffers: dict | None = None,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -209,6 +211,8 @@ class Clinic(Analysis):
         self.secondary_stackvars: set[int] = set()
 
         self.notes = notes if notes is not None else {}
+        self.static_vvars = static_vvars if static_vvars is not None else {}
+        self.static_buffers = static_buffers if static_buffers is not None else {}
 
         #
         # intermediate variables used during decompilation
@@ -1626,6 +1630,8 @@ class Clinic(Analysis):
                 complete_successors=self._complete_successors,
                 stack_pointer_tracker=stack_pointer_tracker,
                 notes=self.notes,
+                static_vvars=self.static_vvars,
+                static_buffers=self.static_buffers,
                 **kwargs,
             )
             if a.out_graph:

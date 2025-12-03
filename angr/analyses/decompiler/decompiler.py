@@ -79,6 +79,8 @@ class Decompiler(Analysis):
         clinic_start_stage=None,
         clinic_end_stage=None,
         clinic_skip_stages=(),
+        static_vvars: dict | None = None,
+        static_buffers: dict | None = None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -118,6 +120,8 @@ class Decompiler(Analysis):
         self._generate_code = generate_code
         self._inline_functions = frozenset(inline_functions) if inline_functions else set()
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
+        self._static_vvars = static_vvars if static_vvars is not None else {}
+        self._static_buffers = static_buffers if static_buffers is not None else {}
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -134,6 +138,8 @@ class Decompiler(Analysis):
                 "binop_operators": self._binop_operators,
                 "inline_functions": self._inline_functions,
                 "desired_variables": self._desired_variables,
+                "static_vvars": self._static_vvars,
+                "static_buffers": self._static_buffers,
             }
             if use_cache
             else None
@@ -297,6 +303,8 @@ class Decompiler(Analysis):
                 end_stage=self._clinic_end_stage,
                 skip_stages=self._clinic_skip_stages,
                 notes=self.notes,
+                static_vvars=self._static_vvars,
+                static_buffers=self._static_buffers,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
