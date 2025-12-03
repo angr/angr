@@ -51,17 +51,17 @@ class HashLookupAPIDeobfuscator(Analysis):
         clinic = self.lifter(function)
         assert clinic.graph is not None
 
+        callgraph = self.kb.functions.callgraph
+        if function.addr not in callgraph:
+            return
         walker1 = FindCallsTo(target=function.addr)
         seen = set()
-        cfg = self.kb.cfgs.get_most_accurate()
-        assert cfg is not None
-        succ = cfg.get_any_node(function.addr)
-        assert succ is not None
-        for pred in succ.predecessors:
-            if pred.function_address in seen:
+        callers = sorted(set(callgraph.predecessors(function.addr)))
+        for caller_addr in callers:
+            if caller_addr in seen:
                 continue
-            seen.add(pred.function_address)
-            pred_func = self.kb.functions[pred.function_address]
+            seen.add(caller_addr)
+            pred_func = self.kb.functions[caller_addr]
             pred_clinic = self.lifter(pred_func)
             assert pred_clinic.graph is not None
             for each_pred_node in pred_clinic.graph:
