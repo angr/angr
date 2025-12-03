@@ -156,7 +156,7 @@ class SPropagatorAnalysis(Analysis):
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             r, v = is_const_assignment(stmt)
-            if hasattr(v, "always_propagate") and v.always_propagate:
+            if r and v is not None and hasattr(v, "always_propagate") and v.always_propagate:
                 pass
             elif not vvar.was_reg and not vvar.was_parameter:
                 continue
