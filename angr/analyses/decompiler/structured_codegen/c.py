@@ -257,11 +257,12 @@ class CConstruct:
     Acts as the base class for all other representation constructions.
     """
 
-    __slots__ = ("codegen", "tags")
+    __slots__ = ("codegen", "idx", "tags")
 
     def __init__(self, codegen, tags=None):
         self.tags = tags or {}
         self.codegen: StructuredCodeGenerator = codegen
+        self.idx = codegen.next_idx(self.__class__.__name__)
 
     def c_repr(self, initial_pos=0, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -2677,6 +2678,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         arg_list = [self._variable(arg, None) for arg in self._func_args] if self._func_args else []
 
+        self.reset_idx_counters()
         obj = self._handle(self._sequence)
 
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
