@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.2", "setuptools-rust", "pyvex==9.2.187.dev0"]
+requires = ["setuptools>=77.0.0", "setuptools-rust", "pyvex==9.2.187.dev0"]
 build-backend = "setuptools.build_meta"
 
 [project]
