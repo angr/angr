@@ -1,11 +1,14 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import logging
 
 from collections import Counter
 from angr.analyses.decompiler.structured_codegen.c import CStructuredCodeWalker
-from angr.analyses.decompiler import Decompiler
-from angr import Analysis
+from angr.analyses.analysis import Analysis
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.structured_codegen.c import CFunction
 
 _l = logging.getLogger(name=__name__)
 
@@ -31,7 +34,7 @@ class ScopeOpsWalker(CStructuredCodeWalker):
             "CIfElse",
         ]:
             old_addr = self.current_addr
-            self.current_addr = obj.tags.get("ins_addr", obj.addr)
+            self.current_addr = obj.tags.get("ins_addr", getattr(obj, "addr", None))
             self.found_ops.setdefault(self.current_addr, Counter())
             super().handle(obj)
             self.current_addr = old_addr
@@ -52,12 +55,9 @@ class ScopeOpsAnalyzer(Analysis):
     An analysis that extracts and analyzes operations used by different scopes of a function.
     """
 
-    def __init__(self, decomp: Decompiler):
-        if not decomp.codegen:
-            _l.warning("ScopeOpsAnalyzer called with an unsuccessful decompilation %s", decomp)
-            self.scope_ops = {}
-            return
-        self.scope_ops = ScopeOpsWalker().handle(decomp.codegen.cfunc)
+    def __init__(self, cfunc: CFunction):
+        self._cfunc = cfunc
+        self.scope_ops = ScopeOpsWalker().handle(cfunc)
 
     def filter_scopes(self, wanted_ops: set, min_count):
         return [
