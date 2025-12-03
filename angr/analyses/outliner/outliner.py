@@ -6,7 +6,7 @@ from typing import TypeVar
 import networkx
 
 from angr.ailment import Block
-from angr.ailment.statement import Call, Assignment, ConditionalJump, Return
+from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ssa import is_phi_assignment
@@ -15,7 +15,6 @@ from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.code_location import ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
-from angr.exploration_techniques import Explorer
 
 
 _l = logging.getLogger(__name__)
@@ -158,7 +157,10 @@ class Outliner(Analysis):
 
         in_edges = [(node, src_node) for node in self.parent_graph.pred[src_node]]
         out_edges = [
-            (node, frontier_node) for frontier_node in frontier for node in self.parent_graph.pred[frontier_node]
+            (node, frontier_node)
+            for frontier_node in frontier
+            for node in self.parent_graph.pred[frontier_node]
+            if node not in frontier
         ]
 
         # remove the subgraph from the original graph
@@ -214,9 +216,29 @@ class Outliner(Analysis):
                 new_ret_exprs = [*ret_exprs[:-1], Const(None, None, frontier_node.addr, self.project.arch.bits)]
             else:
                 new_ret_exprs = ret_exprs
-            ret_node.statements.append(
-                Return(None, new_ret_exprs, ins_addr=max(stmt.ins_addr for stmt in ret_node.statements))
-            )
+            ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.ins_addr for stmt in ret_node.statements))
+
+            ret_node_succs = list(subgraph.successors(ret_node))
+            if len(ret_node_succs) == 0:
+                # we can modify the ret_node directly
+                if ret_node.statements and isinstance(ret_node.statements[-1], (ConditionalJump, Jump)):
+                    del ret_node.statements[-1]
+                ret_node.statements.append(ret_stmt)
+            else:
+                # we will have to create a new node and act as the successor of ret_node
+                new_ret_node = Block(self._next_block_addr(), 0, [ret_stmt])
+                if ret_node.statements and isinstance(ret_node.statements[-1], ConditionalJump):
+                    cond_jump = ret_node.statements[-1]
+                    if isinstance(cond_jump.true_target, Const) and cond_jump.true_target.value == frontier_node.addr:
+                        _, cond_jump = cond_jump.replace(
+                            cond_jump.true_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                        )
+                    if isinstance(cond_jump.false_target, Const) and cond_jump.false_target.value == frontier_node.addr:
+                        _, cond_jump = cond_jump.replace(
+                            cond_jump.false_target, Const(None, None, new_ret_node.addr, self.project.arch.bits)
+                        )
+                    ret_node.statements[-1] = cond_jump
+                    subgraph.add_edge(ret_node, new_ret_node)
 
         if frontier:
             if retval_to_target:
@@ -280,7 +302,7 @@ class Outliner(Analysis):
                             stmt.src.src_and_vvars[idx] = new_addr, vvars
                 else:
                     # multiple source blocks have been replaced... it's bad
-                    raise NotImplementedError
+                    continue
 
     @staticmethod
     def _node_addr_to_str(addr: tuple[int, int | None]) -> str:
@@ -383,32 +405,6 @@ class Outliner(Analysis):
                 )
 
         return frontier
-
-    def execute(self):
-        """
-        Execute the outlined function.
-        """
-
-        # TODO: switch to AIL-based execution
-
-        assert self.child_func is not None
-        base_state = self.project.factory.blank_state(addr=self.child_func.addr)
-        base_state.regs._r12 = 0
-        base_state.regs._rdi = 0xFFFF_FFFF
-
-        callme = self.project.factory.callable(
-            self.child_func.addr,
-            base_state=base_state,
-            techniques=[Explorer(avoid={addr for addr, _ in self.frontier_locs})],
-        )
-        callme()
-        assert callme.result_path_group is not None
-        print(callme.result_path_group.active)
-        state = callme.result_path_group.active[0]
-
-        heap_addr = 0xC000_0000
-        buffer = state.solver.eval(state.memory.load(heap_addr, 824), cast_to=bytes)
-        return state, buffer
 
 
 AnalysesHub.register_default("Outliner", Outliner)
