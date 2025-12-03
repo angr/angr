@@ -1686,6 +1686,10 @@ class Function(Serializable):
             # remove template arguments
             depth = 0
             new_name_chars = []
+            suffix = ""
+            if func_name.endswith(("<<", ">>")):
+                suffix = func_name[-2:]
+                func_name = func_name[:-2]
             for c in func_name:
                 if c == "<":
                     depth += 1
@@ -1694,7 +1698,7 @@ class Function(Serializable):
                 else:
                     if depth == 0:
                         new_name_chars.append(c)
-            func_name = "".join(new_name_chars)
+            func_name = "".join(new_name_chars) + suffix
         return func_name.split("::")[-1] if "::" in func_name else func_name
 
     def get_unambiguous_name(self, display_name: str | None = None) -> str:
