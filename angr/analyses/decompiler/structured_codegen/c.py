@@ -2237,9 +2237,13 @@ class CConstant(CExpression):
         return self._type
 
     @staticmethod
-    def str_to_c_str(_str, prefix: str = ""):
+    def str_to_c_str(_str, prefix: str = "", maxlen: int | None = None) -> str:
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
+
+        if maxlen is not None and len(base_str) > maxlen:
+            base_str = base_str[:maxlen] + "..."
+
         # check if there's double quotes in the body
         if repr_str[0] == "'" and '"' in base_str:
             base_str = base_str.replace('"', '\\"')
@@ -2249,13 +2253,13 @@ class CConstant(CExpression):
 
         def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
-                return CConstant.str_to_c_str(v.content.decode("utf-8"))
+                return CConstant.str_to_c_str(v.content.decode("utf-8"), maxlen=self.codegen.max_str_len)
             if isinstance(v, Function):
                 return get_cpp_function_name(v.demangled_name)
             if isinstance(v, str):
-                return CConstant.str_to_c_str(v)
+                return CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len)
             if isinstance(v, bytes):
-                return CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8"))
+                return CConstant.str_to_c_str(v.replace(b"\x00", b"").decode("utf-8"), maxlen=self.codegen.max_str_len)
             return None
 
         if self.collapsed:
@@ -2280,7 +2284,7 @@ class CConstant(CExpression):
                         # it must be a string
                         v = refval
                         assert isinstance(v, str)
-                    yield CConstant.str_to_c_str(v), self
+                    yield CConstant.str_to_c_str(v, maxlen=self.codegen.max_str_len), self
                     return
                 elif isinstance(self._type, SimTypePointer) and isinstance(self._type.pts_to, SimTypeWideChar):
                     refval = self.reference_values[self._type]
@@ -2289,7 +2293,7 @@ class CConstant(CExpression):
                         if isinstance(refval, MemoryData)
                         else decode_utf16_string(refval)
                     )  # it's a string
-                    yield CConstant.str_to_c_str(v, prefix="L"), self
+                    yield CConstant.str_to_c_str(v, prefix="L", maxlen=self.codegen.max_str_len), self
                     return
                 else:
                     if isinstance(self.reference_values[self._type], int):
@@ -2555,6 +2559,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         min_data_addr: int = 0x400_000,
         notes=None,
         display_notes: bool = True,
+        max_str_len: int | None = None,
     ):
         super().__init__(
             flavor=flavor,
@@ -2643,6 +2648,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc: CFunction | None = None
         self.cexterns: set[CVariable] | None = None
         self.display_notes = display_notes
+        self.max_str_len = max_str_len
 
         self._analyze()
 
