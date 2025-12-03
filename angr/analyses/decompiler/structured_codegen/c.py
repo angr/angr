@@ -2389,7 +2389,7 @@ class CITE(CExpression):
 
     @property
     def type(self):
-        return SimTypeInt().with_arch(self.codegen.project.arch)
+        return self.iftrue.type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
