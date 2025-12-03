@@ -49,10 +49,10 @@ class SimLightRegisters(SimStatePlugin):
                 )
 
     def resolve_register(self, offset, size):
-        if type(offset) is str:
+        if isinstance(offset, str):
             offset, size = self.state.arch.registers[offset]
         else:
-            if type(size) is not int:
+            if not isinstance(size, int):
                 try:
                     if size.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
@@ -60,7 +60,7 @@ class SimLightRegisters(SimStatePlugin):
                 except AttributeError:
                     raise TypeError("Invalid size argument") from None
 
-            if type(offset) is not int:
+            if not isinstance(offset, int):
                 try:
                     if offset.symbolic:
                         raise SimFastMemoryError("Can't handle symbolic register access")
@@ -100,7 +100,7 @@ class SimLightRegisters(SimStatePlugin):
         return self._fill(name, size)
 
     def store(self, offset, value, size=None, endness=None, **kwargs):
-        if size is None and type(offset) is not str and type(value) is not int:
+        if size is None and not isinstance(offset, str) and not isinstance(value, int):
             try:
                 size = len(value) // self.state.arch.byte_width
             except TypeError:
@@ -115,7 +115,7 @@ class SimLightRegisters(SimStatePlugin):
             except TypeError:
                 raise SimFastMemoryError("Invalid register store value") from None
 
-        if type(value) is int:
+        if isinstance(value, int):
             value = claripy.BVV(value, xsize)
 
         if endness is not None and endness != self.state.arch.register_endness:
