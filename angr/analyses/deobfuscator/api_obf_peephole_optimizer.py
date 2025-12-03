@@ -64,6 +64,14 @@ class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
         if funcbits is None:
             return None
         dll, api = funcbits
+        if not dll:
+            # it's likely the main binary
+            callees = list(self.project.kb.functions.get_by_name(api, check_previous_names=True))
+            if len(callees) == 1:
+                return Const(expr.idx, None, callees[0].addr, expr.bits, **expr.tags)
+            return None
+        if dll not in self.project.loader.shared_objects:
+            return None
         sym = self.project.loader.shared_objects[dll].get_symbol(api)
         return Const(expr.idx, None, sym.rebased_addr, expr.bits, **expr.tags)
 
