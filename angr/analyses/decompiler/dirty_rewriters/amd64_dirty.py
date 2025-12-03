@@ -40,19 +40,18 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                 )
             case "amd64g_dirtyhelper_OUT":
                 # out
-                bits = (
-                    dirty.operands[1].value * self.arch.byte_width
-                    if len(dirty.operands) > 1 and isinstance(dirty.operands[1], Const)
-                    else None
-                )
+                portno = dirty.operands[0]
+                data = dirty.operands[1]
+                size = dirty.operands[2]
+                bits = size.value * self.arch.byte_width
                 func_name = "__out"
-                suffix = self._inout_intrinsic_suffix(bits) if bits is not None else None
+                suffix = self._inout_intrinsic_suffix(bits)
                 if suffix is not None:
                     func_name += f"{suffix}"
                 else:
                     func_name += f"_{bits}"
                 return Call(
-                    dirty.idx, func_name, None, None, args=(dirty.operands[0],), ret_expr=None, bits=bits, **dirty.tags
+                    dirty.idx, func_name, None, None, args=(portno, data), ret_expr=None, bits=bits, **dirty.tags
                 )
         return None
 
