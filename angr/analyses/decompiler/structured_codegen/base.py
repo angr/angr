@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 from enum import Enum
+from itertools import count
 
 from sortedcontainers import SortedDict
 
@@ -141,6 +142,7 @@ class BaseStructuredCodeGenerator:
         self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
         self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
+        self.idx_counters: dict[str, count] = {}
 
     def adjust_mapping_positions(
         self,
@@ -181,3 +183,11 @@ class BaseStructuredCodeGenerator:
 
     def reload_variable_types(self) -> None:
         pass
+
+    def next_idx(self, key: str) -> str:
+        if key not in self.idx_counters:
+            self.idx_counters[key] = count()
+        return f"{key}_{next(self.idx_counters[key])}"
+
+    def reset_idx_counters(self) -> None:
+        self.ident_counters = {}
