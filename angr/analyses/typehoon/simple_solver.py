@@ -1693,15 +1693,16 @@ class SimpleSolver:
                     sol = elem_type if array_size == elem_size else Array(elem_type, array_size // elem_size)
                 fields[offset] = sol
 
-            if any(off < 0 for off in ptr_offs):
-                # we see references to negative offsets
-                # we resolve this guy as a pointer to an Int8 type
-                result = self._pointer_class()(Int8_)
-            else:
-                for off in ptr_offs:
-                    if off not in fields:
-                        # missing field at this offset
-                        fields[off] = Int8_  # not sure how it's accessed
+            if fields:
+                if any(off < 0 for off in ptr_offs):
+                    # we see references to negative offsets
+                    # we resolve this guy as a pointer to an Int8 type
+                    result = self._pointer_class()(Int8_)
+                else:
+                    for off in ptr_offs:
+                        if off not in fields:
+                            # missing field at this offset
+                            fields[off] = Int8_  # not sure how it's accessed
 
             if not fields:
                 result = Top_
