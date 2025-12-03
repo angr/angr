@@ -482,7 +482,9 @@ class SimProcedure:
         elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
             ret_addr = self.state.callstack.return_addr
             self.state.callstack.pop()
-            self.state.callstack.passed_rets = ((expr,),)
+            if isinstance(expr, int):
+                expr = claripy.BVV(expr, 64)
+            self.state.callstack.passed_rets += ((expr,),)
         elif self.use_state_arguments:
             # in case we guess the prototype wrong, use the return value's size as a hint to fix it
             if (
