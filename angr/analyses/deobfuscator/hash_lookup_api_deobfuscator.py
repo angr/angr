@@ -49,6 +49,7 @@ class HashLookupAPIDeobfuscator(Analysis):
             )
             self._analyze2(a, b, c)
 
+        self._finish_progress()
         self.kb.obfuscations.type3_deobfuscated_apis.update(self.results)
 
     def _is_metadata_accessor_candidate(self, function: Function) -> bool:
