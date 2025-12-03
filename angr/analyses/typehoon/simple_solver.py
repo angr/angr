@@ -1693,7 +1693,11 @@ class SimpleSolver:
                     sol = elem_type if array_size == elem_size else Array(elem_type, array_size // elem_size)
                 fields[offset] = sol
 
-            if fields:
+            if len(fields) >= 2:
+                # we only trigger this logic when there are at least two identified fields, which means it's going to
+                # be either a struct or an array
+                # see TestDecompiler.test_simple_strcpy for an example with only one member in fields and a +1 access,
+                # due to ptr arithmetic
                 if any(off < 0 for off in ptr_offs):
                     # we see references to negative offsets
                     # we resolve this guy as a pointer to an Int8 type
