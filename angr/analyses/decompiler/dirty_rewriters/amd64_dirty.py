@@ -15,9 +15,12 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
         # TODO: Rewrite more dirty statements
-        return None
+        return self._rewrite_expr_to_call(dirty.dirty)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
+        return self._rewrite_expr_to_call(dirty)
+
+    def _rewrite_expr_to_call(self, dirty: DirtyExpression) -> Call | None:
         match dirty.callee:
             case "amd64g_dirtyhelper_IN":
                 # in
