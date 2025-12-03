@@ -4384,9 +4384,10 @@ class TestDecompiler(unittest.TestCase):
                 assert False, "Cannot find the do-while loop in this function"
             if (
                 lines[start_idx + 1] == "{"
-                and re.match(r"\*\(v\d+\) = v\d+;", lines[start_idx + 2])
+                # regex should match both the case above and the case where v12 is an array pointer
+                and re.match(r"(\*\(v\d+\)|v\d+\[0\]) = v\d+;", lines[start_idx + 2])
                 and re.match(r"v\d+ \+= 1;", lines[start_idx + 3])
-                and re.match(r"v\d+ \+= 1;", lines[start_idx + 4])
+                and re.match(r"(v\d+ \+= 1|v\d+ = &v\d+\[1\]);", lines[start_idx + 4])
                 and re.match(r"} while \(v\d+ < 0x100\);", lines[start_idx + 5])
             ):
                 # found it!
