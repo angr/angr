@@ -85,8 +85,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def lift(self, state: StateType | int | ailment.Address) -> ailment.Block:
         addr = (state, None) if isinstance(state, int) else state if isinstance(state, tuple) else state.addr
         clinic = self.lift_addr(addr)
-        assert clinic.graph is not None
-        blocks = [blk for blk in clinic.graph if (blk.addr, blk.idx) == addr]
+        assert clinic.cc_graph is not None
+        blocks = [blk for blk in clinic.cc_graph if (blk.addr, blk.idx) == addr]
         if len(blocks) == 0:
             raise errors.AngrLifterError("Lifted graph does not have the needed block")
         if len(blocks) > 1:
@@ -141,12 +141,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if all(stmt_data):
             # this is a block lifted such that we don't have explicit gotos. Find one from the graph
             clinic = self.lift_addr(self.state.addr)
-            assert clinic.graph is not None
-            if len(clinic.graph.succ[block]) > 1:
+            assert clinic.cc_graph is not None
+            if len(clinic.cc_graph.succ[block]) > 1:
                 raise errors.AngrRuntimeError(
-                    f"Reached default exit of block with {len(clinic.graph.succ[block])} successors"
+                    f"Reached default exit of block with {len(clinic.cc_graph.succ[block])} successors"
                 )
-            if len(clinic.graph.succ[block]) == 0:
+            if len(clinic.cc_graph.succ[block]) == 0:
                 # deadend. add pathterminator
                 self.successors.add_successor(
                     self.state,
@@ -158,7 +158,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     exit_stmt_idx=DEFAULT_STATEMENT,
                 )
                 return
-            succ = next(iter(clinic.graph.succ[block]))
+            succ = next(iter(clinic.cc_graph.succ[block]))
             self.successors.add_successor(
                 self.state,
                 (succ.addr, succ.idx),
@@ -228,16 +228,16 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     ),
                 )
             return ()
+        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
+        target_addr = self._expr_bv(call.target)
+        assert target_addr.concrete
         if self.ret_idx < len(self.frame.passed_rets):
             results = self.frame.passed_rets[self.ret_idx]
             self.ret_idx += 1
             return results
-        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
-        target_addr = self._expr_bv(call.target)
-        assert target_addr.concrete
         target = (target_addr.concrete_value, None)
 
-        new_frame = AILCallStack()
+        new_frame = AILCallStack(func_addr=target)
         new_frame.passed_args = arguments
         new_frame.return_addr = self.state.addr
         self.frame.push(new_frame)
@@ -311,7 +311,11 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         state_false = self.state
         target_true_addr = self._expr_bv(stmt.true_target)
         assert target_true_addr.concrete
-        target_false_addr = self._expr_bv(stmt.false_target)
+        if stmt.false_target is None:
+            # fallthrough
+            target_false_addr = claripy.BVV(self.block.addr + self.block.original_size, self.project.arch.bits)
+        else:
+            target_false_addr = self._expr_bv(stmt.false_target)
         assert target_false_addr.concrete
         self.successors.add_successor(
             state_true,
@@ -334,6 +338,14 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> bool:
         ret_values = tuple(self._expr_bits(e) for e in stmt.ret_exprs)
         target = self.frame.return_addr
+        this_frame = self.frame
+        # store vvars if needed
+        if this_frame.vars:
+            if "vvars" not in self.state.globals:
+                self.state.globals["vvars"] = {}
+            if this_frame.func_addr not in self.state.globals["vvars"]:
+                self.state.globals["vvars"][this_frame.func_addr] = []
+            self.state.globals["vvars"][this_frame.func_addr].append(this_frame.vars)
         self.frame.pop()
         self.frame.passed_rets += (ret_values,)
         self.successors.add_successor(
@@ -697,13 +709,22 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return claripy.If(a == 0, a, self._expr_bv(expr.operands[1]))
 
     def _handle_binop_Shl(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) << self._expr_bv(expr.operands[1])
+        shift_amount = self._expr_bv(expr.operands[1])
+        if shift_amount.size() < expr.bits:
+            shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
+        return self._expr_bv(expr.operands[0]) << shift_amount
 
     def _handle_binop_Shr(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return claripy.LShR(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        shift_amount = self._expr_bv(expr.operands[1])
+        if shift_amount.size() < expr.bits:
+            shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
+        return claripy.LShR(self._expr_bv(expr.operands[0]), shift_amount)
 
     def _handle_binop_Sar(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) >> self._expr_bv(expr.operands[1])
+        shift_amount = self._expr_bv(expr.operands[1])
+        if shift_amount.size() < expr.bits:
+            shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
+        return self._expr_bv(expr.operands[0]) >> shift_amount
 
     def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
@@ -730,10 +751,16 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return claripy.Concat(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
 
     def _handle_binop_Rol(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return claripy.RotateLeft(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        shift_amount = self._expr_bv(expr.operands[1])
+        if shift_amount.size() < expr.bits:
+            shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
+        return claripy.RotateLeft(self._expr_bv(expr.operands[0]), shift_amount)
 
     def _handle_binop_Ror(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return claripy.RotateRight(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        shift_amount = self._expr_bv(expr.operands[1])
+        if shift_amount.size() < expr.bits:
+            shift_amount = claripy.ZeroExt(expr.bits - shift_amount.size(), shift_amount)
+        return claripy.RotateRight(self._expr_bv(expr.operands[0]), shift_amount)
 
     def _handle_binop_Carry(self, expr: ailment.expression.BinaryOp) -> DataType:
         a = self._expr_bv(expr.operands[0])
