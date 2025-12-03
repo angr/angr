@@ -8,31 +8,40 @@ from angr.ailment.block_walker import AILBlockWalkerBase
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
+    from angr.ailment import Address
     from angr.ailment.statement import Call
 
 
 class AILBlockCallCounter(AILBlockWalkerBase):
     """
-    Helper class to count AIL calls and call-expressions in a block
+    Helper class to count AIL calls and call-expressions in a block, or collect call statements and call expressions
+    as well as their locations.
     """
 
-    calls = 0
+    def __init__(self):
+        super().__init__()
+        self.calls: int = 0
+        self.call_stmts: list[tuple[tuple[Address, int], Call]] = []
+        self.call_exprs: list[tuple[tuple[Address, int], Call]] = []
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
         return
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
         self.calls += 1
+        self.call_exprs.append((((block.addr, block.idx), stmt_idx), expr))
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         self.calls += 1
+        self.call_stmts.append((((block.addr, block.idx), stmt_idx), stmt))
         super()._handle_Call(stmt_idx, stmt, block)
 
 
 class AILCallCounter(SequenceWalker):
     """
-    Helper class to count AIL calls and call expressions in a structuring node.
+    Helper class to count AIL calls and call expressions in a structuring node, or collect call statements and call
+    expressions as well as their locations.
     """
 
     def __init__(self):
@@ -42,6 +51,8 @@ class AILCallCounter(SequenceWalker):
         super().__init__(handlers)
         self.calls = 0
         self.non_label_stmts = 0
+        self.call_stmts: list[tuple[tuple[Address, int], Call]] = []
+        self.call_exprs: list[tuple[tuple[Address, int], Call]] = []
 
     def _handle_Condition(self, node, **kwargs):
         # do not count calls in conditions
@@ -54,4 +65,6 @@ class AILCallCounter(SequenceWalker):
         ctr = AILBlockCallCounter()
         ctr.walk(node)
         self.calls += ctr.calls
+        self.call_stmts += ctr.call_stmts
+        self.call_exprs += ctr.call_exprs
         self.non_label_stmts += sum(1 for stmt in node.statements if not isinstance(stmt, Label))
