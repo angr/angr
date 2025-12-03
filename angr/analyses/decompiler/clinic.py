@@ -24,7 +24,7 @@ from angr.utils import timethis
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
-from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument
+from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimCCUsercall
 from angr.sim_type import (
     SimType,
     SimTypeChar,
@@ -366,8 +366,12 @@ class Clinic(Analysis):
         ail_graph = self._replace_single_target_indirect_transitions(ail_graph)
 
         # Fix tail calls
-        self._update_progress(28.0, text="Analyzing tail calls")
+        self._update_progress(26.0, text="Analyzing tail calls")
         ail_graph = self._replace_tail_jumps_with_calls(ail_graph)
+
+        # Fix special calls
+        self._update_progress(28.0, text="Analyzing special calls")
+        ail_graph = self._fix_special_call_calling_conventions(ail_graph)
 
         if is_pcode_arch:
             self._update_progress(29.0, text="Recovering calling conventions (AIL mode)")
@@ -1336,6 +1340,34 @@ class Clinic(Analysis):
                     ret_stmt = ailment.Stmt.Return(None, [], **last_stmt.tags)
                     ret_block = ailment.Block(self.new_block_addr(), 1, statements=[ret_stmt])
                     ail_graph.add_edge(call_block, ret_block, type="fake_return")
+
+        return ail_graph
+
+    @timethis
+    def _fix_special_call_calling_conventions(self, ail_graph: networkx.DiGraph) -> networkx.DiGraph:
+        """
+        Fix the calling convention for special function calls.
+        """
+        for block in list(ail_graph.nodes()):
+            last_stmt = block.statements[-1]
+            if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
+                target = last_stmt.target.value
+            else:
+                continue
+
+            if not self.kb.functions.contains_addr(target):
+                continue
+            target_func = self.kb.functions.get_by_addr(target)
+            if target_func.name in {"_security_check_cookie"}:
+                call_stmt = ailment.Stmt.Call(
+                    None,
+                    last_stmt.target.copy(),
+                    calling_convention=SimCCUsercall(self.project.arch, [], []),
+                    prototype=SimTypeFunction([], SimTypeBottom(label="void")).with_arch(self.project.arch),
+                    ret_expr=None,
+                    **last_stmt.tags,
+                )
+                block.statements[-1] = call_stmt
 
         return ail_graph
 
