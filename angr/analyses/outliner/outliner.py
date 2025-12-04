@@ -361,7 +361,7 @@ class Outliner(Analysis):
         """
         Find the frontier of blocks at which every variable defined in the start block dies.
 
-        min_step will force the fronter to be at least that many steps away from the start block.
+        min_step will force the frontier to be at least that many steps away from the start block.
         """
 
         initial_live_vars = self.parent_liveness.model.live_ins[start.addr, start.idx]
