@@ -3,8 +3,9 @@ from typing import TYPE_CHECKING
 
 from collections.abc import Callable
 
-from angr.engines.ail import ail_call_state
+from angr.engines.ail import ail_call_state, AILCallStack
 from angr.errors import AngrCallableError, AngrCallableMultistateError
+
 from .callable import Callable as VEXCallable
 
 if TYPE_CHECKING:
@@ -35,6 +36,12 @@ class AILCallable(VEXCallable):
         self._lifter = lifter
         self._preset = preset
         self._boundary = boundary
+
+    def __call__(self, *args):
+        self.perform_call(*args)
+        frame = self.result_state.callstack
+        assert isinstance(frame, AILCallStack)
+        return frame.passed_rets[0]
 
     def perform_call(self, *args, prototype=None):
         state = ail_call_state(

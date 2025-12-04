@@ -69,7 +69,9 @@ class DefaultFillerMixin(MemoryMixin):
                 )
 
             if is_mem:
-                refplace_int = self.state.solver.eval(self.state._ip)
+                refplace_int = self.state.addr
+                if isinstance(refplace_int, tuple):
+                    refplace_int = refplace_int[0]
                 if self.state.project:
                     refplace_str = self.state.project.loader.describe_addr(refplace_int)
                 else:
@@ -86,7 +88,9 @@ class DefaultFillerMixin(MemoryMixin):
                     refplace_int = 0
                     refplace_str = "symbolic"
                 else:
-                    refplace_int = self.state.solver.eval(self.state._ip)
+                    refplace_int = self.state.addr
+                    if isinstance(refplace_int, tuple):
+                        refplace_int = refplace_int[0]
                     if self.state.project:
                         refplace_str = self.state.project.loader.describe_addr(refplace_int)
                     else:

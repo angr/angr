@@ -49,6 +49,7 @@ class DataTransformationEmbedder(Analysis):
         self._outliner_block_addr = 0xABCD0000
 
         self.result = []
+        self.evaluated_buffers = []
 
         self._analyze()
 
@@ -261,6 +262,7 @@ class DataTransformationEmbedder(Analysis):
                 data = final_state.solver.eval(final_state.memory.load(buf_addr, 0x100000), cast_to=bytes).rstrip(
                     b"\x00"
                 )
+                self.evaluated_buffers.append((callsite_insaddr, data))
                 buf_size = len(data)
                 # TODO: Ensure the source of the return value is from malloc
                 alloc_expr = Call(

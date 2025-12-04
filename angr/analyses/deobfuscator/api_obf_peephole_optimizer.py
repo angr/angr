@@ -73,6 +73,8 @@ class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
         if dll not in self.project.loader.shared_objects:
             return None
         sym = self.project.loader.shared_objects[dll].get_symbol(api)
+        if sym is None:
+            return None
         return Const(expr.idx, None, sym.rebased_addr, expr.bits, always_propagate=True, **expr.tags)
 
 

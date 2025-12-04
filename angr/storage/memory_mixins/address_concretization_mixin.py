@@ -65,8 +65,8 @@ class AddressConcretizationMixin(MemoryMixin):
     @MemoryMixin.memo
     def copy(self, memo):
         o = super().copy(memo)
-        o.read_strategies = list(self.read_strategies)
-        o.write_strategies = list(self.write_strategies)
+        o.read_strategies = list(self.read_strategies) if self.read_strategies is not None else None
+        o.write_strategies = list(self.write_strategies) if self.write_strategies is not None else None
         return o
 
     def merge(self, others, merge_conditions, common_ancestor=None) -> bool:

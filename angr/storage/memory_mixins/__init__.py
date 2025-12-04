@@ -21,6 +21,7 @@ from .symbolic_merger_mixin import SymbolicMergerMixin
 from .top_merger_mixin import TopMergerMixin
 from .underconstrained_mixin import UnderconstrainedMixin
 from .unwrapper_mixin import UnwrapperMixin
+from .ail_variables import VariableReferenceMixin
 
 from .paged_memory.page_backer_mixins import ClemoryBackerMixin, ConcreteBackerMixin, DictBackerMixin
 from .paged_memory.paged_memory_mixin import (
@@ -68,6 +69,39 @@ class DefaultMemory(
     SmartFindMixin,
     UnwrapperMixin,
     NameResolutionMixin,
+    DataNormalizationMixin,
+    SimplificationMixin,
+    InspectMixinHigh,
+    ActionsMixinHigh,
+    UnderconstrainedMixin,
+    SizeConcretizationMixin,
+    SizeNormalizationMixin,
+    AddressConcretizationMixin,
+    # InspectMixinLow,
+    ActionsMixinLow,
+    ConditionalMixin,
+    ConvenientMappingsMixin,
+    DirtyAddrsMixin,
+    # -----
+    StackAllocationMixin,
+    ConcreteBackerMixin,
+    ClemoryBackerMixin,
+    DictBackerMixin,
+    PrivilegedPagingMixin,
+    UltraPagesMixin,
+    DefaultFillerMixin,
+    SymbolicMergerMixin,
+    PagedMemoryMixin,
+):
+    pass
+
+
+class DefaultAILMemory(
+    HexDumperMixin,
+    SmartFindMixin,
+    UnwrapperMixin,
+    NameResolutionMixin,
+    VariableReferenceMixin,
     DataNormalizationMixin,
     SimplificationMixin,
     InspectMixinHigh,
@@ -260,6 +294,7 @@ __all__ = (
     "ConvenientMappingsMixin",
     "CooperationBase",
     "DataNormalizationMixin",
+    "DefaultAILMemory",
     "DefaultFillerMixin",
     "DefaultListPagesMemory",
     "DefaultMemory",

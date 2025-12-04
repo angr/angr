@@ -479,7 +479,7 @@ class SimProcedure:
         # when calling the function ret. at the calling point the attribute is set to False
         if isinstance(self.addr, SootAddressDescriptor):
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
-        elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
+        elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack) and self.should_add_successors:
             ret_addr = self.state.callstack.return_addr
             self.state.callstack.pop()
             if isinstance(expr, int):

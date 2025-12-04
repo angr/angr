@@ -953,6 +953,8 @@ def _update_libntdll(lib: SimLibrary):
     lib.add("RtlEncodePointer", P["win32"]["EncodePointer"])
     lib.add("RtlDecodePointer", P["win32"]["EncodePointer"])
     lib.add("RtlAllocateHeap", P["win32"]["HeapAlloc"])
+    lib.add("memcpy", P["libc"]["memcpy"])
+    lib.add_all_from_dict(P["ntdll"])
 
 
 def _update_libuser32(lib: SimLibrary):
@@ -967,6 +969,12 @@ def _update_libntoskrnl(lib: SimLibrary):
     from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
 
     lib.add_all_from_dict(P["win32_kernel"])
+
+
+def _update_advapi32(lib: SimLibrary):
+    from angr.procedures.procedure_dict import SIM_PROCEDURES as P  # pylint:disable=import-outside-toplevel
+
+    lib.add_all_from_dict(P["advapi32"])
 
 
 def _update_glibc(libc: SimLibrary):
@@ -1009,6 +1017,8 @@ def load_win32api_definitions():
             _update_libuser32(SIM_LIBRARIES["user32.dll"][0])
         if "ntoskrnl.exe" in SIM_LIBRARIES:
             _update_libntoskrnl(SIM_LIBRARIES["ntoskrnl.exe"][0])
+        if "advapi32.dll" in SIM_LIBRARIES:
+            _update_advapi32(SIM_LIBRARIES["advapi32.dll"][0])
 
 
 def load_all_definitions():
@@ -1028,6 +1038,7 @@ COMMON_LIBRARIES = {
     "linux_loader",
     # Windows
     "msvcr",
+    "advapi32",
 }
 
 

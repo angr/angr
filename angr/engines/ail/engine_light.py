@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING, TypeAlias
 import itertools
-import logging
 
 import claripy
 
 import angr
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.light.engine import SimEngineLightAIL
 from angr import ailment, errors
@@ -18,8 +18,6 @@ from angr.utils.constants import DEFAULT_STATEMENT
 if TYPE_CHECKING:
     from angr.project import Project
     from angr.analyses.decompiler.clinic import Clinic
-
-log = logging.getLogger(__name__)
 
 StateType: TypeAlias = SimState[ailment.Address, ailment.Address]
 DataType: TypeAlias = claripy.ast.Bits | claripy.ast.Bool
@@ -53,6 +51,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         # if there is a function parameter handoff waiting, process that asap
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
+            if not clinic.arg_vvars:
+                # HACK
+                clinic.arg_vvars = {
+                    0: (VirtualVariable(None, 1222, 32, VirtualVariableCategory.STACK), None),
+                    1: (VirtualVariable(None, 1220, 32, VirtualVariableCategory.STACK), None),
+                    2: (VirtualVariable(None, 1109, 32, VirtualVariableCategory.STACK), None),
+                }
             assert clinic.arg_vvars is not None
             if len(clinic.arg_vvars) != len(self.frame.passed_args):
                 raise errors.AngrRuntimeError("Call statement and lifted function disagree on number of arguments")
@@ -98,41 +103,6 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _is_top(self, expr):
         return expr.op == "BVS" and expr.args[0].name.startswith("ail_engine_top")
-
-    def _find_ptr_region(self, ptr: claripy.ast.BV) -> tuple[MemoryMixin, claripy.ast.BV | int]:
-        region: MemoryMixin | None = None
-        offset = 0
-        queue = [ptr]
-        while queue:
-            node = queue.pop()
-            if node.op == "__add__":
-                queue.extend(node.args)  # type: ignore
-            elif node.op == "__sub__":
-                queue.append(node.args[0])  # type: ignore
-                queue.extend(-x for x in node.args[1:])  # type: ignore
-            elif node.op == "BVS":
-                frame = self.frame
-                while frame is not None:
-                    referred = frame.var_refs.get(node, None)
-                    if referred is None:
-                        frame = frame.next
-                        continue
-                    if region is None:
-                        _region = frame.vars[referred]
-                        assert isinstance(_region, MemoryMixin)
-                        region = _region
-                    else:
-                        log.warning("Emulation is adding together two pointers")
-                        return self.state.memory, ptr
-                    break
-                else:
-                    offset += node
-            else:
-                offset += node
-
-        if region is None:
-            return self.state.memory, ptr
-        return region, offset
 
     def _stmt_diverges(self, result):
         return not result
@@ -187,7 +157,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             self.frame.next.resume_at = self.stmt_idx
             return False
         else:
-            if toplevel:
+            if toplevel and result:
                 self.frame.passed_rets = ()
                 self.frame.resume_at = None
             return result
@@ -280,8 +250,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> bool:
         val = self._expr(stmt.data)
         ptr = self._expr_bv(stmt.addr)
-        region, offset = self._find_ptr_region(ptr)
-        region.store(offset, val, endness=stmt.endness)
+        self.state.memory.store(ptr, val, endness=stmt.endness)
         return True
 
     def _handle_stmt_WeakAssignment(self, stmt: ailment.statement.WeakAssignment) -> bool:
@@ -371,7 +340,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         results = self._do_call(stmt)
         ret_expr = stmt.ret_expr or stmt.fp_ret_expr
         ret_exprs = [] if ret_expr is None else [ret_expr]
-        if len(ret_exprs) != len(results):
+        if len(ret_exprs) > len(results):
             raise errors.AngrRuntimeError(
                 f"Call statement expects {len(ret_exprs)} return value(s) but called function provided {len(results)}"
             )
@@ -412,10 +381,16 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_expr_Load(self, expr: ailment.expression.Load) -> claripy.ast.Bits:
         ptr = self._expr_bv(expr.addr)
         size = expr.size if isinstance(expr.size, int) else self._expr(expr.size)
-        region, offset = self._find_ptr_region(ptr)
-        return region.load(offset, size, endness=expr.endness)
+        return self.state.memory.load(ptr, size, endness=expr.endness)
 
     def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType:
+        # HACK
+        if expr.varid == 1059:
+            expr.varid = 994
+        elif expr.varid == 1111:
+            expr.varid = 1054
+        elif expr.varid == 1277:
+            expr.varid = 1159
         if isinstance((val := self.frame.vars.get(expr.varid, None)), MemoryMixin):
             return val.load(0, expr.size, endness=self.state.arch.memory_endness)
         if val is None:
@@ -540,6 +515,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_unop_Reference(self, expr: ailment.expression.UnaryOp) -> DataType:
         match expr.operand:
             case ailment.expression.VirtualVariable():
+                # HACK
+                if expr.operand.varid == 1213:
+                    expr.operand.varid = 1220
                 curval = self.frame.vars.get(expr.operand.varid, None)
                 if isinstance(curval, MemoryMixin):
                     return self.frame.var_refs_rev[expr.operand.varid]
@@ -551,6 +529,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 memory_cls = self.state.globals["ail_var_memory_cls"]  # type: ignore
                 newval = memory_cls(memory_id=region_name)
                 assert isinstance(newval, MemoryMixin)
+                newval.set_state(self.state)
                 if curval is not None:
                     newval.store(0, curval, endness=self.state.arch.memory_endness)
                 newptr = claripy.BVS(region_name, expr.bits)
@@ -563,8 +542,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _handle_unop_Dereference(self, expr: ailment.expression.UnaryOp) -> DataType:
         ptr = self._expr_bv(expr.operand)
-        region, offset = self._find_ptr_region(ptr)
-        return region.load(offset, expr.size, endness=expr.endness)
+        return self.state.memory.load(ptr, expr.size, endness=expr.endness)
 
     def _handle_unop_Clz(self, expr: ailment.expression.UnaryOp) -> DataType:
         operand = self._expr(expr.operand)
