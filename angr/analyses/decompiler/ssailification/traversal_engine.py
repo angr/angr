@@ -156,6 +156,23 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
             self.state.live_registers.add(base_offset)
 
     def _handle_expr_Load(self, expr: Load):
+        # slightly tricky to handle it right
+        # if this load is covered by an existing stack variable, it will be a partial read, and we do not do anything
+        # otherwise we make sure a def will be created for this load
+        if (
+            self.stackvars
+            and isinstance(expr.addr, StackBaseOffset)
+            and isinstance(expr.addr.offset, int)
+            and self.stackvars
+        ):
+            offset, size = expr.addr.offset, expr.size
+            if (offset, size) in self.state.live_stackvars:
+                return
+            for off, sz in self.state.live_stackvars:
+                if off <= offset and offset + size <= off + sz:
+                    return
+
+        self._expr(expr.addr)
         if (
             self.stackvars
             and isinstance(expr.addr, StackBaseOffset)
@@ -169,9 +186,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(expr)
             self.state.live_stackvars.add((expr.addr.offset, expr.size))
-
-        # must be called after potentially handling new stackvars above
-        self._expr(expr.addr)
 
     def _handle_expr_StackBaseOffset(self, expr: StackBaseOffset):
         # we don't know the size, so we assume the size is 1 for now...
