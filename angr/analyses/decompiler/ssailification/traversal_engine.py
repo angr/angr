@@ -156,7 +156,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
             self.state.live_registers.add(base_offset)
 
     def _handle_expr_Load(self, expr: Load):
-        self._expr(expr.addr)
         if (
             self.stackvars
             and isinstance(expr.addr, StackBaseOffset)
@@ -170,6 +169,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
                 self.loc_to_defs[codeloc] = OrderedSet()
             self.loc_to_defs[codeloc].add(expr)
             self.state.live_stackvars.add((expr.addr.offset, expr.size))
+
+        # must be called after potentially handling new stackvars above
+        self._expr(expr.addr)
 
     def _handle_expr_StackBaseOffset(self, expr: StackBaseOffset):
         # we don't know the size, so we assume the size is 1 for now...
