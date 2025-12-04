@@ -101,7 +101,7 @@ def trace_cgc_with_pov_file(
 
 
 def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=None):
-    p = angr.Project(filename)
+    p = angr.Project(filename, auto_load_libs=True)
 
     trace, _, crash_mode, crash_addr = do_trace(
         p,
