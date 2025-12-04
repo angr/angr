@@ -368,7 +368,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
     def changed_bytes(self, other, page_addr=None) -> set[int]:
         changed_candidates = super().changed_bytes(other)
         if changed_candidates is None:
-            changed_candidates = range(len(self.symbolic_bitmap))
+            changed_candidates = self._ultra_changed_candidates(other)
 
         changes: set[int] = set()
 
@@ -416,6 +416,32 @@ class UltraPage(MemoryObjectMixin, PageBase):
                             changes.add(addr)
 
         return changes
+
+    def _ultra_changed_candidates(self, other: UltraPage) -> set[int]:
+        """
+        Return candidates of changed bytes between self and other UltraPage, with special consideration of
+        uninitialized offsets.
+
+        :param other:   Another UltraPage to compare with.
+        :return:        A set of candidate offsets that may have changed.
+        """
+
+        candidate_offsets = set()
+        # calculate symbolic offsets (approximation)
+        for off, mo in self.symbolic_data.items():
+            candidate_offsets |= set(range(off, off + mo.length))
+        for off, mo in other.symbolic_data.items():
+            candidate_offsets |= set(range(off, off + mo.length))
+
+        # calculate concrete offsets
+        CHUNK_SIZE = 128
+        FULLY_SYMBOLIC = b"\1" * CHUNK_SIZE
+        for i in range(0, len(self.symbolic_bitmap), CHUNK_SIZE):
+            chunk_self = self.symbolic_bitmap[i : i + CHUNK_SIZE]
+            chunk_other = other.symbolic_bitmap[i : i + CHUNK_SIZE]
+            if not (chunk_self == chunk_other == FULLY_SYMBOLIC):
+                candidate_offsets |= set(range(i, i + CHUNK_SIZE))
+        return candidate_offsets
 
     def _contains(self, start: int, page_addr: int):
         if not self.symbolic_bitmap[start]:
