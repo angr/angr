@@ -368,7 +368,10 @@ class Decompiler(Analysis):
         seq_node = None
         # in the event that the decompiler is used without code generation as the target, we should avoid all
         # heavy analysis that is used only for the purpose of code generation
-        if self._generate_code:
+        # we also do not want to run structurer if clinic stopped before variable recovery
+        if self._generate_code and (
+            self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES
+        ):
             self._update_progress(75.0, text="Structuring code")
 
             # structure it
