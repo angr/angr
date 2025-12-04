@@ -272,10 +272,12 @@ class SimEngineSSARewriting(
             if vvar is not None:
                 assert isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int)
 
-                # remove everything else that overlaps with the full (base) stack variable
+                # remove everything else that overlaps with the current stack variable
                 # the full stack variable is kept around because it's always updated immediately and will be used in
                 # case of partial stack variable update
-                self._clear_overlapping_stackvars(stmt.addr.offset, stmt.size, remove_base_stackvar=False)
+                self._clear_overlapping_stackvars(
+                    stmt.addr.offset, stmt.size, remove_base_stackvar=False, remove_current_stackvar=False
+                )
 
                 data = stmt.data if new_data is None else new_data
                 vvar_assignment = Assignment(stmt.idx, vvar, data, **stmt.tags)
@@ -286,17 +288,20 @@ class SimEngineSSARewriting(
                     return vvar_assignment
 
                 # update the full variable
-                existing_full_vvar = self._replace_use_load(Load(None, stmt.addr, full_size, stmt.endness))
-                vvar_full = self._replace_def_store(
-                    self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
+                existing_full_vvar = self._replace_use_load(
+                    Load(None, stmt.addr, full_size, stmt.endness), create=False
                 )
-                if existing_full_vvar is not None and vvar_full is not None:
-                    self.secondary_stackvars.add(vvar_full.varid)
-                    full_data = self._partial_update_expr(
-                        existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
+                if existing_full_vvar is not None:
+                    vvar_full = self._replace_def_store(
+                        self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
                     )
-                    full_assignment = Assignment(stmt.idx, vvar_full, full_data, **stmt.tags)
-                    return vvar_assignment, full_assignment
+                    if vvar_full is not None:
+                        self.secondary_stackvars.add(vvar_full.varid)
+                        full_data = self._partial_update_expr(
+                            existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
+                        )
+                        full_assignment = Assignment(stmt.idx, vvar_full, full_data, **stmt.tags)
+                        return vvar_assignment, full_assignment
                 return vvar_assignment
 
         # fall back to Store
@@ -753,13 +758,13 @@ class SimEngineSSARewriting(
     def _replace_def_store(
         self, block_addr: int, block_idx: int | None, stmt_idx: int, stmt: Store, force_size: int | None = None
     ) -> VirtualVariable | None:
+        size = stmt.size if force_size is None else force_size
         if (
             isinstance(stmt.addr, StackBaseOffset)
             and isinstance(stmt.addr.offset, int)
             and stmt.addr.offset in self.stackvar_locs
-            and stmt.size in self.stackvar_locs[stmt.addr.offset]
+            and size in self.stackvar_locs[stmt.addr.offset]
         ):
-            size = stmt.size if force_size is None else force_size
             vvar_id = self.get_vvid_by_def(
                 block_addr,
                 block_idx,
@@ -903,7 +908,7 @@ class SimEngineSSARewriting(
             **reg_expr.tags,
         )
 
-    def _replace_use_load(self, expr: Load) -> VirtualVariable | None:
+    def _replace_use_load(self, expr: Load, create: bool = True) -> VirtualVariable | None:
         if (
             isinstance(expr.addr, StackBaseOffset)
             and isinstance(expr.addr.offset, int)
@@ -911,6 +916,8 @@ class SimEngineSSARewriting(
             and expr.size in self.stackvar_locs[expr.addr.offset]
         ):
             if expr.size not in self.state.stackvars[expr.addr.offset]:
+                if not create:
+                    return None
                 # we have not seen its use before (which does not necessarily mean it's never created!), so we create
                 # it on the fly and record it in self.state.stackvars
                 vvar_id = self.get_vvid_by_def(
@@ -990,20 +997,26 @@ class SimEngineSSARewriting(
                 else:
                     del self.state.registers[off]
 
-    def _clear_overlapping_stackvars(self, stack_offset: int, size: int, remove_base_stackvar: bool = True) -> None:
-        for off in range(stack_offset, stack_offset + size):
+    def _clear_overlapping_stackvars(
+        self, stack_offset: int, size: int, remove_base_stackvar: bool = True, remove_current_stackvar: bool = True
+    ) -> None:
+        if self.state.stackvars.get(stack_offset):
+            base_size = max(self.stackvar_locs[stack_offset])
+            remaining_sizes = list(self.state.stackvars[stack_offset])
+            if remove_current_stackvar and size in remaining_sizes:
+                remaining_sizes.remove(size)
+            if remove_base_stackvar and base_size in remaining_sizes:
+                remaining_sizes.remove(base_size)
+            if not remaining_sizes:
+                del self.state.stackvars[stack_offset]
+            else:
+                self.state.stackvars[stack_offset] = {
+                    sz: self.state.stackvars[stack_offset][sz] for sz in remaining_sizes
+                }
+
+        for off in range(stack_offset + 1, stack_offset + size):
             if off in self.state.stackvars:
-                if (
-                    not remove_base_stackvar
-                    and off in self.stackvar_locs
-                    and off == stack_offset
-                    and (base_size := max(self.stackvar_locs[off])) == size
-                    and base_size in self.state.stackvars[off]
-                ):
-                    if len(self.state.stackvars[off]) > 1:
-                        self.state.stackvars[off] = {base_size: self.state.stackvars[off][base_size]}
-                else:
-                    del self.state.stackvars[off]
+                del self.state.stackvars[off]
 
     def _unreachable(self, *args, **kwargs):
         assert False
