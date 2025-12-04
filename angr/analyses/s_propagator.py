@@ -37,7 +37,6 @@ from angr.utils.ssa import (
     is_vvar_propagatable,
     get_tmp_uselocs,
     get_tmp_deflocs,
-    phi_assignment_get_src,
     has_store_stmt_in_between_stmts,
 )
 
@@ -146,7 +145,7 @@ class SPropagatorAnalysis(Analysis):
         # find constant and other propagatable assignments
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
-        phi_varids: set[int] = set()
+        phi_varids: dict[int, set[int | None]] = {}  # mapping from phi_varid to source var IDs
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
             if isinstance(defloc, ExternalCodeLocation):
                 continue
@@ -157,7 +156,9 @@ class SPropagatorAnalysis(Analysis):
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
             if is_phi_assignment(stmt):
-                phi_varids.add(vvar_id)
+                phi_varids[vvar_id] = {
+                    src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars
+                }
             r, v = is_const_assignment(stmt)
             if r and v is not None and hasattr(v, "always_propagate") and v.always_propagate:
                 pass
@@ -182,7 +183,7 @@ class SPropagatorAnalysis(Analysis):
             changed = True
             while changed:
                 changed = False
-                for vvar_id in phi_varids:
+                for vvar_id, src_varids in phi_varids.items():
                     vvar, defloc = vvar_deflocs[vvar_id]
                     if vvar_id in const_vvars:
                         continue
@@ -192,33 +193,29 @@ class SPropagatorAnalysis(Analysis):
                     assert defloc.block_addr is not None
                     assert defloc.stmt_idx is not None
 
-                    block = blocks[(defloc.block_addr, defloc.block_idx)]
-                    stmt = block.statements[defloc.stmt_idx]
                     if not vvar.was_reg and not vvar.was_parameter:
                         continue
+                    if None in src_varids:
+                        continue
 
-                    v = phi_assignment_get_src(stmt)
-                    if v is not None:
-                        src_varids = {
-                            src_vvar.varid if src_vvar is not None else None for _, src_vvar in v.src_and_vvars
+                    expanded_src_varids = self._nonphi_src_varids(src_varids, phi_varids)
+                    if None not in expanded_src_varids and all(varid in const_vvars for varid in expanded_src_varids):
+                        all_int_src_varids: set[int] = {varid for varid in expanded_src_varids if varid is not None}
+                        src_values = {
+                            (
+                                (const_vvars[varid].value, const_vvars[varid].bits)
+                                if isinstance(const_vvars[varid], Const)
+                                else const_vvars[varid]
+                            )
+                            for varid in all_int_src_varids
                         }
-                        if None not in src_varids and all(varid in const_vvars for varid in src_varids):
-                            all_int_src_varids: set[int] = {varid for varid in src_varids if varid is not None}
-                            src_values = {
-                                (
-                                    (const_vvars[varid].value, const_vvars[varid].bits)
-                                    if isinstance(const_vvars[varid], Const)
-                                    else const_vvars[varid]
-                                )
-                                for varid in all_int_src_varids
-                            }
-                            if len(src_values) == 1:
-                                # replace it!
-                                const_value = const_vvars[next(iter(all_int_src_varids))]
-                                const_vvars[vvar.varid] = const_value
-                                for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                                    self.replace(replacements, useloc, vvar_at_use, const_value)
-                                changed = True
+                        if len(src_values) == 1:
+                            # replace it!
+                            const_value = const_vvars[next(iter(all_int_src_varids))]
+                            const_vvars[vvar.varid] = const_value
+                            for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                                self.replace(replacements, useloc, vvar_at_use, const_value)
+                            changed = True
 
             for vvar_id, (vvar, defloc) in vvar_deflocs.items():
                 if vvar_id not in vvar_uselocs:
@@ -567,6 +564,39 @@ class SPropagatorAnalysis(Analysis):
     @staticmethod
     def replace(replacements: dict, loc, expr: VirtualVariable | Tmp, value: Expression) -> None:
         replacements[loc][expr] = value
+
+    @staticmethod
+    def _nonphi_src_varids(
+        src_varids: set[int | None], phivar_to_srcvarids: dict[int, set[int | None]]
+    ) -> set[int | None]:
+        """
+        Expand source var IDs to non-phi var IDs.
+
+        :param src_varids:          The source var IDs.
+        :param phivar_to_srcvarids: The mapping from phi var IDs to their source var IDs.
+        :return:                    The expanded non-phi var IDs.
+        """
+
+        # fast path
+        if all(varid not in phivar_to_srcvarids for varid in src_varids):
+            return src_varids
+
+        result: set[int | None] = set()
+        seen: set[int] = set()  # sufficient if we only store phi var IDs here
+        queue: list[int | None] = list(src_varids)
+        while queue:
+            varid = queue.pop()
+            if varid is None:
+                result.add(None)
+                continue
+            if varid in seen:
+                continue
+            if varid not in phivar_to_srcvarids:
+                result.add(varid)
+                continue
+            seen.add(varid)
+            queue.extend(vid for vid in phivar_to_srcvarids[varid] if vid is not None and vid not in seen)
+        return result
 
 
 register_analysis(SPropagatorAnalysis, "SPropagator")
