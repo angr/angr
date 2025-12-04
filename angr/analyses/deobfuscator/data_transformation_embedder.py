@@ -70,7 +70,10 @@ class DataTransformationEmbedder(Analysis):
         encryption_scope_addrs = self._find_encryption_scope_addrs()
         _l.debug("Found %d encryption routine block candidates.", len(encryption_scope_addrs))
         for enc_addr in encryption_scope_addrs:
-            self._analyze_one_inlined_encryption_scope(enc_addr)
+            r = self._analyze_one_inlined_encryption_scope(enc_addr)
+            _l.debug("Inlining transformation scope at block %#x: %s", enc_addr, "Succeeded" if r else "Failed")
+            if r:
+                break
 
     #
     # Static calls to pure data transformation functions
