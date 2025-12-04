@@ -38,10 +38,18 @@ class DataTransformationEmbedder(Analysis):
     - We assume the data transformation logic is inlined completely within a single function.
     """
 
-    def __init__(self, func: Function, clinic: Clinic, cfunc: CFunction | None, preset: str = "malware"):
+    def __init__(
+        self,
+        func: Function,
+        clinic: Clinic,
+        cfunc: CFunction | None,
+        outlining_max_args: int = 1,
+        preset: str = "malware",
+    ):
         self.func = func
         self.clinic = clinic
         self.cfunc = cfunc
+        self._outlining_max_args = outlining_max_args
         self._preset = preset
 
         # intermediate state
@@ -334,11 +342,15 @@ class DataTransformationEmbedder(Analysis):
         start = None
 
         for _step in range(6):
-            _l.debug("Attempt %d: Attempting outlining at block %#x, ", block.addr, _step + 1)
+            _l.debug("Attempt %d: Attempting outlining at block %#x, ", _step + 1, block.addr)
             r, o, d = self._attempt_outlining((block.addr, block.idx))
 
-            if r and not o.child_funcargs:
-                _l.debug("Outlining at block %#x produced a function without arguments.", block.addr)
+            if r and not self._has_reg_vvars(o.child_funcargs) and len(o.child_funcargs) <= self._outlining_max_args:
+                _l.debug(
+                    "Outlining at block %#x produced a function without too many arguments (%d).",
+                    block.addr,
+                    len(o.child_funcargs),
+                )
                 _l.debug("%s", d.codegen.text)
 
                 outliner = o
@@ -347,7 +359,7 @@ class DataTransformationEmbedder(Analysis):
                 break
 
             # has arguments - can't partial evaluate
-            _l.debug("Outlining at block %#x produced arguments, backtracking...", block.addr)
+            _l.debug("Outlining at block %#x produced too many arguments, backtracking...", block.addr)
 
             preds = [
                 pred
@@ -397,6 +409,9 @@ class DataTransformationEmbedder(Analysis):
                     # looks like we can partially evaluate the loop and embed the results
                     def lifter(_addr: int):
                         return d.clinic  # noqa:B023
+
+                    # very much a hack for now
+                    d.clinic.arg_vvars = {}
 
                     call = AILCallable(
                         self.project,
@@ -609,3 +624,7 @@ class DataTransformationEmbedder(Analysis):
         new_graph.add_edge(new_block, succs[0])
 
         return new_graph
+
+    @staticmethod
+    def _has_reg_vvars(vvars: list[VirtualVariable]) -> bool:
+        return any(vvar.parameter_category == VirtualVariableCategory.REGISTER for vvar in vvars)
