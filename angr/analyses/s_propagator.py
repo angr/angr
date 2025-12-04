@@ -146,6 +146,7 @@ class SPropagatorAnalysis(Analysis):
         # find constant and other propagatable assignments
         vvarid_to_vvar = {}
         const_vvars: dict[int, Const] = {}
+        phi_varids: set[int] = set()
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
             if isinstance(defloc, ExternalCodeLocation):
                 continue
@@ -155,6 +156,8 @@ class SPropagatorAnalysis(Analysis):
 
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
+            if is_phi_assignment(stmt):
+                phi_varids.add(vvar_id)
             r, v = is_const_assignment(stmt)
             if r and v is not None and hasattr(v, "always_propagate") and v.always_propagate:
                 pass
@@ -171,29 +174,51 @@ class SPropagatorAnalysis(Analysis):
                     self.replace(replacements, useloc, vvar_at_use, v)
                 continue
 
-            v = phi_assignment_get_src(stmt)
-            if v is not None:
-                src_varids = {vvar.varid if vvar is not None else None for _, vvar in v.src_and_vvars}
-                if None not in src_varids and all(varid in const_vvars for varid in src_varids):
-                    all_int_src_varids: set[int] = {varid for varid in src_varids if varid is not None}
-                    src_values = {
-                        (
-                            (const_vvars[varid].value, const_vvars[varid].bits)
-                            if isinstance(const_vvars[varid], Const)
-                            else const_vvars[varid]
-                        )
-                        for varid in all_int_src_varids
-                    }
-                    if len(src_values) == 1:
-                        # replace it!
-                        const_value = const_vvars[next(iter(all_int_src_varids))]
-                        const_vvars[vvar.varid] = const_value
-                        for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
-                            self.replace(replacements, useloc, vvar_at_use, const_value)
-
         # function mode only
         if self.mode == "function":
             assert self.func_graph is not None
+
+            # find phi assignments whose source vvars are all constants; iterate until it reaches a fixed point
+            changed = True
+            while changed:
+                changed = False
+                for vvar_id in phi_varids:
+                    vvar, defloc = vvar_deflocs[vvar_id]
+                    if vvar_id in const_vvars:
+                        continue
+                    if isinstance(defloc, ExternalCodeLocation):
+                        continue
+
+                    assert defloc.block_addr is not None
+                    assert defloc.stmt_idx is not None
+
+                    block = blocks[(defloc.block_addr, defloc.block_idx)]
+                    stmt = block.statements[defloc.stmt_idx]
+                    if not vvar.was_reg and not vvar.was_parameter:
+                        continue
+
+                    v = phi_assignment_get_src(stmt)
+                    if v is not None:
+                        src_varids = {
+                            src_vvar.varid if src_vvar is not None else None for _, src_vvar in v.src_and_vvars
+                        }
+                        if None not in src_varids and all(varid in const_vvars for varid in src_varids):
+                            all_int_src_varids: set[int] = {varid for varid in src_varids if varid is not None}
+                            src_values = {
+                                (
+                                    (const_vvars[varid].value, const_vvars[varid].bits)
+                                    if isinstance(const_vvars[varid], Const)
+                                    else const_vvars[varid]
+                                )
+                                for varid in all_int_src_varids
+                            }
+                            if len(src_values) == 1:
+                                # replace it!
+                                const_value = const_vvars[next(iter(all_int_src_varids))]
+                                const_vvars[vvar.varid] = const_value
+                                for vvar_at_use, useloc in vvar_uselocs[vvar.varid]:
+                                    self.replace(replacements, useloc, vvar_at_use, const_value)
+                                changed = True
 
             for vvar_id, (vvar, defloc) in vvar_deflocs.items():
                 if vvar_id not in vvar_uselocs:
