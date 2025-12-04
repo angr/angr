@@ -439,7 +439,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         for i in range(0, len(self.symbolic_bitmap), CHUNK_SIZE):
             chunk_self = self.symbolic_bitmap[i : i + CHUNK_SIZE]
             chunk_other = other.symbolic_bitmap[i : i + CHUNK_SIZE]
-            if not (chunk_self == chunk_other == FULLY_SYMBOLIC):
+            if not chunk_self == chunk_other == FULLY_SYMBOLIC:
                 candidate_offsets |= set(range(i, i + CHUNK_SIZE))
         return candidate_offsets
 
