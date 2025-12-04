@@ -909,13 +909,15 @@ class SimEngineSSARewriting(
         )
 
     def _replace_use_load(self, expr: Load, create: bool = True) -> VirtualVariable | None:
-        if (  # noqa:SIM102
+        if (
             isinstance(expr.addr, StackBaseOffset)
             and isinstance(expr.addr.offset, int)
             and expr.addr.offset in self.stackvar_locs
             and expr.size in self.stackvar_locs[expr.addr.offset]
         ):
-            if expr.size not in self.state.stackvars[expr.addr.offset] and create:
+            if expr.size not in self.state.stackvars[expr.addr.offset]:
+                if not create:
+                    return None
                 # we have not seen its use before (which does not necessarily mean it's never created!), so we create
                 # it on the fly and record it in self.state.stackvars
                 vvar_id = self.get_vvid_by_def(
@@ -935,6 +937,27 @@ class SimEngineSSARewriting(
                 )
                 self.state.stackvars[expr.addr.offset][expr.size] = var
                 return var
+
+            # TODO: Support truncation
+            # TODO: Maybe also support concatenation
+            vvar = self.state.stackvars[expr.addr.offset][expr.size]
+            if vvar.category == VirtualVariableCategory.PARAMETER:
+                return VirtualVariable(
+                    expr.idx,
+                    vvar.varid,
+                    vvar.bits,
+                    VirtualVariableCategory.PARAMETER,
+                    oident=vvar.oident,
+                    **vvar.tags,
+                )
+            return VirtualVariable(
+                expr.idx,
+                vvar.varid,
+                vvar.bits,
+                VirtualVariableCategory.STACK,
+                oident=vvar.stack_offset,
+                **vvar.tags,
+            )
         return None
 
     def _replace_use_tmp(self, block_addr: int, block_idx: int | None, stmt_idx: int, expr: Tmp) -> VirtualVariable:
