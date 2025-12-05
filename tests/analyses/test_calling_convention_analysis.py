@@ -590,7 +590,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert len(func_main.prototype.args) == 1
 
 
-
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
     logging.getLogger("angr.analyses.calling_convention").setLevel(logging.INFO)
