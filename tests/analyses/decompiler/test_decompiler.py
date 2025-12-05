@@ -4178,7 +4178,9 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "windows", "msvcr120.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
-        cfg = proj.analyses.CFGFast(force_smart_scan=False, normalize=True)
+        cfg = proj.analyses.CFGFast(
+            force_smart_scan=False, normalize=True, regions=[(0x18003C330, 0x18003C330 + 0x1000)]
+        )
         f = proj.kb.functions[0x18003C330]
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
