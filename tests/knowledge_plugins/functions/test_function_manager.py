@@ -79,12 +79,16 @@ class TestFunctionManager(unittest.TestCase):
         assert [bl.addr for bl in main.endpoints] == [0x4007D3]
         assert set(main.get_call_sites()) == expected_callsites
         assert {
-                   t
+                   target
                    for cs in main.get_call_sites()
-                   for t in main.get_call_target(cs)
+                   for target in main.get_call_target(cs)
                } == expected_callsite_targets
 
-        assert set(map(main.get_call_return, main.get_call_sites())) == expected_callsite_returns
+        assert {
+                   retn_addr
+                   for cs in main.get_call_sites()
+                   for retn_addr in main.get_call_return(cs)
+               } == expected_callsite_returns
         assert main.has_return
 
         rejected = self.project.kb.functions.function(name="rejected")

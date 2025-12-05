@@ -1689,7 +1689,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         current_function = self.kb.functions.function(current_function_addr)
                         if current_function is not None:
                             call_site_addr = self._block_id_addr(pe.src_block_id)
-                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                            current_function_call_sites = current_function._call_sites[call_site_addr]
+                            current_function_call_sites[:] = [(call_target, retn_addr) for (call_target, retn_addr) in current_function_call_sites if call_target != func.addr]
+                            current_function_call_sites.append((func.addr, None))
                         else:
                             l.warning(
                                 "An expected function at %#x is not found. Please report it to Fish.",
