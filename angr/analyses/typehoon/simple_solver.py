@@ -1014,6 +1014,7 @@ class SimpleSolver:
         Rules:
         - tv_0 + tv_1 == tv_r ^ tv_0 is ptr ==> tv_r is ptr
         - tv_0 + tv_1 == tv_r ^ tv_1 is ptr ==> tv_r is ptr
+        - tv_0 + tv_1.conv... == tv_r ^ tv_r is ptr ==> tv_0 is ptr
         """
         if not ptr_tvs:
             return set()
@@ -1021,18 +1022,24 @@ class SimpleSolver:
         new_constraints = set()
         for constraint in self._constraints[typevar]:
             if isinstance(constraint, Add):
-                if (
-                    not isinstance(constraint.type_0, TypeConstant)
-                    and not isinstance(constraint.type_r, TypeConstant)
-                    and constraint.type_0 in ptr_tvs
-                ):
-                    new_constraints.add(Equivalence(constraint.type_0, constraint.type_r))
-                if (
-                    not isinstance(constraint.type_1, TypeConstant)
-                    and not isinstance(constraint.type_r, TypeConstant)
-                    and constraint.type_1 in ptr_tvs
-                ):
-                    new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
+                t0, t1, tr = constraint.type_0, constraint.type_1, constraint.type_r
+                if not isinstance(t0, TypeConstant) and not isinstance(tr, TypeConstant) and t0 in ptr_tvs:
+                    new_constraints.add(Equivalence(t0, tr))
+                elif not isinstance(t1, TypeConstant) and not isinstance(tr, TypeConstant) and t1 in ptr_tvs:
+                    new_constraints.add(Equivalence(t1, tr))
+                elif not isinstance(tr, TypeConstant) and tr in ptr_tvs:
+                    if (
+                        not isinstance(t0, TypeConstant)
+                        and isinstance(t1, DerivedTypeVariable)
+                        and isinstance(t1.labels[-1], ConvertTo)
+                    ):
+                        new_constraints.add(Equivalence(t0, tr))
+                    elif (
+                        not isinstance(t1, TypeConstant)
+                        and isinstance(t0, DerivedTypeVariable)
+                        and isinstance(t0.labels[-1], ConvertTo)
+                    ):
+                        new_constraints.add(Equivalence(t1, tr))
         return new_constraints
 
     def _eq_constraints_from_sub(self, typevar: TypeVariable, ptr_tvs: set[TypeVariable]) -> set[TypeConstraint]:
