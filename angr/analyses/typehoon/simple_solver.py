@@ -916,7 +916,8 @@ class SimpleSolver:
                                 graph,
                             )
 
-    def _eq_constraints_from_tvs(self, type_constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+    @staticmethod
+    def _eq_constraints_from_tvs(type_constraints: set[TypeConstraint]) -> set[TypeConstraint]:
         """
         Generate more equivalence constraints based on known type variables.
 
@@ -973,8 +974,9 @@ class SimpleSolver:
 
         return ptr_tvs
 
+    @staticmethod
     def _remove_alignment_int_ptr_subtyping_constraints(
-        self, constraints: set[TypeConstraint], ptr_tvs: set[TypeVariable]
+        constraints: set[TypeConstraint], ptr_tvs: set[TypeVariable]
     ) -> set[TypeConstraint]:
         """
         Eliminate incorrect subtyping constraints between int and pointer type variables. Such constraints are usually
