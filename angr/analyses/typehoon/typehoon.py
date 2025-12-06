@@ -186,6 +186,8 @@ class Typehoon(Analysis):
             for tv, sim_type in self._ground_truth.items():
                 self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
+        # self.pp_constraints()
+
         self._solve()
         self._specialize()
         self._translate_to_simtypes()
@@ -194,24 +196,26 @@ class Typehoon(Analysis):
         if self._ground_truth and self.simtypes_solution is not None:
             self.simtypes_solution.update(self._ground_truth)
 
+        # self.pp_solution()
+
     @staticmethod
     def _resolve_derived(tv: TypeVariable | DerivedTypeVariable) -> TypeVariable:
         return tv.type_var if isinstance(tv, DerivedTypeVariable) else tv
 
     def _solve(self):
-        typevars = set()
+        typevars = {self.func_var: set()}
         if self._var_mapping:
             for variable_typevars in self._var_mapping.values():
-                typevars |= variable_typevars
-            typevars |= set(self._stack_offset_tvs.values())
+                typevars[self.func_var] |= variable_typevars
+            typevars[self.func_var] |= set(self._stack_offset_tvs.values())
         else:
             # collect type variables from constraints
             for constraint in self._constraints[self.func_var]:
                 if isinstance(constraint, Subtype):
                     if isinstance(constraint.sub_type, TypeVariable):
-                        typevars.add(self._resolve_derived(constraint.sub_type))
+                        typevars[self.func_var].add(self._resolve_derived(constraint.sub_type))
                     if isinstance(constraint.super_type, TypeVariable):
-                        typevars.add(self._resolve_derived(constraint.super_type))
+                        typevars[self.func_var].add(self._resolve_derived(constraint.super_type))
 
         solver = SimpleSolver(
             self.bits,
