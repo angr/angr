@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v4
       - uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
         if: startsWith(runner.os, 'windows')
-      - uses: astral-sh/setup-uv@1e862dfacbd1d6d858c55d9b792c756523627244 # v6
+      - uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v6
       - name: Sync dependencies
         run: uv sync -p 3.10
       - name: Collect tests
