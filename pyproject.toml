@@ -28,6 +28,7 @@ dependencies = [
     "msgspec",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.0",
+    "rustworkx",
     "protobuf>=6.33.0",
     "psutil",
     "pycparser>=2.18",

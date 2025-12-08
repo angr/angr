@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Any
 import logging
 from collections import defaultdict
 
-import networkx
+from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
+
 from sortedcontainers import SortedDict
 
 import pyvex
@@ -374,7 +375,7 @@ class CFGBase(Analysis):
         return self._loop_back_edges
 
     @property
-    def graph(self) -> networkx.DiGraph[CFGNode]:
+    def graph(self) -> RxDiGraph[CFGNode]:
         raise NotImplementedError
 
     def remove_edge(self, block_from, block_to):
@@ -1284,7 +1285,7 @@ class CFGBase(Analysis):
 
     def _normalize_core(
         self,
-        graph: networkx.DiGraph[CFGNode],
+        graph: RxDiGraph[CFGNode],
         callstack_key,
         smallest_node,
         other_nodes,
@@ -2188,7 +2189,7 @@ class CFGBase(Analysis):
 
     def _is_tail_call_optimization(
         self,
-        g: networkx.DiGraph[CFGNode],
+        g: RxDiGraph[CFGNode],
         src_addr,
         dst_addr,
         src_function,
@@ -2301,7 +2302,7 @@ class CFGBase(Analysis):
         - Call edges are not followed.
         - Syscall edges are not followed.
 
-        :param networkx.DiGraph g: The graph.
+        :param RxDiGraph g: The graph.
         :param list starts: A collection of beginning nodes to start graph traversal.
         :param func callback: Callback function for each edge and node.
         :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
@@ -2730,7 +2731,7 @@ class CFGBase(Analysis):
         """
         Pick the first Ijk_FakeRet edge from all_edges, and return the destination node.
 
-        :param list all_edges: A list of networkx.Graph edges with data.
+        :param list all_edges: A list of RxDiGraph edges with data.
         :return:               The first FakeRet node, or None if nothing is found.
         :rtype:                CFGNode or None
         """

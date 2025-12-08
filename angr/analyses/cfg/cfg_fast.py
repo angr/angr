@@ -9,7 +9,8 @@ import string
 from collections import defaultdict, OrderedDict
 from enum import Enum, unique
 
-import networkx
+from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
+
 from sortedcontainers import SortedDict
 import capstone
 
@@ -1482,7 +1483,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # assumption management
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
-        self._decoding_assumption_relations = networkx.DiGraph()
+        self._decoding_assumption_relations = RxDiGraph()
 
         # register read-only regions to PyVEX
         self._lifter_register_readonly_regions()

@@ -5,7 +5,7 @@ from collections import defaultdict
 from typing import Any, Generic, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
-import networkx
+from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
 
 from angr.analyses.forward_analysis.visitors.function_graph import FunctionGraphVisitor
 from angr.knowledge_plugins.functions.function import Function
@@ -95,7 +95,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
 
         # The graph!
         # Analysis results (nodes) are stored here
-        self._graph = networkx.DiGraph()
+        self._graph = RxDiGraph()
 
     #
     # Properties
@@ -111,7 +111,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
         return self._should_abort
 
     @property
-    def graph(self) -> networkx.DiGraph:
+    def graph(self) -> RxDiGraph:
         return self._graph
 
     @property
@@ -548,7 +548,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
 class ForwardAnalysisForDummies(
     Generic[AnalysisState, NodeType, JobKey], ForwardAnalysis[AnalysisState, NodeType, NodeType, JobKey, NodeType]
 ):
-    def __init__(self, *args, function: Function, graph: networkx.DiGraph[NodeType], **kwargs):
+    def __init__(self, *args, function: Function, graph: RxDiGraph[NodeType], **kwargs):
         self._graph_for_dummies = graph
         ForwardAnalysis.__init__(self, *args, graph_visitor=FunctionGraphVisitor(function, graph), **kwargs)
 
