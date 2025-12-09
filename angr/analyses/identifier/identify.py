@@ -284,8 +284,9 @@ class Identifier(Analysis):
 
         # create inverse callsite map
         self.inv_callsites = defaultdict(set)
-        for c, f in self.callsites.items():
-            self.inv_callsites[f].add(c)
+        for c, targets in self.callsites.items():
+            for target in targets:
+                self.inv_callsites[f].add(c)
 
         # create map of blocks to the function they reside in
         self.block_to_func = {}
