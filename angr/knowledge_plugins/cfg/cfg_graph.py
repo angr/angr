@@ -145,8 +145,7 @@ class _RxAdjacencyView:
         self._node_idx = node_idx
 
     def __iter__(self):
-        for succ in self._graph._g.successors(self._node_idx):
-            yield succ
+        yield from self._graph._g.successors(self._node_idx)
 
     def __len__(self):
         return self._graph._g.out_degree(self._node_idx)

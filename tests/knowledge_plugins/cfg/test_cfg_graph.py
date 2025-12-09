@@ -9,6 +9,7 @@ import unittest
 import networkx
 from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
 
+
 class FakeCFGNode:
     """Fake CFGNode-like object for testing"""
 
@@ -621,7 +622,6 @@ class TestRxDiGraph(unittest.TestCase):
         self.assertTrue(rx_g.has_node(self.n1))
         self.assertFalse(rx_g.has_node(self.n2))
 
-
     def test_nodes_callable_with_data(self):
         rx_g = RxDiGraph()
         nx_g = networkx.DiGraph()
@@ -835,8 +835,8 @@ class TestRxDiGraph(unittest.TestCase):
         self.assertTrue(rx_sub.has_edge(self.n2, self.n3))
         self.assertTrue(rx_sub.has_edge(self.n1, self.n3))
 
-        self.assertEqual(rx_sub.get_edge_data(self.n1, self.n2)['weight'], 1)
-        self.assertEqual(rx_sub.get_edge_data(self.n1, self.n3)['weight'], 4)
+        self.assertEqual(rx_sub.get_edge_data(self.n1, self.n2)["weight"], 1)
+        self.assertEqual(rx_sub.get_edge_data(self.n1, self.n3)["weight"], 4)
 
         original_node_count = len(rx_sub.nodes)
         rx_g.add_node(self.n5)
@@ -886,6 +886,7 @@ class TestRxDiGraph(unittest.TestCase):
 
         self.assertEqual(len(rx_cycles), 0)
         self.assertEqual(len(nx_cycles), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
