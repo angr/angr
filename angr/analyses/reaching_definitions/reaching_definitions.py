@@ -32,7 +32,7 @@ l = logging.getLogger(name=__name__)
 
 
 class ReachingDefinitionsAnalysis(
-    ForwardAnalysis[ReachingDefinitionsState, NodeType, object, object], Analysis
+    ForwardAnalysis[ReachingDefinitionsState, NodeType, object, object, object], Analysis
 ):  # pylint:disable=abstract-method
     """
     ReachingDefinitionsAnalysis is a text-book implementation of a static data-flow analysis that works on either a

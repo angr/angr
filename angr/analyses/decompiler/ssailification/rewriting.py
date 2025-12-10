@@ -22,7 +22,7 @@ from .rewriting_state import RewritingState
 l = logging.getLogger(__name__)
 
 
-class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, object]):
+class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, object, object]):
     """
     RewritingAnalysis traverses the AIL graph, inserts phi nodes, and rewrites all expression uses to virtual variables
     when necessary.
