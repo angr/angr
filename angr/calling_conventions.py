@@ -36,7 +36,7 @@ from .sim_type import (
     SimTypeReference,
     SimTypedef,
     SimConst,
-    SimTypeBool,
+    SimTypeBool, TypeModifier,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -142,7 +142,7 @@ def refine_locs_with_struct_type(
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
-    if isinstance(arg_type, (SimTypedef, SimConst)):
+    if isinstance(arg_type, (SimTypedef, TypeModifier)):
         return refine_locs_with_struct_type(arch, locs, arg_type.type, offset, treat_bot_as_int, treat_unsupported_as_int)
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         assert arg_type.size is not None
@@ -790,7 +790,7 @@ class SimCC:
         return self.RETURN_ADDR
 
     def next_arg(self, session: ArgSession, arg_type: SimType):
-        if isinstance(arg_type, (SimTypedef, SimConst)):
+        if isinstance(arg_type, (SimTypedef, TypeModifier)):
             return self.next_arg(session, arg_type.type)
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
@@ -1045,7 +1045,7 @@ class SimCC:
 
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
-        if isinstance(ty, (SimTypedef, SimConst)):
+        if isinstance(ty, (SimTypedef, TypeModifier)):
             return SimCC._standardize_value(arg, ty.type, state, alloc)
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
@@ -1693,7 +1693,7 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
             return ["INTEGER"] * nchunks
-        if isinstance(ty, (SimTypedef, SimConst)):
+        if isinstance(ty, (SimTypedef, TypeModifier)):
             return self._classify(ty.type)
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
@@ -1862,6 +1862,8 @@ class SimCCARM(SimCC):
             ty, (SimTypeInt, SimTypeChar, SimTypeBool, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)
         ):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, (SimTypedef, TypeModifier)):
+            return self._classify(ty.type)
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]
@@ -2132,6 +2134,8 @@ class SimCCO32(SimCC):
         nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, (SimTypedef, TypeModifier)):
+            return self._classify(ty.type)
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]

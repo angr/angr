@@ -225,14 +225,36 @@ class SimType:
             elif isinstance(cle_typ, variable_type.TypedefType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
                 typ: SimTypedef = SimTypedef(None, name=cle_typ.name, label=label)
+            elif isinstance(cle_typ, variable_type.AtomicType):
+                typ: SimAtomic = SimAtomic(None, arch=arch)
             elif isinstance(cle_typ, variable_type.ConstType):
                 typ: SimConst = SimConst(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.ImmutableType):
+                typ: SimImmutable = SimImmutable(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.PackedType):
+                typ: SimPacked = SimPacked(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.ReferenceType):
+                typ: SimTypeReference = SimTypeReference(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.RestrictType):
+                typ: SimRestrict = SimRestrict(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.RValueReferenceType):
+                typ: SimTypeRValueReference = SimTypeRValueReference(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.SharedType):
+                typ: SimShared = SimShared(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.VolatileType):
+                typ: SimVolatile = SimVolatile(None, arch=arch)
             elif cle_typ is None:
                 typ: SimType = SimTypeBottom(arch=arch)
             if typ is None:
                 raise ValueError(f"Unable to convert cle DWARF type {type(cle_typ)} to corresponding angr type.")
             mapping[cle_typ] = typ
             constructed_types.append(typ)
+        def resolve(key):
+            # This function makes the next pass a bit more robust to DWARF data that is malformed/doesn't
+            # contain enough information to resolve properly. In most cases this function will return None
+            # if some attributes are missing for part of a DWARF entry. This seems to happen pretty often
+            # in GCC C programs. This function is also a convenient place to put a debug breakpoint.
+            return mapping.get(key, None)
         # At this point we have created all the objects for each type. On this second pass we now hook up
         # all fields of the members
         for cle_typ in cle_types:
@@ -241,50 +263,59 @@ class SimType:
             elif isinstance(cle_typ, variable_type.UnionType):
                 typ: SimUnion = mapping[cle_typ]
                 for field in cle_typ.members:
-                    typ.members[field.name] = mapping[field.type]
+                    typ.members[field.name] = resolve(field.type)
             elif isinstance(cle_typ, variable_type.StructType):
                 typ: SimStruct = mapping[cle_typ]
                 for field in cle_typ.members:
-                    typ.fields[field.name] = mapping[field.type]
+                    typ.fields[field.name] = resolve(field.type)
                     typ.offsets[field.name] = field.addr_offset
             elif isinstance(cle_typ, variable_type.PointerType):
                 typ: SimTypePointer = mapping[cle_typ]
-                typ.pts_to = mapping[cle_typ.referenced_type]
+                typ.pts_to = resolve(cle_typ.referenced_type)
             elif isinstance(cle_typ, variable_type.ArrayType):
                 typ: SimTypeArray = mapping[cle_typ]
-                typ.elem_type = mapping[cle_typ.element_type]
+                typ.elem_type = resolve(cle_typ.element_type)
             elif isinstance(cle_typ, variable_type.EnumerationType):
                 typ: SimTypeEnumeration = mapping[cle_typ]
-                typ.underlying_type = mapping[cle_typ.type]
+                typ.underlying_type = resolve(cle_typ.type)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimTypeFunction = mapping[cle_typ]
-                typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
+                typ.args = tuple(resolve(param.type) for param in cle_typ.parameters)
                 return_ty = cle_typ.type
                 if return_ty is None:
                     typ.returnty = SimTypeBottom(arch=arch)
                 else:
-                    typ.returnty = mapping[return_ty]
+                    typ.returnty = resolve(return_ty)
             elif isinstance(cle_typ, variable_type.SubprogramType):
                 typ: SimTypeFunction = mapping[cle_typ]
-                typ.args = tuple(mapping[param.type] for param in cle_typ.parameters)
+                typ.args = tuple(resolve(param.type) for param in cle_typ.parameters)
                 return_ty = cle_typ.type
                 if return_ty is None:
                     typ.returnty = SimTypeBottom(arch=arch)
                 else:
-                    typ.returnty = mapping[return_ty]
+                    typ.returnty = resolve(return_ty)
             elif isinstance(cle_typ, variable_type.VariantType):
                 typ: SimVariant = mapping[cle_typ]
                 if cle_typ.tag is not None:
-                    typ.tag = mapping[cle_typ.tag.type]
+                    typ.tag = resolve(cle_typ.tag.type)
                 for c in cle_typ.cases:
-                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, mapping[c.type], align=c.align)
+                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, resolve(c.type), align=c.align)
                     typ.cases.append(case)
             elif isinstance(cle_typ, variable_type.TypedefType):
                 typ: SimTypedef = mapping[cle_typ]
-                typ.type = mapping[cle_typ.type]
-            elif isinstance(cle_typ, variable_type.ConstType):
-                typ: SimConst = mapping[cle_typ]
-                typ.type = mapping[cle_typ.type]
+                typ.type = resolve(cle_typ.type)
+            elif isinstance(cle_typ, variable_type.ReferenceType):
+                typ: SimTypeReference = mapping[cle_typ]
+                typ.refs = resolve(cle_typ.type)
+            elif isinstance(cle_typ, (variable_type.AtomicType, variable_type.ConstType,
+                                      variable_type.ImmutableType, variable_type.PackedType,
+                                      variable_type.RestrictType, variable_type.SharedType,
+                                      variable_type.VolatileType)):
+                typ: TypeModifier = mapping[cle_typ]
+                typ.type = resolve(cle_typ.type)
+            elif isinstance(cle_typ, variable_type.RValueReferenceType):
+                typ: SimTypeRValueReference = mapping[cle_typ]
+                typ.refs = resolve(cle_typ.type)
             elif cle_typ is None:
                 pass
         # The caller may want to preserve the correspondence between the input and output lists
@@ -1129,8 +1160,8 @@ class SimTypeReference(SimTypeReg):
     _args = ("refs", "label")
     _ident = "ref"
 
-    def __init__(self, refs, label=None):
-        super().__init__(None, label=label)
+    def __init__(self, refs, label=None, arch=None):
+        super().__init__(None, label=label, arch=arch)
         self.refs: SimType = refs
 
     def __repr__(self):
@@ -1183,6 +1214,63 @@ class SimTypeReference(SimTypeReg):
             return out
         return state.solver.eval(out)
 
+class SimTypeRValueReference(SimTypeReg):
+    _args = ("refs", "label")
+    _ident = "r_value_reference"
+
+    def __init__(self, refs, label=None, arch=None):
+        super().__init__(None, label=label, arch=arch)
+        self.refs: SimType = refs
+
+    def __repr__(self):
+        return f"{self.refs}&&"
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        name = "&&" if name is None else f"&&{name}"
+        return self.refs.c_repr(name, full, memo, indent)
+
+    def make(self, refs):
+        new = type(self)(refs)
+        new._arch = self._arch
+        return new
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        return self._arch.bits
+
+    def _with_arch(self, arch):
+        out = SimTypeRValueReference(self.refs.with_arch(arch), label=self.label)
+        out._arch = arch
+        return out
+
+    def _init_str(self):
+        return "{}({}{})".format(
+            self.__class__.__name__,
+            self.refs._init_str(),
+            (f', label="{self.label}"') if self.label is not None else "",
+        )
+
+    def copy(self):
+        return SimTypeReference(self.refs, label=self.label)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
+
+    def extract(self, state, addr, concrete=False):
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.solver.eval(out)
 
 class SimTypeArray(SimType):
     """
@@ -2198,8 +2286,8 @@ class SimTypedef(NamedTypeMixin, SimType):
         # TODO: Figure out what to do with these other parameters to c_repr
         return f"typedef {self.name} {self.c_repr()}"
 
-class SimConst(NamedTypeMixin, SimType):
-    _ident = "const"
+class TypeModifier(NamedTypeMixin, SimType):
+    _ident = "_type_modifier"
 
     def __init__(self, underlying_type, name=None, label=None, arch=None):
         super().__init__(label, name=name, arch=arch)
@@ -2232,11 +2320,32 @@ class SimConst(NamedTypeMixin, SimType):
         return self.c_repr()
 
     def __str__(self):
-        return f"const {self.type.name}"
+        return f"{self._ident} {self.type.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
         # TODO: Figure out what to do with these other parameters to c_repr
-        return f"const {self.c_repr()}"
+        return f"{self._ident} {self.c_repr()}"
+
+class SimAtomic(TypeModifier):
+    _ident = "atomic"
+
+class SimConst(TypeModifier):
+    _ident = "const"
+
+class SimImmutable(TypeModifier):
+    _ident = "immutable"
+
+class SimPacked(TypeModifier):
+    _ident = "packed"
+
+class SimRestrict(TypeModifier):
+    _ident = "restrict"
+
+class SimShared(TypeModifier):
+    _ident = "shared"
+
+class SimVolatile(TypeModifier):
+    _ident = "volatile"
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
