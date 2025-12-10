@@ -196,7 +196,7 @@ class SimType:
         """
 
         assert "_t" in d
-        cls = IDENT_TO_CLS.get(d["_t"], None) # pylint: disable=redefined-outer-name
+        cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             return cls.from_json(d)
@@ -3924,7 +3924,7 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
-def parse_cpp_file(cpp_decl, with_param_names: bool = False): # pylint: disable=unused-argument
+def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
     #
