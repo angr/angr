@@ -196,7 +196,7 @@ class SimType:
         """
 
         assert "_t" in d
-        cls = IDENT_TO_CLS.get(d["_t"], None)
+        cls = IDENT_TO_CLS.get(d["_t"], None) # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             return cls.from_json(d)
@@ -2746,9 +2746,7 @@ GLIBC_TYPES = {
         },
         name="FILE_t",
     ),
-    
     "FILE": SimStruct({}, name="FILE"),
-
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/stdio-common/printf.h#L34
     "printf_info": SimStruct(
         {
@@ -3926,7 +3924,7 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
-def parse_cpp_file(cpp_decl, with_param_names: bool = False):
+def parse_cpp_file(cpp_decl, with_param_names: bool = False): # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
     #
