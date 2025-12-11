@@ -5,9 +5,9 @@ import contextlib
 import copy
 import re
 import logging
+from typing import Literal, Any, cast, overload
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
-from typing import Literal, Any, cast, overload
 from collections.abc import MutableMapping
 
 from archinfo import Endness, Arch
@@ -2244,10 +2244,10 @@ class SimTypeRef(SimType):
 IDENT_TO_CLS: dict[str, type[SimType]] = {}
 _queue = [SimType]
 while _queue:
-    cls = _queue.pop()
-    assert cls._ident not in IDENT_TO_CLS
-    IDENT_TO_CLS[cls._ident] = cls
-    _queue.extend(cls.__subclasses__())
+    _cls = _queue.pop()
+    assert _cls._ident not in IDENT_TO_CLS
+    IDENT_TO_CLS[_cls._ident] = _cls
+    _queue.extend(_cls.__subclasses__())
 
 
 ALL_TYPES: dict[str, SimType] = {}
