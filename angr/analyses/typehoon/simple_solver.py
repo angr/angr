@@ -1143,6 +1143,16 @@ class SimpleSolver:
         return constraints, replacements
 
     @staticmethod
+    def _rewrite_typeconstant_with_replacements(
+        tc: TypeConstant, replacements: dict[TypeConstant, TypeConstant]
+    ) -> TypeConstant:
+        if isinstance(tc, (Pointer, Struct)):
+            if tc in replacements:
+                return replacements[tc]
+            return tc.replace(replacements)
+        return tc
+
+    @staticmethod
     def _rewrite_constraints_with_replacements(
         constraints: set[TypeConstraint], replacements: dict[TypeVariable, TypeVariable | TypeConstant]
     ) -> set[TypeConstraint]:
@@ -1753,7 +1763,7 @@ class SimpleSolver:
 
             # create a dummy result and shove it into the cache
             struct_type = Struct(fields={})
-            result = self._pointer_class()(struct_type)
+            ori_result = result = self._pointer_class()(struct_type)
             # print(f"Creating a struct type: {struct_type} for {the_typevar}")
             for node in nodes:
                 # print(f"... assigned it to {node.typevar}")
@@ -1862,6 +1872,8 @@ class SimpleSolver:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
                     solution[node.typevar] = result
+                    for tv in list(solution):
+                        solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {ori_result: result})
             else:
                 # back-patch
                 struct_type.fields = fields

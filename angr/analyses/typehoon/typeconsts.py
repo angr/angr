@@ -49,6 +49,9 @@ class TypeConstant:
     def __repr__(self, memo=None) -> str:
         raise NotImplementedError
 
+    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+        return mapping.get(self, self)
+
 
 class TopType(TypeConstant):
     def __repr__(self, memo=None):
@@ -163,11 +166,19 @@ class Pointer(TypeConstant):
             return hash(type(self))
         return hash((type(self), self.basetype._hash(visited)))
 
-    def new(self, basetype):
+    def new(self, basetype, name: str | None = None):
         return self.__class__(basetype)
 
     def __hash__(self):
         return self._hash(set())
+
+    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+        if self in mapping:
+            return mapping[self]
+        new_basetype = self.basetype.replace(mapping) if self.basetype else None
+        if new_basetype is self.basetype:
+            return self
+        return self.new(new_basetype, name=self.name)
 
 
 class Pointer32(Pointer, Int32):
@@ -232,6 +243,14 @@ class Array(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
+    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+        if self in mapping:
+            return mapping[self]
+        new_element = self.element.replace(mapping) if self.element else None
+        if new_element is self.element:
+            return self
+        return Array(new_element, self.count, name=self.name)
+
 
 _STRUCT_ID = itertools.count()
 
@@ -283,6 +302,26 @@ class Struct(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
+    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+        if self in mapping:
+            return mapping[self]
+        new_fields = {}
+        changed = False
+        for off, typ in self.fields.items():
+            new_typ = typ.replace(mapping) if typ else None
+            new_fields[off] = new_typ
+            if new_typ is not typ:
+                changed = True
+        if not changed:
+            return self
+        return Struct(
+            fields=new_fields,
+            name=self.name,
+            field_names=self.field_names,
+            is_cppclass=self.is_cppclass,
+            idx=self.idx,
+        )
+
 
 class Function(TypeConstant):
     def __init__(self, params: list, outputs: list, name: str | None = None):
@@ -312,6 +351,26 @@ class Function(TypeConstant):
 
     def __hash__(self):
         return self._hash(set())
+
+    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+        if self in mapping:
+            return mapping[self]
+        new_params = []
+        new_outputs = []
+        changed = False
+        for param in self.params:
+            new_param = param.replace(mapping)
+            new_params.append(new_param)
+            if new_param is not param:
+                changed = True
+        for output in self.outputs:
+            new_output = output.replace(mapping)
+            new_outputs.append(new_output)
+            if new_output is not output:
+                changed = True
+        if not changed:
+            return self
+        return Function(new_params, new_outputs, name=self.name)
 
 
 class TypeVariableReference(TypeConstant):
