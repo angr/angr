@@ -8,6 +8,7 @@ import logging
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
 from typing import Literal, Any, cast, overload
+from collections.abc import MutableMapping
 
 from archinfo import Endness, Arch
 import claripy
@@ -284,6 +285,7 @@ class TypeRef(SimType):
 
     def with_arch(self, arch):
         self.type = self.type.with_arch(arch)
+        self._arch = arch
         return self
 
     def c_repr(
@@ -3408,7 +3410,13 @@ def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
 _include_re = re.compile(r"^\s*#include")
 
 
-def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None):
+def parse_file(
+    defn,
+    preprocess=True,
+    predefined_types: dict[Any, SimType] | None = None,
+    arch=None,
+    side_effect_types: dict[Any, SimType] | None = None,
+):
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
@@ -3426,11 +3434,8 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
     if not isinstance(node, c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
-    extra_types = {}
-
-    # populate extra_types
-    if predefined_types:
-        extra_types = dict(predefined_types)
+    out_types = {}
+    extra_types = ChainMap(side_effect_types if side_effect_types is not None else out_types, predefined_types or {})
 
     for piece in node.ext:
         if isinstance(piece, c_ast.FuncDef):
@@ -3441,21 +3446,24 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
                 out[piece.name] = ty
 
             # Don't forget to update typedef types
-            if isinstance(ty, (SimStruct, SimUnion)) and ty.name != "<anon>":
-                for _, i in extra_types.items():
-                    if isinstance(i, type(ty)) and i.name == ty.name:
-                        if isinstance(ty, SimStruct):
+            ty_real = ty.type if isinstance(ty, TypeRef) else ty
+            if isinstance(ty_real, (SimStruct, SimUnion)) and ty_real.name != "<anon>":
+                if piece.name is None:
+                    out_types[("struct " if isinstance(ty, SimStruct) else "union ") + ty_real.name] = ty_real
+                for _, i in out_types.items():
+                    if isinstance(i, type(ty_real)) and i.name == ty_real.name:
+                        if isinstance(ty_real, SimStruct):
                             assert isinstance(i, SimStruct)
-                            i.fields = ty.fields
+                            i.fields = ty_real.fields
                         else:
                             assert isinstance(i, SimUnion)
-                            i.members = ty.members
+                            i.members = ty_real.members
 
         elif isinstance(piece, c_ast.Typedef):
-            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
-            extra_types[piece.name].label = piece.name
+            out_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
+            out_types[piece.name].label = piece.name
 
-    return out, extra_types
+    return out, out_types
 
 
 _type_parser_singleton = None
@@ -3486,7 +3494,11 @@ def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pyli
 
 
 def parse_type_with_name(
-    defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None
+    defn,
+    preprocess=True,
+    predefined_types: dict[Any, SimType] | None = None,
+    arch=None,
+    side_effect_types: dict[Any, SimType] | None = None,
 ):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning a tuple of the type object and any associated name
@@ -3506,7 +3518,7 @@ def parse_type_with_name(
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    extra_types = {} if not predefined_types else dict(predefined_types)
+    extra_types = ChainMap(side_effect_types if side_effect_types is not None else {}, predefined_types or {})
     return _decl_to_type(decl, extra_types=extra_types, arch=arch), node.name
 
 
@@ -3526,7 +3538,7 @@ def _accepts_scope_stack():
 
 
 def _decl_to_type(
-    decl, extra_types: dict[str, SimType] | None = None, bitsize=None, arch: Arch | None = None
+    decl, extra_types: MutableMapping[str, SimType] | None = None, bitsize=None, arch: Arch | None = None
 ) -> SimType:
     if extra_types is None:
         extra_types = {}
@@ -3624,28 +3636,37 @@ def _decl_to_type(
             if struct is None:
                 # fallback to using decl.name as key directly
                 struct = ALL_TYPES.get(decl.name)
-                if struct is not None and isinstance(struct, SimStruct):
+                if struct is not None and (
+                    isinstance(struct, SimStruct)
+                    or (isinstance(struct, TypeRef) and isinstance(struct.type, SimStruct))
+                ):
                     from_global = True
                     struct = struct.with_arch(arch)
                 else:
                     # give up
                     struct = None
+            struct_ref = struct
+            if isinstance(struct_ref, TypeRef):
+                struct = struct_ref.type
             if struct is not None and not isinstance(struct, SimStruct):
                 raise AngrTypeError("Provided a non-SimStruct value for a type that must be a struct")
 
             if struct is None:
                 struct = SimStruct(fields, decl.name)
                 struct._arch = arch
+                struct_ref = struct
             elif not struct.fields:
                 struct.fields = fields
             elif fields and struct.fields != fields:
                 if from_global:
                     struct = SimStruct(fields, decl.name)
                     struct._arch = arch
+                    struct_ref = struct
                 else:
                     raise ValueError("Redefining body of " + key)
+            assert struct_ref is not None
 
-            extra_types[key] = struct
+            extra_types[key] = struct_ref
         else:
             struct = SimStruct(fields)
             struct._arch = arch
@@ -3664,22 +3685,28 @@ def _decl_to_type(
             if union is None and key in ALL_TYPES:
                 union = ALL_TYPES[key]
                 from_global = True
+            union_ref = union
+            if isinstance(union_ref, TypeRef):
+                union = union_ref.type
             if union is not None and not isinstance(union, SimUnion):
                 raise AngrTypeError("Provided a non-SimUnion value for a type that must be a union")
 
             if union is None:
                 union = SimUnion(fields, decl.name)
                 union._arch = arch
+                union_ref = union
             elif not union.members:
                 union.members = fields
             elif fields and union.members != fields:
                 if from_global:
                     union = SimStruct(fields, decl.name)
                     union._arch = arch
+                    union_ref = union
                 else:
                     raise ValueError("Redefining body of " + key)
 
-            extra_types[key] = union
+            assert union_ref is not None
+            extra_types[key] = union_ref
         else:
             union = SimUnion(fields)
             union._arch = arch
@@ -3688,9 +3715,9 @@ def _decl_to_type(
     if isinstance(decl, c_ast.IdentifierType):
         key = " ".join(decl.names)
         if bitsize is not None:
-            return SimTypeNumOffset(int(bitsize.value), signed=False)
+            return SimTypeNumOffset(int(bitsize.value), signed=False).with_arch(arch)
         if key in extra_types:
-            return extra_types[key]
+            return extra_types[key].with_arch(arch)
         if key in ALL_TYPES:
             return ALL_TYPES[key].with_arch(arch)
         raise TypeError(f"Unknown type '{key}'")
@@ -3753,7 +3780,7 @@ CPP_DECL_TYPES = (
 
 
 def _cpp_decl_to_type(
-    decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes: bool = True
+    decl: CPP_DECL_TYPES, extra_types: MutableMapping[str, SimType], opaque_classes: bool = True
 ) -> (
     SimTypeCppFunction
     | SimTypeFunction
