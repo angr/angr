@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 
-from angr.ailment.expression import Convert
+from angr.ailment.expression import Convert, VirtualVariable
 from angr.ailment.statement import Call
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
@@ -311,6 +311,7 @@ class X86CCallRewriter(CCallRewriterBase):
                 seg_selector = seg_selector.operands[0]
             if (
                 self.project.simos.name == "Win32"
+                and isinstance(seg_selector, VirtualVariable)
                 and seg_selector.was_reg
                 and self.project.arch.register_names.get(seg_selector.reg_offset, "") == "fs"
                 and isinstance(virtual_addr, Expr.Const)
