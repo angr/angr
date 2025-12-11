@@ -24,7 +24,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_SSA_LEVEL1_TRANSFORMATION
+    STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
     NAME = "Simplify register save areas (advanced)"
     DESCRIPTION = __doc__.strip()  # type:ignore
 
