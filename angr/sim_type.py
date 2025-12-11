@@ -248,6 +248,10 @@ class TypeRef(SimType):
     def type(self):
         return self._type
 
+    @property
+    def ty(self):
+        return self.type
+
     @type.setter
     def type(self, val):
         self._type = val
