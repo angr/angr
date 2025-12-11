@@ -49,7 +49,11 @@ class TypeConstant:
     def __repr__(self, memo=None) -> str:
         raise NotImplementedError
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set[TypeConstant] | None = None) -> TypeConstant:
+    def replace(
+        self,
+        mapping: dict[TypeConstant, TypeConstant],
+        memo: set[TypeConstant] | None = None,  # pylint:disable=unused-argument
+    ) -> TypeConstant:
         return mapping.get(self, self)
 
 
