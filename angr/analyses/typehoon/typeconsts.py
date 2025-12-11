@@ -167,7 +167,7 @@ class Pointer(TypeConstant):
         return hash((type(self), self.basetype._hash(visited)))
 
     def new(self, basetype, name: str | None = None):
-        return self.__class__(basetype)
+        return self.__class__(basetype, name=name)
 
     def __hash__(self):
         return self._hash(set())
