@@ -27,6 +27,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
 )
 
 from .api_obf_type2_finder import APIObfuscationType2Finder
+from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
 
 _l = logging.getLogger(name=__name__)
 
@@ -112,6 +113,13 @@ class APIObfuscationFinder(Analysis):
                 self.kb.obfuscations.type1_deobfuscated_apis.update(type1_deobfuscated)
 
         APIObfuscationType2Finder(self.project, self.variable_kb).analyze()
+        self.project.analyses[HashLookupAPIDeobfuscator].prep(fail_fast=self._fail_fast)(
+            self._hash_lookup_api_deobfuscator_lifter
+        )
+
+    def _hash_lookup_api_deobfuscator_lifter(self, func):
+        d = self.project.analyses.Decompiler(func)
+        return d.clinic
 
     def _find_type1(self):
         cfg = self.kb.cfgs.get_most_accurate()
