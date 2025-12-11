@@ -344,11 +344,11 @@ class NormalizedFunction:
         for n in self.graph.nodes():
             call_targets = []
             if n.addr in self.orig_function.get_call_sites():
-                call_targets.append(self.orig_function.get_call_target(n.addr))
+                call_targets.extend(self.orig_function.get_call_target(n.addr))
             if n.addr in self.merged_blocks:
                 for block in self.merged_blocks[n]:
                     if block.addr in self.orig_function.get_call_sites():
-                        call_targets.append(self.orig_function.get_call_target(block.addr))
+                        call_targets.extend(self.orig_function.get_call_target(block.addr))
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
