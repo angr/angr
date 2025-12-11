@@ -49,7 +49,7 @@ class TypeConstant:
     def __repr__(self, memo=None) -> str:
         raise NotImplementedError
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set[TypeConstant] | None = None) -> TypeConstant:
         return mapping.get(self, self)
 
 
@@ -172,10 +172,16 @@ class Pointer(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
         if self in mapping:
             return mapping[self]
-        new_basetype = self.basetype.replace(mapping) if self.basetype else None
+        if memo is None:
+            memo = set()
+        else:
+            if self in memo:
+                return self
+        memo.add(self)
+        new_basetype = self.basetype.replace(mapping, memo=memo) if self.basetype else None
         if new_basetype is self.basetype:
             return self
         return self.new(new_basetype, name=self.name)
@@ -243,10 +249,12 @@ class Array(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
         if self in mapping:
             return mapping[self]
-        new_element = self.element.replace(mapping) if self.element else None
+        if memo is None:
+            memo = {self}
+        new_element = self.element.replace(mapping, memo=memo) if self.element else None
         if new_element is self.element:
             return self
         return Array(new_element, self.count, name=self.name)
@@ -302,13 +310,19 @@ class Struct(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
         if self in mapping:
             return mapping[self]
+        if memo is None:
+            memo = set()
+        else:
+            if self in memo:
+                return self
+        memo.add(self)
         new_fields = {}
         changed = False
         for off, typ in self.fields.items():
-            new_typ = typ.replace(mapping) if typ else None
+            new_typ = typ.replace(mapping, memo=memo) if typ else None
             new_fields[off] = new_typ
             if new_typ is not typ:
                 changed = True
@@ -352,19 +366,25 @@ class Function(TypeConstant):
     def __hash__(self):
         return self._hash(set())
 
-    def replace(self, mapping: dict[TypeConstant, TypeConstant]) -> TypeConstant:
+    def replace(self, mapping: dict[TypeConstant, TypeConstant], memo: set | None = None) -> TypeConstant:
         if self in mapping:
             return mapping[self]
+        if memo is None:
+            memo = set()
+        else:
+            if self in memo:
+                return self
+        memo.add(self)
         new_params = []
         new_outputs = []
         changed = False
         for param in self.params:
-            new_param = param.replace(mapping)
+            new_param = param.replace(mapping, memo=memo)
             new_params.append(new_param)
             if new_param is not param:
                 changed = True
         for output in self.outputs:
-            new_output = output.replace(mapping)
+            new_output = output.replace(mapping, memo=memo)
             new_outputs.append(new_output)
             if new_output is not output:
                 changed = True
