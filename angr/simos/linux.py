@@ -100,18 +100,13 @@ class SimLinux(SimUserland):
                     _rtld_global_ro.rebased_addr + 0x0D0, 2
                 )  # cpu features: kind = amd
 
-            try:
-                tls_obj = self.project.loader.tls.new_thread()
-            except NotImplementedError:
-                pass
-            else:
+            tls_obj = self.project.loader.tls.new_thread()
+            if (thread_pointer := getattr(tls_obj, "thread_pointer", None)) is not None:
                 if isinstance(self.project.arch, ArchAMD64):
-                    self.project.loader.memory.pack_word(
-                        tls_obj.thread_pointer + 0x28, 0x5F43414E41525900
-                    )  # _CANARY\x00
-                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x30, 0x5054524755415244)
+                    self.project.loader.memory.pack_word(thread_pointer + 0x28, 0x5F43414E41525900)  # _CANARY\x00
+                    self.project.loader.memory.pack_word(thread_pointer + 0x30, 0x5054524755415244)
                 elif isinstance(self.project.arch, ArchX86):
-                    self.project.loader.memory.pack_word(tls_obj.thread_pointer + 0x10, self.vsyscall_addr)
+                    self.project.loader.memory.pack_word(thread_pointer + 0x10, self.vsyscall_addr)
 
         if isinstance(self.project.arch, ArchARM):
             # https://www.kernel.org/doc/Documentation/arm/kernel_user_helpers.txt
