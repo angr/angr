@@ -41,6 +41,13 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     if thumb:
         start_offset |= 1
 
+    if "force_tls" not in kwargs:
+        simos = kwargs.get("simos")
+        if simos == "windows":
+            kwargs["force_tls"] = "windows"
+        elif simos == "linux":
+            kwargs["force_tls"] = "linux"
+
     return Project(
         BytesIO(shellcode_bytes),
         main_opts={
