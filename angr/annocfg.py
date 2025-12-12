@@ -3,7 +3,7 @@ from collections import defaultdict
 import logging
 from typing import Literal
 
-import networkx
+from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
 
 from .utils.constants import DEFAULT_STATEMENT
 from .errors import AngrAnnotatedCFGError, AngrExitError
@@ -51,14 +51,14 @@ class AnnotatedCFG:
 
     def from_digraph(self, digraph):
         """
-        Initialize this AnnotatedCFG object with a networkx.DiGraph consisting of the following
+        Initialize this AnnotatedCFG object with a RxDiGraph consisting of the following
         form of nodes:
 
         Tuples like (block address, statement ID)
 
         Those nodes are connected by edges indicating the execution flow.
 
-        :param networkx.DiGraph digraph: A networkx.DiGraph object
+        :param RxDiGraph digraph: A RxDiGraph object
         """
 
         for n1 in digraph.nodes():
@@ -304,13 +304,13 @@ class AnnotatedCFG:
     #
 
     def _detect_loops(self):
-        temp_graph = networkx.DiGraph()
+        temp_graph = RxDiGraph()
         assert self._cfg is not None
         for source, target_list in self._cfg._edge_map.items():
             for target in target_list:
                 temp_graph.add_edge(source, target)
 
-        for i, loop_lst in enumerate(networkx.simple_cycles(temp_graph)):
+        for i, loop_lst in enumerate(temp_graph.simple_cycles()):
             l.debug("A loop is found. %d", i)
             loop = tuple(x[-1] for x in loop_lst)
             print(" => ".join([f"0x{x:08x}" for x in loop]))
