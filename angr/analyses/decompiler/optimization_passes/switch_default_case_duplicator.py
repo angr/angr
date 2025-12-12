@@ -87,6 +87,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                 # rewrite all of them into gotos
                 default_node = self._get_block(default_addr)
                 for switch_head_addr in sorted((sa for sa, _, da in default_case_node_addrs if da == default_addr)):
+                    # there is a case where the switch head node is broken into multiple nodes in clinic (e.g., at
+                    # cmov). we may need to traverse down to find the actual node that jumps to the default case
                     switch_head_node = self._get_block(switch_head_addr)
                     goto_stmt = Jump(
                         None,
@@ -103,6 +105,21 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
 
                     if out_graph is None:
                         out_graph = self._graph
+                    if not out_graph.has_edge(switch_head_node, default_node):
+                        # find the real switch-case head node
+                        switch_head_node = None
+                        switch_head_block = self._func.get_node(switch_head_addr)
+                        if switch_head_block is not None:
+                            default_node_preds = list(out_graph.predecessors(default_node))
+                            for pred in default_node_preds:
+                                if pred.addr + pred.original_size == switch_head_block.addr + switch_head_block.size:
+                                    switch_head_node = pred
+                                    break
+                        if switch_head_node is None:
+                            _l.warning(
+                                "Cannot find the actual switch-case head node for default case at %#x", default_addr
+                            )
+                            continue
                     out_graph.remove_edge(switch_head_node, default_node)
                     out_graph.add_edge(switch_head_node, goto_node)
                     out_graph.add_edge(goto_node, default_node)
