@@ -5,7 +5,7 @@ import logging
 
 from angr.ailment import AILBlockWalkerBase, AILBlockWalker
 from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
@@ -75,35 +75,37 @@ class NarrowingInfoExtractor(AILBlockWalkerBase):
             return True
         return False
 
-    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         r = False
         if expr.args:
             for i, arg in enumerate(expr.args):
                 r |= self._handle_expr(i, arg, stmt_idx, stmt, block)
         return r
 
-    def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_BinaryOp(
+        self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
         r = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         r |= self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
         return r
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
-    def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
-    def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None):
         r = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
         r |= self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
         r |= self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
         return r
 
     def _handle_DirtyExpression(
-        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         r = False
         if expr.operands:
@@ -112,7 +114,7 @@ class NarrowingInfoExtractor(AILBlockWalkerBase):
         return r
 
     def _handle_VEXCCallExpression(
-        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         r = False
         for idx, operand in enumerate(expr.operands):
@@ -146,7 +148,7 @@ class ExpressionNarrower(AILBlockWalker):
         self.narrowed_any = False
         return super().walk(block)
 
-    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
+    def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment:
 
         if isinstance(stmt.src, Phi):
             changed = False
@@ -178,11 +180,7 @@ class ExpressionNarrower(AILBlockWalker):
 
         else:
             new_src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-            if new_src is None:
-                changed = False
-                new_src = stmt.src
-            else:
-                changed = True
+            changed = new_src is not stmt.src
 
         if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self.new_vvar_sizes:
             changed = True
@@ -210,20 +208,19 @@ class ExpressionNarrower(AILBlockWalker):
                 )
         else:
             new_dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-            if new_dst is not None:
+            if new_dst is not stmt.dst:
                 changed = True
-            else:
-                new_dst = stmt.dst
 
         if changed:
             self.narrowed_any = True
+            assert isinstance(new_dst, Atom)
             return Assignment(stmt.idx, new_dst, new_src, **stmt.tags)
 
-        return None
+        return stmt
 
     def _handle_VirtualVariable(
-        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
-    ) -> Convert | None:
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
         if expr.varid in self.new_vvar_sizes and self.new_vvar_sizes[expr.varid] != expr.size:
             self.narrowed_any = True
             new_expr = VirtualVariable(
@@ -245,9 +242,9 @@ class ExpressionNarrower(AILBlockWalker):
                 new_expr,
                 **new_expr.tags,
             )
-        return None
+        return expr
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call | None:
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
         new_stmt = super()._handle_Call(stmt_idx, stmt, block)
         if new_stmt is None:
             changed = False
@@ -284,4 +281,4 @@ class ExpressionNarrower(AILBlockWalker):
             self.narrowed_any = True
             return new_stmt
 
-        return None
+        return stmt

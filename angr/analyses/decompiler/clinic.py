@@ -47,6 +47,7 @@ from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.typehoon import Typehoon
+from .ail_simplifier import AILSimplifier
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .return_maker import ReturnMaker
@@ -1605,9 +1606,10 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        simp = self.project.analyses.AILSimplifier(
-            self.function,
+        simp = self.project.analyses[AILSimplifier].prep(
             fail_fast=self._fail_fast,
+        )(
+            self.function,
             func_graph=ail_graph,
             remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
