@@ -184,7 +184,7 @@ class SimWindows(SimOS):
         return state
 
     def state_blank(self, thread_idx=None, **kwargs):
-        if self.project.loader.main_object.supports_nx:
+        if isinstance(self.project.loader.main_object, cle.backends.PE) and self.project.loader.main_object.supports_nx:
             add_options = kwargs.get("add_options", set())
             add_options.add(o.ENABLE_NX)
             kwargs["add_options"] = add_options
@@ -286,9 +286,10 @@ class SimWindows(SimOS):
 
                 for obj in mem_order:
                     fuck_load(obj)
-                load_order = [self.project.loader.main_object] + [
-                    obj for obj in init_order if obj is not self.project.loader.main_object
-                ]
+                load_order = []
+                if isinstance(self.project.loader.main_object, cle.backends.PE):
+                    load_order.append(self.project.loader.main_object)
+                load_order.extend(obj for obj in init_order if obj is not self.project.loader.main_object)
 
                 def link(a, b):
                     state.mem[a].dword = b
