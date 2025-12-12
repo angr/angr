@@ -261,7 +261,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     next_off = sorted_offs[idx + 1]
                     sz = next_off - off
                     if sz > 0:
-                        allowed_sizes = [sz]
+                        allowed_sizes = [min(sz, 8)]
             else:
                 if idx < len(sorted_offs) - 1:
                     next_off = sorted_offs[idx + 1]
