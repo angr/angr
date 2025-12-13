@@ -193,16 +193,20 @@ class FlirtAnalysis(Analysis):
     def _get_callee_name(
         self, func, func_addr: int, call_addr: int, expected_name: str  # pylint:disable=unused-argument
     ) -> str | None:
-        for block_addr, (call_target, _) in func._call_sites.items():
+        all_callees = set()
+        for block_addr, call_target_retn_addr in func._call_sites.items():
             block = func.get_block(block_addr)
             call_ins_addr = (
                 block.instruction_addrs[-2] if self.project.arch.branch_delay_slot else block.instruction_addrs[-1]
             )
-            if block_addr <= call_addr < block_addr + block.size and call_ins_addr <= call_addr:
+            if not (block_addr <= call_addr < block_addr + block.size and call_ins_addr <= call_addr):
+                continue
+            for (call_target, _) in call_target_retn_addr:
                 if call_target is None or not self.kb.functions.contains_addr(call_target):
-                    return None
+                    continue
                 callee = self.kb.functions.get_by_addr(call_target)
-                return callee.name
+                all_callees.add(callee.name)
+            return min(all_callees) if all_callees else None
         return None
 
     def _get_func_for_addr(self, func_addr) -> Function | None:

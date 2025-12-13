@@ -170,42 +170,42 @@ class StaticObjectFinder(Analysis):
                 call_target = func.get_call_target(node.addr)
                 if call_target is not None and new_func_addr in call_target:
                     ret_node_addrs = func.get_call_return(node.addr)
-                    for ret_node_addr in ret_node_addrs:
-                        ret_node = self.project.factory.block(ret_node_addr)
-                        call_after_new_addrs = func.get_call_target(ret_node_addr)
+                    ret_node_addr = next(iter(ret_node_addrs), None)
+                    ret_node = self.project.factory.block(ret_node_addr)
+                    call_after_new_addrs = func.get_call_target(ret_node_addr)
 
-                        if call_after_new_addrs is None:
-                            continue
-                        rd_before_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_BEFORE)
+                    if call_after_new_addrs is None:
+                        continue
+                    rd_before_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_BEFORE)
 
-                        if cc is not None:
-                            ret_val_reg_offset = self.project.arch.registers[cc.return_val.reg_name][0]
-                            ret_val_reg_size = cc.return_val.size
-                        else:
-                            ret_val_reg_offset = self.project.arch.registers["rax"][0]
-                            ret_val_reg_size = word_size
-                        v0 = rd_before_node.registers.load(ret_val_reg_offset, ret_val_reg_size).one_value()
-                        addr_of_new_obj = v0.concrete_value if v0 is not None and v0.concrete else None
+                    if cc is not None:
+                        ret_val_reg_offset = self.project.arch.registers[cc.return_val.reg_name][0]
+                        ret_val_reg_size = cc.return_val.size
+                    else:
+                        ret_val_reg_offset = self.project.arch.registers["rax"][0]
+                        ret_val_reg_size = word_size
+                    v0 = rd_before_node.registers.load(ret_val_reg_offset, ret_val_reg_size).one_value()
+                    addr_of_new_obj = v0.concrete_value if v0 is not None and v0.concrete else None
 
-                        # we need the state right before the call
-                        if ret_node.vex.jumpkind == "Ijk_Call" and ret_node.vex.instruction_addresses:
-                            last_ins_addr = ret_node.instruction_addrs[-1]
-                            rd_after_node = rd.get_reaching_definitions_by_insn(last_ins_addr, OP_BEFORE)
-                        else:
-                            rd_after_node = rd.get_reaching_definitions_by_insn(ret_node_addr, OP_AFTER)
+                    # we need the state right before the call
+                    if ret_node.vex.jumpkind == "Ijk_Call" and ret_node.vex.instruction_addresses:
+                        last_ins_addr = ret_node.instruction_addrs[-1]
+                        rd_after_node = rd.get_reaching_definitions_by_insn(last_ins_addr, OP_BEFORE)
+                    else:
+                        rd_after_node = rd.get_reaching_definitions_by_insn(ret_node_addr, OP_AFTER)
 
-                        if cc is not None:
-                            this_ptr_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
-                            this_ptr_reg_size = cc.args[0].size
-                        else:
-                            this_ptr_reg_offset = self.project.arch.registers["rdi"][0]
-                            this_ptr_reg_size = word_size
-                        v1 = rd_after_node.registers.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
-                        addr_in_rdi = v1.concrete_value if v1 is not None and v1.concrete else None
-                        # check if call target is in rdi
-                        for call_after_new_addr in call_after_new_addrs:
-                            if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
-                                self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])
+                    if cc is not None:
+                        this_ptr_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
+                        this_ptr_reg_size = cc.args[0].size
+                    else:
+                        this_ptr_reg_offset = self.project.arch.registers["rdi"][0]
+                        this_ptr_reg_size = word_size
+                    v1 = rd_after_node.registers.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
+                    addr_in_rdi = v1.concrete_value if v1 is not None and v1.concrete else None
+                    # check if call target is in rdi
+                    call_after_new_addr = next(iter(call_after_new_addrs), None)
+                    if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
+                        self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])
 
 
 AnalysesHub.register_default("StaticObjectFinder", StaticObjectFinder)
