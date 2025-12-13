@@ -79,16 +79,12 @@ class TestFunctionManager(unittest.TestCase):
         assert [bl.addr for bl in main.endpoints] == [0x4007D3]
         assert set(main.get_call_sites()) == expected_callsites
         assert {
-                   target
-                   for cs in main.get_call_sites()
-                   for target in main.get_call_target(cs)
-               } == expected_callsite_targets
+            target for cs in main.get_call_sites() for target in main.get_call_target(cs)
+        } == expected_callsite_targets
 
         assert {
-                   retn_addr
-                   for cs in main.get_call_sites()
-                   for retn_addr in main.get_call_return(cs)
-               } == expected_callsite_returns
+            retn_addr for cs in main.get_call_sites() for retn_addr in main.get_call_return(cs)
+        } == expected_callsite_returns
         assert main.has_return
 
         rejected = self.project.kb.functions.function(name="rejected")
@@ -160,13 +156,14 @@ class TestFunctionManager(unittest.TestCase):
 
         cfg = proj.analyses.CFG(normalize=True)
 
-        func = cfg.kb.functions[0x40054b]
+        func = cfg.kb.functions[0x40054B]
         call_sites = func.get_call_sites()
-        assert sorted(call_sites) == [0x400565, 0x40058f]
+        assert sorted(call_sites) == [0x400565, 0x40058F]
         target0 = func.get_call_target(0x400565)
         assert target0 == [0x500098]
-        target1 = func.get_call_target(0x40058f)
-        assert target1 == [0x400420, 0x4003cc]
+        target1 = func.get_call_target(0x40058F)
+        assert target1 == [0x400420, 0x4003CC]
+
 
 if __name__ == "__main__":
     unittest.main()

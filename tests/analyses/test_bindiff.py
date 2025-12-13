@@ -53,18 +53,19 @@ class TestBindiff(unittest.TestCase):
     def test_normalized_block_and_func_x86_64(self):
         binary_path_1 = os.path.join(test_location, "x86_64", "df.o")
         b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
-        cfg = b.analyses.CFGFast(normalize=True, data_references=True) # pylint: disable=unused-variable
+        cfg = b.analyses.CFGFast(normalize=True, data_references=True)  # pylint: disable=unused-variable
 
-        func = b.kb.functions.get_by_addr(0x40054b)
+        func = b.kb.functions.get_by_addr(0x40054B)
         assert func is not None
         nf = NormalizedFunction(func)
         assert nf is not None
         assert len(nf.call_sites) == 2
 
-        block_node = next(n for n in nf.graph.nodes() if n.addr == 0x40058f)
+        block_node = next(n for n in nf.graph.nodes() if n.addr == 0x40058F)
         nb = NormalizedBlock(block_node, nf)
         assert nb is not None
         assert sorted(nb.call_targets) == sorted([4195360, 4195276])
+
 
 if __name__ == "__main__":
     unittest.main()

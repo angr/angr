@@ -201,7 +201,7 @@ class FlirtAnalysis(Analysis):
             )
             if not (block_addr <= call_addr < block_addr + block.size and call_ins_addr <= call_addr):
                 continue
-            for (call_target, _) in call_target_retn_addr:
+            for call_target, _ in call_target_retn_addr:
                 if call_target is None or not self.kb.functions.contains_addr(call_target):
                     continue
                 callee = self.kb.functions.get_by_addr(call_target)
