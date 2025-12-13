@@ -8,6 +8,7 @@ import os
 import unittest
 
 import angr
+from angr.analyses.bindiff import NormalizedFunction, NormalizedBlock
 
 from tests.common import bin_location
 
@@ -49,6 +50,21 @@ class TestBindiff(unittest.TestCase):
         assert (0x400616, 0x400616) in block_matches
         assert (0x40061E, 0x40061E) in block_matches
 
+    def test_normalized_func_callsites_x86_64(self):
+        binary_path_1 = os.path.join(test_location, "x86_64", "df.o")
+        b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
+        cfg = b.analyses.CFGFast(normalize=True, data_references=True)
+
+        func = b.kb.functions.get_by_addr(0x40054b)
+        assert func is not None
+        nf = NormalizedFunction(func)
+        assert nf is not None
+        assert len(nf.call_sites) == 2
+
+        block_node = next(n for n in nf.graph.nodes() if n.addr == 0x40058f)
+        nb = NormalizedBlock(block_node, nf)
+        assert nb is not None
+        assert sorted(nb.call_targets) == sorted([4195360, 4195276])
 
 if __name__ == "__main__":
     unittest.main()

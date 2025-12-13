@@ -271,8 +271,8 @@ class NormalizedBlock:
         self.blocks = []
         self.instruction_addrs = []
 
-        if block.addr in function.call_sites:
-            self.call_targets = function.call_sites[block.addr]
+        if block in function.call_sites:
+            self.call_targets = function.call_sites[block]
 
         self.jumpkind = None
 
