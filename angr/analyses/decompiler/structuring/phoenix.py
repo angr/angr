@@ -1056,12 +1056,16 @@ class PhoenixStructurer(StructurerBase):
                 fullgraph, nodes=[src for src, _ in continue_edges], loop_heads=[loop_head]
             )
             src_to_ignore = sorted_nodes[-1]
+            replacements = {}
 
             for src, _ in continue_edges:
                 if src is src_to_ignore:
                     # this edge will be handled during loop structuring
                     # mark it regardless
                     continue
+
+                # just in case src has been replaced
+                src = replacements.get(src, src)
 
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
@@ -1115,8 +1119,13 @@ class PhoenixStructurer(StructurerBase):
                             new_cont_block = self._copy_and_remove_last_statement_if_jump(cont_block)
                             new_node = NodeReplacer(src, {cont_block: new_cont_block}).result
                             new_src = SequenceNode(new_node.addr, nodes=[new_node, new_cont_node])
+                            replacements[src] = new_src
                             self.replace_nodes(graph_raw, src, new_src)
                             self.replace_nodes(fullgraph_raw, src, new_src, update_node_order=True)
+
+                            if continue_node is src:
+                                # set continue_node to the new node
+                                continue_node = new_src
 
         if loop_type == "do-while":
             self.dowhile_known_tail_nodes.add(continue_node)
@@ -1187,6 +1196,9 @@ class PhoenixStructurer(StructurerBase):
                         outside_succs = [succ for succ in succs if succ not in graph]
                         for outside_succ in outside_succs:
                             outgoing_edges.append((node, outside_succ))
+
+                    continue_edges = sorted(continue_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                    outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
                     return True, (continue_edges, outgoing_edges, loop_head, successor)
         return False, None
 
@@ -1223,6 +1235,8 @@ class PhoenixStructurer(StructurerBase):
                         for outside_succ in outside_succs:
                             outgoing_edges.append((node, outside_succ))
 
+                    continue_edges = sorted(continue_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+                    outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
                     return True, (continue_edges, outgoing_edges, continue_node, successor)
         return False, None
 
@@ -1262,6 +1276,8 @@ class PhoenixStructurer(StructurerBase):
                     if pred in graph:
                         outgoing_edges.append((pred, node))
 
+        continue_edges = sorted(continue_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
+        outgoing_edges = sorted(outgoing_edges, key=lambda edge: (edge[0].addr, edge[1].addr))
         return True, (continue_edges, outgoing_edges, successor)
 
     def _analyze_acyclic(self) -> bool:
