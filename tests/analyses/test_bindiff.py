@@ -50,7 +50,7 @@ class TestBindiff(unittest.TestCase):
         assert (0x400616, 0x400616) in block_matches
         assert (0x40061E, 0x40061E) in block_matches
 
-    def test_normalized_func_callsites_x86_64(self):
+    def test_normalized_block_and_func_x86_64(self):
         binary_path_1 = os.path.join(test_location, "x86_64", "df.o")
         b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGFast(normalize=True, data_references=True)
