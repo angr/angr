@@ -2,29 +2,32 @@
 from __future__ import annotations
 from collections.abc import Callable
 from collections import defaultdict
+from typing import Generic, TypeVar
 
 from .structuring import structurer_class_from_name
 from .structuring.phoenix import MultiStmtExprMode
 
+T = TypeVar("T")
 
-class DecompilationOption:
+
+class DecompilationOption(Generic[T]):
     """
     Describes a decompilation option.
     """
 
     def __init__(
         self,
-        name,
-        description,
-        value_type,
-        cls,
-        param,
+        name: str,
+        description: str,
+        value_type: type[T],
+        cls: str,
+        param: str,
         value_range=None,
-        category="General",
-        default_value=None,
-        clears_cache=True,
-        candidate_values: list | None = None,
-        convert: Callable | None = None,
+        category: str = "General",
+        default_value: T | None = None,
+        clears_cache: bool = True,
+        candidate_values: list[T] | None = None,
+        convert: Callable[[str], T] | None = None,
     ):
         self.NAME = name
         self.DESCRIPTION = description
@@ -257,7 +260,7 @@ options = [
         "max_str_len",
         category="Display",
         default_value=50,
-        clears_cache=False,
+        clears_cache=True,
     ),
     O(
         "Multi-expression statements generation",
