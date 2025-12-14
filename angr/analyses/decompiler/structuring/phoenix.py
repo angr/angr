@@ -1228,7 +1228,11 @@ class PhoenixStructurer(StructurerBase):
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
-                        if head_pred in succs:
+                        if (
+                            head_pred in succs
+                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(graph, node)
+                        ):
+                            # special case: if node is the header of a switch-case, then this is *not* a continue edge
                             continue_edges.append((node, head_pred))
 
                         outside_succs = [succ for succ in succs if succ not in loop_body]
@@ -2005,7 +2009,13 @@ class PhoenixStructurer(StructurerBase):
                         succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
                     }
                 out_nodes = list(out_nodes)
-                if len(out_nodes) <= 1 and node.addr not in self._matched_incomplete_switch_case_addrs:
+                if (
+                    len(out_nodes) == 0
+                    or (
+                        len(out_nodes) == 1
+                        and self._is_switch_case_address_loaded_from_memory_default_node(graph, out_nodes[0])
+                    )
+                ) and node.addr not in self._matched_incomplete_switch_case_addrs:
                     self._matched_incomplete_switch_case_addrs.add(node.addr)
                     new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
                     graph_raw.remove_nodes_from(successors)
@@ -2351,6 +2361,13 @@ class PhoenixStructurer(StructurerBase):
             if self._is_node_unstructured_switch_case_head(succ):
                 return True
         return node in self.switch_case_known_heads
+
+    def _is_switch_case_address_loaded_from_memory_default_node(self, graph, node) -> bool:
+        # the default node should have a predecessor that is a switch-case head node
+        for pred in graph.predecessors(node):
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(graph, pred):
+                return True
+        return False
 
     # other acyclic schemas
 
