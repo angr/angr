@@ -209,7 +209,7 @@ class SimType:
             return cls.from_json(d)
         print(d)
         kwargs = {}
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         for field in cls._args:
             if field not in d:
                 continue
@@ -3664,8 +3664,8 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.PtrDecl):
         print(decl)
-        import ipdb;
-        ipdb.set_trace()
+        # import ipdb;
+        # ipdb.set_trace()
         quals = decl.quals if hasattr(decl, 'quals') else []
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to, qualifiers=quals)
