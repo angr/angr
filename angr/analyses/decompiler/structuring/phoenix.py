@@ -2013,7 +2013,7 @@ class PhoenixStructurer(StructurerBase):
                     len(out_nodes) == 0
                     or (
                         len(out_nodes) == 1
-                        and self._is_switch_case_address_loaded_from_memory_default_node(graph, out_nodes[0])
+                        and self._is_switch_case_address_loaded_from_memory_default_node(full_graph, out_nodes[0])
                     )
                 ) and node.addr not in self._matched_incomplete_switch_case_addrs:
                     self._matched_incomplete_switch_case_addrs.add(node.addr)
