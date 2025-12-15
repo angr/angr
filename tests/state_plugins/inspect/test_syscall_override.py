@@ -35,7 +35,7 @@ corrupt_addrs = {
 class TestSyscallOverride(unittest.TestCase):
     def _run_fauxware_override(self, arch):
         # auto_load_libs can't be disabled as the test fails
-        p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False)
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False, auto_load_libs=True)
         s = p.factory.full_init_state()
 
         def overwrite_str(state):
