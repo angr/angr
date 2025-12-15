@@ -44,13 +44,13 @@ class SimType:
     _ident: str = "simtype"
     base: bool = True
 
-    def __init__(self, label=None, qualifiers: Iterable[str] | None = None):
+    def __init__(self, label=None, qualifiers: Iterable[str] | None=None):
         """
         :param label: the type label.
         """
         self.label = label
         self._arch = None
-        self.qualifiers = []
+        self.qualifiers = [] if qualifiers is None else list(qualifiers)
 
     @staticmethod
     def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
@@ -180,6 +180,7 @@ class SimType:
             fields = self._args
 
         d: dict[str, Any] = {"_t": self._ident}
+        # import ipdb; ipdb.set_trace()
         for field in fields:
             value = getattr(self, field)
             if isinstance(value, SimType):
@@ -201,13 +202,15 @@ class SimType:
         """
         Deserialize a type class from a JSON-compatible dictionary.
         """
-
+        print("from json for simtype")
+        print(d)
+        # import ipdb; ipdb.set_trace()
         assert "_t" in d
         cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             return cls.from_json(d)
-        print(d)
+
         kwargs = {}
         # import ipdb; ipdb.set_trace()
         for field in cls._args:
@@ -234,6 +237,8 @@ class SimType:
                         new_value.append(v)
                 value = new_value
             kwargs[field] = value
+        print("kwargs", kwargs)
+        print("----------------------------------------------")
         return cls(**kwargs)
 
 
@@ -684,10 +689,10 @@ class SimTypeChar(SimTypeReg):
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        print(f"DEBUG SimTypeChar.__init__: signed={signed}, label={label}, qualifiers={qualifiers}")
+        # print(f"DEBUG SimTypeChar.__init__: signed={signed}, label={label}, qualifiers={qualifiers}")
         super().__init__(8, label=label, qualifiers=qualifiers)
         self.signed = signed
-        print(f"DEBUG After super().__init__, self.qualifiers={self.qualifiers}")
+        # print(f"DEBUG After super().__init__, self.qualifiers={self.qualifiers}")
 
     def __repr__(self) -> str:
         return "char"
@@ -782,7 +787,7 @@ class SimTypeWideChar(SimTypeReg):
         )
 
     def copy(self):
-        return self.__class__(signed=self.signed, label=self.label, endness=self.endness)
+        return self.__class__(signed=self.signed, label=self.label, endness=self.endness, qualifiers=self.qualifiers)
 
 
 class SimTypeBool(SimTypeReg):
@@ -908,6 +913,8 @@ class SimTypePointer(SimTypeReg):
         self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
     ):  # pylint: disable=unused-argument
         # if pts_to is SimTypeBottom, we return a void*
+        print("c_repr simtypepointer")
+        # import ipdb; ipdb.set_trace()
         if self.label is not None and name is not None:
             return super().c_repr(name=name, full=full, memo=memo, indent=indent, name_parens=name_parens)
         if isinstance(self.pts_to, SimTypeBottom):
@@ -918,8 +925,11 @@ class SimTypePointer(SimTypeReg):
                 return out
             return f"{out} {name}"
         # if it points to an array, we do not need to add a *
+
         deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
-        name_with_deref = deref_chr if name is None else f"{deref_chr}{name}"
+        quals = f" {' '.join(self.qualifiers)}" if self.qualifiers else ""
+        print("sim q", quals)
+        name_with_deref = deref_chr if name is None else f"{deref_chr}{quals} {name}"
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -1722,6 +1732,7 @@ class SimStruct(NamedTypeMixin, SimType):
         )
         out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifiers:
+            print("quals in strcu", self.qualifiers)
             out = f"{' '.join(sorted(self.qualifiers))} {out}"
         return out
 
@@ -2295,7 +2306,6 @@ class SimTypeRef(SimType):
             raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
         qualifiers = d.get("qualifiers", None)
         print(qualifiers)
-        print("jijdissssssssssssssssssssssssejd")
         return SimTypeRef(d["name"], original_type, qualifiers=qualifiers)
 
 
@@ -3480,7 +3490,7 @@ def parse_file(
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
     """
-    # import ipdb; ipdb.set_trace()
+
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
@@ -3496,11 +3506,12 @@ def parse_file(
     out = {}
     out_types = {}
     extra_types = ChainMap(side_effect_types if side_effect_types is not None else out_types, predefined_types or {})
-
+    print("in parse file...")
     for piece in node.ext:
-        # import ipdb; ipdb.set_trace()
+        print(piece)
+        # import ipdb;
+        # ipdb.set_trace()
         if isinstance(piece, c_ast.FuncDef):
-            print(piece.decl.name, piece.quals)
             out[piece.decl.name] = _decl_to_type(piece.decl.type, extra_types, arch=arch)
         elif isinstance(piece, c_ast.Decl):
             ty = _decl_to_type(piece.type, extra_types, arch=arch)
@@ -3524,6 +3535,7 @@ def parse_file(
         elif isinstance(piece, c_ast.Typedef):
             out_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
             out_types[piece.name].label = piece.name
+
 
     return out, out_types
 
@@ -3652,21 +3664,26 @@ def _decl_to_type(
     if isinstance(decl, c_ast.TypeDecl):
         print(decl)
         # import ipdb; ipdb.set_trace()
-        quals = decl.quals if hasattr(decl, 'quals') else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
         if decl.declname == "TOP":
             r = SimTypeTop(qualifiers=quals)
             r._arch = arch
             return r
 
         r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
-        # r.qualifiers = decl.quals
+        # if quals:
+        #     import  ipdb; ipdb.set_trace()
+        r.qualifiers = quals
+        # print("--------------", r)
         return r
 
     if isinstance(decl, c_ast.PtrDecl):
         print(decl)
         # import ipdb;
         # ipdb.set_trace()
-        quals = decl.quals if hasattr(decl, 'quals') else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
+        # print("b4 pts_to", decl.type)
+        # import ipdb; ipdb.set_trace()
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to, qualifiers=quals)
         r._arch = arch
@@ -3674,10 +3691,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        if hasattr(decl, 'quals') and decl.quals:
-            quals = decl.quals
-        else:
-            quals = []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -3693,10 +3707,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        if hasattr(decl, 'quals') and decl.quals:
-            quals = decl.quals
-        else:
-            quals = []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
