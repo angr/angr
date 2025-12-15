@@ -1686,6 +1686,9 @@ class PhoenixStructurer(StructurerBase):
                 for succ in all_succs:
                     pgraph.add_edge(newsc, succ)
 
+            if self._node_order is not None:
+                self._node_order[newsc] = self._node_order[better_node_a]
+
             return True
 
         if node_default is None:
