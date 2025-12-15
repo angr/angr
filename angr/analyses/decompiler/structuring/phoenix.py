@@ -885,14 +885,13 @@ class PhoenixStructurer(StructurerBase):
                     # block in src may not be the actual block that has a direct jump or a conditional jump to dst. as
                     # a result, we should walk all blocks in src to find the jump to dst, then extract the condition
                     # and augment the corresponding block with a ConditionalBreak.
-                    _, _, src_block = self._find_node_going_to_dst(src, dst)
+                    #
+                    # don't enter loops because we can't rewrite a goto edge as break if the jump to the loop head is
+                    # inside another loop
+                    _, _, src_block = self._find_node_going_to_dst(src, dst, enter_loops=False)
                     if src_block is None:
-                        l.warning(
-                            "Cannot find the source block jumping to the destination block at %#x. "
-                            "This is likely a bug elsewhere and needs to be addressed.",
-                            dst.addr,
-                        )
-                        # remove the edge anyway
+                        # we can't find the source block, which is probably because the source block is within another
+                        # loop. keep that goto and remove the edge anyway
                         fullgraph_raw[src][dst]["cyclic_refinement_outgoing"] = True
                         if graph.has_edge(src, dst):
                             graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
@@ -1070,7 +1069,9 @@ class PhoenixStructurer(StructurerBase):
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
                 assert continue_node is not None
-                _, _, cont_block = self._find_node_going_to_dst(src, continue_node)
+                # don't enter loops because we can't rewrite a goto edge as continue if the jump to the loop head is
+                # inside another loop
+                _, _, cont_block = self._find_node_going_to_dst(src, continue_node, enter_loops=False)
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
@@ -3233,6 +3234,7 @@ class PhoenixStructurer(StructurerBase):
         dst: Block | BaseNode,
         last=True,
         condjump_only=False,
+        enter_loops=True,
     ) -> tuple[int | None, BaseNode | None, Block | MultiNode | BreakNode | SequenceNode | None]:
         """
 
@@ -3334,12 +3336,17 @@ class PhoenixStructurer(StructurerBase):
                     # we insert the parent node (the SequenceNode) instead
                     _Holder.parent_and_block.append((_Holder.block_id, None, parent))
 
+        def _handle_Loop(loop_node: LoopNode, parent=None, **kwargs):  # pylint:disable=unused-argument
+            if enter_loops:
+                walker._handle_Loop(loop_node, parent=parent, **kwargs)
+
         walker = SequenceWalker(
             handlers={
                 Block: _handle_Block,
                 MultiNode: _handle_MultiNode,
                 BreakNode: _handle_BreakNode,
                 ConditionNode: _handle_ConditionNode,
+                LoopNode: _handle_Loop,
             },
             update_seqnode_in_place=False,
             force_forward_scan=True,
