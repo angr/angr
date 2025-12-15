@@ -1230,7 +1230,7 @@ class PhoenixStructurer(StructurerBase):
                         succs = list(fullgraph.successors(node))
                         if (
                             head_pred in succs
-                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(graph, node)
+                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(fullgraph, node)
                         ):
                             # special case: if node is the header of a switch-case, then this is *not* a continue edge
                             continue_edges.append((node, head_pred))
