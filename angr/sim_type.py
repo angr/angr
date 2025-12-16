@@ -50,7 +50,7 @@ class SimType:
         """
         self.label = label
         self._arch = None
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     @staticmethod
     def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
@@ -182,6 +182,8 @@ class SimType:
         d: dict[str, Any] = {"_t": self._ident}
         for field in fields:
             value = getattr(self, field)
+            if field in {"qualifiers"} and value is None:
+                continue
             if isinstance(value, SimType):
                 d[field] = value.to_json(memo=memo)
             elif isinstance(value, (list, tuple)):
@@ -192,8 +194,7 @@ class SimType:
                 if field in nullable_fields and value is None:
                     continue
                 d[field] = value
-        # if self.qualifiers: #FIXME
-        #     d["qualifiers"] = sorted(self.qualifiers)
+
         return d
 
     @staticmethod
@@ -249,7 +250,7 @@ class TypeRef(SimType):
 
         self.type = ty
         self._name = name
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     @property
     def type(self):
@@ -382,7 +383,7 @@ class SimTypeTop(SimType):
     def __init__(self, size: int | None = None, label=None,  qualifiers: Iterable | None = None):
         SimType.__init__(self, label)
         self._size = size
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     def __repr__(self):
         return "TOP"
@@ -442,7 +443,7 @@ class SimTypeNum(SimType):
     _args = ("size", "signed", "label", "qualifiers")
     _ident = "num"
 
-    def __init__(self, size: int, signed=True, label=None, qualifiers: Iterable | None = None):
+    def __init__(self, size: int, signed=True, label=None, qualifiers: Iterable | None=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
@@ -451,7 +452,7 @@ class SimTypeNum(SimType):
         super().__init__(label)
         self._size = size
         self.signed = signed
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     @property
     def size(self) -> int:
@@ -519,6 +520,8 @@ class SimTypeInt(SimTypeReg):
         d = super().to_json(fields=fields, memo=memo)
         if "signed" in d and d["signed"] is True:
             del d["signed"]
+        if "qualifiers" in d and not d["qualifiers"]:
+            d.pop("qualifiers")
         return d
 
     def c_repr(
@@ -894,6 +897,8 @@ class SimTypePointer(SimTypeReg):
         d = super().to_json(fields=fields, memo=memo)
         if d["offset"] == 0:
             d.pop("offset")
+        if "qualifiers" in d and not d["qualifiers"]:
+            d.pop("qualifiers")
         return d
 
     def __repr__(self):
@@ -916,7 +921,7 @@ class SimTypePointer(SimTypeReg):
 
         deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
         quals = f" {' '.join(self.qualifiers)}" if self.qualifiers else ""
-        name_with_deref = deref_chr if name is None else f"{deref_chr}{quals} {name}"
+        name_with_deref = deref_chr if name is None else f"{deref_chr}{quals}{name}"
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -1042,7 +1047,7 @@ class SimTypeArray(SimType):
         super().__init__(label=label)
         self.elem_type: SimType = elem_type
         self.length: int | None = length
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     def __repr__(self):
         return "{}[{}]".format(self.elem_type, "" if self.length is None else self.length)
@@ -1139,7 +1144,7 @@ class SimTypeString(NamedTypeMixin, SimType):
         super().__init__(label=label, name=name)
         self.elem_type = SimTypeChar()
         self.length = length
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     def __repr__(self):
         return "string_t"
@@ -1224,7 +1229,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
         super().__init__(label=label, name=name)
         self.elem_type = SimTypeNum(16, False)
         self.length = length
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     def __repr__(self):
         return "wstring_t"
@@ -1552,7 +1557,7 @@ class SimTypeDouble(SimTypeFloat):
     def __init__(self, align_double=True, label=None, qualifiers: Iterable | None=None):
         self.align_double = align_double
         super().__init__(64, label=label)
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     sort = claripy.FSORT_DOUBLE
 
@@ -1594,7 +1599,7 @@ class SimStruct(NamedTypeMixin, SimType):
         self._align = align
         self.anonymous = anonymous
         self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
         # FIXME: Hack for supporting win32 struct definitions
         if self.name == "_Anonymous_e__Struct":
@@ -1667,6 +1672,8 @@ class SimStruct(NamedTypeMixin, SimType):
             d.pop("align")
         if d["anonymous"] is False:
             d.pop("anonymous")
+        if "qualifiers" in d and not d["qualifiers"]:
+            d.pop("qualifiers")
         return d
 
     def extract(self, state, addr, concrete=False) -> SimStructValue:
@@ -1889,7 +1896,7 @@ class SimUnion(NamedTypeMixin, SimType):
         """
         super().__init__(label, name=name if name is not None else "<anon>")
         self.members = members
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     @property
     def size(self):
@@ -2245,7 +2252,7 @@ class SimTypeRef(SimType):
     def __init__(self, name, original_type: type[SimType], qualifiers: Iterable | None = None):
         super().__init__(label=name)
         self.original_type = original_type
-        self.qualifiers = [] if qualifiers is None else list(qualifiers)
+        self.qualifiers = qualifiers
 
     @property
     def name(self) -> str | None:
@@ -2281,6 +2288,8 @@ class SimTypeRef(SimType):
         d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
         if fields is not None:
             d = {k: d[k] for k in fields}
+        if "qualifiers" in d and not d["qualifiers"]:
+            d.pop("qualifiers")
         return d
 
     @staticmethod
@@ -3642,7 +3651,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.TypeDecl):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
         if decl.declname == "TOP":
             r = SimTypeTop(qualifiers=quals)
             r._arch = arch
@@ -3650,11 +3659,12 @@ def _decl_to_type(
 
         r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
         r = copy.deepcopy(r)
-        r.qualifiers = list(quals)
+        if quals:
+            r.qualifiers = list(quals)
         return r
 
     if isinstance(decl, c_ast.PtrDecl):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
 
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to, qualifiers=quals)
@@ -3663,7 +3673,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -3679,7 +3689,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
