@@ -3658,9 +3658,8 @@ def _decl_to_type(
             r = SimTypeTop(qualifiers=quals)
             r._arch = arch
             return r
-
         r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
-        r = copy.deepcopy(r)
+
         if quals:
             r.qualifiers = list(quals)
         return r
