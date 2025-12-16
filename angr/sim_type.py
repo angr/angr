@@ -1591,7 +1591,7 @@ class SimStruct(NamedTypeMixin, SimType):
         pack=False,
         align=None,
         anonymous: bool = False,
-        qualifiers: Iterable | None = None
+        qualifiers: Iterable | None=None
     ):
         super().__init__(None, name="<anon>" if name is None else name)
 
@@ -1599,7 +1599,8 @@ class SimStruct(NamedTypeMixin, SimType):
         self._align = align
         self.anonymous = anonymous
         self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
-        self.qualifiers = qualifiers
+        if qualifiers:
+            self.qualifiers = qualifiers
 
         # FIXME: Hack for supporting win32 struct definitions
         if self.name == "_Anonymous_e__Struct":
@@ -1896,7 +1897,8 @@ class SimUnion(NamedTypeMixin, SimType):
         """
         super().__init__(label, name=name if name is not None else "<anon>")
         self.members = members
-        self.qualifiers = qualifiers
+        if qualifiers:
+            self.qualifiers = qualifiers
 
     @property
     def size(self):
