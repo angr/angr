@@ -167,10 +167,15 @@ class StaticObjectFinder(Analysis):
             # is passed the this pointer(returned by new)...
             # if so then we say that it is possibly a constructor
             for node in func.graph.nodes():
-                if func.get_call_target(node.addr) == new_func_addr:
-                    ret_node_addr = func.get_call_return(node.addr)
+                call_target = func.get_call_target(node.addr)
+                if call_target is not None and new_func_addr in call_target:
+                    ret_node_addrs = func.get_call_return(node.addr)
+                    ret_node_addr = next(iter(ret_node_addrs), None)
                     ret_node = self.project.factory.block(ret_node_addr)
-                    call_after_new_addr = func.get_call_target(ret_node_addr)
+                    call_after_new_addrs = func.get_call_target(ret_node_addr)
+
+                    if call_after_new_addrs is None:
+                        continue
                     rd_before_node = rd.get_reaching_definitions_by_node(ret_node_addr, OP_BEFORE)
 
                     if cc is not None:
@@ -197,7 +202,8 @@ class StaticObjectFinder(Analysis):
                         this_ptr_reg_size = word_size
                     v1 = rd_after_node.registers.load(this_ptr_reg_offset, this_ptr_reg_size).one_value()
                     addr_in_rdi = v1.concrete_value if v1 is not None and v1.concrete else None
-
+                    # check if call target is in rdi
+                    call_after_new_addr = next(iter(call_after_new_addrs), None)
                     if addr_of_new_obj is not None and addr_of_new_obj == addr_in_rdi:
                         self.possible_constructors[call_after_new_addr].append(self.possible_objects[addr_of_new_obj])
 
