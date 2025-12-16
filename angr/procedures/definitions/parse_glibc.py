@@ -12,17 +12,12 @@ l = logging.getLogger(name="parse_glibc")
 
 
 def main():
-    print("ooooooooooooooooo")
     with open(sys.argv[1], encoding="utf-8") as f:
         glibc_decls = f.readlines()
 
     protos = {}
     for c_decl in glibc_decls:
         c_decl = c_decl.strip("\n")
-
-        # preprocessing
-        print(c_decl)
-        # c_decl = c_decl.replace("*restrict ", "* ")
 
         try:
             parsed = parse_file(c_decl, predefined_types=ALL_TYPES)
