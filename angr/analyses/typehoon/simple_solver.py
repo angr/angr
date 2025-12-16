@@ -1692,14 +1692,15 @@ class SimpleSolver:
         if len(cached_results) == 1:
             return next(iter(cached_results))
         if len(cached_results) > 1:
-            # we get nodes for multiple type variables?
-            raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")
+            # too many results; return TOP
+            _l.warning("Getting multiple results when consulting the solution cache. Returning TOP.")
+            return Top_
 
         # collect all successors and the paths (labels) of this type variable
         path_and_successors = []
         last_labels = []
         for node in nodes:
-            path_and_successors += self._collect_sketch_paths(node, sketch)
+            path_and_successors += self._collect_sketchnode_successors_and_paths(node, sketch)
         for labels, _ in path_and_successors:
             if labels:
                 last_labels.append(labels[-1])
@@ -1917,9 +1918,11 @@ class SimpleSolver:
         return result
 
     @staticmethod
-    def _collect_sketch_paths(node: SketchNodeBase, sketch: Sketch) -> list[tuple[list[BaseLabel], SketchNodeBase]]:
+    def _collect_sketchnode_successors_and_paths(
+        node: SketchNodeBase, sketch: Sketch
+    ) -> list[tuple[list[BaseLabel], SketchNodeBase]]:
         """
-        Collect all paths that go from `typevar` to its leaves.
+        Collect all paths that go from `node` to its immediate next successors, following Load/Store labels.
         """
         paths = []
         visited: set[SketchNodeBase] = set()
