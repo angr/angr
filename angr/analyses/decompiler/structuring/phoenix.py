@@ -885,14 +885,13 @@ class PhoenixStructurer(StructurerBase):
                     # block in src may not be the actual block that has a direct jump or a conditional jump to dst. as
                     # a result, we should walk all blocks in src to find the jump to dst, then extract the condition
                     # and augment the corresponding block with a ConditionalBreak.
-                    _, _, src_block = self._find_node_going_to_dst(src, dst)
+                    #
+                    # don't enter loops because we can't rewrite a goto edge as break if the jump to the loop head is
+                    # inside another loop
+                    _, _, src_block = self._find_node_going_to_dst(src, dst, enter_loops=False)
                     if src_block is None:
-                        l.warning(
-                            "Cannot find the source block jumping to the destination block at %#x. "
-                            "This is likely a bug elsewhere and needs to be addressed.",
-                            dst.addr,
-                        )
-                        # remove the edge anyway
+                        # we can't find the source block, which is probably because the source block is within another
+                        # loop. keep that goto and remove the edge anyway
                         fullgraph_raw[src][dst]["cyclic_refinement_outgoing"] = True
                         if graph.has_edge(src, dst):
                             graph_raw[src][dst]["cyclic_refinement_outgoing"] = True
@@ -1070,7 +1069,9 @@ class PhoenixStructurer(StructurerBase):
                 # due to prior structuring of sub regions, the continue node may already be a Jump statement deep in
                 # src at this point. we need to find the Jump statement and replace it.
                 assert continue_node is not None
-                _, _, cont_block = self._find_node_going_to_dst(src, continue_node)
+                # don't enter loops because we can't rewrite a goto edge as continue if the jump to the loop head is
+                # inside another loop
+                _, _, cont_block = self._find_node_going_to_dst(src, continue_node, enter_loops=False)
                 if cont_block is None:
                     # cont_block is not found. but it's ok. one possibility is that src is a jump table head with one
                     # case being the loop head. in such cases, we can just remove the edge.
@@ -1228,7 +1229,11 @@ class PhoenixStructurer(StructurerBase):
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
-                        if head_pred in succs:
+                        if (
+                            head_pred in succs
+                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(fullgraph, node)
+                        ):
+                            # special case: if node is the header of a switch-case, then this is *not* a continue edge
                             continue_edges.append((node, head_pred))
 
                         outside_succs = [succ for succ in succs if succ not in loop_body]
@@ -1681,6 +1686,9 @@ class PhoenixStructurer(StructurerBase):
                 for succ in all_succs:
                     pgraph.add_edge(newsc, succ)
 
+            if self._node_order is not None:
+                self._node_order[newsc] = self._node_order[better_node_a]
+
             return True
 
         if node_default is None:
@@ -1999,13 +2007,25 @@ class PhoenixStructurer(StructurerBase):
             if succ_addrs == expected_entry_addrs or (
                 succ_addrs.issubset(expected_entry_addrs) and len(expected_entry_addrs - succ_addrs) == 1
             ):
+                # ensure that the successors have been properly structured, which means they either do not have
+                # successors or they have one successor that is the likely default node of the switch-case construct
+                # or the head of the switch-case construct (in which case, it's a loop).
                 out_nodes = set()
                 for succ in successors:
                     out_nodes |= {
                         succ for succ in full_graph.successors(succ) if succ is not node and succ not in successors
                     }
                 out_nodes = list(out_nodes)
-                if len(out_nodes) <= 1 and node.addr not in self._matched_incomplete_switch_case_addrs:
+                if (
+                    len(out_nodes) == 0
+                    or (
+                        len(out_nodes) == 1
+                        and (
+                            self._is_switch_case_address_loaded_from_memory_default_node(full_graph, out_nodes[0])
+                            or self._is_switch_cases_address_loaded_from_memory_head(full_graph, out_nodes[0])
+                        )
+                    )
+                ) and node.addr not in self._matched_incomplete_switch_case_addrs:
                     self._matched_incomplete_switch_case_addrs.add(node.addr)
                     new_node = IncompleteSwitchCaseNode(node.addr, node, successors)
                     graph_raw.remove_nodes_from(successors)
@@ -2332,25 +2352,46 @@ class PhoenixStructurer(StructurerBase):
 
         return case_and_entry_addrs
 
-    def _is_node_unstructured_switch_case_head(self, node) -> bool:
+    def _is_node_unstructured_switch_case_head(self, graph, node) -> bool:
+        # scan forward by at least one step to see if we can get to a jump table node
+        steps = 0
+        while node.addr not in self.jump_tables and steps < 1:
+            steps += 1
+            nodes = list(graph.successors(node))
+            if len(nodes) != 1:
+                return False
+            node = nodes[0]
+
         if node.addr in self.jump_tables:
             # maybe it has been structured?
             try:
                 last_stmts = self.cond_proc.get_last_statements(node)
             except EmptyBlockNotice:
                 return False
-            return len(last_stmts) == 1 and isinstance(last_stmts[0], Jump)
+            return (
+                len(last_stmts) == 1 and isinstance(last_stmts[0], Jump) and not isinstance(last_stmts[0].target, Const)
+            )
         return False
 
+    def _is_switch_cases_address_loaded_from_memory_head(self, graph, node) -> bool:
+        for succ in graph.successors(node):
+            if self._is_node_unstructured_switch_case_head(graph, succ):
+                return True
+        return node in self.switch_case_known_heads
+
     def _is_switch_cases_address_loaded_from_memory_head_or_jumpnode(self, graph, node) -> bool:
-        if self._is_node_unstructured_switch_case_head(node):
+        if self._is_node_unstructured_switch_case_head(graph, node):
             return True
         if isinstance(node, IncompleteSwitchCaseNode):
             return True
-        for succ in graph.successors(node):
-            if self._is_node_unstructured_switch_case_head(succ):
+        return self._is_switch_cases_address_loaded_from_memory_head(graph, node)
+
+    def _is_switch_case_address_loaded_from_memory_default_node(self, graph, node) -> bool:
+        # the default node should have a predecessor that is a switch-case head node
+        for pred in graph.predecessors(node):
+            if self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(graph, pred):
                 return True
-        return node in self.switch_case_known_heads
+        return False
 
     # other acyclic schemas
 
@@ -2431,8 +2472,8 @@ class PhoenixStructurer(StructurerBase):
                 if (
                     full_graph.in_degree[left] == 1
                     and full_graph.in_degree[right] == 1
-                    and not self._is_node_unstructured_switch_case_head(left)
-                    and not self._is_node_unstructured_switch_case_head(right)
+                    and not self._is_node_unstructured_switch_case_head(full_graph, left)
+                    and not self._is_node_unstructured_switch_case_head(full_graph, right)
                 ):
                     if self.cond_proc.have_opposite_edge_conditions(full_graph, start_node, left, right):
                         # c = !c
@@ -2477,8 +2518,8 @@ class PhoenixStructurer(StructurerBase):
             if left in graph and not left_succs and full_graph.in_degree[left] == 1 and right in graph:
                 # potentially If-Then
                 if not self._is_node_unstructured_switch_case_head(
-                    left
-                ) and not self._is_node_unstructured_switch_case_head(right):
+                    full_graph, left
+                ) and not self._is_node_unstructured_switch_case_head(full_graph, right):
                     if self.cond_proc.have_opposite_edge_conditions(full_graph, start_node, left, right):
                         # c = !c
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
@@ -3196,6 +3237,7 @@ class PhoenixStructurer(StructurerBase):
         dst: Block | BaseNode,
         last=True,
         condjump_only=False,
+        enter_loops=True,
     ) -> tuple[int | None, BaseNode | None, Block | MultiNode | BreakNode | SequenceNode | None]:
         """
 
@@ -3297,12 +3339,17 @@ class PhoenixStructurer(StructurerBase):
                     # we insert the parent node (the SequenceNode) instead
                     _Holder.parent_and_block.append((_Holder.block_id, None, parent))
 
+        def _handle_Loop(loop_node: LoopNode, parent=None, **kwargs):  # pylint:disable=unused-argument
+            if enter_loops:
+                walker._handle_Loop(loop_node, parent=parent, **kwargs)
+
         walker = SequenceWalker(
             handlers={
                 Block: _handle_Block,
                 MultiNode: _handle_MultiNode,
                 BreakNode: _handle_BreakNode,
                 ConditionNode: _handle_ConditionNode,
+                LoopNode: _handle_Loop,
             },
             update_seqnode_in_place=False,
             force_forward_scan=True,

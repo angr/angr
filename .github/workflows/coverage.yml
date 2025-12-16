@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.10"
       - name: Restore test durations cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: test_durations.json
           key: cov-test-durations-${{ github.sha }}
@@ -35,7 +35,7 @@ jobs:
       - name: Archive environment
         run: tar -cpf /tmp/env.tzst --absolute-names --zstd $PWD $UV_CACHE_DIR $UV_PYTHON_INSTALL_DIR
       - name: Upload environment artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v4
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4
         with:
           name: env
           path: /tmp/env.tzst
@@ -50,7 +50,7 @@ jobs:
       matrix:
         runner_id: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: env
           path: .
@@ -79,7 +79,7 @@ jobs:
         run: |
           [[ -e junit.xml && -e coverage.xml && -e coverage-native.xml && -e test_durations.json ]]
       - name: Upload results artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: results-${{ matrix.runner_id }}
           if-no-files-found: error
@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
       - uses: actions-rust-lang/setup-rust-toolchain@1780873c7b576612439a134613cc4cc74ce5538c # v1
-      - uses: taiki-e/install-action@cf46383a970594553a83cc6140075ef6a7f54dee # v2
+      - uses: taiki-e/install-action@d850aa816998e5cf15f67a78c7b933f2a5033f8a # v2
         with:
           tool: cargo-llvm-cov
       - uses: actions/setup-python@83679a892e2d95755f2dac6acb0bfd1e9ac5d548 # v5
@@ -108,7 +108,7 @@ jobs:
           cargo test --release
           cargo llvm-cov --lcov --output-path lcov.info
       - name: Upload results artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: results-rust
           if-no-files-found: error
@@ -123,7 +123,7 @@ jobs:
       needs: [test, test_rust]
       steps:
       - name: Download environment
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: env
           path: .
@@ -132,7 +132,7 @@ jobs:
           tar -xpf $PWD/env.tzst -C /
           rm env.tzst
       - name: Download results
-        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: "results-*"
           path: results
@@ -158,7 +158,7 @@ jobs:
           junit=$(find . -type f -name 'junit.xml' | paste -sd, -)
           echo "junit=$junit" >> "$GITHUB_OUTPUT"
       - name: Upload test coverage to Codecov
-        uses: codecov/codecov-action@5a1091511ad55cbe89839c7260b706298ca349f7 # v5
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
         with:
           use_oidc: true
           fail_ci_if_error: true
@@ -174,13 +174,13 @@ jobs:
       - name: Combine test durations
         run: jq -Ss 'add' results/**/test_durations.json > test_durations.json
       - name: Upload combined test durations artifact
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: test_durations
           path: ./test_durations.json
           if-no-files-found: error
       - name: Update test durations cache
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: test_durations.json
           key: cov-test-durations-${{ github.sha }}
