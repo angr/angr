@@ -3749,7 +3749,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
-        quals = list(decl.quals) if decl.quals else []
+        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
 
         if decl.name is not None:
             key = "union " + decl.name
