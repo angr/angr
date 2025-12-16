@@ -1159,7 +1159,7 @@ class SimTypeString(NamedTypeMixin, SimType):
         out = self.elem_type.c_repr(name, full, memo, indent)
         if self.qualifiers:
             out = f"{' '.join(sorted(self.qualifiers))} {out}"
-            return out
+        return out
 
 
     @overload
