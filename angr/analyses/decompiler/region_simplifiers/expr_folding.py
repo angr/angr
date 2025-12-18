@@ -6,7 +6,7 @@ from typing import Any, TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment import Expression, Block, AILBlockWalker
-from angr.ailment.expression import ITE, Atom, Load
+from angr.ailment.expression import ITE, Atom, Load, VirtualVariable
 from angr.ailment.statement import Statement, Assignment, Call, Return
 
 from angr.utils.ail import is_phi_assignment
@@ -623,27 +623,26 @@ class ExpressionReplacer(AILBlockWalker):
         if is_phi_assignment(stmt):
             return stmt
 
+        if isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid in self._assignments:
+            return stmt
+
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-        if dst is not None and dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
+        if dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
             changed = True
         else:
             dst = stmt.dst
         assert isinstance(dst, Atom)
 
         src = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
-        if src is not None and src is not stmt.src:
+        if src is not stmt.src:
             changed = True
         else:
             src = stmt.src
 
         if changed:
-            new_stmt = Assignment(stmt.idx, dst, src, **stmt.tags)
-            if block is not None:
-                # update the statement directly in the block
-                block.statements[stmt_idx] = new_stmt
-            return new_stmt
+            return Assignment(stmt.idx, dst, src, **stmt.tags)
         return stmt
 
     def _handle_expr(
