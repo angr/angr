@@ -18,6 +18,10 @@ _l = logging.getLogger(name=__name__)
 
 
 class BlockWalker(AILBlockWalker):
+    """
+    AIL Block walker in order to perform const deref substitution
+    """
+
     def __init__(self, project: Project):
         super().__init__()
         self._project = project

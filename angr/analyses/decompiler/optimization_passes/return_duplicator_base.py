@@ -3,9 +3,9 @@ from typing import Any
 import copy
 import logging
 
-import angr.ailment as ailment
 import networkx
 
+import angr.ailment as ailment
 from angr.ailment import Block, AILBlockWalker
 from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
 from angr.ailment.expression import Const, Phi, VirtualVariable
