@@ -828,21 +828,13 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
 
 
 def peephole_optimize_exprs(block, expr_opts):
-    class _any_update:
-        """
-        Local temporary class used as a container for variable `v`.
-        """
-
-        v = False
+    any_update = False
 
     def _handle_expr(
         expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
-    ) -> ailment.Expr.Expression | None:
+    ) -> ailment.Expression:
         # process the expr
-        processed = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-
-        if processed is not None:
-            expr = processed
+        expr = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
         old_expr = expr
 
         redo = True
@@ -857,7 +849,8 @@ def peephole_optimize_exprs(block, expr_opts):
                         break
 
         if expr is not old_expr:
-            _any_update.v = True
+            nonlocal any_update
+            any_update = True
 
         return expr
 
@@ -866,15 +859,13 @@ def peephole_optimize_exprs(block, expr_opts):
     walker._handle_expr = _handle_expr
     walker.walk(block)
 
-    return _any_update.v
+    return any_update
 
 
 def peephole_optimize_expr(expr, expr_opts):
     def _handle_expr(
         expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
-    ) -> ailment.Expr.Expression | None:
-        old_expr = expr
-
+    ) -> ailment.Expression:
         redo = True
         while redo:
             redo = False
@@ -886,11 +877,7 @@ def peephole_optimize_expr(expr, expr_opts):
                         redo = True
                         break
 
-        if expr is not old_expr:
-            # continue to process the expr
-            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-            return expr if r is None else r
-
+        # continue to process the expr
         return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
     # run expression optimizers
