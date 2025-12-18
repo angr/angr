@@ -93,8 +93,8 @@ class Fuzzer:
     def __init__(
         self,
         base_state: SimState,
-        corpus: OnDiskCorpus,
-        solutions: OnDiskCorpus,
+        corpus: InMemoryCorpus | OnDiskCorpus,
+        solutions: InMemoryCorpus | OnDiskCorpus,
         apply_fn: Callable[[SimState, bytes], None],
         timeout: int = 0,
         seed: int | None = None,
@@ -103,12 +103,18 @@ class Fuzzer:
         Initialize the fuzzer with the given parameters.
         """
 
-    def run_once(self, progress_callback: Callable[ClientStats, str, int]) -> int:
+    def corpus(self) -> InMemoryCorpus | OnDiskCorpus:
+        ...
+
+    def solutions(self) -> InMemoryCorpus | OnDiskCorpus:
+        ...
+
+    def run_once(self, progress_callback: Callable[[ClientStats, str, int], None] | None = None) -> int:
         """
         Run the fuzzer for one iteration.
         """
 
-    def run(self, progress_callback: Callable[[ClientStats, str, int], None], iterations: int | None) -> None:
+    def run(self, progress_callback: Callable[[ClientStats, str, int], None] | None = None, iterations: int | None = None) -> None:
         """
         Run the fuzzer in a loop or for a set number of iterations.
         """

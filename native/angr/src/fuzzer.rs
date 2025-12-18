@@ -6,7 +6,6 @@ use std::time::Duration;
 
 use libafl::{
     NopInputFilter, StdFuzzer,
-    corpus::OnDiskCorpus,
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopBytesConverter},
@@ -21,14 +20,14 @@ use libafl_bolts::{
     tuples::{tuple_list, tuple_list_type},
 };
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3::{exceptions::PyTypeError, prelude::*, Py};
 
-use crate::fuzzer::{corpus::PyOnDiskCorpus, executor::PyExecutorInner, monitor::CallbackMonitor};
+use crate::fuzzer::{corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus}, executor::PyExecutorInner, monitor::CallbackMonitor};
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
 pub(crate) type I = BytesInput;
-pub(crate) type C = OnDiskCorpus<I>;
+pub(crate) type C = DynCorpus<I>;
 pub(crate) type S = StdState<C, I, StdRand, C>;
 pub(crate) type MT = CallbackMonitor;
 pub(crate) type EM = SimpleEventManager<I, MT, S>;
@@ -57,8 +56,8 @@ impl Fuzzer {
     #[new]
     fn py_new(
         base_state: Bound<PyAny>,
-        corpus: PyOnDiskCorpus,
-        solutions: PyOnDiskCorpus,
+        corpus: Bound<PyAny>,
+        solutions: Bound<PyAny>,
         apply_fn: Bound<PyAny>,
         timeout: Option<u64>,
         seed: u64,
@@ -71,8 +70,26 @@ impl Fuzzer {
         let mut feedback = MaxMapFeedback::with_name("edges", &observer);
         let mut objective = CrashFeedback::default();
 
-        let corpus = corpus.inner.clone();
-        let solutions = solutions.inner.clone();
+        // Convert Python corpus wrappers into dynamic corpus variants
+        let corpus: C = if let Ok(py_ondisk) = corpus.extract::<PyOnDiskCorpus>() {
+            DynCorpus::OnDisk(py_ondisk.inner.clone())
+        } else if let Ok(py_inmem) = corpus.extract::<PyInMemoryCorpus>() {
+            DynCorpus::try_from(&py_inmem)?
+        } else {
+            return Err(PyTypeError::new_err(
+                "Expected corpus to be OnDiskCorpus or InMemoryCorpus",
+            ));
+        };
+
+        let solutions: C = if let Ok(py_ondisk) = solutions.extract::<PyOnDiskCorpus>() {
+            DynCorpus::OnDisk(py_ondisk.inner.clone())
+        } else if let Ok(py_inmem) = solutions.extract::<PyInMemoryCorpus>() {
+            DynCorpus::try_from(&py_inmem)?
+        } else {
+            return Err(PyTypeError::new_err(
+                "Expected solutions to be OnDiskCorpus or InMemoryCorpus",
+            ));
+        };
 
         let fuzzer_state = StdState::new(
             StdRand::with_seed(seed),
@@ -111,16 +128,12 @@ impl Fuzzer {
         })
     }
 
-    fn corpus(&self) -> PyResult<PyOnDiskCorpus> {
-        Ok(PyOnDiskCorpus {
-            inner: self.fuzzer_state.corpus().clone(),
-        })
+    fn corpus(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| self.fuzzer_state.corpus().to_py(py))
     }
 
-    fn solutions(&self) -> PyResult<PyOnDiskCorpus> {
-        Ok(PyOnDiskCorpus {
-            inner: self.fuzzer_state.solutions().clone(),
-        })
+    fn solutions(&self) -> PyResult<Py<PyAny>> {
+        Python::attach(|py| self.fuzzer_state.solutions().to_py(py))
     }
 
     #[pyo3(signature = (progress_callback = None))]
