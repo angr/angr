@@ -9,7 +9,7 @@ from .statement import Assignment, Statement
 from .expression import Expression, Const, Tmp, Register, UnaryOp, BinaryOp
 from .converter_common import Converter
 from .manager import Manager
-from .block_walker import AILBlockWalker, AILBlockWalkerBase
+from .block_walker import AILBlockWalker, AILBlockWalkerBase, AILBlockWalkerBaseBase
 
 log = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ class IRSBConverter(Converter):
 __all__ = [
     "AILBlockWalker",
     "AILBlockWalkerBase",
+    "AILBlockWalkerBaseBase",
     "Assignment",
     "BinaryOp",
     "Block",

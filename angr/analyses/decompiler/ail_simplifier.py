@@ -8,9 +8,8 @@ import logging
 
 import networkx
 
-from angr.ailment import AILBlockWalker
+from angr.ailment import AILBlockWalker, AILBlockWalkerBase
 from angr.ailment.block import Block
-from angr.ailment.block_walker import AILBlockWalkerBase
 from angr.ailment.statement import (
     Statement,
     Assignment,
@@ -86,7 +85,7 @@ class HasRefVVarNotification(Exception):
     """
 
 
-class AILBlockTempCollector(AILBlockWalkerBase[None, None, None]):
+class AILBlockTempCollector(AILBlockWalkerBase):
     """
     Collects any temporaries used in a block.
     """
