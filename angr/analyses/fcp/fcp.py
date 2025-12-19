@@ -14,7 +14,7 @@ from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
-from angr.calling_conventions import SimStackArg, default_cc
+from angr.calling_conventions import SimStackArg
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
 
 
@@ -394,11 +394,7 @@ class FastConstantPropagation(Analysis):
         return state
 
     def _handle_function(self, state: FCPState, func: Function | None) -> FCPState:
-
-        if func is None or func.calling_convention is None:
-            cc = default_cc(self.project.arch.name)
-        else:
-            cc = func.calling_convention
+        cc = self.project.factory.cc() if func is None or func.calling_convention is None else func.calling_convention
 
         out_state = state.copy()
         if func is not None and func.prototype is not None:
