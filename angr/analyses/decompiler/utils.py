@@ -13,7 +13,10 @@ import angr.ailment as ailment
 import angr
 from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
-from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationMultiStmtBase
+from angr.analyses.decompiler.peephole_optimizations.base import (
+    PeepholeOptimizationExprBase,
+    PeepholeOptimizationMultiStmtBase,
+)
 from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
 
@@ -828,20 +831,24 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
     return False
 
 
-def peephole_optimize_exprs(block, expr_opts):
-    any_update = False
+class PeepholeExprsWalker(ailment.AILBlockWalker):
+    def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
+        self.expr_opts = expr_opts
+        self.any_update = False
+
+        super().__init__(*args, **kwargs)
 
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+        self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expression:
         # process the expr
-        expr = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        expr = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
         old_expr = expr
 
         redo = True
         while redo:
             redo = False
-            for expr_opt in expr_opts:
+            for expr_opt in self.expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
                     r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not expr:
@@ -850,27 +857,31 @@ def peephole_optimize_exprs(block, expr_opts):
                         break
 
         if expr is not old_expr:
-            nonlocal any_update
-            any_update = True
+            self.any_update = True
 
         return expr
 
+
+def peephole_optimize_exprs(block, expr_opts):
     # run expression optimizers
-    walker = ailment.AILBlockWalker()
-    walker._handle_expr = _handle_expr
+    walker = PeepholeExprsWalker(expr_opts=expr_opts)
     walker.walk(block)
+    return walker.any_update
 
-    return any_update
 
+class PeepholeExprWalker(ailment.AILBlockWalker):
+    def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
+        self.expr_opts = expr_opts
 
-def peephole_optimize_expr(expr, expr_opts):
+        super().__init__(*args, **kwargs)
+
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+        self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
     ) -> ailment.Expression:
         redo = True
         while redo:
             redo = False
-            for expr_opt in expr_opts:
+            for expr_opt in self.expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
                     r = expr_opt.optimize(expr)
                     if r is not None and r is not expr:
@@ -879,12 +890,13 @@ def peephole_optimize_expr(expr, expr_opts):
                         break
 
         # continue to process the expr
-        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
+
+def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOptimizationExprBase]):
     # run expression optimizers
-    walker = ailment.AILBlockWalker()
-    walker._handle_expr = _handle_expr
-    return walker._handle_expr(0, expr, 0, None, None)
+    walker = PeepholeExprWalker(expr_opts=expr_opts)
+    return walker.walk_expression(expr, 0, None, None)
 
 
 def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
