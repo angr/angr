@@ -4,7 +4,7 @@ import logging
 
 
 from angr.ailment import Statement, Block
-from angr.ailment.block_walker import AILBlockWalker
+from angr.ailment.block_walker import AILBlockRewriter
 from angr.ailment.statement import WeakAssignment, Call
 from angr.ailment.expression import VirtualVariable, Const, Load, UnaryOp
 from angr.sim_type import SimType, SimTypePointer, SimTypeChar
@@ -15,7 +15,7 @@ from .optimization_pass import OptimizationPass, OptimizationPassStage
 _l = logging.getLogger(name=__name__)
 
 
-class RewriteStdStringCallWalker(AILBlockWalker):
+class RewriteStdStringCallWalker(AILBlockRewriter):
     def __init__(self, str_defs: dict[int, bytes], kb, **kwargs):
         super().__init__(update_block=False, **kwargs)
         self._str_defs = str_defs

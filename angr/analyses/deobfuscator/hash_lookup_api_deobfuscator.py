@@ -8,7 +8,7 @@ import angr
 from angr import sim_type
 from angr.analyses import Analysis
 from angr import ailment
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.errors import AngrCallableError
 from angr.knowledge_plugins.functions.function import Function
 
@@ -107,7 +107,7 @@ class HashLookupAPIDeobfuscator(Analysis):
             self.results[ins_addr] = (result_sym.owner.provides or "", result_sym.name)
 
 
-class FindCallsTo(AILBlockWalkerBase):
+class FindCallsTo(AILBlockViewer):
     """
     Walker which stores calls with a given target.
     """

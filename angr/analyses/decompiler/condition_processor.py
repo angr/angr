@@ -789,8 +789,7 @@ class ConditionProcessor:
         if cond._hash in memo:
             return memo[cond._hash]
         r = self.convert_claripy_bool_ast_core(cond, memo)
-        optimized_r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
-        r = r if optimized_r is None else optimized_r
+        r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
         memo[cond._hash] = r
         return r
 

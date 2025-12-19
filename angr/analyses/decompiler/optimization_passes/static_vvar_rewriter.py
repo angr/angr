@@ -3,7 +3,7 @@ import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
 from angr.ailment.expression import Const, VirtualVariable, Load
-from angr.ailment.block_walker import AILBlockWalkerBase, AILBlockWalker
+from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
 from angr.ailment.statement import Call
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
@@ -51,7 +51,7 @@ class Offset:
 #
 
 
-class VVarRewritingVisitor(AILBlockWalker):
+class VVarRewritingVisitor(AILBlockRewriter):
     """
     The visitor that rewrites vvars and their reads.
     """
@@ -195,7 +195,7 @@ class VVarRewritingVisitor(AILBlockWalker):
         return None
 
 
-class VVarAliasVisitor(AILBlockWalkerBase):
+class VVarAliasVisitor(AILBlockViewer):
     """
     The visitor that discovers const assignments and aliases of existing static vvars.
     """

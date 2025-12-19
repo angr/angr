@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 
 from .a_div_const_add_a_mul_n_div_const import ADivConstAddAMulNDivConst
 from .a_mul_const_div_shr_const import AMulConstDivShrConst
@@ -59,7 +60,7 @@ from .rewrite_conv_mul import RewriteConvMul
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 
-ALL_PEEPHOLE_OPTS: list[type[PeepholeOptimizationExprBase]] = [
+ALL_PEEPHOLE_OPTS: list[Any] = [
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,
     AShlConstSubA,

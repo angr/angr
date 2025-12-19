@@ -1,13 +1,13 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import Tmp
 from angr.ailment.statement import Statement, Assignment
 from angr.ailment.block import Block
 
 
-class TmpUsesCollector(AILBlockWalkerBase):
+class TmpUsesCollector(AILBlockViewer):
     """
     Collect all uses of temporary variables and their use statement IDs in an AIL block.
     """

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockViewer
 from angr.ailment.expression import VirtualVariable, Phi
 from angr.ailment.statement import Statement, Assignment
 from angr.ailment.block import Block
@@ -9,7 +9,7 @@ from angr.ailment.block import Block
 from angr.code_location import CodeLocation
 
 
-class VVarUsesCollector(AILBlockWalkerBase):
+class VVarUsesCollector(AILBlockViewer):
     """
     Collect all uses of virtual variables and their use locations in an AIL block. Skip collecting use locations if
     block is not specified.

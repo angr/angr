@@ -58,7 +58,7 @@ class PostStructuringPeepholeOptimizationPass(SequenceOptimizationPass):
 
     def _optimize_expr(self, expr, **_):
         new_expr = peephole_optimize_expr(expr, self._expr_peephole_opts)
-        return new_expr if expr != new_expr else None
+        return new_expr if expr is not new_expr else None
 
     def _optimize_block(self, block, **_):
         old_block, new_block = None, block

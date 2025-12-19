@@ -8,7 +8,7 @@ from angr.ailment.statement import Statement
 from angr.ailment.expression import Expression, BinaryOp
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class OuterWalker(SequenceWalker):
         )
 
 
-class ExpressionReplacer(AILBlockWalker):
+class ExpressionReplacer(AILBlockRewriter):
     """
     Replace expressions.
     """

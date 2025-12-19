@@ -721,7 +721,7 @@ class Decompiler(Analysis):
             const_values.add(expr.value)
 
         def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
-            block_walker = ailment.AILBlockWalkerBase(
+            block_walker = ailment.AILBlockViewer(
                 expr_handlers={
                     ailment.Expr.Const: _handle_Const,
                 }
