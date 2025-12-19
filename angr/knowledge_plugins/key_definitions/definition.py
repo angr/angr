@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, TypeVar, Generic
+from typing import TYPE_CHECKING, Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -9,14 +9,19 @@ from angr.sim_variable import SimMemoryVariable
 from angr.sim_variable import SimStackVariable
 from angr.sim_variable import SimRegisterVariable
 from angr.misc.ux import once
-
 from angr.engines.light import SpOffset
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import ExternalCodeLocation
+from angr.sim_variable import SimVariable
 from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
 from .tag import Tag
-from angr.sim_variable import SimVariable
+
+if TYPE_CHECKING:
+    from angr.code_location import AILCodeLocation, CodeLocation
 
 log = logging.getLogger(__name__)
+
+CodeLoc = TypeVar("CodeLoc", bound="CodeLocation | AILCodeLocation")
+A = TypeVar("A", bound=Atom)
 
 
 @dataclass
@@ -136,10 +141,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-A = TypeVar("A", bound=Atom)
-
-
-class Definition(Generic[A]):
+class Definition(Generic[A, CodeLoc]):
     """
     An atom definition.
 
@@ -158,10 +160,10 @@ class Definition(Generic[A]):
         "tags",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: set[Tag] | None = None):
-        self.atom: A = atom
-        self.codeloc: CodeLocation = codeloc
-        self.dummy: bool = dummy
+    def __init__(self, atom: A, codeloc: CodeLoc, dummy: bool = False, tags: set[Tag] | None = None):
+        self.atom = atom
+        self.codeloc = codeloc
+        self.dummy = dummy
         self.tags = tags or set()
         self._hash = None
 

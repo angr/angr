@@ -8,7 +8,7 @@ from angr.ailment.statement import Assignment, Call
 from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 
 if TYPE_CHECKING:
     from angr.ailment.expression import (
@@ -37,7 +37,9 @@ class ExprNarrowingInfo:
         self,
         narrowable: bool,
         to_size: int | None = None,
-        use_exprs: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] | None = None,
+        use_exprs: (
+            list[tuple[atoms.VirtualVariable, AILCodeLocation, tuple[str, tuple[Expression, ...]]]] | None
+        ) = None,
         phi_vars: set[VirtualVariable] | None = None,
     ):
         self.narrowable = narrowable
