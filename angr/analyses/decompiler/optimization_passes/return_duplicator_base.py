@@ -6,7 +6,7 @@ import logging
 import networkx
 
 import angr.ailment as ailment
-from angr.ailment import Block, AILBlockWalker
+from angr.ailment import Block, AILBlockRewriter
 from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
 from angr.ailment.expression import Const, Phi, VirtualVariable
 
@@ -20,7 +20,7 @@ from angr.analyses.decompiler.region_identifier import RegionIdentifier
 _l = logging.getLogger(name=__name__)
 
 
-class FreshVirtualVariableRewriter(AILBlockWalker):
+class FreshVirtualVariableRewriter(AILBlockRewriter):
     """
     Helper class to rewrite virtual variables so that they will use fresh virtual variables.
     """

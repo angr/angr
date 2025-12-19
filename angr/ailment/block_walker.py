@@ -41,7 +41,7 @@ StmtType = TypeVar("StmtType")
 BlockType = TypeVar("BlockType")
 
 
-class AILBlockWalkerBaseBase(Generic[ExprType, StmtType, BlockType]):
+class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
     """
     Walks all statements and expressions of an AIL node and construct arbitrary values based on them.
     """
@@ -295,7 +295,7 @@ class AILBlockWalkerBaseBase(Generic[ExprType, StmtType, BlockType]):
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class AILBlockWalkerBase(AILBlockWalkerBaseBase[None, None, None]):
+class AILBlockViewer(AILBlockWalker[None, None, None]):
     """
     Walks all statements and expressions of an AIL node and do nothing.
     """
@@ -437,11 +437,11 @@ class AILBlockWalkerBase(AILBlockWalkerBaseBase[None, None, None]):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
 
 
-class AILBlockWalker(AILBlockWalkerBaseBase[Expression, Statement, Block]):
+class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
     """
     Walks all statements and expressions of an AIL node, and rebuilds expressions, statements, or blocks if needed.
 
-    If you need a pure walker without rebuilding, use AILBlockWalkerBase instead.
+    If you need a pure walker without rebuilding, use AILBlockViewer instead.
 
     :ivar update_block: True if the block should be updated in place, False if a new block should be created and
                         returned as the result of walk().

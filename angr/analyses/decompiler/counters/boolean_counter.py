@@ -1,7 +1,7 @@
 from __future__ import annotations
 import typing
 
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockViewer
 
 if typing.TYPE_CHECKING:
     from angr.ailment.expression import BinaryOp
@@ -9,7 +9,7 @@ if typing.TYPE_CHECKING:
     from angr.ailment.block import Block
 
 
-class BooleanCounter(AILBlockWalkerBase):
+class BooleanCounter(AILBlockViewer):
     """
     This class counts the number of Boolean operators an expression has.
     In the case of: `if (a || (b && c))`, it will count 2 Boolean operators.

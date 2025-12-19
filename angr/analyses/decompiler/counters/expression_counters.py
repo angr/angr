@@ -5,14 +5,14 @@ from collections import defaultdict
 
 from angr.ailment.expression import Expression, Register
 from angr.ailment.statement import Statement
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment import Block
 
 if TYPE_CHECKING:
     from angr.ailment.expression import BinaryOp, UnaryOp
 
 
-class SingleExpressionCounter(AILBlockWalkerBase):
+class SingleExpressionCounter(AILBlockViewer):
     """
     Count the occurrence of subexpr in expr.
     """
@@ -31,7 +31,7 @@ class SingleExpressionCounter(AILBlockWalkerBase):
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class RegisterExpressionCounter(AILBlockWalkerBase):
+class RegisterExpressionCounter(AILBlockViewer):
     """
     Count the occurrence of all register expressions in expr
     """
@@ -50,7 +50,7 @@ class RegisterExpressionCounter(AILBlockWalkerBase):
         self.counts[expr.reg_offset, expr.size] += 1
 
 
-class OperatorCounter(AILBlockWalkerBase):
+class OperatorCounter(AILBlockViewer):
     """
     Count the occurrence of a given expression operator.
     """

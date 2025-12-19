@@ -5,7 +5,7 @@ import logging
 import networkx
 
 from angr import ailment
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.codenode import BlockNode
 from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
@@ -392,7 +392,7 @@ class ProximityGraphAnalysis(Analysis):
         subgraph = self.graph != graph
 
         # Keep all default handlers, but overwrite necessary ones:
-        bw = AILBlockWalkerBase()
+        bw = AILBlockViewer()
         bw.stmt_handlers[ailment.Stmt.Call] = _handle_Call
         bw.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
 

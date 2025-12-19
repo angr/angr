@@ -5,7 +5,7 @@ import logging
 
 import networkx
 
-from angr.ailment import Block, AILBlockWalkerBase
+from angr.ailment import Block, AILBlockViewer
 from angr.ailment.statement import ConditionalJump, Label, Assignment, Jump
 from angr.ailment.expression import VirtualVariable, Expression, BinaryOp, Const, Load
 
@@ -97,7 +97,7 @@ class Case:
         )
 
 
-class StableVarExprHasher(AILBlockWalkerBase):
+class StableVarExprHasher(AILBlockViewer):
     """
     Obtain a stable hash of an AIL expression with respect to all variables and all operations applied on variables.
     """

@@ -6,7 +6,7 @@ from collections.abc import Iterable, Mapping
 
 from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
 from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockViewer
 from angr.code_location import ExternalCodeLocation, CodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.s_propagator import SPropagatorAnalysis
@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-class HasCallExprWalker(AILBlockWalkerBase):
+class HasCallExprWalker(AILBlockViewer):
     """
     Test if an expression contains a call expression inside.
     """

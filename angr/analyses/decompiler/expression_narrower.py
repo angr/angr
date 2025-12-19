@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from angr.ailment import AILBlockWalker, AILBlockWalkerBaseBase
+from angr.ailment import AILBlockRewriter, AILBlockWalker
 from angr.ailment.statement import Assignment, Call
 from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
@@ -46,7 +46,7 @@ class ExprNarrowingInfo:
         self.phi_vars = phi_vars
 
 
-class NarrowingInfoExtractor(AILBlockWalkerBaseBase[bool, None, None]):
+class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
     """
     Walks a statement or an expression and extracts the operations that are applied on the given expression.
 
@@ -130,7 +130,7 @@ class NarrowingInfoExtractor(AILBlockWalkerBaseBase[bool, None, None]):
         return r
 
 
-class ExpressionNarrower(AILBlockWalker):
+class ExpressionNarrower(AILBlockRewriter):
     """
     Narrows an expression regardless of whether the expression is a definition or a use.
     """

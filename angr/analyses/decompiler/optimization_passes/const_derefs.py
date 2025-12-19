@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from angr.ailment import Block, AILBlockWalker
+from angr.ailment import Block, AILBlockRewriter
 from angr.ailment.expression import Load, Const
 from angr.ailment.statement import Statement
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 _l = logging.getLogger(name=__name__)
 
 
-class BlockWalker(AILBlockWalker):
+class BlockWalker(AILBlockRewriter):
     """
     AIL Block walker in order to perform const deref substitution
     """

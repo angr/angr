@@ -831,7 +831,7 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
     return False
 
 
-class _PeepholeExprsWalker(ailment.AILBlockWalker):
+class _PeepholeExprsWalker(ailment.AILBlockRewriter):
     """
     Walker to apply peephole optimizers (1)
     """
@@ -873,7 +873,7 @@ def peephole_optimize_exprs(block, expr_opts):
     return walker.any_update
 
 
-class _PeepholeExprWalker(ailment.AILBlockWalker):
+class _PeepholeExprWalker(ailment.AILBlockRewriter):
     """
     Walker to apply peephole optimizers (2)
     """

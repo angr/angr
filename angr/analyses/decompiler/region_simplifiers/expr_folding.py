@@ -5,7 +5,7 @@ from collections.abc import Iterable
 from typing import Any, TYPE_CHECKING
 
 from angr import ailment
-from angr.ailment import Expression, Block, AILBlockWalker
+from angr.ailment import Expression, Block, AILBlockRewriter
 from angr.ailment.expression import ITE, Atom, Load, VirtualVariable
 from angr.ailment.statement import Statement, Assignment, Call, Return
 
@@ -177,7 +177,7 @@ class LoopNodeFinder(SequenceWalker):
         return None
 
 
-class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
+class MultiStatementExpressionAssignmentFinder(AILBlockRewriter):
     """
     Process statements in MultiStatementExpression objects and find assignments.
     """
@@ -194,7 +194,7 @@ class MultiStatementExpressionAssignmentFinder(AILBlockWalker):
         return super()._handle_MultiStatementExpression(expr_idx, expr, stmt_idx, stmt, block)
 
 
-class ExpressionUseFinder(AILBlockWalker):
+class ExpressionUseFinder(AILBlockRewriter):
     """
     Find where each variable is used.
 
@@ -569,7 +569,7 @@ class InterferenceChecker(SequenceWalker):
         return super()._handle_SwitchCase(node, **kwargs)
 
 
-class ExpressionReplacer(AILBlockWalker):
+class ExpressionReplacer(AILBlockRewriter):
     def __init__(self, assignments: dict[int, Any], uses: dict[int, Any]):
         super().__init__()
         self._assignments = assignments

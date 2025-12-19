@@ -4,7 +4,7 @@ from collections import defaultdict
 
 import networkx
 
-from angr.ailment import AILBlockWalker, Block, Expression
+from angr.ailment import AILBlockRewriter, Block, Expression
 from angr.ailment.statement import ConditionalJump, Statement, Assignment
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable
 
@@ -32,7 +32,7 @@ class ConstantCondition:
         return f"<ConstCond vvar_{self.vvar_id} == {self.value} since {self.block_addr:#x}-{self.block_idx}>"
 
 
-class CCondPropBlockWalker(AILBlockWalker):
+class CCondPropBlockWalker(AILBlockRewriter):
     """
     Block walker for ConditionConstantPropagation to replace vvars with constant values.
     """

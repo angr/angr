@@ -62,7 +62,7 @@ class ReturnMaker(AILGraphWalker):
 
     def _handler(self, block):
         # we don't need to handle any statement besides Returns
-        walker = ailment.AILBlockWalker(
+        walker = ailment.AILBlockRewriter(
             update_block=False, expr_handlers={}, stmt_handlers={ailment.statement.Return: self._handle_Return}
         )
 

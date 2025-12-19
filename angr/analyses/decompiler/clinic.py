@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -3065,7 +3065,7 @@ class Clinic(Analysis):
     @staticmethod
     def _collect_externs(ail_graph, variable_kb):
         global_vars = variable_kb.variables.global_manager.get_variables()
-        walker = ailment.AILBlockWalker()
+        walker = ailment.AILBlockRewriter()
         variables = set()
 
         def handle_expr(
@@ -3081,12 +3081,12 @@ class Clinic(Analysis):
             ]:
                 if v and v in global_vars:
                     variables.add(v)
-            return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             if stmt.variable and stmt.variable in global_vars:
                 variables.add(stmt.variable)
-            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
         walker._handle_expr = handle_expr
@@ -3096,7 +3096,7 @@ class Clinic(Analysis):
     @staticmethod
     def _collect_data_refs(ail_graph) -> dict[int, list[DataRefDesc]]:
         # pylint:disable=unused-argument
-        walker = ailment.AILBlockWalker()
+        walker = ailment.AILBlockRewriter()
         data_refs: dict[int, list[DataRefDesc]] = defaultdict(list)
 
         def handle_Const(
@@ -3153,7 +3153,7 @@ class Clinic(Analysis):
                     )
                 return expr
 
-            return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             assert block is not None
@@ -3183,7 +3183,7 @@ class Clinic(Analysis):
                     )
                 return stmt
 
-            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
         walker.expr_handlers[ailment.expression.Load] = handle_Load
@@ -3536,7 +3536,7 @@ class Clinic(Analysis):
             _handle_Call_stmt_or_expr(expr)
 
         def _visit_ail_node(node: ailment.Block):
-            w = AILBlockWalkerBase()
+            w = AILBlockViewer()
             w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
             w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
             w.walk(node)

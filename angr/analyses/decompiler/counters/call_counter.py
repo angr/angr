@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import Block
 from angr.ailment.statement import Label, ConditionalJump
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from angr.ailment.statement import Call
 
 
-class AILBlockCallCounter(AILBlockWalkerBase):
+class AILBlockCallCounter(AILBlockViewer):
     """
     Helper class to count AIL calls and call-expressions in a block, or collect call statements and call expressions
     as well as their locations.

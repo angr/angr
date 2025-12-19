@@ -19,7 +19,7 @@ from angr.ailment.expression import (
     ITE,
 )
 from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import CodeLocation
@@ -170,7 +170,7 @@ def is_const_assignment(stmt: Statement) -> tuple[bool, Const | StackBaseOffset 
     return False, None
 
 
-class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
+class AILBlacklistExprTypeWalker(AILBlockViewer):
     """
     Walks an AIL expression or statement and determines if it does not contain certain types of expressions.
     """
@@ -281,7 +281,7 @@ def has_tmp_expr(expr: Expression) -> bool:
     return walker.has_blacklisted_exprs
 
 
-class AILReferenceFinder(AILBlockWalkerBase):
+class AILReferenceFinder(AILBlockViewer):
     """
     Walks an AIL expression or statement and finds if it contains references to certain expressions.
     """

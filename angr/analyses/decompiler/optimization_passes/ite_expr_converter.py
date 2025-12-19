@@ -9,7 +9,7 @@ from angr.ailment.expression import Const, ITE, Expression
 from angr.analyses import ReachingDefinitionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.decompiler.region_walker import RegionWalker
-from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structuring.structurer_nodes import EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -46,7 +46,7 @@ class BlockLocator(RegionWalker):
             raise NodeFoundNotification
 
 
-class ExpressionReplacer(AILBlockWalker):
+class ExpressionReplacer(AILBlockRewriter):
     """
     Replace expressions.
     """

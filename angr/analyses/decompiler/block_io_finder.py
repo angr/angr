@@ -16,13 +16,13 @@ from angr.ailment.expression import (
     Const,
     StackBaseOffset,
 )
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 
 
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc
 
 
-class BlockIOFinder(AILBlockWalkerBase):
+class BlockIOFinder(AILBlockViewer):
     """
     Finds the input and output locations of each statement in an AIL block.
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
