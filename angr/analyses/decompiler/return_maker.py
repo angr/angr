@@ -21,7 +21,6 @@ class ReturnMaker(AILGraphWalker):
         self.ail_manager = ail_manager
         self.arch = arch
         self.function = function
-        self._new_block = None
 
         self.walk()
 
@@ -59,20 +58,16 @@ class ReturnMaker(AILGraphWalker):
                 )
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
-            new_statements = block.statements[::]
-            new_statements[stmt_idx] = new_stmt
-            self._new_block = block.copy(statements=new_statements)
+            return new_stmt
+        return stmt
 
     def _handler(self, block):
-        walker = ailment.AILBlockWalker()
         # we don't need to handle any statement besides Returns
-        walker.stmt_handlers.clear()
-        walker.expr_handlers.clear()
-        walker.stmt_handlers[ailment.Stmt.Return] = self._handle_Return
+        walker = ailment.AILBlockWalker(
+            update_block=False, expr_handlers={}, stmt_handlers={ailment.statement.Return: self._handle_Return}
+        )
 
-        self._new_block = None
-        walker.walk(block)
-
-        if self._new_block is not None:
-            return self._new_block
-        return None
+        result = walker.walk(block)
+        if result is block:
+            return None
+        return result

@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockWalkerBaseBase
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -3075,8 +3075,6 @@ class Clinic(Analysis):
             stmt: ailment.statement.Statement | None,
             block: ailment.Block | None,
         ):
-            if expr is None:
-                return None
             for v in [
                 getattr(expr, "variable", None),
                 expr.tags.get("reference_variable", None) if hasattr(expr, "tags") else None,
@@ -3105,9 +3103,10 @@ class Clinic(Analysis):
             expr_idx: int,
             expr: ailment.expression.Const,
             stmt_idx: int,
-            stmt: ailment.statement.Statement,
-            block: ailment.Block,
+            stmt: ailment.statement.Statement | None,
+            block: ailment.Block | None,
         ):
+            assert block is not None
             if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
                 data_refs[block.addr].append(
                     DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown)
@@ -3118,14 +3117,16 @@ class Clinic(Analysis):
                         expr.deref_src_addr, expr.size, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown
                     )
                 )
+            return expr
 
         def handle_Load(
             expr_idx: int,
             expr: ailment.expression.Load,
             stmt_idx: int,
-            stmt: ailment.statement.Statement,
-            block: ailment.Block,
+            stmt: ailment.statement.Statement | None,
+            block: ailment.Block | None,
         ):
+            assert block is not None
             if isinstance(expr.addr, ailment.expression.Const):
                 addr = expr.addr
                 if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
@@ -3150,11 +3151,12 @@ class Clinic(Analysis):
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return None
+                return expr
 
             return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block):
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
+            assert block is not None
             if isinstance(stmt.addr, ailment.expression.Const):
                 addr = stmt.addr
                 if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
@@ -3179,7 +3181,7 @@ class Clinic(Analysis):
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return None
+                return stmt
 
             return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
 
@@ -3528,13 +3530,13 @@ class Clinic(Analysis):
             expr_idx: int,
             expr: ailment.Stmt.Call,
             stmt_idx: int,
-            stmt: ailment.Stmt.Statement,
+            stmt: ailment.Stmt.Statement | None,
             block: ailment.Block | None,
         ):
             _handle_Call_stmt_or_expr(expr)
 
         def _visit_ail_node(node: ailment.Block):
-            w = AILBlockWalkerBase()
+            w = AILBlockWalkerBaseBase()
             w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
             w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
             w.walk(node)

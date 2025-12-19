@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from angr.ailment import AILBlockWalkerBase, AILBlockWalker
+from angr.ailment import AILBlockWalker, AILBlockWalkerBaseBase
 from angr.ailment.statement import Assignment, Call
 from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
@@ -46,7 +46,7 @@ class ExprNarrowingInfo:
         self.phi_vars = phi_vars
 
 
-class NarrowingInfoExtractor(AILBlockWalkerBase):
+class NarrowingInfoExtractor(AILBlockWalkerBaseBase[bool, None, None]):
     """
     Walks a statement or an expression and extracts the operations that are applied on the given expression.
 
@@ -62,6 +62,15 @@ class NarrowingInfoExtractor(AILBlockWalkerBase):
         self._target_expr = target_expr
         self.operations = []
 
+    def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        return False
+
+    def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
+        pass
+
+    def _handle_block_end(self, stmt_results, block: Block):
+        pass
+
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
@@ -72,8 +81,7 @@ class NarrowingInfoExtractor(AILBlockWalkerBase):
         if has_target_expr:
             # record the current operation
             self.operations.append(expr)
-            return True
-        return False
+        return has_target_expr
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
@@ -208,8 +216,7 @@ class ExpressionNarrower(AILBlockWalker):
                 )
         else:
             new_dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-            if new_dst is not stmt.dst:
-                changed = True
+            changed |= new_dst is not stmt.dst
 
         if changed:
             self.narrowed_any = True
@@ -246,11 +253,8 @@ class ExpressionNarrower(AILBlockWalker):
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
         new_stmt = super()._handle_Call(stmt_idx, stmt, block)
-        if new_stmt is None:
-            changed = False
-            new_stmt = stmt
-        else:
-            changed = True
+        assert isinstance(new_stmt, Call)
+        changed = new_stmt is not stmt
 
         if (
             stmt.ret_expr is not None

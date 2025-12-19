@@ -13,6 +13,7 @@ import angr.ailment as ailment
 import angr
 from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
+from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationMultiStmtBase
 from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
 
@@ -955,7 +956,7 @@ def match_stmt_classes(all_stmts: list, idx: int, stmt_class_seq: Iterable[type]
     return True
 
 
-def peephole_optimize_multistmts(block, stmt_opts):
+def peephole_optimize_multistmts(block, stmt_opts: list[PeepholeOptimizationMultiStmtBase]):
     any_update = False
     statements = block.statements[::]
 
