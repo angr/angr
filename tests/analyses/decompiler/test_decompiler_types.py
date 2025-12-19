@@ -80,9 +80,12 @@ class TestDecompilerTypes(unittest.TestCase):
         print_decompilation_result(dec)
 
         # take the stack variable v2; it should be a char array of size 64
+        assert dec._variable_kb is not None
         varman = dec._variable_kb.variables.get_function_manager(func.addr)
         var2 = next(iter(varman.find_variables_by_stack_offset(-0x58)))
+        assert var2 is not None
         var2 = varman.unified_variable(var2)
+        assert var2 is not None
         ty = varman.get_variable_type(var2)
         assert isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar) and ty.length == 64
 
