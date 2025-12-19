@@ -7,7 +7,7 @@ from collections.abc import Iterable, Mapping
 from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
 from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
-from angr.code_location import ExternalCodeLocation, CodeLocation
+from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
@@ -24,7 +24,6 @@ from .peephole_optimizations import (
 from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.key_definitions.live_definitions import Definition
     from angr.ailment.block import Block
 
 
@@ -60,7 +59,11 @@ class BlockSimplifier(Analysis):
         func_addr: int | None = None,
         stack_pointer_tracker=None,
         peephole_optimizations: None | (
-            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
+            Iterable[
+                type[PeepholeOptimizationStmtBase]
+                | type[PeepholeOptimizationExprBase]
+                | type[PeepholeOptimizationMultiStmtBase]
+            ]
         ) = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
@@ -212,7 +215,7 @@ class BlockSimplifier(Analysis):
     @staticmethod
     def _replace_and_build(
         block: Block,
-        replacements: Mapping[CodeLocation, Mapping[Expression, Expression]],
+        replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
         gp: int | None = None,
@@ -325,13 +328,13 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        block_loc = CodeLocation(block.addr, None, block_idx=block.idx)
+        block_loc = (block.addr, block.idx)
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs: Iterable[Definition] = rd.get_all_tmp_definitions(block_loc)
+        all_defs = rd.get_all_tmp_definitions(block_loc)
         for d in all_defs:
-            assert not isinstance(d.codeloc, ExternalCodeLocation)
+            assert not d.codeloc.is_extern
             assert not d.dummy
 
             uses = rd.get_tmp_uses(d.atom, block_loc)

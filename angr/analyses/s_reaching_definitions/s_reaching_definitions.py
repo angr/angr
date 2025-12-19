@@ -8,7 +8,7 @@ from angr.ailment.statement import Assignment, Call, Return
 from angr.ailment.expression import VirtualVariable
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import AILCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import get_vvar_uselocs, get_vvar_deflocs, get_tmp_deflocs, get_tmp_uselocs
 from angr.calling_conventions import default_cc, SimRegArg
@@ -76,7 +76,7 @@ class SReachingDefinitionsAnalysis(Analysis):
         if self.func_args:
             for vvar in self.func_args:
                 if vvar.varid not in vvar_deflocs:
-                    vvar_deflocs[vvar.varid] = vvar, ExternalCodeLocation()
+                    vvar_deflocs[vvar.varid] = vvar, AILCodeLocation.make_extern(vvar.varid)
             self.model.func_args = self.func_args
 
         # update model
@@ -105,7 +105,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             for vvar_id in undefined_vvarids:
                 used_vvar = next(iter(vvar_uselocs[vvar_id]))[0]
                 self.model.varid_to_vvar[vvar_id] = used_vvar
-                self.model.all_vvar_definitions[vvar_id] = ExternalCodeLocation()
+                self.model.all_vvar_definitions[vvar_id] = AILCodeLocation.make_extern(vvar_id)
                 if vvar_id in vvar_uselocs:
                     for vvar_useloc in vvar_uselocs[vvar_id]:
                         self.model.add_vvar_use(vvar_id, *vvar_useloc)
@@ -150,7 +150,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                     assert cc_cls is not None
                     cc = cc_cls(self.project.arch)
 
-                codeloc = CodeLocation(block_addr, stmt_idx, block_idx=block_idx, ins_addr=stmt.ins_addr)
+                codeloc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt.ins_addr)
                 arg_locs = list(cc.ARG_REGS)
                 if cc.FP_ARG_REGS:
                     arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
@@ -192,9 +192,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                         # totally unexpected
                         continue
                     stmt = block.statements[-1]
-                    codeloc = CodeLocation(
-                        block_addr, len(block.statements) - 1, block_idx=block_idx, ins_addr=stmt.ins_addr
-                    )
+                    codeloc = AILCodeLocation(block_addr, block_idx, len(block.statements) - 1, stmt.ins_addr)
                     for reg in arch.register_list:
                         if (
                             reg.general_purpose

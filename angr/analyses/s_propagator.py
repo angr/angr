@@ -20,7 +20,7 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
 
 from angr.knowledge_plugins.functions import Function
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import AILCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import (
     get_vvar_uselocs,
@@ -47,7 +47,7 @@ class SPropagatorModel:
     """
 
     def __init__(self):
-        self.replacements: Mapping[CodeLocation, Mapping[Expression, Expression]] = {}
+        self.replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]] = {}
         # store vvars that are definitely dead (but usually not removed by default because they are stack variables)
         self.dead_vvar_ids: set[int] = set()
 
@@ -128,7 +128,7 @@ class SPropagatorAnalysis(Analysis):
         # update vvar_deflocs using function arguments
         if self.func_args:
             for func_arg in self.func_args:
-                vvar_deflocs[func_arg.varid] = func_arg, ExternalCodeLocation()
+                vvar_deflocs[func_arg.varid] = func_arg, AILCodeLocation.make_extern(func_arg.varid)
 
         # find all ret sites and indirect jump sites
         retsites: set[tuple[int, int | None, int]] = set()
@@ -143,11 +143,11 @@ class SPropagatorAnalysis(Analysis):
         replacements = defaultdict(dict)
 
         # find constant and other propagatable assignments
-        vvarid_to_vvar = {}
-        const_vvars: dict[int, Const] = {}
+        vvarid_to_vvar: dict[int, VirtualVariable] = {}
+        const_vvars: dict[int, Const | StackBaseOffset] = {}
         phi_varids: dict[int, set[int | None]] = {}  # mapping from phi_varid to source var IDs
         for vvar_id, (vvar, defloc) in vvar_deflocs.items():
-            if isinstance(defloc, ExternalCodeLocation):
+            if defloc.is_extern:
                 continue
 
             assert defloc.block_addr is not None
@@ -187,7 +187,7 @@ class SPropagatorAnalysis(Analysis):
                     vvar, defloc = vvar_deflocs[vvar_id]
                     if vvar_id in const_vvars:
                         continue
-                    if isinstance(defloc, ExternalCodeLocation):
+                    if defloc.is_extern:
                         continue
 
                     assert defloc.block_addr is not None
@@ -222,11 +222,8 @@ class SPropagatorAnalysis(Analysis):
                     continue
                 if vvar_id in const_vvars:
                     continue
-                if isinstance(defloc, ExternalCodeLocation):
+                if defloc.is_extern:
                     continue
-
-                assert defloc.block_addr is not None
-                assert defloc.stmt_idx is not None
 
                 vvar_uselocs_set = set(vvar_uselocs[vvar_id])  # deduplicate
 
@@ -405,9 +402,7 @@ class SPropagatorAnalysis(Analysis):
         for block_loc, tmp_and_uses in tmp_uselocs.items():
             for tmp_atom, tmp_uses in tmp_and_uses.items():
                 # take a look at the definition and propagate the definition if supported
-                assert block_loc.block_addr is not None
-
-                block = blocks[(block_loc.block_addr, block_loc.block_idx)]
+                block = blocks[block_loc]
                 tmp_def_stmtidx = tmp_deflocs[block_loc][tmp_atom]
 
                 stmt = block.statements[tmp_def_stmtidx]
@@ -416,7 +411,7 @@ class SPropagatorAnalysis(Analysis):
                     if r:
                         # we can propagate it!
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                            loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
                             self.replace(replacements, loc, tmp_used, stmt.src)
                         continue
 
@@ -429,7 +424,7 @@ class SPropagatorAnalysis(Analysis):
                             v = stmt.src
 
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
-                            loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                            loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
                             self.replace(replacements, loc, tmp_used, v)
                         continue
 
@@ -446,14 +441,14 @@ class SPropagatorAnalysis(Analysis):
                                 # we can propagate this load because either we do not consider memory aliasing problem
                                 # within the same instruction (blocks must be originally lifted with
                                 # CROSS_INSN_OPT=False), or there is no store between its def and use.
-                                loc = CodeLocation(block_loc.block_addr, tmp_use_stmtidx, block_idx=block_loc.block_idx)
+                                loc = AILCodeLocation(block_loc[0], block_loc[1], tmp_use_stmtidx)
                                 self.replace(replacements, loc, tmp_used, stmt.src)
 
         self.model.replacements = replacements
 
     @staticmethod
     def is_global_variable_updated(
-        func_graph, block_dict, varid: int, gv_addr: int, gv_size: int, defloc: CodeLocation, useloc: CodeLocation
+        func_graph, block_dict, varid: int, gv_addr: int, gv_size: int, defloc: AILCodeLocation, useloc: AILCodeLocation
     ) -> bool:
         defblock = block_dict[(defloc.block_addr, defloc.block_idx)]
         useblock = block_dict[(useloc.block_addr, useloc.block_idx)]
@@ -499,7 +494,7 @@ class SPropagatorAnalysis(Analysis):
         return False
 
     @staticmethod
-    def is_vvar_used_for_addr_loading_switch_case(uselocs: set[CodeLocation], blocks) -> bool:
+    def is_vvar_used_for_addr_loading_switch_case(uselocs: set[AILCodeLocation], blocks) -> bool:
         """
         Check if a virtual variable is used for loading an address in a switch-case construct.
 
@@ -534,35 +529,12 @@ class SPropagatorAnalysis(Analysis):
         return (block_1.addr, block_1.idx) in stmt_0_targets
 
     @staticmethod
-    def vvar_dep_graph(blocks, vvar_def_locs, vvar_use_locs) -> networkx.DiGraph:
-        g = networkx.DiGraph()
-
-        for var_id in vvar_def_locs:
-            # where is it used?
-            for _, use_loc in vvar_use_locs[var_id]:
-                if isinstance(use_loc, ExternalCodeLocation):
-                    g.add_edge(var_id, "ExternalCodeLocation")
-                    continue
-                assert use_loc.block_addr is not None
-                assert use_loc.stmt_idx is not None
-                block = blocks[(use_loc.block_addr, use_loc.block_idx)]
-                stmt = block.statements[use_loc.stmt_idx]
-                if isinstance(stmt, Assignment):
-                    if isinstance(stmt.dst, VirtualVariable):
-                        g.add_edge(var_id, stmt.dst.varid)
-                    else:
-                        g.add_edge(var_id, f"Assignment@{stmt.ins_addr:#x}")
-                elif isinstance(stmt, Store):
-                    # store to memory
-                    g.add_edge(var_id, f"Store@{stmt.ins_addr:#x}")
-                else:
-                    # other statements
-                    g.add_edge(var_id, f"{stmt.__class__.__name__}@{stmt.ins_addr:#x}")
-
-        return g
-
-    @staticmethod
-    def replace(replacements: dict, loc, expr: VirtualVariable | Tmp, value: Expression) -> None:
+    def replace(
+        replacements: dict[AILCodeLocation, dict[VirtualVariable | Tmp, Expression]],
+        loc: AILCodeLocation,
+        expr: VirtualVariable | Tmp,
+        value: Expression,
+    ) -> None:
         replacements[loc][expr] = value
 
     @staticmethod

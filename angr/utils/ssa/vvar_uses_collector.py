@@ -5,8 +5,7 @@ from angr.ailment import AILBlockViewer
 from angr.ailment.expression import VirtualVariable, Phi
 from angr.ailment.statement import Statement, Assignment
 from angr.ailment.block import Block
-
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 
 
 class VVarUsesCollector(AILBlockViewer):
@@ -18,11 +17,11 @@ class VVarUsesCollector(AILBlockViewer):
     def __init__(self):
         super().__init__()
 
-        self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, CodeLocation]]] = defaultdict(list)
+        self.vvar_and_uselocs: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
         self.vvars: set[int] = set()
 
     def _handle_VirtualVariable(
-        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if isinstance(stmt, Assignment):
             if expr is stmt.dst:
@@ -30,8 +29,8 @@ class VVarUsesCollector(AILBlockViewer):
             if isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi) and expr.varid == stmt.dst.varid:
                 # avoid phi loops
                 return
-        if block is not None:
+        if block is not None and stmt is not None:
             self.vvar_and_uselocs[expr.varid].append(
-                (expr, CodeLocation(block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx))
+                (expr, AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr))
             )
         self.vvars.add(expr.varid)
