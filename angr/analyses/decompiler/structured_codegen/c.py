@@ -424,9 +424,14 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         self.variables_in_use = variables_in_use
         self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
-        self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = self.get_unified_local_vars()
+        self.unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]] = {}
         self.show_demangled_name = show_demangled_name
         self.omit_header = omit_header
+
+        self.refresh()
+
+    def refresh(self):
+        self.unified_local_vars = self.get_unified_local_vars()
 
     def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[CVariable, SimType]]]:
         unified_to_var_and_types: dict[SimVariable, set[tuple[CVariable, SimType]]] = defaultdict(set)
@@ -3146,9 +3151,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             kernel_type = unpack_typeref(unpack_pointer_and_array(kernel.type))
             assert kernel_type
 
-            if kernel_type.size is None:
+            if kernel_type.size is None or kernel_type.size == 0:
                 return bail_out()
             kernel_stride = kernel_type.size // self.project.arch.byte_width
+            if kernel_stride == 0:
+                return bail_out()
 
             # if the constant offset is larger than the current fucker, uh, do something about that first
             if constant >= kernel_stride:
