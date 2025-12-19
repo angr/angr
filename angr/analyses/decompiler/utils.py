@@ -832,6 +832,10 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
 
 
 class _PeepholeExprsWalker(ailment.AILBlockWalker):
+    """
+    Walker to apply peephole optimizers (1)
+    """
+
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
@@ -870,6 +874,10 @@ def peephole_optimize_exprs(block, expr_opts):
 
 
 class _PeepholeExprWalker(ailment.AILBlockWalker):
+    """
+    Walker to apply peephole optimizers (2)
+    """
+
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
 
