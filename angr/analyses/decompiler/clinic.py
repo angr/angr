@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment.block_walker import AILBlockWalkerBaseBase
+from angr.ailment.block_walker import AILBlockWalkerBase
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -3536,7 +3536,7 @@ class Clinic(Analysis):
             _handle_Call_stmt_or_expr(expr)
 
         def _visit_ail_node(node: ailment.Block):
-            w = AILBlockWalkerBaseBase()
+            w = AILBlockWalkerBase()
             w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
             w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
             w.walk(node)
