@@ -8,9 +8,9 @@ from collections.abc import Iterable
 import logging
 
 import networkx
-import angr.ailment as ailment
 
 import angr
+from angr import ailment
 from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
 from angr.analyses.decompiler.peephole_optimizations.base import (
@@ -831,7 +831,7 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
     return False
 
 
-class PeepholeExprsWalker(ailment.AILBlockWalker):
+class _PeepholeExprsWalker(ailment.AILBlockWalker):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
         self.any_update = False
@@ -864,12 +864,12 @@ class PeepholeExprsWalker(ailment.AILBlockWalker):
 
 def peephole_optimize_exprs(block, expr_opts):
     # run expression optimizers
-    walker = PeepholeExprsWalker(expr_opts=expr_opts)
+    walker = _PeepholeExprsWalker(expr_opts=expr_opts)
     walker.walk(block)
     return walker.any_update
 
 
-class PeepholeExprWalker(ailment.AILBlockWalker):
+class _PeepholeExprWalker(ailment.AILBlockWalker):
     def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
         self.expr_opts = expr_opts
 
@@ -895,7 +895,7 @@ class PeepholeExprWalker(ailment.AILBlockWalker):
 
 def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOptimizationExprBase]):
     # run expression optimizers
-    walker = PeepholeExprWalker(expr_opts=expr_opts)
+    walker = _PeepholeExprWalker(expr_opts=expr_opts)
     return walker.walk_expression(expr, 0, None, None)
 
 

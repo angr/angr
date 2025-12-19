@@ -1,8 +1,7 @@
 from __future__ import annotations
 import logging
 
-import angr.ailment as ailment
-
+from angr import ailment
 from angr.utils.types import dereference_simtype_by_lib
 from angr.sim_type import SimTypeBottom
 from angr.calling_conventions import SimRegArg
