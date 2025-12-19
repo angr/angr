@@ -658,7 +658,15 @@ class AILBlockWalker(AILBlockWalkerBaseBase[Expression, Statement, Block]):
 
     #
     # Expression handlers
-    #
+
+    def _handle_expr(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        # reach a fixed point
+        while True:
+            result = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
+            if result is expr:
+                break
+            expr = result
+        return expr
 
     def _handle_Load(
         self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None
