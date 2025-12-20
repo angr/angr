@@ -551,6 +551,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 memory_cls = self.state.globals["ail_var_memory_cls"]  # type: ignore
                 newval = memory_cls(memory_id=region_name)
                 assert isinstance(newval, MemoryMixin)
+                newval.set_state(self.state)
                 if curval is not None:
                     newval.store(0, curval, endness=self.state.arch.memory_endness)
                 newptr = claripy.BVS(region_name, expr.bits)
