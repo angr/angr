@@ -68,11 +68,36 @@ class TestDecompilerTypes(unittest.TestCase):
         for i in range(8):
             assert f"{guid_varname}.Data4[{i}] = " in dec.codegen.text
 
+    def test_clinic_callee_type_rewrite_should_skip_plt_functions(self):
+        bin_path = os.path.join(test_location, "x86_64", "1after909")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        strcmp_plt = cfg.functions.function(name="strcmp", plt=True)
+        assert strcmp_plt is not None
+        assert strcmp_plt.prototype is not None
+        assert strcmp_plt.is_prototype_guessed is False
+        old_proto = strcmp_plt.prototype.copy()
+
+        func = cfg.functions["verify_password"]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert strcmp_plt.prototype is not None
+        assert strcmp_plt.is_prototype_guessed is False
+        assert old_proto == strcmp_plt.prototype
+
     def test_variable_type_zero_array_size(self):
         bin_path = os.path.join(test_location, "x86_64", "1after909")
         proj = angr.Project(bin_path, auto_load_libs=False)
 
         cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
         func = cfg.functions["verify_password"]
         assert func is not None
         dec = proj.analyses.Decompiler(func, cfg=cfg)
@@ -96,6 +121,7 @@ class TestDecompilerTypes(unittest.TestCase):
         new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(new_dec)
+        assert f"char {var2.name}[0];" in new_dec.codegen.text
 
         # set it to an integer
         varman.set_variable_type(var2, SimTypeInt().with_arch(proj.arch), mark_manual=True)
@@ -104,6 +130,7 @@ class TestDecompilerTypes(unittest.TestCase):
         new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(new_dec)
+        assert f"int {var2.name};" in new_dec.codegen.text
 
 
 if __name__ == "__main__":

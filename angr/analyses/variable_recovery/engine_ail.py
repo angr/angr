@@ -503,12 +503,25 @@ class SimEngineVRAIL(
 
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
         if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
+
+            refbase_typevar = None
             off = expr.operand.stack_offset
-            refbase_typevar = self.state.stack_offset_typevars.get(off, None)
+
+            # does this variable exist?
+            value: claripy.ast.BV | None = self.vvar_region.get(expr.operand.varid, None)
+            if value is not None:
+                for _, var in self.state.extract_variables(value):
+                    if var in self.state.typevars:
+                        refbase_typevar = self.state.typevars[var]
+                        break
+
             if refbase_typevar is None:
-                # allocate a new type variable
-                refbase_typevar = typevars.TypeVariable()
-                self.state.stack_offset_typevars[off] = refbase_typevar
+                if off in self.state.stack_offset_typevars:
+                    refbase_typevar = self.state.stack_offset_typevars[off]
+                else:
+                    # allocate a new type variable
+                    refbase_typevar = typevars.TypeVariable()
+                    self.state.stack_offset_typevars[off] = refbase_typevar
 
             ref_typevar = typevars.TypeVariable()
             access_derived_typevar = self._create_access_typevar(ref_typevar, False, None, 0)
