@@ -1100,7 +1100,43 @@ class SimEngineVRBase(
         if value is None:
             # the value does not exist.
             value = self.state.top(vvar.bits)
-            if create_variable:
+
+            # is there already a variable?
+            variable = None
+            if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_stmt(
+                    self.block.addr,
+                    self.stmt_idx,
+                    "register",
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                existing_vars: list[tuple[SimVariable, int]] = []
+                for var_candidate, var_offset in var_candidates:
+                    if isinstance(var_candidate, SimRegisterVariable) and var_candidate.reg == vvar.reg_offset:
+                        existing_vars.append((var_candidate, var_offset))
+                if existing_vars:
+                    variable, _ = existing_vars[0]
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+            elif vvar.category == ailment.Expr.VirtualVariableCategory.STACK:
+                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_stmt(
+                    self.block.addr,
+                    self.stmt_idx,
+                    "memory",
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                existing_vars: list[tuple[SimVariable, int]] = []
+                for var_candidate, var_offset in var_candidates:
+                    if isinstance(var_candidate, SimStackVariable) and var_candidate.offset == vvar.stack_offset:
+                        existing_vars.append((var_candidate, var_offset))
+                if existing_vars:
+                    variable, _ = existing_vars[0]
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+
+            if variable is None and create_variable:
                 # create a new variable if necessary
                 if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
                     variable = SimRegisterVariable(
