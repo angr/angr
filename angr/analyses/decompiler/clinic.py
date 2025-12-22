@@ -3059,7 +3059,7 @@ class Clinic(Analysis):
     def _insert_block_labels(ail_graph):
         for node in ail_graph.nodes:
             node: ailment.Block
-            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
             node.statements.insert(0, lbl)
 
     @staticmethod
