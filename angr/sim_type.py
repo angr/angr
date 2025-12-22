@@ -920,8 +920,11 @@ class SimTypePointer(SimTypeReg):
         # if it points to an array, we do not need to add a *
 
         deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
-        quals = f" {' '.join(self.q)}" if self.q else ""
-        name_with_deref = deref_chr if name is None else f"{deref_chr}{quals}{name}"
+        quals = f"{' '.join(self.q)}" if self.q else ""
+        if quals:
+            name_with_deref = f"{deref_chr}{quals} {name}" if name else f"{deref_chr}{quals}"
+        else:
+            name_with_deref = f"{deref_chr}{name}" if name else deref_chr
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -3659,8 +3662,8 @@ def _decl_to_type(
             r._arch = arch
             return r
         r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
-
         if quals:
+            r = r.copy()
             r.q = list(quals)
         return r
 
