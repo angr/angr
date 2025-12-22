@@ -122,7 +122,7 @@ class DataTransformationEmbedder(Analysis):
             arg_sort = []
             for arg in args:
                 if isinstance(arg, Const):
-                    if getattr(arg, "custom_string", False) is True:
+                    if arg.tags.get("custom_string", False):
                         has_constant_string_arg = True
                     if arg.value_int in cfg.memory_data:
                         md = cfg.memory_data[arg.value_int]
@@ -178,7 +178,7 @@ class DataTransformationEmbedder(Analysis):
                 "args": args,
                 "arg_sort": arg_sort,
                 "callee": callee.addr,
-                "callsite_insaddr": call.ins_addr,
+                "callsite_insaddr": call.tags["ins_addr"],
                 "callsite_block_loc": loc[0],
                 "callsite_stmt_idx": loc[1],
                 "purity": purity.result,
@@ -232,7 +232,7 @@ class DataTransformationEmbedder(Analysis):
             arg = trans_desc["args"][arg_idx]
             if arg_sort == "const":
                 if isinstance(arg, Const):
-                    if getattr(arg, "custom_string", False) is True:
+                    if arg.tags.get("custom_string", False):
                         s = self.project.kb.custom_strings[arg.value_int]
                         # FIXME: we force the first argument to be a uint8_t* here
                         callee_func.prototype.args = (
@@ -383,7 +383,7 @@ class DataTransformationEmbedder(Analysis):
         loop_analysis = self.project.analyses.LoopAnalysis(dec_outlined.codegen.cfunc)
 
         for _loop_key, loop_meta in loop_analysis.result.items():
-            if loop_meta.get("fixed_iterations", False) is True and loop_meta.get("max_iterations", None) > 1:
+            if loop_meta.get("fixed_iterations", False) and loop_meta.get("max_iterations", None) > 1:
                 loop_blocks = {nodes_dict[(loop_block_addr, None)] for loop_block_addr in loop_meta["block_addrs"]}
                 succs = set()
                 for lb in loop_blocks:

@@ -147,18 +147,18 @@ class EagerStdStringEvalPass(OptimizationPass):
 
     def _match_std_string_assignment(self, stmt: WeakAssignment, cfg) -> tuple[bool, bytes | None]:
         if (
-            hasattr(stmt, "type")
-            and "dst" in stmt.type
-            and "src" in stmt.type
+            "type" in stmt.tags
+            and "dst" in stmt.tags["type"]
+            and "src" in stmt.tags["type"]
             and isinstance(stmt.dst, VirtualVariable)
         ):
-            dst_ty = stmt.type["dst"]
+            dst_ty = stmt.tags["type"]["dst"]
             if not self._is_std_string_type(dst_ty):
                 return False, None
             if isinstance(stmt.src, Load) and isinstance(stmt.src.addr, Const):
-                src_ty = stmt.type["src"]
+                src_ty = stmt.tags["type"]["src"]
                 if self._is_std_string_type_or_charptr(src_ty):
-                    if isinstance(stmt.src.addr, Const) and getattr(stmt.src.addr, "custom_string", False):
+                    if isinstance(stmt.src.addr, Const) and stmt.src.addr.tags.get("custom_string", False):
                         try:
                             s = self.kb.custom_strings[stmt.src.addr.value_int]
                         except KeyError:

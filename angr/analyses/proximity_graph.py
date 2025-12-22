@@ -358,7 +358,7 @@ class ProximityGraphAnalysis(Analysis):
         ):  # pylint:disable=unused-argument
             if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
                 func_node = self.kb.functions[stmt.target.value]
-                ref_at = {stmt.ins_addr}
+                ref_at = {stmt.tags["ins_addr"]}
 
                 # extract arguments
                 args = []

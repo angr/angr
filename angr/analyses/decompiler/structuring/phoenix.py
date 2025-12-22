@@ -435,10 +435,10 @@ class PhoenixStructurer(StructurerBase):
                             None,
                             Const(None, None, right.addr, self.project.arch.bits),
                             None,
-                            ins_addr=last_stmt.ins_addr,
+                            ins_addr=last_stmt.tags["ins_addr"],
                         )
-                        jump_node = Block(last_stmt.ins_addr, None, statements=[cond_jump])
-                        cond_jump_node = ConditionNode(last_stmt.ins_addr, None, edge_cond_right, jump_node)
+                        jump_node = Block(last_stmt.tags["ins_addr"], None, statements=[cond_jump])
+                        cond_jump_node = ConditionNode(last_stmt.tags["ins_addr"], None, edge_cond_right, jump_node)
                         new_node = SequenceNode(node.addr, nodes=[node, cond_jump_node, left])
                         loop_node = LoopNode("while", claripy.true(), new_node, addr=node.addr)
 
@@ -924,9 +924,9 @@ class PhoenixStructurer(StructurerBase):
                                 None,
                                 Const(None, None, successor.addr, self.project.arch.bits),
                                 target_idx=successor.idx if isinstance(successor, Block) else None,
-                                ins_addr=last_src_stmt.ins_addr,
+                                ins_addr=last_src_stmt.tags["ins_addr"],
                             )
-                            break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                            break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                         else:
                             fallthrough_node = next(
                                 iter(succ for succ in fullgraph.successors(src) if succ is not dst), None
@@ -937,17 +937,17 @@ class PhoenixStructurer(StructurerBase):
                                     None,
                                     Const(None, None, successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.ins_addr,
+                                    ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
-                                break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                                break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
                                     None,
                                     Const(None, None, fallthrough_node.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.ins_addr,
+                                    ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
-                                    last_src_stmt.ins_addr, None, statements=[fallthrough_stmt]
+                                    last_src_stmt.tags["ins_addr"], None, statements=[fallthrough_stmt]
                                 )
                             else:
                                 # the fallthrough node does not exist in the graph. we create a conditional jump that
@@ -965,20 +965,20 @@ class PhoenixStructurer(StructurerBase):
                                     None,
                                     Const(None, None, successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.ins_addr,
+                                    ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
-                                break_node_inner = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                                break_node_inner = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 fallthrough_stmt = Jump(
                                     None,
                                     other_target,
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.ins_addr,
+                                    ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
                                 break_node_inner_fallthrough = Block(
-                                    last_src_stmt.ins_addr, None, statements=[fallthrough_stmt]
+                                    last_src_stmt.tags["ins_addr"], None, statements=[fallthrough_stmt]
                                 )
                             break_node = ConditionNode(
-                                last_src_stmt.ins_addr,
+                                last_src_stmt.tags["ins_addr"],
                                 None,
                                 break_cond,
                                 break_node_inner,
@@ -997,15 +997,15 @@ class PhoenixStructurer(StructurerBase):
                                     None,
                                     Const(None, None, successor.addr, self.project.arch.bits),
                                     target_idx=successor.idx if isinstance(successor, Block) else None,
-                                    ins_addr=last_src_stmt.ins_addr,
+                                    ins_addr=last_src_stmt.tags["ins_addr"],
                                 )
-                                break_node = Block(last_src_stmt.ins_addr, None, statements=[break_stmt])
+                                break_node = Block(last_src_stmt.tags["ins_addr"], None, statements=[break_stmt])
                                 cont_node = ContinueNode(
-                                    last_src_stmt.ins_addr,
+                                    last_src_stmt.tags["ins_addr"],
                                     Const(None, None, continue_node.addr, self.project.arch.bits),
                                 )
                                 cond_node = ConditionNode(
-                                    last_src_stmt.ins_addr,
+                                    last_src_stmt.tags["ins_addr"],
                                     None,
                                     break_cond,
                                     break_node,
@@ -1098,23 +1098,23 @@ class PhoenixStructurer(StructurerBase):
                     if last_stmt is not None:
                         new_cont_node = None
                         if isinstance(last_stmt, ConditionalJump):
-                            new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
+                            new_cont_node = ContinueNode(last_stmt.tags["ins_addr"], continue_node.addr)
                             if (
                                 isinstance(last_stmt.true_target, Const)
                                 and last_stmt.true_target.value == continue_node.addr
                             ):
                                 new_cont_node = ConditionNode(
-                                    last_stmt.ins_addr, None, last_stmt.condition, new_cont_node
+                                    last_stmt.tags["ins_addr"], None, last_stmt.condition, new_cont_node
                                 )
                             else:
                                 new_cont_node = ConditionNode(
-                                    last_stmt.ins_addr,
+                                    last_stmt.tags["ins_addr"],
                                     None,
                                     UnaryOp(None, "Not", last_stmt.condition),
                                     new_cont_node,
                                 )
                         elif isinstance(last_stmt, Jump):
-                            new_cont_node = ContinueNode(last_stmt.ins_addr, continue_node.addr)
+                            new_cont_node = ContinueNode(last_stmt.tags["ins_addr"], continue_node.addr)
 
                         if new_cont_node is not None and isinstance(cont_block, (Block, MultiNode)):
                             new_cont_block = self._copy_and_remove_last_statement_if_jump(cont_block)
@@ -1454,7 +1454,7 @@ class PhoenixStructurer(StructurerBase):
             cases,
             node_default_addr,
             node_default,
-            last_stmt.ins_addr,
+            last_stmt.tags["ins_addr"],
             to_remove,
             graph_raw,
             full_graph_raw,
@@ -1524,7 +1524,7 @@ class PhoenixStructurer(StructurerBase):
 
             cond_expr_or_stmt = last_stmt
             cond_case = 2
-            switch_head_addr = last_stmt.ins_addr
+            switch_head_addr = last_stmt.tags["ins_addr"]
 
         graph = _f(graph_raw)
         full_graph = _f(full_graph_raw)
@@ -1811,7 +1811,7 @@ class PhoenixStructurer(StructurerBase):
             cases,
             None,
             None,
-            last_stmt.ins_addr,
+            last_stmt.tags["ins_addr"],
             to_remove,
             graph_raw,
             full_graph_raw,
@@ -1901,7 +1901,7 @@ class PhoenixStructurer(StructurerBase):
             cases,
             None,
             None,
-            last_stmt.ins_addr,
+            last_stmt.tags["ins_addr"],
             to_remove,
             graph_raw,
             full_graph_raw,
@@ -2480,7 +2480,7 @@ class PhoenixStructurer(StructurerBase):
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
                         new_cond_node = ConditionNode(
-                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            last_if_jump.tags["ins_addr"] if last_if_jump is not None else start_node.addr,
                             None,
                             edge_cond_left,
                             left,
@@ -2525,7 +2525,7 @@ class PhoenixStructurer(StructurerBase):
                         edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                         last_if_jump = self._remove_last_statement_if_jump(start_node)
                         new_cond_node = ConditionNode(
-                            last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                            last_if_jump.tags["ins_addr"] if last_if_jump is not None else start_node.addr,
                             None,
                             edge_cond_left,
                             left,
@@ -2559,7 +2559,7 @@ class PhoenixStructurer(StructurerBase):
                     edge_cond_left = self.cond_proc.recover_edge_condition(full_graph, start_node, left)
                     last_if_jump = self._remove_last_statement_if_jump(start_node)
                     new_cond_node = ConditionNode(
-                        last_if_jump.ins_addr if last_if_jump is not None else start_node.addr,
+                        last_if_jump.tags["ins_addr"] if last_if_jump is not None else start_node.addr,
                         None,
                         edge_cond_left,
                         left,
@@ -2596,7 +2596,7 @@ class PhoenixStructurer(StructurerBase):
                     except EmptyBlockNotice:
                         last_stmt = None
                     new_cond_node = ConditionNode(
-                        last_stmt.ins_addr if last_stmt is not None else start_node.addr,
+                        last_stmt.tags["ins_addr"] if last_stmt is not None else start_node.addr,
                         None,
                         edge_cond_left,
                         left,
@@ -3165,15 +3165,15 @@ class PhoenixStructurer(StructurerBase):
             if goto0_condition is not None:
                 assert goto0_target is not None and goto1_target is not None
                 goto0 = Block(
-                    last_stmt.ins_addr,
+                    last_stmt.tags["ins_addr"],
                     0,
-                    statements=[Jump(None, goto0_target, ins_addr=last_stmt.ins_addr, stmt_idx=0)],
+                    statements=[Jump(None, goto0_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0)],
                 )
-                cond_node = ConditionNode(last_stmt.ins_addr, None, goto0_condition, goto0)
+                cond_node = ConditionNode(last_stmt.tags["ins_addr"], None, goto0_condition, goto0)
                 goto1_node = Block(
-                    last_stmt.ins_addr,
+                    last_stmt.tags["ins_addr"],
                     0,
-                    statements=[Jump(None, goto1_target, ins_addr=last_stmt.ins_addr, stmt_idx=0)],
+                    statements=[Jump(None, goto1_target, ins_addr=last_stmt.tags["ins_addr"], stmt_idx=0)],
                 )
                 remove_src_last_stmt = True
                 new_src = SequenceNode(src.addr, nodes=[src, cond_node, goto1_node])

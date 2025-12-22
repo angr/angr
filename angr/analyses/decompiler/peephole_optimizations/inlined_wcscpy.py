@@ -252,5 +252,5 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
             and stmt.args is not None
             and len(stmt.args) == 3
             and isinstance(stmt.args[1], Const)
-            and hasattr(stmt.args[1], "custom_string")
+            and "custom_string" in stmt.args[1].tags
         )

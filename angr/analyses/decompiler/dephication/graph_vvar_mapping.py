@@ -291,7 +291,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                 expr
                 if expr.varid != old_vvarid
                 else VirtualVariable(
-                    None, new_vvarid, expr.bits, expr.category, oident=expr.oident, ins_addr=expr.ins_addr
+                    None, new_vvarid, expr.bits, expr.category, oident=expr.oident, ins_addr=expr.tags["ins_addr"]
                 )
             )
 

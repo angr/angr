@@ -642,7 +642,7 @@ class RegionIdentifier(Analysis):
                                 last_stmt.condition,
                                 ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
                                 last_stmt.false_target,
-                                ins_addr=last_stmt.ins_addr,
+                                ins_addr=last_stmt.tags["ins_addr"],
                             )
                         elif (
                             isinstance(last_stmt.false_target, ailment.Expr.Const)
@@ -653,7 +653,7 @@ class RegionIdentifier(Analysis):
                                 last_stmt.condition,
                                 last_stmt.true_target,
                                 ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                                ins_addr=last_stmt.ins_addr,
+                                ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
                             # none of the two branches is jumping out of the loop
@@ -663,7 +663,7 @@ class RegionIdentifier(Analysis):
                             new_last_stmt = Jump(
                                 last_stmt.idx,
                                 ailment.Expr.Const(None, None, condnode_addr, self.project.arch.bits),
-                                ins_addr=last_stmt.ins_addr,
+                                ins_addr=last_stmt.tags["ins_addr"],
                             )
                         else:
                             # an indirect jump - might be a jump table. ignore it

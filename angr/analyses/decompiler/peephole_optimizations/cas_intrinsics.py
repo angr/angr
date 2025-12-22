@@ -72,7 +72,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
             isinstance(next_stmt, ConditionalJump)
             and isinstance(next_stmt.condition, BinaryOp)
             and next_stmt.condition.op == "CasCmpNE"
-            and next_stmt.ins_addr == cas_stmt.ins_addr
+            and next_stmt.tags["ins_addr"] == cas_stmt.tags["ins_addr"]
         ):
             addr = cas_stmt.addr
             expd_lo = self._resolve_tmp_expr(cas_stmt.expd_lo, block)
@@ -98,7 +98,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                                 self._get_instrincs_name(f"lock_inc{cas_stmt.bits}"),
                                 args=[cas_stmt.addr],
                                 bits=cas_stmt.bits,
-                                ins_addr=cas_stmt.ins_addr,
+                                ins_addr=cas_stmt.tags["ins_addr"],
                             )
                         else:
                             # lock xadd
@@ -107,7 +107,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                                 self._get_instrincs_name(f"lock_xadd{cas_stmt.bits}"),
                                 args=[cas_stmt.addr, cas_stmt.data_lo.operands[1]],
                                 bits=cas_stmt.bits,
-                                ins_addr=cas_stmt.ins_addr,
+                                ins_addr=cas_stmt.tags["ins_addr"],
                             )
                     elif (
                         cas_stmt.data_lo.op == "Sub"
@@ -121,7 +121,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                             self._get_instrincs_name(f"lock_dec{cas_stmt.bits}"),
                             args=[cas_stmt.addr],
                             bits=cas_stmt.bits,
-                            ins_addr=cas_stmt.ins_addr,
+                            ins_addr=cas_stmt.tags["ins_addr"],
                         )
 
                 if call_expr is None:
@@ -130,14 +130,14 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                         self._get_instrincs_name(f"xchg{cas_stmt.bits}"),
                         args=[addr, cas_stmt.data_lo],
                         bits=cas_stmt.bits,
-                        ins_addr=cas_stmt.ins_addr,
+                        ins_addr=cas_stmt.tags["ins_addr"],
                     )
 
                 assignment_dst = cas_stmt.old_lo
                 stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
                 return [stmt]
 
-        if next_stmt.ins_addr <= cas_stmt.ins_addr:
+        if next_stmt.tags["ins_addr"] <= cas_stmt.tags["ins_addr"]:
             # avoid matching against statements prematurely
             return None
 
@@ -153,7 +153,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                     cas_stmt.expd_lo,
                 ],
                 bits=cas_stmt.bits,
-                ins_addr=cas_stmt.ins_addr,
+                ins_addr=cas_stmt.tags["ins_addr"],
             )
             assignment_dst = cas_stmt.old_lo
             stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
