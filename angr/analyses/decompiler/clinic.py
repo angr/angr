@@ -2598,7 +2598,7 @@ class Clinic(Analysis):
         for stmt in end_block_ail.statements:
             if stmt.tags["ins_addr"] > end_block_ail.addr:
                 break
-            if (
+            if (  # pylint:disable=no-member
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op == "Sar"
