@@ -44,7 +44,7 @@ class SimType:
     _ident: str = "simtype"
     base: bool = True
 
-    def __init__(self, label=None, q: Iterable[str] | None=None):
+    def __init__(self, label=None, q: Iterable[str] | None = None):
         """
         :param label: the type label.
         """
@@ -377,10 +377,10 @@ class SimTypeTop(SimType):
     """
 
     _fields = ("size",)
-    _args = ("size", "label","q")
+    _args = ("size", "label", "q")
     _ident = "top"
 
-    def __init__(self, size: int | None = None, label=None,  q: Iterable | None = None):
+    def __init__(self, size: int | None = None, label=None, q: Iterable | None = None):
         SimType.__init__(self, label)
         self._size = size
         self.q = q
@@ -443,7 +443,7 @@ class SimTypeNum(SimType):
     _args = ("size", "signed", "label", "q")
     _ident = "num"
 
-    def __init__(self, size: int, signed=True, label=None, q: Iterable | None=None):
+    def __init__(self, size: int, signed=True, label=None, q: Iterable | None = None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
@@ -676,7 +676,7 @@ class SimTypeChar(SimTypeReg):
     """
 
     _base_name = "char"
-    _args = ("signed", "label", "q" )
+    _args = ("signed", "label", "q")
     _ident = "char"
 
     def __init__(self, signed=True, label=None, q: Iterable | None = None):
@@ -1164,7 +1164,6 @@ class SimTypeString(NamedTypeMixin, SimType):
             out = f"{' '.join(sorted(self.q))} {out}"
         return out
 
-
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
 
@@ -1515,7 +1514,7 @@ class SimTypeFloat(SimTypeReg):
     _args = ("label", "q")
     _ident = "float"
 
-    def __init__(self, size=32, label=None, q: Iterable | None=None):
+    def __init__(self, size=32, label=None, q: Iterable | None = None):
         super().__init__(size, label=label, q=q)
 
     sort = claripy.FSORT_FLOAT
@@ -1557,7 +1556,7 @@ class SimTypeDouble(SimTypeFloat):
     _args = ("align_double", "label", "q")
     _ident = "double"
 
-    def __init__(self, align_double=True, label=None, q: Iterable | None=None):
+    def __init__(self, align_double=True, label=None, q: Iterable | None = None):
         self.align_double = align_double
         super().__init__(64, label=label)
         self.q = q
@@ -1594,7 +1593,7 @@ class SimStruct(NamedTypeMixin, SimType):
         pack=False,
         align=None,
         anonymous: bool = False,
-        q: Iterable | None=None
+        q: Iterable | None = None,
     ):
         super().__init__(None, name="<anon>" if name is None else name)
 
@@ -1890,7 +1889,7 @@ class SimStructValue:
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
-    _args = ("members", "name", "label","q")
+    _args = ("members", "name", "label", "q")
     _ident = "union"
 
     def __init__(self, members: dict[str, SimType], name=None, label=None, q: Iterable | None = None):
@@ -2211,7 +2210,7 @@ class SimTypeNumOffset(SimTypeNum):
     _args = ("size", "signed", "label", "offset", "q")
     _ident = "numoff"
 
-    def __init__(self, size, signed=True, label=None, offset=0, q: Iterable |None=None):
+    def __init__(self, size, signed=True, label=None, offset=0, q: Iterable | None = None):
         super().__init__(size, signed, label, q=q)
         self.offset = offset
 
@@ -2304,7 +2303,7 @@ class SimTypeRef(SimType):
         original_type = IDENT_TO_CLS.get(d["ot"], None)
         if original_type is None:
             raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
-        q = d.get("q", None)
+        q = d.get("q")
         return SimTypeRef(d["name"], original_type, q=q)
 
 
@@ -3531,7 +3530,6 @@ def parse_file(
             out_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
             out_types[piece.name].label = piece.name
 
-
     return out, out_types
 
 
@@ -3656,7 +3654,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.TypeDecl):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
         if decl.declname == "TOP":
             r = SimTypeTop(q=quals)
             r._arch = arch
@@ -3668,7 +3666,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.PtrDecl):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
 
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
         r = SimTypePointer(pts_to, q=quals)
@@ -3677,7 +3675,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -3693,7 +3691,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -3753,7 +3751,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
-        quals = list(decl.quals) if hasattr(decl, 'quals') and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
 
         if decl.name is not None:
             key = "union " + decl.name
