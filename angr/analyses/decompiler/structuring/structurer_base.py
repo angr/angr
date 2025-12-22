@@ -212,7 +212,7 @@ class StructurerBase(Analysis):
                     targets = extract_jump_targets(stmt)
                     if len(targets) == 1 and next(iter(targets)) == switch_end_addr:
                         # add a new a break statement to its parent
-                        break_node = BreakNode(stmt.ins_addr, switch_end_addr)
+                        break_node = BreakNode(stmt.tags["ins_addr"], switch_end_addr)
                         # insert node
                         insert_node(parent, "after", break_node, index)
                         # remove the last statement
@@ -468,8 +468,8 @@ class StructurerBase(Analysis):
                             # add a subset of the block to new_nodes
                             sub_block_statements = node.statements[last_nonjump_stmt_idx:stmt_idx]
                             new_sub_block = ailment.Block(
-                                sub_block_statements[0].ins_addr,
-                                stmt.ins_addr - sub_block_statements[0].ins_addr,
+                                sub_block_statements[0].tags["ins_addr"],
+                                stmt.tags["ins_addr"] - sub_block_statements[0].tags["ins_addr"],
                                 statements=sub_block_statements,
                                 idx=node.idx,
                             )
@@ -483,8 +483,8 @@ class StructurerBase(Analysis):
                     # insert the last node
                     sub_block_statements = node.statements[last_nonjump_stmt_idx:]
                     new_sub_block = ailment.Block(
-                        sub_block_statements[0].ins_addr,
-                        node.addr + node.original_size - sub_block_statements[0].ins_addr,
+                        sub_block_statements[0].tags["ins_addr"],
+                        node.addr + node.original_size - sub_block_statements[0].tags["ins_addr"],
                         statements=sub_block_statements,
                         idx=node.idx,
                     )
@@ -516,7 +516,7 @@ class StructurerBase(Analysis):
             and loop_node.sort == "do-while"
             and isinstance(loop_node.condition, ailment.Expr.MultiStatementExpression)
         ):
-            continue_node_addr = loop_node.condition.ins_addr
+            continue_node_addr = loop_node.condition.tags["ins_addr"]
 
         def _rewrite_jump_to_continue(node, *, parent, index: int, label=None, **kwargs):
             if not node.statements:
@@ -527,7 +527,7 @@ class StructurerBase(Analysis):
                 if any(target == continue_node_addr for target in targets):
                     # This node has an exit to the continue location of the loop
                     # create a continue node
-                    continue_node = ContinueNode(stmt.ins_addr, continue_node_addr)
+                    continue_node = ContinueNode(stmt.tags["ins_addr"], continue_node_addr)
                     # insert this node to the parent
                     insert_node(parent, "after", continue_node, index, label=label)  # insert after
                     # remove this statement
@@ -549,19 +549,19 @@ class StructurerBase(Analysis):
                         # we need to create a conditional jump if the other_target does not belong to the current node
                         other_cond = claripy.Not(cond)
                         jumpout_stmt = ailment.Stmt.Jump(stmt.idx, other_target, **stmt.tags)
-                        jumpout_block = ailment.Block(stmt.ins_addr, 0, statements=[jumpout_stmt])
-                        jumpout_node = ConditionNode(stmt.ins_addr, None, other_cond, jumpout_block)
+                        jumpout_block = ailment.Block(stmt.tags["ins_addr"], 0, statements=[jumpout_stmt])
+                        jumpout_node = ConditionNode(stmt.tags["ins_addr"], None, other_cond, jumpout_block)
                         insert_node(parent, "after", jumpout_node, index, label=label)
                         index += 1
                         skip_continue_condition = True
 
                     # create a continue node
-                    continue_node = ContinueNode(stmt.ins_addr, continue_node_addr)
+                    continue_node = ContinueNode(stmt.tags["ins_addr"], continue_node_addr)
                     if skip_continue_condition:
                         cond_node = continue_node
                     else:
                         # create a condition node
-                        cond_node = ConditionNode(stmt.ins_addr, None, cond, continue_node)
+                        cond_node = ConditionNode(stmt.tags["ins_addr"], None, cond, continue_node)
                     # insert this node to the parent
                     insert_node(parent, "after", cond_node, index, label=label)
                     # remove the current conditional jump statement
@@ -617,7 +617,7 @@ class StructurerBase(Analysis):
             # shrink the block to remove the last statement
             # self._remove_last_statement(node)
             # add a break
-            new_node = BreakNode(last_stmt.ins_addr, last_stmt.target.value)
+            new_node = BreakNode(last_stmt.tags["ins_addr"], last_stmt.target.value)
         elif type(last_stmt) is ailment.Stmt.ConditionalJump:
             # add a conditional break
             true_target_value = None
@@ -634,7 +634,7 @@ class StructurerBase(Analysis):
                 cond = last_stmt.condition
                 target = last_stmt.true_target.value
                 new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr, self.cond_proc.claripy_ast_from_ail_condition(cond), target
+                    last_stmt.tags["ins_addr"], self.cond_proc.claripy_ast_from_ail_condition(cond), target
                 )
             elif (false_target_value is not None and false_target_value in loop_successor_addrs) and (
                 true_target_value is None or true_target_value not in loop_successor_addrs
@@ -643,7 +643,7 @@ class StructurerBase(Analysis):
                 cond = ailment.Expr.UnaryOp(last_stmt.condition.idx, "Not", last_stmt.condition)
                 target = last_stmt.false_target.value
                 new_node = ConditionalBreakNode(
-                    last_stmt.ins_addr, self.cond_proc.claripy_ast_from_ail_condition(cond), target
+                    last_stmt.tags["ins_addr"], self.cond_proc.claripy_ast_from_ail_condition(cond), target
                 )
             elif (false_target_value is not None and false_target_value in loop_successor_addrs) and (
                 true_target_value is not None and true_target_value in loop_successor_addrs
@@ -651,7 +651,7 @@ class StructurerBase(Analysis):
                 # both targets are pointing outside the loop
                 # we should use just add a break node
                 assert last_stmt.false_target is not None
-                new_node = BreakNode(last_stmt.ins_addr, last_stmt.false_target.value)
+                new_node = BreakNode(last_stmt.tags["ins_addr"], last_stmt.false_target.value)
             else:
                 _l.warning("None of the branches is jumping to outside of the loop")
                 raise AngrDecompilationError("Unexpected: None of the branches is jumping to outside of the loop")

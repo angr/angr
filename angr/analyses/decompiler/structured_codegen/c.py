@@ -3410,7 +3410,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if stmt.variable is not None:
             if "struct_member_info" in stmt.tags:
-                offset, var, _ = stmt.struct_member_info
+                offset, var, _ = stmt.tags["struct_member_info"]
                 cvar = self._variable(var, stmt.size)
             else:
                 cvar = self._variable(stmt.variable, stmt.size)
@@ -3430,9 +3430,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         src_type = csrc.type
         dst_type = src_type
-        if hasattr(stmt, "type"):
-            src_type = stmt.type.get("src", None)
-            dst_type = stmt.type.get("dst", None)
+        if "tags" in stmt.tags:
+            src_type = stmt.tags["type"].get("src")
+            dst_type = stmt.tags["type"].get("dst")
 
         if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
 
@@ -3447,7 +3447,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             if stmt.dst.variable is not None:
                 if "struct_member_info" in stmt.dst.tags:
-                    offset, var, _ = stmt.dst.struct_member_info
+                    offset, var, _ = stmt.dst.tags["struct_member_info"]
                     cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
                 else:
                     cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
@@ -3469,9 +3469,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         src_type = csrc.type
         dst_type = src_type
-        if hasattr(stmt, "type"):
-            src_type = stmt.type.get("src", None)
-            dst_type = stmt.type.get("dst", None)
+        if "type" in stmt.tags:
+            src_type = stmt.tags["type"].get("src")
+            dst_type = stmt.tags["type"].get("dst")
 
         if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
 
@@ -3486,7 +3486,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             if stmt.dst.variable is not None:
                 if "struct_member_info" in stmt.dst.tags:
-                    offset, var, _ = stmt.dst.struct_member_info
+                    offset, var, _ = stmt.dst.tags["struct_member_info"]
                     cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
                 else:
                     cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
@@ -3660,7 +3660,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if expr.variable is not None:
             if "struct_member_info" in expr.tags:
-                offset, var, _ = expr.struct_member_info
+                offset, var, _ = expr.tags["struct_member_info"]
                 cvar = self._variable(var, var.size)
             else:
                 cvar = self._variable(expr.variable, expr_size)
@@ -3688,11 +3688,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         inline_string = False
         function_pointer = False
 
-        if type_ is None and hasattr(expr, "type"):
-            type_ = expr.type
+        if type_ is None and "type" in expr.tags:
+            type_ = expr.tags["type"]
 
-        if reference_values is None and hasattr(expr, "reference_values"):
-            reference_values = expr.reference_values.copy()
+        if reference_values is None and "reference_values" in expr.tags:
+            reference_values = expr.tags["reference_values"].copy()
         if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore
             type_ = next(iter(reference_values))  # type: ignore
 
@@ -3770,17 +3770,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # default to int or unsigned int, determined by likely_signed
             type_ = self.default_simtype_from_bits(expr.bits, signed=likely_signed)
 
-        if variable is None and hasattr(expr, "reference_variable") and expr.reference_variable is not None:
-            variable = expr.reference_variable
+        if variable is None and "reference_variable" in expr.tags and expr.tags["reference_variable"] is not None:
+            variable = expr.tags["reference_variable"]
             if inline_string:
-                self._inlined_strings.add(expr.reference_variable)
+                self._inlined_strings.add(expr.tags["reference_variable"])
             elif function_pointer:
-                self._function_pointers.add(expr.reference_variable)
+                self._function_pointers.add(expr.tags["reference_variable"])
 
         var_access = None
         if variable is not None and not reference_values:
             cvar = self._variable(variable, None)
-            offset = getattr(expr, "reference_variable_offset", 0)
+            offset = expr.tags.get("reference_variable_offset", 0)
             var_access = self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         if var_access is not None:
@@ -3929,7 +3929,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if expr.variable is not None:
             if "struct_member_info" in expr.tags:
-                offset, var, _ = expr.struct_member_info
+                offset, var, _ = expr.tags["struct_member_info"]
                 if ref:  # noqa:SIM108
                     # this virtual variable is only used as the operand of a & operation, so the size is unreliable
                     size = var.size // self.project.arch.byte_width

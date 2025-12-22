@@ -130,7 +130,9 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                         # it's storing registers to the stack!
                         stack_offset = stmt.addr.offset
                         reg_offset = stmt.data.reg_offset
-                        codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(
+                            first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.tags["ins_addr"]
+                        )
                         results.append((reg_offset, stack_offset, codeloc))
                 elif (
                     self.project.arch.name == "AMD64"
@@ -143,7 +145,9 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                     # storing xmm registers to the stack
                     stack_offset = stmt.addr.offset
                     reg_offset = stmt.data.operand.reg_offset
-                    codeloc = CodeLocation(first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.ins_addr)
+                    codeloc = CodeLocation(
+                        first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.tags["ins_addr"]
+                    )
                     results.append((reg_offset, stack_offset, codeloc))
 
         return results
@@ -180,7 +184,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                     ):
                         stack_offset = stmt.src.addr.offset
                         reg_offset = stmt.dst.reg_offset
-                        codeloc = CodeLocation(block.addr, idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = CodeLocation(block.addr, idx, block_idx=block.idx, ins_addr=stmt.tags["ins_addr"])
                         results.append((reg_offset, stack_offset, codeloc))
 
                 if results:

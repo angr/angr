@@ -31,6 +31,6 @@ class VVarUsesCollector(AILBlockViewer):
                 return
         if block is not None and stmt is not None:
             self.vvar_and_uselocs[expr.varid].append(
-                (expr, AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr))
+                (expr, AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")))
             )
         self.vvars.add(expr.varid)

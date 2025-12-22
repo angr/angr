@@ -96,7 +96,7 @@ class HashLookupAPIDeobfuscator(Analysis):
                     break
                 conc_args.append(arg.value)
             else:
-                yield call_expr.ins_addr, callme, conc_args  # type: ignore
+                yield call_expr.tags["ins_addr"], callme, conc_args  # type: ignore
 
     def _analyze2(self, ins_addr: int, callme: Callable[..., claripy.ast.BV], conc_args: list[int]):
         try:

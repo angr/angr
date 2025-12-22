@@ -235,8 +235,8 @@ class VVarAliasVisitor(AILBlockViewer):
             # got a new memcpy call that we can handle
             dst, src, size = stmt.args
             if dst.varid not in self._static_vvars:
-                if getattr(src, "custom_string", False) is True:
-                    ident = f"static_buf_{stmt.ins_addr}"
+                if src.tags.get("custom_string", False):
+                    ident = f"static_buf_{stmt.tags['ins_addr']}"
                     buf = self.kb.custom_strings[src.value_int]
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
                 else:

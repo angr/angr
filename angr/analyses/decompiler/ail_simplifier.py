@@ -358,17 +358,17 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.dst, VirtualVariable) and isinstance(
                         stmt.src, (VirtualVariable, Tmp, Call, Convert)
                     ):
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
                 elif isinstance(stmt, WeakAssignment):
-                    codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                    codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
                 elif isinstance(stmt, Call):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
                     elif isinstance(stmt.fp_ret_expr, (VirtualVariable, Load)):
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.fp_ret_expr, stmt))
                 elif (
                     isinstance(stmt, Store)
@@ -378,12 +378,12 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
                         # stack variable
                         atom = SimStackVariable(stmt.addr.offset, stmt.size)
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, atom, stmt.data))
                     elif isinstance(stmt.addr, Const):
                         # global variable
                         atom = SimMemoryVariable(stmt.addr.value, stmt.size)
-                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, atom, stmt.data))
         return equivalence
 
@@ -850,7 +850,7 @@ class AILSimplifier(Analysis):
 
             # only replace loads if there are stack arguments in this block
             replace_loads: bool = insn_addrs_using_stack_args is not None and bool(
-                {stmt.ins_addr for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
+                {stmt.tags["ins_addr"] for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
             )
 
             # remove virtual variables in the avoid list
@@ -1926,7 +1926,7 @@ class AILSimplifier(Analysis):
                             continue
 
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
-                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
@@ -1954,7 +1954,7 @@ class AILSimplifier(Analysis):
                             simplified = True
                             continue
                     elif isinstance(stmt, Call):
-                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
                             simplified = True

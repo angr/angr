@@ -1154,7 +1154,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False) -> ailmen
     for block in graph.nodes():
         if insn_addr:
             for stmt in block.statements:
-                if "ins_addr" in stmt.tags and stmt.ins_addr == addr:
+                if "ins_addr" in stmt.tags and stmt.tags["ins_addr"] == addr:
                     return block
         else:
             if block.addr == addr:

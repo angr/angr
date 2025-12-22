@@ -208,7 +208,7 @@ class Outliner(Analysis):
                 new_ret_exprs = [*ret_exprs[:-1], Const(None, None, frontier_node.addr, self.project.arch.bits)]
             else:
                 new_ret_exprs = ret_exprs
-            ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.ins_addr for stmt in ret_node.statements))
+            ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.tags["ins_addr"] for stmt in ret_node.statements))
 
             ret_node_succs = list(subgraph.successors(ret_node))
             if len(ret_node_succs) == 0:

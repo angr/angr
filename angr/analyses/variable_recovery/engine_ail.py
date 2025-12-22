@@ -68,10 +68,13 @@ class SimEngineVRAIL(
             data = self._expr(stmt.src)
             size = stmt.src.bits // 8
 
-            if hasattr(stmt.dst, "write_size") and stmt.dst.write_size > size:
+            if "write_size" in stmt.dst.tags and stmt.dst.tags["write_size"] > size:
                 # zero-fill this register
                 self._assign_to_register(
-                    offset, RichR(self.state.top(stmt.dst.write_size * 8)), stmt.dst.write_size, create_variable=False
+                    offset,
+                    RichR(self.state.top(stmt.dst.tags["write_size"] * 8)),
+                    stmt.dst.tags["write_size"],
+                    create_variable=False,
                 )
 
             self._assign_to_register(offset, data, size, src=stmt.src, dst=stmt.dst)
@@ -239,7 +242,7 @@ class SimEngineVRAIL(
                         arg_ty = self.type_lifter.lift(arg_type)
                         type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                         self.state.add_type_constraint(type_constraint)
-            if expr.is_prototype_guessed is False:
+            if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type:ignore
                 ret_ty = typevars.TypeVariable()
                 if not isinstance(ret_ty, typeconsts.BottomType):

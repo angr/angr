@@ -22,7 +22,7 @@ _l = logging.getLogger(name=__name__)
 
 def find_block_in_successors_by_addr(addr: int, block: ailment.Block, graph: nx.DiGraph) -> Block | None:
     for succ in graph.successors(block):
-        if addr in (succ.addr, succ.statements[0].ins_addr):
+        if addr in (succ.addr, succ.statements[0].tags["ins_addr"]):
             return succ
 
     return None
@@ -102,7 +102,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     first_stmt = stmts[0]
 
     return Block(
-        block_addr if block_addr else first_stmt.ins_addr,
+        block_addr if block_addr else first_stmt.tags["ins_addr"],
         0,
         statements=list(stmts),
         idx=idx or 1,

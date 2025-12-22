@@ -328,7 +328,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
                 # create a fake switch-case head node
                 switch_stmt = IncompleteSwitchCaseHeadStatement(
-                    original_head.statements[-1].idx, expr, case_addrs, ins_addr=original_head.statements[-1].ins_addr
+                    original_head.statements[-1].idx,
+                    expr,
+                    case_addrs,
+                    ins_addr=original_head.statements[-1].tags["ins_addr"],
                 )
                 new_head = original_head.copy()
                 # replace the last instruction of the head node with switch_node

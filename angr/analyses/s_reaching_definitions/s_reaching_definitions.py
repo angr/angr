@@ -150,7 +150,7 @@ class SReachingDefinitionsAnalysis(Analysis):
                     assert cc_cls is not None
                     cc = cc_cls(self.project.arch)
 
-                codeloc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt.ins_addr)
+                codeloc = AILCodeLocation(block_addr, block_idx, stmt_idx, stmt.tags.get("ins_addr"))
                 arg_locs = list(cc.ARG_REGS)
                 if cc.FP_ARG_REGS:
                     arg_locs += [r_name for r_name in cc.FP_ARG_REGS if r_name not in arg_locs]
@@ -192,7 +192,9 @@ class SReachingDefinitionsAnalysis(Analysis):
                         # totally unexpected
                         continue
                     stmt = block.statements[-1]
-                    codeloc = AILCodeLocation(block_addr, block_idx, len(block.statements) - 1, stmt.ins_addr)
+                    codeloc = AILCodeLocation(
+                        block_addr, block_idx, len(block.statements) - 1, stmt.tags.get("ins_addr")
+                    )
                     for reg in arch.register_list:
                         if (
                             reg.general_purpose
