@@ -199,6 +199,7 @@ class CallingConventionAnalysis(Analysis):
                 self.cc = hooker.cc
                 self.prototype = hooker.prototype
                 self.prototype_libname = hooker.library_name
+                self.proto_from_symbol = True
                 return
 
             if self._function.prototype is None:
@@ -245,7 +246,8 @@ class CallingConventionAnalysis(Analysis):
         if self._function.is_plt:
             r_plt = self._analyze_plt()
             if r_plt is not None:
-                self.cc, self.prototype, self.prototype_libname = r_plt
+                self.cc, self.prototype, self.prototype_libname, proto_guessed = r_plt
+                self.proto_from_symbol = not proto_guessed
             return
 
         # we gotta analyze the function properly
@@ -307,7 +309,7 @@ class CallingConventionAnalysis(Analysis):
         self.cc = cc
         self.prototype = prototype
 
-    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction | None, str | None] | None:
+    def _analyze_plt(self) -> tuple[SimCC, SimTypeFunction | None, str | None, bool | None] | None:
         """
         Get the calling convention for a PLT stub.
 
@@ -355,11 +357,11 @@ class CallingConventionAnalysis(Analysis):
                         # we only take the prototype from the SimProcedure if
                         # - the SimProcedure is a function
                         # - the prototype of the SimProcedure is not guessed
-                        return cc, hooker.prototype, hooker.library_name
+                        return cc, hooker.prototype, hooker.library_name, False
                 if real_func.prototype is not None:
-                    return cc, real_func.prototype, real_func.prototype_libname
+                    return cc, real_func.prototype, real_func.prototype_libname, False
             else:
-                return cc, real_func.prototype, real_func.prototype_libname
+                return cc, real_func.prototype, real_func.prototype_libname, False
 
         if self.analyze_callsites:
             # determine the calling convention by analyzing its callsites
@@ -373,7 +375,7 @@ class CallingConventionAnalysis(Analysis):
             prototype = self._adjust_prototype(
                 prototype, callsite_facts, update_arguments=UpdateArgumentsOption.AlwaysUpdate
             )
-            return cc, prototype, None
+            return cc, prototype, None, True
 
         return None
 

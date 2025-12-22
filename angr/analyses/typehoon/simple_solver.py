@@ -596,6 +596,8 @@ class SimpleSolver:
             )
             self.eqclass_constraints_count.append(len(constraint_subset))
 
+            constraint_subset = self._drop_missized_constraints(tvs, constraint_subset)
+
             if len(constraint_subset) > self._constraint_set_degradation_threshold:
                 _l.debug(
                     "Constraint subset contains %d constraints, which is over the limit of %d. Enter degradation.",
@@ -1301,6 +1303,36 @@ class SimpleSolver:
 
         self._equivalence |= replacements
         return degraded_constraints
+
+    @staticmethod
+    def _drop_missized_constraints(tvs: set[TypeVariable], constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        This is very much a hack - sometimes we get constraints about a type variable with conflicting sizes. We drop
+        the ones with determined, smaller sizes.
+        """
+
+        to_drop = set()
+        for tv in tvs:
+            tv_sizes = defaultdict(set)  # bytes -> set[TypeConstraint]
+            for constraint in constraints:
+                if isinstance(constraint, Subtype):
+                    if constraint.sub_type == tv and isinstance(constraint.super_type, DerivedTypeVariable):
+                        last_field = constraint.super_type.labels[-1]
+                        if isinstance(last_field, HasField):
+                            sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
+                            tv_sizes[sz].add(constraint)
+                    elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
+                        tv_sizes[constraint.sub_type.SIZE].add(constraint)
+
+            if not tv_sizes:
+                continue
+
+            max_size = MAX_POINTSTO_BITS if MAX_POINTSTO_BITS in tv_sizes else max(tv_sizes)
+            for size, cs in tv_sizes.items():
+                if size != max_size:
+                    to_drop |= cs
+
+        return constraints.difference(to_drop)
 
     def _convert_arrays(self, constraints):
         for constraint in constraints:
