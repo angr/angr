@@ -1554,21 +1554,13 @@ class CLabel(CStatement):
     Represents a label in C code.
     """
 
-    __slots__ = (
-        "block_idx",
-        "ins_addr",
-        "name",
-    )
+    __slots__ = ("name",)
 
-    def __init__(self, name: str, ins_addr: int, block_idx: int | None, **kwargs):
+    def __init__(self, name: str, **kwargs):
         super().__init__(**kwargs)
         self.name = name
-        self.ins_addr = ins_addr
-        self.block_idx = block_idx
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        # indent-_str = self.indent_str(indent=indent)
-
         yield self.name, self
         yield ":", None
         yield "\n", None
@@ -3610,8 +3602,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
-        clabel = CLabel(stmt.name, stmt.tags["ins_addr"], stmt.tags.get("block_idx"), tags=stmt.tags, codegen=self)
-        self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags.get("block_idx"))] = clabel
+        clabel = CLabel(stmt.name, tags=stmt.tags, codegen=self)
+        if "ins_addr" in stmt.tags:
+            self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags.get("block_idx"))] = clabel
         return clabel
 
     def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):
