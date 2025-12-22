@@ -3610,8 +3610,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return CReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
-        clabel = CLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
-        self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
+        clabel = CLabel(stmt.name, stmt.tags["ins_addr"], stmt.tags.get("block_idx"), tags=stmt.tags, codegen=self)
+        self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags.get("block_idx"))] = clabel
         return clabel
 
     def _handle_Stmt_Dirty(self, stmt: Stmt.DirtyStatement, **kwargs):

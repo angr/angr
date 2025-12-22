@@ -41,7 +41,7 @@ class ControlFlowStructureCounter(SequenceWalker):
         for stmt in node.statements:
             # labels found in the block at this point will be labels in the output
             if isinstance(stmt, ailment.statement.Label):
-                label_addr = stmt.ins_addr
+                label_addr = stmt.tags.get("ins_addr")
                 if label_addr is not None:
                     self.ordered_labels.append(label_addr)
 

@@ -617,15 +617,15 @@ class ReturnDuplicatorBase:
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
-                if stmt.block_idx is not None:
-                    suffix = f"__{stmt.block_idx}"
+                new_name = stmt.name if stmt.name else f"Label_{stmt.tags['ins_addr']:x}"
+                if "block_idx" in stmt.tags:
+                    suffix = f"__{stmt.tags['block_idx']}"
                     new_name = new_name.removesuffix(suffix)
                 else:
                     new_name = stmt.name
                 new_name += f"__{block.idx}"
 
-                block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
+                block.statements[i] = Label(stmt.idx, new_name, **(stmt.tags | {"block_idx": block.idx}))
 
     @staticmethod
     def unwrap_conv(expr):
