@@ -21,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v4
       - uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
-      - uses: astral-sh/setup-uv@ed21f2f24f8dd64503750218de024bcf64c7250a # v6
+      - uses: astral-sh/setup-uv@681c641aba71e4a1c380be3ab5e12ad51f415867 # v6
         with:
           python-version: "3.10"
       - name: Restore test durations cache
