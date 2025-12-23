@@ -54,11 +54,22 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
             assert clinic.arg_vvars is not None
-            if len(clinic.arg_vvars) != len(self.frame.passed_args):
-                raise errors.AngrRuntimeError("Call statement and lifted function disagree on number of arguments")
-            for idx, value in enumerate(self.frame.passed_args):
+            expected = len(clinic.arg_vvars)
+            got = len(self.frame.passed_args)
+            if got < expected:
+                # Under-supplied args: fill missing parameters with TOP.
+                log.debug("Function entry missing args: expected=%d got=%d at %s", expected, got, state.addr)
+            elif got > expected:
+                # Over-supplied args: common with varargs calls when the decompiler recovered only fixed parameters.
+                # Extra args are still present on the stack/memory per the calling convention; we just don't have vvars.
+                log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
+            for idx in range(expected):
                 vvar, _ = clinic.arg_vvars[idx]
-                self._do_assign(vvar, value, auto_narrow=True)
+                if idx < got:
+                    value = self.frame.passed_args[idx]
+                    self._do_assign(vvar, value, auto_narrow=True)
+                else:
+                    self._do_assign(vvar, self._top(vvar.bits), auto_narrow=True)
             self.frame.passed_args = None
 
         if self.frame.resume_at is not None:
