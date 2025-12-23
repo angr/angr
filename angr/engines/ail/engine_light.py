@@ -57,11 +57,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             expected = len(clinic.arg_vvars)
             got = len(self.frame.passed_args)
             if got < expected:
-                # Under-supplied args: fill missing parameters with TOP.
                 log.debug("Function entry missing args: expected=%d got=%d at %s", expected, got, state.addr)
             elif got > expected:
-                # Over-supplied args: common with varargs calls when the decompiler recovered only fixed parameters.
-                # Extra args are still present on the stack/memory per the calling convention; we just don't have vvars.
                 log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
             for idx in range(expected):
                 vvar, _ = clinic.arg_vvars[idx]
