@@ -106,3 +106,59 @@ class TestAILExec(unittest.TestCase):
         out = succ.registers.load(r0_offset, 4)
         assert isinstance(out, claripy.ast.BV)
         assert out.concrete and out.concrete_value == 1
+
+    def test_statement_call_unused_return_is_ignored(self):
+        # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the
+        # callee returns a value (e.g., `memset(...)` used only for side effects). The engine should discard the return.
+        p = angr.Project(os.path.join(test_location, "x86_64", "true"), auto_load_libs=False)
+
+        from angr.storage import DefaultMemory
+
+        state = p.factory.blank_state()
+        state.addr = (0x400000, None)
+        state.globals["ail_var_memory_cls"] = DefaultMemory
+        state.globals["ail_lifter"] = lambda _addr: None
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        # Simulate that the call target already returned a value (as if we just came back from a callee).
+        state.callstack.passed_rets = ((claripy.BVV(0x1234, 32),),)
+
+        # A Call statement with no return assignment (unused return value).
+        call_stmt = ailment.statement.Call(
+            idx=0,
+            target=ailment.expression.Const(None, None, 0x5000, 32),
+            args=[],
+            ret_expr=None,
+            fp_ret_expr=None,
+            bits=32,
+        )
+        # The light AIL engine expects statements to carry an instruction address tag.
+        call_stmt.tags["ins_addr"] = 0x400000
+        # Add a diverging statement afterwards to avoid requiring a real lifter/graph in _process_block_end().
+        jump_stmt = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, 32))
+        jump_stmt.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[call_stmt, jump_stmt])
+
+        successors = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, successors)
+
+        # Should not raise AngrRuntimeError due to mismatched return arity.
+        engine.process(state, block=block)
+
+        # The unused return value should be consumed/cleared and execution should continue normally.
+        assert state.callstack.passed_rets == ()
+
+        # The block ends in a Jump, so we should get exactly one normal successor to the jump target.
+        assert len(successors.successors) == 1
+        assert len(successors.unsat_successors) == 0
+        assert len(successors.unconstrained_successors) == 0
+
+        succ = successors.successors[0]
+        assert succ.addr == (0x400004, None)
+        assert succ.history.jumpkind == "Ijk_Boring"
+        assert succ.scratch.exit_stmt_idx == 1
