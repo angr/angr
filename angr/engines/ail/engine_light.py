@@ -511,7 +511,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if handler is None:
             return self._top(expr.bits)
         args = tuple(self._expr_bits(arg) for arg in expr.operands)
-        return handler(*args)
+        return handler(self.state, *args)
 
     def _handle_expr_MultiStatementExpression(self, expr: ailment.expression.MultiStatementExpression) -> DataType:
         for stmt in expr.stmts:
