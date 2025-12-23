@@ -62,15 +62,11 @@ class TestAILExec(unittest.TestCase):
             for state in simgr.deadended
         )
 
-    def test_vexccall_expression_passes_state(self):
-        # Regression test for SimEngineAILSimState._handle_expr_VEXCCallExpression: ccall helpers expect `state` as the
-        # first argument. Without it, we'd get TypeError like:
-        #   armg_calculate_condition() missing 1 required positional argument: 'cc_dep3'
+    def test_vexccall_expression(self):
         p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
         state = p.factory.blank_state()
         state.addr = (0x400000, None)
 
-        # Minimal callstack plugin for the AIL engine.
         bottom_frame = AILCallStack()
         top_frame = AILCallStack(func_addr=0x400000)
         top_frame.passed_args = None
