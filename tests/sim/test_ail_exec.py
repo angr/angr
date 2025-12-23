@@ -13,6 +13,8 @@ from angr import ailment
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
+from angr.storage import DefaultMemory
+
 
 from angr.analyses.decompiler.clinic import Clinic
 from tests.common import bin_location
@@ -111,8 +113,6 @@ class TestAILExec(unittest.TestCase):
         # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the
         # callee returns a value (e.g., `memset(...)` used only for side effects). The engine should discard the return.
         p = angr.Project(os.path.join(test_location, "x86_64", "true"), auto_load_libs=False)
-
-        from angr.storage import DefaultMemory
 
         state = p.factory.blank_state()
         state.addr = (0x400000, None)
