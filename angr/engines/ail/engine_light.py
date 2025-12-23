@@ -57,8 +57,10 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             expected = len(clinic.arg_vvars)
             got = len(self.frame.passed_args)
             if got < expected:
-                raise errors.AngrRuntimeError(f"Function entry missing args: expected={expected} got={got} at {state.addr}")
-            elif got > expected:
+                raise errors.AngrRuntimeError(
+                    f"Function entry missing args: expected={expected} got={got} at {state.addr}"
+                )
+            if got > expected:
                 log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
             for idx in range(expected):
                 vvar, _ = clinic.arg_vvars[idx]
