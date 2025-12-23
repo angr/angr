@@ -371,7 +371,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         results = self._do_call(stmt)
         ret_expr = stmt.ret_expr or stmt.fp_ret_expr
         ret_exprs = [] if ret_expr is None else [ret_expr]
-        if len(ret_exprs) != len(results):
+        if len(results) < len(ret_exprs):
             raise errors.AngrRuntimeError(
                 f"Call statement expects {len(ret_exprs)} return value(s) but called function provided {len(results)}"
             )
