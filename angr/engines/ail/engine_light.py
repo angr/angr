@@ -62,13 +62,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 )
             if got > expected:
                 log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
-            for idx in range(expected):
+            for idx, value in enumerate(self.frame.passed_args):
                 vvar, _ = clinic.arg_vvars[idx]
-                if idx < got:
-                    value = self.frame.passed_args[idx]
-                    self._do_assign(vvar, value, auto_narrow=True)
-                else:
-                    self._do_assign(vvar, self._top(vvar.bits), auto_narrow=True)
+                self._do_assign(vvar, value, auto_narrow=True)
             self.frame.passed_args = None
 
         if self.frame.resume_at is not None:
