@@ -13,7 +13,6 @@ from angr import ailment
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
-from angr.procedures.libc.snprintf import snprintf as snprintf_proc
 
 from angr.analyses.decompiler.clinic import Clinic
 from tests.common import bin_location
