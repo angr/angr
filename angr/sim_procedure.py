@@ -264,8 +264,6 @@ class SimProcedure:
                 and isinstance(state.callstack, angr.engines.ail.AILCallStack)
                 and state.callstack.passed_args is not None
             ):
-                # AIL engine passes explicit arguments via the callstack plugin. This tuple may include varargs.
-                # We should only pass the fixed arguments to run(), while keeping the full list for va_arg().
                 sim_args = tuple(state.callstack.passed_args)
                 inst.use_state_arguments = False
                 inst.ret_to = state.callstack.return_addr
