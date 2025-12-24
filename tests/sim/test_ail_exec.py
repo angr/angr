@@ -109,6 +109,46 @@ class TestAILExec(unittest.TestCase):
         assert isinstance(out, claripy.ast.BV)
         assert out.concrete and out.concrete_value == 1
 
+    def test_conditional_jump_accepts_bv1_condition(self):
+        # Regression test for SimEngineAILSimState._expr_bool: some conditions may evaluate to BV1 (0/1) instead of Bool.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state()
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        cond_bv1 = ailment.expression.Const(None, None, 1, 1)  # BV1(1)
+        true_tgt = ailment.expression.Const(None, None, 0x400004, 64)
+        false_tgt = ailment.expression.Const(None, None, 0x400008, 64)
+        cjmp = ailment.statement.ConditionalJump(0, cond_bv1, true_tgt, false_tgt)
+        cjmp.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[cjmp])
+
+        succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, succ)
+        engine.process(state, block=block)
+
+        assert len(succ.all_successors) == 2
+        assert len(succ.successors) == 1
+        assert len(succ.unsat_successors) == 1
+        assert len(succ.unconstrained_successors) == 0
+
+        true_succ = succ.successors[0]
+        assert true_succ.addr == (0x400004, None)
+        assert true_succ.history.jumpkind == "Ijk_Boring"
+        assert true_succ.scratch.exit_stmt_idx == 0
+        assert true_succ.solver.is_true(true_succ.scratch.guard)
+
+        false_succ = succ.unsat_successors[0]
+        assert false_succ.addr == (0x400008, None)
+        assert false_succ.history.jumpkind == "Ijk_Boring"
+        assert false_succ.scratch.exit_stmt_idx == 0
+        assert false_succ.solver.is_false(false_succ.scratch.guard)
+
     def test_statement_call_unused_return_is_ignored(self):
         # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the
         # callee returns a value (e.g., `memset(...)` used only for side effects). The engine should discard the return.
