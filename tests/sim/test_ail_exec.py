@@ -165,7 +165,7 @@ class TestAILExec(unittest.TestCase):
         assert succ.scratch.exit_stmt_idx == 1
 
     def test_ail_passed_args_supports_varargs_simprocedures(self):
-        # Regression test for SimProcedure.execute() when using AILCallStack.passed_args: 
+        # Regression test for SimProcedure.execute() when using AILCallStack.passed_args:
         # passed_args may include varargs (e.g., snprintf).
         # We should pass only fixed args to run(), but keep all args for va_arg().
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
@@ -195,7 +195,7 @@ class TestAILExec(unittest.TestCase):
         assert out.startswith(b"Num: 3\n")
 
     def test_function_entry_arg_handoff_tolerates_extra_passed_args(self):
-        # Regression test: AILCallStack.passed_args can include varargs 
+        # Regression test: AILCallStack.passed_args can include varargs
         # Engine should assign the first N fixed args and ignore extras without raising.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
