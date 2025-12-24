@@ -258,15 +258,18 @@ class SimProcedure:
             # TODO: should we move this?
             if self.is_java:
                 sim_args = self._setup_args(inst, state, arguments)  # pylint:disable=assignment-from-no-return
-                self.use_state_arguments = False
+                inst.use_state_arguments = False
             elif (
                 arguments is None
                 and isinstance(state.callstack, angr.engines.ail.AILCallStack)
                 and state.callstack.passed_args is not None
             ):
-                sim_args = state.callstack.passed_args
-                self.use_state_arguments = False
-                self.ret_to = state.callstack.return_addr
+                sim_args = tuple(state.callstack.passed_args)
+                inst.use_state_arguments = False
+                inst.ret_to = state.callstack.return_addr
+                inst.arguments = list(sim_args)
+                inst.arg_session = 0
+                sim_args = sim_args[: inst.num_args]
 
             # handle if this is a continuation from a return
             elif inst.is_continuation:

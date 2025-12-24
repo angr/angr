@@ -13,6 +13,7 @@ from angr import ailment
 from angr.engines.ail.callstack import AILCallStack
 from angr.engines.ail.engine_light import SimEngineAILSimState
 from angr.engines.successors import SimSuccessors
+from angr.procedures.libc.snprintf import snprintf
 from angr.storage import DefaultMemory
 
 
@@ -203,3 +204,74 @@ class TestAILExec(unittest.TestCase):
         assert succ.addr == (0x400004, None)
         assert succ.history.jumpkind == "Ijk_Boring"
         assert succ.scratch.exit_stmt_idx == 1
+
+    def test_ail_passed_args_supports_varargs_simprocedures(self):
+        # Regression test for SimProcedure.execute() when using AILCallStack.passed_args:
+        # passed_args may include varargs (e.g., snprintf).
+        # We should pass only fixed args to run(), but keep all args for va_arg().
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state()
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(AILCallStack(func_addr=0xDEADBEEF))
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.return_addr = (0x400001, None)
+        state.callstack.push(top_frame)
+        assert len(state.callstack) >= 2
+
+        dst_ptr = claripy.BVV(0x500000, 64)
+        fmt_ptr = claripy.BVV(0x500100, 64)
+        size = claripy.BVV(0x40, 64)
+        arg1 = claripy.BVV(3, 64)
+        state.memory.store(fmt_ptr, b"Num: %d\n\x00")
+        state.callstack.passed_args = (dst_ptr, size, fmt_ptr, arg1)
+
+        succ = SimSuccessors(state.addr, state)
+        proc = snprintf(project=p)
+        proc.execute(state, successors=succ)
+
+        out = state.solver.eval(state.memory.load(dst_ptr, 8), cast_to=bytes)
+        assert out.startswith(b"Num: 3\n")
+
+    def test_function_entry_arg_handoff_tolerates_extra_passed_args(self):
+        # Regression test: AILCallStack.passed_args can include varargs
+        # Engine should assign the first N fixed args and ignore extras without raising.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state()
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        state.register_plugin("callstack", bottom_frame)
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = (
+            claripy.BVV(1, 64),
+            claripy.BVV(2, 64),
+            claripy.BVV(3, 64),
+            claripy.BVV(4, 64),  # extra
+        )
+        state.callstack.push(top_frame)
+        assert len(state.callstack) == 2
+
+        v0 = ailment.expression.VirtualVariable(0, 100, 64, ailment.expression.VirtualVariableCategory.PARAMETER)
+        v1 = ailment.expression.VirtualVariable(0, 101, 64, ailment.expression.VirtualVariableCategory.PARAMETER)
+        v2 = ailment.expression.VirtualVariable(0, 102, 64, ailment.expression.VirtualVariableCategory.PARAMETER)
+
+        class _FakeClinic:
+            arg_vvars = [(v0, None), (v1, None), (v2, None)]
+            cc_graph = None
+
+        state.globals["ail_lifter"] = lambda _addr: _FakeClinic()  # type: ignore
+
+        jump = ailment.statement.Jump(0, ailment.expression.Const(None, None, 0x400004, 64))
+        jump.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[jump])
+
+        succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, succ)
+        engine.process(state, block=block)
+
+        assert state.callstack.vars[v0.varid].concrete_value == 1
+        assert state.callstack.vars[v1.varid].concrete_value == 2
+        assert state.callstack.vars[v2.varid].concrete_value == 3

@@ -54,9 +54,17 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
             assert clinic.arg_vvars is not None
-            if len(clinic.arg_vvars) != len(self.frame.passed_args):
-                raise errors.AngrRuntimeError("Call statement and lifted function disagree on number of arguments")
+            expected = len(clinic.arg_vvars)
+            got = len(self.frame.passed_args)
+            if got < expected:
+                raise errors.AngrRuntimeError(
+                    f"Function entry missing args: expected={expected} got={got} at {state.addr}"
+                )
+            if got > expected:
+                log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
             for idx, value in enumerate(self.frame.passed_args):
+                if idx >= len(clinic.arg_vvars):
+                    break
                 vvar, _ = clinic.arg_vvars[idx]
                 self._do_assign(vvar, value, auto_narrow=True)
             self.frame.passed_args = None
