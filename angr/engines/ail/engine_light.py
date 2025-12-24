@@ -194,6 +194,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _expr_bool(self, expr) -> claripy.ast.Bool:
         result = self._expr(expr)
+        if isinstance(result, claripy.ast.BV) and len(result) == 1:
+            result = result != 0
         assert isinstance(result, claripy.ast.Bool)
         return result
 
