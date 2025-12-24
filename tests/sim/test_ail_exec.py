@@ -110,7 +110,7 @@ class TestAILExec(unittest.TestCase):
         assert out.concrete and out.concrete_value == 1
 
     def test_conditional_jump_accepts_bv1_condition(self):
-        # Regression test for SimEngineAILSimState._expr_bool: 
+        # Regression test for SimEngineAILSimState._expr_bool:
         # some conditions may evaluate to BV1 (0/1) instead of Bool.
         p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
         state = p.factory.blank_state()
