@@ -134,6 +134,7 @@ class Clinic(Analysis):
         remove_dead_memdefs=False,
         exception_edges=False,
         sp_tracker_track_memory=True,
+        fold_expressions=True,
         fold_callexprs_into_conditions=False,
         insert_labels=True,
         optimization_passes=None,
@@ -197,6 +198,7 @@ class Clinic(Analysis):
         self.entry_node_addr: ailment.Address = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
+        self._fold_expressions = fold_expressions
         self._insert_labels = insert_labels
         self._remove_dead_memdefs = remove_dead_memdefs
         self._exception_edges = exception_edges
@@ -1669,6 +1671,7 @@ class Clinic(Analysis):
             ail_manager=self._ail_manager,
             gp=self.function.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
             narrow_expressions=narrow_expressions,
+            fold_expressions=self._fold_expressions,
             only_consts=only_consts,
             fold_callexprs_into_conditions=fold_callexprs_into_conditions,
             use_callee_saved_regs_at_return=not self._register_save_areas_removed,
@@ -1728,6 +1731,7 @@ class Clinic(Analysis):
                 force_loop_single_exit=self._force_loop_single_exit,
                 refine_loops_with_single_successor=self._refine_loops_with_single_successor,
                 complete_successors=self._complete_successors,
+                fold_expressions=self._fold_expressions,
                 stack_pointer_tracker=stack_pointer_tracker,
                 notes=self.notes,
                 static_vvars=self.static_vvars,
