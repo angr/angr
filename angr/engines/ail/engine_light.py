@@ -63,6 +63,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
             if got > expected:
                 log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
             for idx, value in enumerate(self.frame.passed_args):
+                if idx >= len(clinic.arg_vvars):
+                    break
                 vvar, _ = clinic.arg_vvars[idx]
                 self._do_assign(vvar, value, auto_narrow=True)
             self.frame.passed_args = None
