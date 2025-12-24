@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import enum
 import re
 import logging
 from typing import Literal, Any, cast, overload, TYPE_CHECKING
@@ -879,16 +880,29 @@ class SimTypeFd(SimTypeReg):
         return state.solver.eval(out)
 
 
+class PointerDisposition(enum.IntEnum):
+    IN_OUT = 0
+    IN = 1
+    OUT = 2
+    # outmaybe = conditionally overwritten
+    IN_OUTMAYBE = 3
+    OUTMAYBE = 4
+    NONE = 5
+    UNKNOWN = 6
+
+
 class SimTypePointer(SimTypeReg):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
-    _args = ("pts_to", "label", "offset", "qualifier")
+    _fields = (*(x for x in SimTypeReg._fields if x != "size"), "pts_to")
+    _args = ("pts_to", "label", "offset", "qualifier", "disposition")
     _ident = "ptr"
 
-    def __init__(self, pts_to, label=None, offset=0, qualifier: Iterable | None = None):
+    def __init__(
+        self, pts_to, label=None, offset=0, qualifier: Iterable | None = None, disposition: PointerDisposition | int = PointerDisposition.UNKNOWN
+    ):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
@@ -897,6 +911,9 @@ class SimTypePointer(SimTypeReg):
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
+        if not isinstance(disposition, PointerDisposition):
+            disposition = PointerDisposition(disposition)
+        self.disposition = disposition
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         if memo is None:
@@ -906,6 +923,10 @@ class SimTypePointer(SimTypeReg):
             d.pop("offset")
         if "q" in d and not d["q"]:
             d.pop("q")
+        if d["disposition"] == PointerDisposition.UNKNOWN:
+            d.pop("disposition")
+        else:
+            d["disposition"] = int(self.disposition)
         return d
 
     def __repr__(self):

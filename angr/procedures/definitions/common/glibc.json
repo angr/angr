@@ -1935,7 +1935,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['A1', 'A2', 'SIZE']}"
 		},
 		"memcpy": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'q': ['restrict']}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'disposition': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"memfrob": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['MEM', 'LENGTH']}"
@@ -1953,7 +1957,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"memset": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'disposition': 2}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"mkdir": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'int', 'signed': false}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'MODE']}"
@@ -2823,7 +2827,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false}], 'returnty': {'_t': 'int', 'signed': false}, 'arg_names': ['SECONDS']}"
 		},
 		"snprintf": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE'], 'variadic': true}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE'], 'variadic': true}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"socket": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'int'}, {'_t': 'int'}], 'returnty': {'_t': 'int'}, 'arg_names': ['NAMESPACE', 'STYLE', 'PROTOCOL']}"
@@ -2832,7 +2840,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'int'}, {'_t': 'int'}, {'_t': 'array', 'elem_type': {'_t': 'int'}, 'length': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['NAMESPACE', 'STYLE', 'PROTOCOL', 'FILEDES']}"
 		},
 		"sprintf": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE'], 'variadic': true}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE'], 'variadic': true}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"sqrt": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'double', 'align_double': true}], 'returnty': {'_t': 'double', 'align_double': true}, 'arg_names': ['X']}"
@@ -2868,7 +2880,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'long', 'label': 'time_t', 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['NEWTIME']}"
 		},
 		"stpcpy": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"stpncpy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
@@ -2880,7 +2896,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['HAYSTACK', 'NEEDLE']}"
 		},
 		"strcat": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"strchr": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['STRING', 'C']}"
@@ -2895,7 +2915,11 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['S1', 'S2']}"
 		},
 		"strcpy": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"strcspn": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, 'arg_names': ['STRING', 'STOPSET']}"
@@ -3285,10 +3309,17 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['TEMPLATE', 'AP']}"
 		},
 		"vsnprintf": {
+<<<<<<< HEAD
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE', 'AP']}"
 		},
 		"vsprintf": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"
+=======
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE', 'AP']}"
+		},
+		"vsprintf": {
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"
+>>>>>>> 1958ef38d (Add pointer disposition to sim_type and glibc)
 		},
 		"vsscanf": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"
