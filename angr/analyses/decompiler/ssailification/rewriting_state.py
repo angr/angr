@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
+from collections.abc import MutableMapping
 
 from angr.ailment.statement import Statement
 from angr.ailment.expression import VirtualVariable
@@ -19,17 +20,17 @@ class RewritingState:
         arch,
         func,
         original_block: Block,
-        registers: dict[int, dict[int, VirtualVariable]] | None = None,
-        stackvars: dict[int, dict[int, VirtualVariable]] | None = None,
+        registers: MutableMapping[int, dict[int, VirtualVariable | None]] | None = None,
+        stackvars: MutableMapping[int, dict[int, VirtualVariable]] | None = None,
     ):
         self.loc = loc
         self.arch = arch
         self.func = func
 
-        self.registers: defaultdict[int, dict[int, VirtualVariable | None]] = (
+        self.registers: MutableMapping[int, dict[int, VirtualVariable | None]] = (
             registers if registers is not None else defaultdict(dict)
         )
-        self.stackvars: defaultdict[int, dict[int, VirtualVariable]] = (
+        self.stackvars: MutableMapping[int, dict[int, VirtualVariable]] = (
             stackvars if stackvars is not None else defaultdict(dict)
         )
         self.tmps: dict[int, VirtualVariable] = {}

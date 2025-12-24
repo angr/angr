@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 import networkx
-from angr.ailment import Block
+from angr.ailment import Block, Address
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 
@@ -16,12 +16,12 @@ class SLivenessModel:
     """
     The SLiveness model that stores LiveIn and LiveOut sets for each block in a partial-SSA function.
 
-    Blocks are identified by address and index.
+    Blocks are identified by address and (block) index.
     """
 
     def __init__(self):
-        self.live_ins: dict[tuple[int, int | None], set[int]] = {}
-        self.live_outs: dict[tuple[int, int | None], set[int]] = {}
+        self.live_ins: dict[Address, set[int]] = {}
+        self.live_outs: dict[Address, set[int]] = {}
 
 
 class SLivenessAnalysis(Analysis):
