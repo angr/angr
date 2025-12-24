@@ -257,14 +257,14 @@ class Store(Statement):
         )
 
     def replace(self, old_expr, new_expr):
-        if self.addr.likes(old_expr):
+        if self.addr == old_expr:
             r_addr = True
             replaced_addr = new_expr
         else:
             r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
 
         if isinstance(self.data, Expression):
-            if self.data.likes(old_expr):
+            if self.data == old_expr:
                 r_data = True
                 replaced_data = new_expr
             else:
