@@ -151,6 +151,68 @@ class TestAILExec(unittest.TestCase):
         assert false_succ.scratch.exit_stmt_idx == 0
         assert false_succ.solver.is_false(false_succ.scratch.guard)
 
+    def test_phi_with_none_vvar_does_not_crash(self):
+        # Regression test for SimEngineAILSimState._handle_expr_Phi:
+        # Some AIL passes may produce Phi nodes with a None vvar for a predecessor.
+        # The engine should not assert; it should return a conservative top value instead.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state()
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        # predecessor block: jump to successor
+        pred_jump = ailment.statement.Jump(idx=0, target=ailment.expression.Const(None, None, 0x400004, 64))
+        pred_jump.tags["ins_addr"] = 0x400000
+        pred_block = ailment.Block(0x400000, 0, statements=[pred_jump])
+
+        pred_succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, pred_succ)
+        engine.process(state, block=pred_block)
+        assert len(pred_succ.successors) == 1
+        s1 = pred_succ.successors[0]
+        assert s1.addr == (0x400004, None)
+
+        # Emulate the history linkage normally created by SimSuccessors.process():
+        # SimEngineAILSimState._handle_expr_Phi consults state.history.parent.recent_bbl_addrs[-1] to pick the
+        # predecessor edge for the phi.
+        from angr.state_plugins.history import SimStateHistory  # pylint:disable=import-outside-toplevel
+
+        h_parent = SimStateHistory()
+        h_parent.recent_bbl_addrs.append((0x400000, None))
+        s1.history.parent = h_parent
+
+        # successor block: rax = Phi(pred -> None), then jump out
+        phi = ailment.expression.Phi(idx=0, bits=64, src_and_vvars=[((0x400000, None), None)])
+        rax_offset = p.arch.registers["rax"][0]
+        assign = ailment.statement.Assignment(
+            idx=0,
+            dst=ailment.expression.Register(None, None, rax_offset, 64),
+            src=phi,
+        )
+        assign.tags["ins_addr"] = 0x400004
+        succ_jump = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400008, 64))
+        succ_jump.tags["ins_addr"] = 0x400004
+        succ_block = ailment.Block(0x400004, 0, statements=[assign, succ_jump])
+
+        succ_succ = SimSuccessors(s1.addr, s1)
+        engine2 = SimEngineAILSimState(p, succ_succ)
+        engine2.process(s1, block=succ_block)
+
+        assert len(succ_succ.successors) == 1
+        s2 = succ_succ.successors[0]
+        out = s2.registers.load(rax_offset, 8)
+        assert isinstance(out, claripy.ast.BV)
+        assert out.op == "BVS"
+        # claripy's BVS name is stored as a plain string in args[0] in newer versions.
+        bvs_name = out.args[0].name if hasattr(out.args[0], "name") else out.args[0]
+        assert isinstance(bvs_name, str)
+        assert bvs_name.startswith("ail_engine_top")
+
     def test_statement_call_unused_return_is_ignored(self):
         # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the
         # callee returns a value (e.g., `memset(...)` used only for side effects). The engine should discard the return.
