@@ -836,7 +836,7 @@ class DuplicationReverter(StructuringOptimizationPass):
                         return True
 
                     for goto in gotos:
-                        if goto.dst_addr in (block.addr, block.statements[0].ins_addr):
+                        if goto.dst_addr in (block.addr, block.statements[0].tags["ins_addr"]):
                             return True
 
             for succ in graph.successors(block):

@@ -745,11 +745,11 @@ class ConditionProcessor:
             if isinstance(last_stmt.target, ailment.Expr.Const):
                 return claripy.true()
             # indirect jump
-            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.ins_addr)
+            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.tags["ins_addr"])
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
             bool_var = self.claripy_ast_from_ail_condition(
-                last_stmt.condition, must_bool=True, ins_addr=last_stmt.ins_addr
+                last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
             )
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var

@@ -271,7 +271,7 @@ class ProximityGraphAnalysis(Analysis):
         self, func: Function, graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
-        found_blocks: dict[BlockNode:BaseProxiNode] = {}
+        found_blocks: dict[BlockNode, BaseProxiNode] = {}
 
         # function calls
         for n_ in func.nodes:
@@ -358,7 +358,7 @@ class ProximityGraphAnalysis(Analysis):
         ):  # pylint:disable=unused-argument
             if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
                 func_node = self.kb.functions[stmt.target.value]
-                ref_at = {stmt.ins_addr}
+                ref_at = {stmt.tags["ins_addr"]}
 
                 # extract arguments
                 args = []

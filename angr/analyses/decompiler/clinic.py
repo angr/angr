@@ -2215,17 +2215,17 @@ class Clinic(Analysis):
                 if (
                     offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
                 ) and "reference_variable" in base_addr.tags:
-                    expr.variable = base_addr.reference_variable
-                    expr.variable_offset = base_addr.reference_variable_offset
+                    expr.variable = base_addr.tags["reference_variable"]
+                    expr.variable_offset = base_addr.tags["reference_variable_offset"]
 
                 if base_addr is None and offset is None:
                     # this is a local variable
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
-                    if "reference_variable" in expr.addr.tags and expr.addr.reference_variable is not None:
+                    if "reference_variable" in expr.addr.tags and expr.addr.tags["reference_variable"] is not None:
                         # copy over the variable to this expr since the variable on a constant is supposed to be a
                         # reference variable.
-                        expr.variable = expr.addr.reference_variable
-                        expr.variable_offset = expr.addr.reference_variable_offset
+                        expr.variable = expr.addr.tags["reference_variable"]
+                        expr.variable_offset = expr.addr.tags["reference_variable_offset"]
             else:
                 if len(variables) > 1:
                     l.error(
@@ -2284,9 +2284,13 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
             # custom string?
-            if hasattr(expr, "custom_string") and expr.custom_string is True:
+            if expr.tags.get("custom_string", False):
                 s = self.kb.custom_strings[expr.value]
-                ty = expr.type if hasattr(expr, "type") else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                ty = (
+                    expr.tags["type"]
+                    if "type" in expr.tags
+                    else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                )
                 expr.tags["reference_values"] = {
                     ty: s,
                 }
@@ -2393,7 +2397,10 @@ class Clinic(Analysis):
         """
 
         for block in list(ail_graph):
-            if len(block.statements) > 1 and block.statements[0].ins_addr == block.statements[-1].ins_addr:
+            if (
+                len(block.statements) > 1
+                and block.statements[0].tags["ins_addr"] == block.statements[-1].tags["ins_addr"]
+            ):
                 preds = list(ail_graph.predecessors(block))
                 if len(preds) > 1 and block not in preds:
                     has_ccall = any(
@@ -2453,7 +2460,7 @@ class Clinic(Analysis):
                             None,
                             self.project.arch.registers["rax"][0],
                             64,
-                            ins_addr=call_stmt.ins_addr,
+                            ins_addr=call_stmt.tags["ins_addr"],
                         )
                         block.statements[-1] = call_stmt
 
@@ -2470,14 +2477,14 @@ class Clinic(Analysis):
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.CAS):
                     # we do not rewrite ITE statements that are caused by CAS statements
-                    cas_ins_addrs.add(stmt.ins_addr)
+                    cas_ins_addrs.add(stmt.tags["ins_addr"])
                 elif (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.src, ailment.Expr.ITE)
-                    and stmt.ins_addr not in ite_ins_addrs
-                    and stmt.ins_addr not in cas_ins_addrs
+                    and stmt.tags["ins_addr"] not in ite_ins_addrs
+                    and stmt.tags["ins_addr"] not in cas_ins_addrs
                 ):
-                    ite_ins_addrs.append(stmt.ins_addr)
+                    ite_ins_addrs.append(stmt.tags["ins_addr"])
 
             if ite_ins_addrs:
                 block_addr = block.addr
@@ -2589,9 +2596,9 @@ class Clinic(Analysis):
         # last check: if the first instruction of the end block has Sar, then we bail (due to the peephole optimization
         # SarToSignedDiv)
         for stmt in end_block_ail.statements:
-            if stmt.ins_addr > end_block_ail.addr:
+            if stmt.tags["ins_addr"] > end_block_ail.addr:
                 break
-            if (
+            if (  # pylint:disable=no-member
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op == "Sar"
@@ -2722,7 +2729,7 @@ class Clinic(Analysis):
                 intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
                 if comparison_stmt is not None:
                     cmp_rpos = len(intended_head_block.instruction_addrs) - intended_head_block.instruction_addrs.index(
-                        comparison_stmt.ins_addr
+                        comparison_stmt.tags["ins_addr"]
                     )
                 else:
                     cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
@@ -2798,7 +2805,7 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and stmt.ins_addr == last_stmt_0.ins_addr
+                and stmt.tags["ins_addr"] == last_stmt_0.tags["ins_addr"]
             ),
             None,
         )
@@ -2809,7 +2816,7 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and stmt.ins_addr == last_stmt_1.ins_addr
+                and stmt.tags["ins_addr"] == last_stmt_1.tags["ins_addr"]
             ),
             None,
         )
@@ -3013,7 +3020,7 @@ class Clinic(Analysis):
                                             last_stmt.idx,
                                             last_stmt.true_target,
                                             target_idx=last_stmt.true_target.idx,
-                                            ins_addr=last_stmt.ins_addr,
+                                            ins_addr=last_stmt.tags["ins_addr"],
                                         )
                                         pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
@@ -3059,7 +3066,7 @@ class Clinic(Analysis):
     def _insert_block_labels(ail_graph):
         for node in ail_graph.nodes:
             node: ailment.Block
-            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
             node.statements.insert(0, lbl)
 
     @staticmethod
@@ -3107,14 +3114,19 @@ class Clinic(Analysis):
             block: ailment.Block | None,
         ):
             assert block is not None
-            if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
+            if isinstance(expr.value, int) and "ins_addr" in expr.tags:
                 data_refs[block.addr].append(
-                    DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown)
+                    DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.tags["ins_addr"], MemoryDataSort.Unknown)
                 )
-            if hasattr(expr, "deref_src_addr"):
+            if "deref_src_addr" in expr.tags:
                 data_refs[block.addr].append(
                     DataRefDesc(
-                        expr.deref_src_addr, expr.size, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown
+                        expr.tags["deref_src_addr"],
+                        expr.size,
+                        block.addr,
+                        stmt_idx,
+                        expr.tags["ins_addr"],
+                        MemoryDataSort.Unknown,
                     )
                 )
             return expr
@@ -3129,25 +3141,25 @@ class Clinic(Analysis):
             assert block is not None
             if isinstance(expr.addr, ailment.expression.Const):
                 addr = expr.addr
-                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                if isinstance(addr.value, int) and "ins_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
                             addr.value,
                             expr.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                if hasattr(addr, "deref_src_addr"):
+                if "deref_src_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
-                            addr.deref_src_addr,
+                            addr.tags["deref_src_addr"],
                             expr.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
@@ -3159,25 +3171,25 @@ class Clinic(Analysis):
             assert block is not None
             if isinstance(stmt.addr, ailment.expression.Const):
                 addr = stmt.addr
-                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                if isinstance(addr.value, int) and "ins_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
                             addr.value,
                             stmt.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                if hasattr(addr, "deref_src_addr"):
+                if "deref_src_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
-                            addr.deref_src_addr,
+                            addr.tags["deref_src_addr"],
                             stmt.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
@@ -3477,7 +3489,11 @@ class Clinic(Analysis):
         def _handle_Call_stmt_or_expr(call_: ailment.Stmt.Call):
             assert self.arg_vvars is not None
 
-            if isinstance(call_.target, ailment.Expr.Const) and call_.is_prototype_guessed and call_.args is not None:
+            if (
+                isinstance(call_.target, ailment.Expr.Const)
+                and call_.tags.get("is_prototype_guessed", True)
+                and call_.args is not None
+            ):
                 # derive the actual prototype
                 arg_types = []
                 for arg_expr in call_.args:

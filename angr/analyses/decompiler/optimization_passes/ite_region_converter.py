@@ -66,7 +66,9 @@ class ITERegionConverter(OptimizationPass):
                 if_stmt_blocks.append(node)
 
         # re-find the if-stmts blocks in the original graph
-        super_if_ids = {(node.statements[-1].ins_addr, node.statements[-1].idx): node for node in if_stmt_blocks}
+        super_if_ids = {
+            (node.statements[-1].tags["ins_addr"], node.statements[-1].idx): node for node in if_stmt_blocks
+        }
         super_to_normal_node = {}
         for node in self._graph.nodes():
             if not node.statements:
@@ -74,8 +76,8 @@ class ITERegionConverter(OptimizationPass):
 
             if isinstance(node.statements[-1], ConditionalJump):
                 if_stmt = node.statements[-1]
-                if (if_stmt.ins_addr, if_stmt.idx) in super_if_ids:
-                    super_node = super_if_ids[(if_stmt.ins_addr, if_stmt.idx)]
+                if (if_stmt.tags["ins_addr"], if_stmt.idx) in super_if_ids:
+                    super_node = super_if_ids[(if_stmt.tags["ins_addr"], if_stmt.idx)]
                     super_to_normal_node[super_node] = node
 
         # validate each if-stmt block matches a ternary schema

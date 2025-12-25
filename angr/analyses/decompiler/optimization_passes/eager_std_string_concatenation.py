@@ -171,14 +171,14 @@ class EagerStdStringConcatenationPass(OptimizationPass):
 
     def _match_std_string_assignment(self, stmt: WeakAssignment, cfg) -> tuple[bool, bytes | None]:
         if (
-            hasattr(stmt, "type")
-            and "dst" in stmt.type
-            and "src" in stmt.type
+            "type" in stmt.tags
+            and "dst" in stmt.tags["type"]
+            and "src" in stmt.tags["type"]
             and isinstance(stmt.dst, VirtualVariable)
             and isinstance(stmt.src, Load)
             and isinstance(stmt.src.addr, Const)
         ):
-            dst_ty, src_ty = stmt.type["dst"], stmt.type["src"]
+            dst_ty, src_ty = stmt.tags["type"]["dst"], stmt.tags["type"]["src"]
             if (
                 self._is_std_string_type(dst_ty)
                 and self._is_std_string_type_or_charptr(src_ty)
@@ -194,14 +194,14 @@ class EagerStdStringConcatenationPass(OptimizationPass):
         self, stmt: WeakAssignment, cfg, str_defs: dict[int, bytes]
     ) -> tuple[bool, bytes | None]:
         if (
-            hasattr(stmt, "type")
-            and "dst" in stmt.type
-            and "src" in stmt.type
+            "type" in stmt.tags
+            and "dst" in stmt.tags["type"]
+            and "src" in stmt.tags["type"]
             and isinstance(stmt.dst, VirtualVariable)
             and isinstance(stmt.src, BinaryOp)
             and stmt.src.op == "Add"
         ):
-            dst_ty, src_ty = stmt.type["dst"], stmt.type["src"]
+            dst_ty, src_ty = stmt.tags["type"]["dst"], stmt.tags["type"]["src"]
             if self._is_std_string_type(dst_ty) and self._is_std_string_type_or_charptr(src_ty):
                 op0, op1 = stmt.src.operands
                 if isinstance(op1, VirtualVariable) and isinstance(op0, Load):

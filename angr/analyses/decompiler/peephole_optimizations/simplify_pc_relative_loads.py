@@ -22,16 +22,16 @@ class SimplifyPcRelativeLoads(PeepholeOptimizationExprBase):
             op0, op1 = expr.operands
 
             assert self.project is not None
-            if not hasattr(expr, "ins_addr"):
+            if "ins_addr" not in expr.tags:
                 return expr
-            assert expr.ins_addr is not None
+            assert expr.tags["ins_addr"] is not None
 
             # check if op1 is PC
             if (
                 isinstance(op1, Const)
                 and op1.is_int
-                and hasattr(expr, "ins_addr")
-                and is_pc(self.project, expr.ins_addr, op1.value)  # type: ignore
+                and "ins_addr" in expr.tags
+                and is_pc(self.project, expr.tags["ins_addr"], op1.value)  # type: ignore
                 and isinstance(op0.addr, Const)
                 and op0.addr.is_int
             ):

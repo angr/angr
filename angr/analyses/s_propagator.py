@@ -160,7 +160,7 @@ class SPropagatorAnalysis(Analysis):
                     src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars
                 }
             r, v = is_const_assignment(stmt)
-            if r and v is not None and hasattr(v, "always_propagate") and v.always_propagate:
+            if r and v is not None and v.tags.get("always_propagate", False):
                 pass
             elif not vvar.was_reg and not vvar.was_parameter:
                 continue
@@ -431,7 +431,8 @@ class SPropagatorAnalysis(Analysis):
                     if len(tmp_uses) <= 2 and is_const_vvar_load_dirty_assignment(stmt):
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
                             same_inst = (
-                                block.statements[tmp_def_stmtidx].ins_addr == block.statements[tmp_use_stmtidx].ins_addr
+                                block.statements[tmp_def_stmtidx].tags["ins_addr"]
+                                == block.statements[tmp_use_stmtidx].tags["ins_addr"]
                             )
                             has_store = any(
                                 isinstance(stmt_, Store)

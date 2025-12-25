@@ -690,7 +690,7 @@ def add_labels(graph: networkx.DiGraph):
     new_graph = networkx.DiGraph()
     nodes_map = {}
     for node in graph:
-        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
         node_copy = node.copy()
         node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
@@ -1154,7 +1154,7 @@ def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False) -> ailmen
     for block in graph.nodes():
         if insn_addr:
             for stmt in block.statements:
-                if "ins_addr" in stmt.tags and stmt.ins_addr == addr:
+                if "ins_addr" in stmt.tags and stmt.tags["ins_addr"] == addr:
                     return block
         else:
             if block.addr == addr:
