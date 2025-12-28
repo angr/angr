@@ -189,7 +189,7 @@ class Clinic(Analysis):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
+        self.entry_node_addr: ailment.Address = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._insert_labels = insert_labels
@@ -239,7 +239,7 @@ class Clinic(Analysis):
         self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
-        self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
+        self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
         self.copied_var_ids: set[int] = set()
 
         self._new_block_addrs: set[int] = set()
@@ -434,7 +434,7 @@ class Clinic(Analysis):
         # update the source block ID of all phi variables
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
-                new_src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]] = [
+                new_src_and_vvars: list[tuple[ailment.Address, VirtualVariable | None]] = [
                     ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
@@ -1476,7 +1476,7 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
+        blocks_by_addr_and_idx: dict[ailment.Address, ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
@@ -1643,7 +1643,7 @@ class Clinic(Analysis):
         stack_pointer_tracker=None,
         **kwargs,
     ):
-        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_and_idx_to_blocks: dict[ailment.Address, ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
