@@ -10,6 +10,7 @@ from angr.sim_type import SimTypePointer, parse_file, ALL_TYPES, PointerDisposit
 
 l = logging.getLogger(name="parse_glibc")
 
+# some of these are technically incorrect - should say OUTMAYBE. that gives us worse results most of the time though...
 DISPOSITIONS: dict[tuple[str, int], PointerDisposition] = {
     ("memset", 0): PointerDisposition.OUT,
     ("memcpy", 0): PointerDisposition.OUT,
@@ -33,10 +34,7 @@ DISPOSITIONS: dict[tuple[str, int], PointerDisposition] = {
     ("readlinkat", 1): PointerDisposition.IN,
     ("readlinkat", 2): PointerDisposition.OUT,
     ("stat", 0): PointerDisposition.IN,
-    (
-        "stat",
-        1,
-    ): PointerDisposition.OUT,  # technically incorrect - this should say OUTMAYBE. that gives us worse results most of the time though...
+    ("stat", 1): PointerDisposition.OUT,
     ("lstat", 0): PointerDisposition.IN,
     ("lstat", 1): PointerDisposition.OUT,
     ("fstat", 1): PointerDisposition.OUT,

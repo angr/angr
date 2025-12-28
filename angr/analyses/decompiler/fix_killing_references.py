@@ -1,6 +1,6 @@
 from __future__ import annotations
-from collections import defaultdict
 from typing import Any, TypeAlias
+from collections import defaultdict
 from collections.abc import Callable, MutableMapping
 
 import networkx
@@ -68,6 +68,10 @@ State: TypeAlias = "set[tuple[int | None, int]]"
 
 
 class FindKillingReferences(AILBlockWalker[State, None, None]):
+    """
+    Step 1 of fix killing references: Find Reference(vvar) and determine if it gets written to before reading
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.vvar_state: dict[int, State] = {}
@@ -135,7 +139,6 @@ class FindKillingReferences(AILBlockWalker[State, None, None]):
             self.vvar_state[stmt.dst.varid] = val
         elif isinstance(stmt.dst, UnaryOp) and stmt.dst.op == "Dereference":
             self._kill_reference(self._handle_expr(0, stmt.dst.operand, stmt_idx, stmt, block))
-        return None
 
     def _handle_Phi(self, expr_idx: int, expr, stmt_idx, stmt, block):
         result = set()
@@ -159,6 +162,10 @@ class FindKillingReferences(AILBlockWalker[State, None, None]):
 
 
 class ChangeKillingReferences(AILBlockRewriter):
+    """
+    Step 2 of fixing killing references: do vvar replacements, but only after a given codeloc
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pending_replacements: MutableMapping[AILCodeLocation, list[tuple[int, int]]] = defaultdict(list)
