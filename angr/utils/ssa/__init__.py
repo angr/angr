@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 import networkx
 
 import archinfo
-from angr.ailment import Expression, Block, UnaryOp, Address
+from angr.ailment import Expression, Block, Address
 from angr.ailment.expression import (
     VirtualVariable,
     Const,
@@ -17,6 +17,7 @@ from angr.ailment.expression import (
     StackBaseOffset,
     DirtyExpression,
     ITE,
+    UnaryOp,
 )
 from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
 from angr.ailment.block_walker import AILBlockViewer
@@ -25,6 +26,7 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
+from .vvar_extra_defs_collector import FindExtraDefs
 
 
 DEPHI_VVAR_REG_OFFSET = 4096
@@ -95,6 +97,8 @@ def get_vvar_deflocs(
     blocks, phi_vvars: dict[int, set[int | None]] | None = None
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
+    walker = FindExtraDefs()
+    walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -114,6 +118,10 @@ def get_vvar_deflocs(
                     vvar_to_loc[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr, AILCodeLocation(
                         block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")
                     )
+
+            if extra_defs := stmt.tags.get("extra_defs", None):
+                walker.walk_statement(stmt, block, stmt_idx)
+                assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
 
     return vvar_to_loc
 
