@@ -1,8 +1,10 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
+import shutil
 from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
 from collections.abc import Iterator
+from collections import OrderedDict
 import contextlib
 from collections.abc import Generator
 import logging
@@ -11,7 +13,11 @@ import re
 import weakref
 import bisect
 import os
+import tempfile
+import uuid
+import atexit
 
+import lmdb
 import networkx
 
 from archinfo.arch_soot import SootMethodDescriptor
@@ -41,6 +47,9 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 l = logging.getLogger(name=__name__)
 _missing = object()
 
+# Default maximum number of functions to keep in memory (None means unlimited)
+DEFAULT_MAX_CACHED_FUNCTIONS: int | None = None
+
 
 class FunctionDict(Generic[K], SortedDict[K, Function]):
     """
@@ -60,22 +69,36 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
     def copy(self) -> FunctionDict[K]:
         return FunctionDict(self._backref, self, key_types=self._key_types)
 
+    def _getitem_create_new_function(self, addr: K) -> Function:
+        # Create a new function
+        if isinstance(addr, SootMethodDescriptor):
+            t = SootFunction(self._backref, addr)
+        else:
+            t = Function(self._backref, addr)
+        with contextlib.suppress(Exception):
+            self[addr] = t
+        if self._backref is not None:
+            self._backref._function_added(t)
+        return t
+
+    def __setitem__(self, addr: K, value: Function):
+        """
+        Override SortedDict.__setitem__ because it uses __contains__, which may be overwritten by SpillingFunctionDict.
+        """
+        if not dict.__contains__(self, addr):
+            self._list_add(addr)
+        dict.__setitem__(self, addr, value)
+
     def __getitem__(self, addr: K) -> Function:
         try:
             return super().__getitem__(addr)
         except KeyError as ex:
             if isinstance(addr, bool) or not isinstance(addr, self._key_types):
                 raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
+            return self._getitem_create_new_function(addr)
 
-            if isinstance(addr, SootMethodDescriptor):
-                t = SootFunction(self._backref, addr)
-            else:
-                t = Function(self._backref, addr)
-            with contextlib.suppress(Exception):
-                self[addr] = t
-            if self._backref is not None:
-                self._backref._function_added(t)
-            return t
+    def __delitem__(self, key: K) -> None:
+        super().__delitem__(key)
 
     @overload
     def get(self, key: K, default: None = None, /) -> Function: ...
@@ -88,9 +111,11 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
         try:
             return super().__getitem__(addr)
         except KeyError:
-            if default is _missing:
-                raise
-            return default
+            pass
+
+        if default is _missing:
+            raise KeyError(addr)
+        return default
 
     def floor_addr(self, addr):
         try:
@@ -112,17 +137,449 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
         return dict(self.items())
 
 
-class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
+class SpillingFunctionDict(FunctionDict[K]):
     """
-    This is a function boundaries management tool. It takes in intermediate
-    results during CFG generation, and manages a function map of the binary.
+    SpillingFunctionDict extends FunctionDict with LRU caching and LMDB spilling.
+
+    This class keeps only the most recently accessed N functions in memory, spilling others to an LMDB database on
+    disk.
+
+    :ivar cache_limit:
     """
 
-    def __init__(self, kb: KnowledgeBase):
+    def __init__(
+        self,
+        backref: FunctionManager[K] | None,
+        *args,
+        key_types: type = int,
+        cache_limit: int | None = None,
+        **kwargs,
+    ):
+        self._cache_limit: int | None = cache_limit
+        self._lru_order: OrderedDict[K, None] = OrderedDict()
+        self._spilled_keys: set[K] = set()
+        self._lmdb_env: lmdb.Environment | None = None
+        self._lmdb_path: str | None = None
+        self._lmdb_funcsdb = None
+        self._eviction_enabled: bool = True
+        self._loading_from_lmdb: bool = False
+        self._currently_loading: set[K] = set()
+
+        super().__init__(backref, *args, key_types=key_types, **kwargs)
+
+        # Register database cleanup on exit in case __del__ is not called for whatever reason
+        atexit.register(self._cleanup_lmdb)
+
+    def __del__(self):
+        self._cleanup_lmdb()
+
+    def copy(self) -> SpillingFunctionDict[K]:
+        # Load all spilled functions for copying
+        self._load_all_spilled()
+
+        new_dict = SpillingFunctionDict(
+            self._backref,
+            key_types=self._key_types,
+            cache_limit=self._cache_limit,
+        )
+        # Temporarily disable eviction during copy
+        new_dict._eviction_enabled = False
+        # iterate over in-memory functions and copy them
+        for address in self.cached_keys:
+            function = SortedDict.__getitem__(self, address)
+            SortedDict.__setitem__(new_dict, address, function.copy())
+            new_dict._lru_order[address] = None
+
+        # Copy any remaining spilled addresses and their LMDB data
+        if self._spilled_keys and self._lmdb_env is not None:
+            new_dict._init_lmdb()
+            with (
+                self._lmdb_env.begin(db=self._lmdb_funcsdb) as src_txn,
+                new_dict._lmdb_env.begin(write=True, db=new_dict._lmdb_funcsdb) as dst_txn,
+            ):
+                for addr in self._spilled_keys:
+                    key = str(addr).encode("utf-8")
+                    value = src_txn.get(key)
+                    if value is not None:
+                        dst_txn.put(key, value)
+                        new_dict._spilled_keys.add(addr)
+
+        new_dict._eviction_enabled = True
+        return new_dict
+
+    def clear(self) -> None:
+        """
+        Clear all functions from memory and spilled storage.
+        """
+        super().clear()
+        self._lru_order.clear()
+        self._spilled_keys.clear()
+        self._cleanup_lmdb()
+
+    def __getitem__(self, addr: K) -> Function:
+        # First try to get from in-memory cache
+        if self.is_cached(addr):
+            try:
+                func = SortedDict.__getitem__(self, addr)
+                # Touch to update LRU order
+                self._touch(addr)
+                return func
+            except KeyError:
+                pass
+
+        # not found in memory
+        if isinstance(addr, bool) or not isinstance(addr, self._key_types):
+            raise TypeError(f"SpillingFunctionDict only supports {self._key_types} as key type")
+
+        # Try to load from LMDB if it's spilled
+        if addr in self._spilled_keys and not self._loading_from_lmdb:
+            func = self._load_from_lmdb(addr)
+            if func is not None:
+                return func
+
+        return self._getitem_create_new_function(addr)
+
+    def __setitem__(self, key: K, value: Function) -> None:
+        super().__setitem__(key, value)
+        self._on_function_stored(key)
+
+    def __delitem__(self, key: K) -> None:
+        # Remove from in-memory map if present
+        if self.is_cached(key):
+            super().__delitem__(key)
+        # Remove from spilled set and lmdb if present
+        if key in self._spilled_keys:
+            self._spilled_keys.discard(key)
+            self._delete_from_lmdb(key)
+        # Remove from LRU order
+        if key in self._lru_order:
+            del self._lru_order[key]
+
+    def __contains__(self, item) -> bool:
+        # Check both in-memory and spilled
+        return SortedDict.__contains__(self, item) or item in self._spilled_keys
+
+    def __len__(self) -> int:
+        # Total count includes both in-memory and spilled functions
+        return self.cached_count + len(self._spilled_keys)
+
+    def __iter__(self):
+        # Iterate over all function addresses (in-memory + spilled)
+        all_addrs = set(self.cached_keys) | self._spilled_keys
+        yield from sorted(all_addrs)
+
+    def get(self, addr, default=_missing, /):
+        # First check in-memory
+        try:
+            func = super().__getitem__(addr)
+            self._touch(addr)
+            return func
+        except KeyError:
+            pass
+
+        # Check if spilled to LMDB
+        if addr in self._spilled_keys and not self._loading_from_lmdb:
+            func = self._load_from_lmdb(addr)
+            if func is not None:
+                return func
+
+        if default is _missing:
+            raise KeyError(addr)
+        return default
+
+    #
+    # Properties
+    #
+
+    @property
+    def cached_keys(self) -> Generator[None, None, K]:
+        yield from self._list
+
+    @property
+    def cache_limit(self) -> int | None:
+        """
+        Get the maximum number of functions to keep in memory.
+        """
+        return self._cache_limit
+
+    @cache_limit.setter
+    def cache_limit(self, value: int | None) -> None:
+        """
+        Set the maximum number of functions to keep in memory.
+        """
+        self._cache_limit = value
+        if value is not None:
+            # Evict excess functions, but stop if eviction fails
+            while SortedDict.__len__(self) > value:
+                if not self._evict_lru():
+                    break
+
+    @property
+    def cached_count(self) -> int:
+        """Return the number of functions currently in memory."""
+        return super().__len__()
+
+    @property
+    def spilled_count(self) -> int:
+        """Return the number of functions currently spilled to LMDB."""
+        return len(self._spilled_keys)
+
+    @property
+    def total_count(self) -> int:
+        """Return the total number of functions (in memory + spilled)."""
+        return super().__len__() + len(self._spilled_keys)
+
+    def is_cached(self, addr: K) -> bool:
+        return super().__contains__(addr)
+
+    #
+    # LRU Cache Management
+    #
+
+    def _touch(self, addr: K) -> None:
+        """
+        Update the LRU order for a function (move to end = most recently used).
+        """
+        if addr in self._lru_order:
+            self._lru_order.move_to_end(addr)
+
+    def _on_function_stored(self, addr: K) -> None:
+        # Add to LRU order if not already there
+        if addr not in self._lru_order:
+            self._lru_order[addr] = None
+        else:
+            self._lru_order.move_to_end(addr)
+
+        # Remove from spilled set if it was there
+        self._spilled_keys.discard(addr)
+
+        # Check if we need to evict (but not during loading)
+        if (
+            self._eviction_enabled
+            and not self._loading_from_lmdb
+            and self._cache_limit is not None
+            and SortedDict.__len__(self) > self._cache_limit
+        ):
+            self._evict_lru()
+
+    def _evict_lru(self) -> bool:
+        """
+        Evict functions until we're back under the cache limit.
+
+        :return: True if at least one function was successfully evicted, False otherwise.
+        """
+        evicted_any = False
+        while SortedDict.__len__(self) > self._cache_limit:
+            if not self._evict_one():
+                break
+            evicted_any = True
+        return evicted_any
+
+    def _evict_one(self) -> bool:
+        """
+        Evict the least recently used function to LMDB.
+
+        :return: True if a function was successfully evicted, False otherwise.
+        """
+        if not self._lru_order:
+            return False
+
+        evicted = False
+        for lru_addr in list(self._lru_order.keys()):
+            # Don't evict if it's not in memory
+            if not self.is_cached(lru_addr):
+                self._lru_order.pop(lru_addr)
+                continue
+
+            # Get the function
+            func = super().__getitem__(lru_addr)
+
+            # Save to LMDB before evicting
+            try:
+                self._save_to_lmdb(func)
+            except Exception as ex:
+                l.warning(
+                    "Failed to serialize function %s for eviction: %s",
+                    hex(lru_addr) if isinstance(lru_addr, int) else lru_addr,
+                    ex,
+                )
+                continue
+
+            # Remove from in-memory map
+            super().__delitem__(lru_addr)
+
+            # Remove from LRU order
+            del self._lru_order[lru_addr]
+
+            # Add to spilled set
+            self._spilled_keys.add(lru_addr)
+
+            l.debug("Evicted function %s to LMDB", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
+            evicted = True
+            break
+
+        return evicted
+
+    #
+    # LMDB Management
+    #
+
+    def _init_lmdb(self) -> None:
+        """
+        Lazily initialize the LMDB database for spilling functions.
+        """
+        if self._lmdb_env is not None:
+            return
+
+        # Only generate the path once
+        if self._lmdb_path is None:
+            self._lmdb_path = os.path.join(tempfile.gettempdir(), f"angr_lru_cache_{uuid.uuid4().hex}")
+
+        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=1024 * 1024 * 1024, max_dbs=1)
+        self._lmdb_funcsdb = self._lmdb_env.open_db(b"functions.radb")
+        l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
+
+    def _cleanup_lmdb(self):
+        """
+        Clean up LMDB resources.
+        """
+        if self._lmdb_env is not None:
+            self._lmdb_env.close()
+            self._lmdb_env = None
+            self._lmdb_funcsdb = None
+
+        if self._lmdb_path is not None:
+            with contextlib.suppress(OSError):
+                shutil.rmtree(self._lmdb_path)
+            self._lmdb_path = None
+
+    def _save_to_lmdb(self, func: Function) -> None:
+        """
+        Save a single function to LMDB.
+        """
+        self._init_lmdb()
+
+        cmsg = func.serialize_to_cmessage()
+        key = str(func.addr).encode("utf-8")
+
+        with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+            txn.put(key, cmsg.SerializeToString())
+
+    def _delete_from_lmdb(self, addr: K) -> None:
+        """
+        Delete a function from LMDB.
+        """
+        if self._lmdb_env is None:
+            return
+
+        key = str(addr).encode("utf-8")
+
+        with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+            txn.delete(key)
+
+    def _load_from_lmdb(self, addr: K) -> Function | None:
+        """
+        Load a function from LMDB and bring it back into memory.
+        """
+        if self._lmdb_env is None:
+            return None
+
+        # Prevent recursive loading
+        if addr in self._currently_loading:
+            return None
+
+        self._currently_loading.add(addr)
+        old_loading_state = self._loading_from_lmdb
+        self._loading_from_lmdb = True
+
+        try:
+            key = str(addr).encode("utf-8")
+
+            with self._lmdb_env.begin(db=self._lmdb_funcsdb) as txn:
+                value = txn.get(key)
+                if value is None:
+                    return None
+
+                # Deserialize protobuf
+                from angr.protos import function_pb2
+
+                cmsg = function_pb2.Function()
+                cmsg.ParseFromString(value)
+
+                # Reconstruct function
+                func = Function.parse_from_cmessage(
+                    cmsg,
+                    function_manager=self._backref,
+                    project=self._backref._kb._project,
+                    all_func_addrs=self._backref.function_addrs_set,
+                )
+
+            # Remove from spilled set
+            self._spilled_keys.discard(addr)
+
+            # Add to in-memory map
+            super().__setitem__(addr, func)
+            self._on_function_stored(addr)
+
+            l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
+            return func
+        finally:
+            self._currently_loading.discard(addr)
+            self._loading_from_lmdb = old_loading_state
+
+            # After loading is complete (and we're back to not loading), evict if needed
+            if (
+                not self._loading_from_lmdb
+                and self._eviction_enabled
+                and self._cache_limit is not None
+                and SortedDict.__len__(self) > self._cache_limit
+            ):
+                self._evict_lru()
+
+    def _load_all_spilled(self) -> None:
+        """
+        Load all spilled functions back into memory (disables eviction temporarily).
+        """
+        if not self._spilled_keys:
+            return
+
+        # Temporarily disable eviction
+        old_eviction_state = self._eviction_enabled
+        self._eviction_enabled = False
+
+        try:
+            # Make a copy of spilled_addrs since _load_from_lmdb modifies it
+            addrs_to_load = list(self._spilled_keys)
+            for addr in addrs_to_load:
+                self._load_from_lmdb(addr)
+        finally:
+            self._eviction_enabled = old_eviction_state
+
+
+class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
+    """
+    When cache_limit is set, the FunctionManager uses a SpillingFunctionDict
+    that implements an LRU cache keeping only the most recently accessed N functions
+    in memory, spilling others to an LMDB database on disk. This allows working with
+    binaries that have more functions than can fit in memory.
+
+    :param cache_limit: Maximum number of functions to keep in memory. None means unlimited (no eviction). Default is
+                        None.
+    """
+
+    def __init__(self, kb: KnowledgeBase, cache_limit: int | None = DEFAULT_MAX_CACHED_FUNCTIONS):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
-        self._function_map: FunctionDict[K] = FunctionDict(self, key_types=self.function_address_types)
+
+        # Use SpillingFunctionDict when caching is enabled, otherwise plain FunctionDict
+        if cache_limit is not None:
+            self._function_map: FunctionDict[K] | SpillingFunctionDict[K] = SpillingFunctionDict(
+                self, key_types=self.function_address_types, cache_limit=cache_limit
+            )
+        else:
+            self._function_map = FunctionDict(self, key_types=self.function_address_types)
+
         self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
         self.block_map = {}
@@ -148,7 +605,21 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         for func in self._function_map.values():
             func._function_manager = self
 
+        # Reinitialize cache state
+        self._rplt_cache_ranges = None
+        self._rplt_cache = None
+        self._binname_cache = None
+
+        # If the unpickled function_map is a SpillingFunctionDict, reinitialize its LRU state
+        if isinstance(self._function_map, SpillingFunctionDict):
+            self._function_map._lru_order = OrderedDict()
+            for addr in SortedDict.keys(self._function_map):
+                self._function_map._lru_order[addr] = None
+
     def __getstate__(self):
+        # Before pickling, bring all spilled functions back to memory
+        if isinstance(self._function_map, SpillingFunctionDict):
+            self._function_map._load_all_spilled()
         return {
             "_kb": self._kb,
             "function_address_types": self.function_address_types,
@@ -159,10 +630,14 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         }
 
     def copy(self):
-        fm = FunctionManager(self._kb)
-        fm._function_map = self._function_map.copy()
-        for address, function in fm._function_map.items():
-            fm._function_map[address] = function.copy()
+        cache_limit = None
+        if isinstance(self._function_map, SpillingFunctionDict):
+            cache_limit = self._function_map.cache_limit
+
+        fm = FunctionManager(self._kb, cache_limit=cache_limit)
+        for k, v in self._function_map.items():
+            fm._function_map[k] = v
+        fm._function_map._backref = weakref.proxy(fm)
         fm.callgraph = networkx.MultiDiGraph(self.callgraph)
         fm._arg_registers = self._arg_registers.copy()
         fm.function_addrs_set = self.function_addrs_set.copy()
@@ -170,7 +645,15 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         return fm
 
     def clear(self):
-        self._function_map = FunctionDict(self, key_types=self.function_address_types)
+        if isinstance(self._function_map, SpillingFunctionDict):
+            cache_limit = self._function_map.cache_limit
+            self._function_map.clear()
+            self._function_map = SpillingFunctionDict(
+                self, key_types=self.function_address_types, cache_limit=cache_limit
+            )
+        else:
+            self._function_map = FunctionDict(self, key_types=self.function_address_types)
+
         self.callgraph = networkx.MultiDiGraph()
         self.block_map.clear()
         self.function_addrs_set = set()
@@ -396,7 +879,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
     def __contains__(self, item):
         if type(item) is int:
-            # this is an address
+            # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
             return item in self._function_map
 
         try:
@@ -427,7 +910,9 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
     def __delitem__(self, k):
         if isinstance(k, self.function_address_types):
-            del self._function_map[k]
+            # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
+            if k in self._function_map:
+                del self._function_map[k]
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
             self.function_addrs_set.discard(k)
@@ -438,18 +923,23 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             )
 
     def __len__(self):
+        # Delegate to _function_map (SpillingFunctionDict includes spilled count)
         return len(self._function_map)
 
     def __iter__(self):
-        yield from sorted(self._function_map.keys())
+        # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
+        yield from self._function_map
 
     def get_by_addr(self, addr) -> Function:
         return self._function_map.get(addr)
 
     def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function]:
-        for f in self._function_map.values():
-            if f.name == name or (check_previous_names and name in f.previous_names):
-                yield f
+        # For SpillingFunctionDict, we need to iterate over all addresses
+        # and load spilled functions as needed
+        for addr in self._function_map:
+            func = self._function_map.get(addr)
+            if func.name == name or (check_previous_names and name in func.previous_names):
+                yield func
 
     def _function_added(self, func: Function):
         """
@@ -616,6 +1106,80 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                             and cfgnode.function_address != func.addr
                         ):
                             self.callgraph.add_edge(func.addr, cfgnode.function_address)
+
+    #
+    # LRU Cache Management (delegates to SpillingFunctionDict when available)
+    #
+
+    @property
+    def cache_limit(self) -> int | None:
+        """
+        Get the maximum number of functions to keep in memory. None means unlimited (no eviction).
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            return self._function_map.cache_limit
+        return None
+
+    @cache_limit.setter
+    def cache_limit(self, value: int | None) -> None:
+        """
+        Set the maximum number of functions to keep in memory.
+        If the new limit is lower than the current number of cached functions, excess functions will be evicted to
+        storage.
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            self._function_map.cache_limit = value
+        elif value is not None:
+            # Need to convert FunctionDict to SpillingFunctionDict
+            old_map = self._function_map
+            new_map = SpillingFunctionDict(self, key_types=self.function_address_types, cache_limit=value)
+            # Disable eviction during bulk copy
+            new_map._eviction_enabled = False
+            # Copy existing functions
+            for addr, func in old_map.items():
+                SortedDict.__setitem__(new_map, addr, func)
+                new_map._lru_order[addr] = None
+            # Re-enable eviction
+            new_map._eviction_enabled = True
+            self._function_map = new_map
+            # Now trigger eviction if needed
+            self._function_map._evict_lru()
+
+    @property
+    def cached_function_count(self) -> int:
+        """
+        Return the number of functions currently in memory.
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            return self._function_map.cached_count
+        return len(self._function_map)
+
+    @property
+    def spilled_function_count(self) -> int:
+        """
+        Return the number of functions currently spilled to LMDB.
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            return self._function_map.spilled_count
+        return 0
+
+    @property
+    def total_function_count(self) -> int:
+        """
+        Return the total number of functions (in memory + spilled).
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            return self._function_map.total_count
+        return len(self._function_map)
+
+    @property
+    def _spilled_addrs(self) -> set:
+        """
+        Proxy for backward compatibility - access spilled addresses from SpillingFunctionDict.
+        """
+        if isinstance(self._function_map, SpillingFunctionDict):
+            return self._function_map._spilled_keys
+        return set()
 
 
 KnowledgeBasePlugin.register_default("functions", FunctionManager)
