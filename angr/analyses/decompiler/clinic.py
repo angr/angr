@@ -14,6 +14,8 @@ import capstone
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import VirtualVariable
+from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.decompiler.fix_killing_references import new_vars_for_killing_references
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -796,6 +798,13 @@ class Clinic(Analysis):
         )
 
     def _stage_post_callsite_simplifications(self) -> None:
+        # make new vvars if any function call takes a strict outparam
+        self.vvar_id_start = new_vars_for_killing_references(
+            self._ail_graph,
+            next(iter(bb for bb in self._ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            self.vvar_id_start,
+        )
+
         self.arg_list = []
         self.vvar_to_vvar = {}
         self.copied_var_ids = set()
@@ -1841,9 +1850,10 @@ class Clinic(Analysis):
             removed_vvar_ids = set()
 
         def _handler(block):
-            csm = self.project.analyses.AILCallSiteMaker(
-                block,
+            csm = self.project.analyses[CallSiteMaker].prep(
                 fail_fast=self._fail_fast,
+            )(
+                block,
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
