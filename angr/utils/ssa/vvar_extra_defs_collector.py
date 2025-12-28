@@ -17,10 +17,10 @@ class FindExtraDefs(AILBlockViewer):
     def _handle_UnaryOp(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
         assert block is not None
         assert stmt is not None
-        if expr.op == "Reference" and expr.tags.get("extra_def", False):
+        for varid in expr.tags.get("extra_defs", []):
             assert isinstance(expr.operand, VirtualVariable)
-            self.found[expr.operand.varid] = (
+            self.found[varid] = (
                 expr.operand,
-                AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags["ins_addr"]),
+                AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr", None)),
             )
         super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)

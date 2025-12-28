@@ -201,5 +201,5 @@ class ChangeKillingReferences(AILBlockRewriter):
             and isinstance(expr.operand, VirtualVariable)
             and expr.operand.varid in self.replacements
         ):
-            result.tags["extra_def"] = True
+            result.tags["extra_defs"] = [self.replacements[expr.operand.varid]]
         return result
