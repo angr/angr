@@ -174,8 +174,10 @@ def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, se
     return tmp_to_loc
 
 
-def is_const_assignment(stmt: Statement) -> tuple[bool, Const | StackBaseOffset | None]:
-    if isinstance(stmt, Assignment) and isinstance(stmt.src, (Const, StackBaseOffset)):
+def is_const_assignment(stmt: Statement, only_consts: bool = False) -> tuple[bool, Const | StackBaseOffset | None]:
+    if isinstance(stmt, Assignment) and (
+        isinstance(stmt.src, Const) or (not only_consts and isinstance(stmt.src, StackBaseOffset))
+    ):
         return True, stmt.src
     return False, None
 

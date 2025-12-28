@@ -408,7 +408,7 @@ class SPropagatorAnalysis(Analysis):
 
                 stmt = block.statements[tmp_def_stmtidx]
                 if isinstance(stmt, Assignment):
-                    r, v = is_const_assignment(stmt)
+                    r, v = is_const_assignment(stmt, self.only_consts)
                     if r:
                         # we can propagate it!
                         for tmp_used, tmp_use_stmtidx in tmp_uses:
