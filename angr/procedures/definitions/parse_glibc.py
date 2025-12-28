@@ -28,6 +28,18 @@ DISPOSITIONS: dict[tuple[str, int], PointerDisposition] = {
     ("strcat", 1): PointerDisposition.IN,
     ("stpcpy", 0): PointerDisposition.OUT,
     ("stpcpy", 1): PointerDisposition.IN,
+    ("readlink", 0): PointerDisposition.IN,
+    ("readlink", 1): PointerDisposition.OUT,
+    ("readlinkat", 1): PointerDisposition.IN,
+    ("readlinkat", 2): PointerDisposition.OUT,
+    ("stat", 0): PointerDisposition.IN,
+    (
+        "stat",
+        1,
+    ): PointerDisposition.OUT,  # technically incorrect - this should say OUTMAYBE. that gives us worse results most of the time though...
+    ("lstat", 0): PointerDisposition.IN,
+    ("lstat", 1): PointerDisposition.OUT,
+    ("fstat", 1): PointerDisposition.OUT,
 }
 
 
@@ -95,7 +107,7 @@ def main():
         d["functions"][func_name] = {"proto": json.dumps(proto.to_json()).replace('"', "'")}
 
     os.makedirs("common", exist_ok=True)
-    with open("common/glibc.json", "w", encoding="utf-8") as f:
+    with open(os.path.join(os.path.dirname(__file__), "common/glibc.json"), "w", encoding="utf-8") as f:
         f.write(json.dumps(d, indent="\t"))
 
 
