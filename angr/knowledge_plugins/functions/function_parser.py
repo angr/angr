@@ -60,7 +60,8 @@ class FunctionParser:
         obj.is_plt = function.is_plt
         obj.is_syscall = function.is_syscall
         obj.is_simprocedure = function.is_simprocedure
-        obj.returning = function.returning
+        if function.returning is not None:
+            obj.returning = function.returning
         obj.alignment = function.is_alignment
         obj.binary_name = function.binary_name or ""
         obj.normalized = function.normalized
