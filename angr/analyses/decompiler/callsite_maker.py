@@ -382,7 +382,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
+    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
