@@ -2608,7 +2608,7 @@ class Clinic(Analysis):
         )
 
         # build the false block
-        false_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        false_block = self.project.factory.block(ite_ins_addr, num_inst=1, cross_insn_opt=False)
         false_block_ail = ailment.IRSBConverter.convert(false_block.vex, self._ail_manager)
         false_block_ail.addr = false_block_addr
 
@@ -2912,12 +2912,16 @@ class Clinic(Analysis):
         split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
         # note that the two blocks can be fully overlapping, so block_0 will be empty...
         intended_head_block_0 = (
-            self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+            self.project.factory.block(
+                intended_head.addr, size=split_ins_addr - intended_head.addr, cross_insn_opt=False
+            )
             if split_ins_addr != intended_head.addr
             else None
         )
         intended_head_block_1 = self.project.factory.block(
-            split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
+            split_ins_addr,
+            size=intended_head.addr + intended_head.original_size - split_ins_addr,
+            cross_insn_opt=False,
         )
         intended_head_0 = self._convert_vex(intended_head_block_0) if intended_head_block_0 is not None else None
         intended_head_1 = self._convert_vex(intended_head_block_1)
@@ -2962,7 +2966,9 @@ class Clinic(Analysis):
                 o_block = self.project.factory.block(o.addr, size=o.original_size)
                 o_split_addr = o_block.instruction_addrs[-other_head_split_insns]
                 new_o_block = (
-                    self.project.factory.block(o.addr, size=o_split_addr - o.addr) if o_split_addr != o.addr else None
+                    self.project.factory.block(o.addr, size=o_split_addr - o.addr, cross_insn_opt=False)
+                    if o_split_addr != o.addr
+                    else None
                 )
                 new_head = self._convert_vex(new_o_block) if new_o_block is not None else None
             else:
