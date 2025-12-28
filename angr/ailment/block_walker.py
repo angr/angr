@@ -97,8 +97,8 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
     def _handle_block_end(self, stmt_results: list[StmtType], block: Block) -> BlockType:
         raise NotImplementedError
 
-    def walk_statement(self, stmt: Statement, block: Block | None = None) -> StmtType:
-        return self._handle_stmt(0, stmt, block)
+    def walk_statement(self, stmt: Statement, block: Block | None = None, stmt_idx: int = 0) -> StmtType:
+        return self._handle_stmt(stmt_idx, stmt, block)
 
     def walk_expression(
         self,
