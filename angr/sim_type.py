@@ -3232,7 +3232,7 @@ GLIBC_TYPES = {
         name="dirent64",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
-    "stat": SimStruct(
+    "struct stat": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -3250,7 +3250,7 @@ GLIBC_TYPES = {
         name="stat",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L86
-    "stat64": SimStruct(
+    "struct stat64": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
