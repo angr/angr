@@ -965,16 +965,19 @@ class SimTypePointer(SimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = SimTypePointer(self.pts_to.with_arch(arch), self.label, self.offset, self.disposition)
         out._arch = arch
         return out
 
     def _init_str(self):
         label_str = f', label="{self.label}"' if self.label is not None else ""
-        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}, offset={self.offset})"
+        disposition_str = (
+            f", disposition={int(self.disposition)}" if self.disposition != PointerDisposition.UNKNOWN else ""
+        )
+        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}{disposition_str}, offset={self.offset})"
 
     def copy(self):
-        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset, disposition=self.disposition)
 
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
