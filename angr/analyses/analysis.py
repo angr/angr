@@ -57,6 +57,8 @@ if TYPE_CHECKING:
     from .calling_convention import CallingConventionAnalysis
     from .decompiler.decompiler import Decompiler
     from .xrefs import XRefsAnalysis
+    from .s_reaching_definitions import SReachingDefinitionsAnalysis
+    from .s_propagator import SPropagatorAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
 
@@ -169,6 +171,8 @@ class KnownAnalysesPlugin(typing.Protocol):
     CallingConvention: type[CallingConventionAnalysis]
     Decompiler: type[Decompiler]
     XRefs: type[XRefsAnalysis]
+    SReachingDefinitions: type[SReachingDefinitionsAnalysis]
+    SPropagator: type[SPropagatorAnalysis]
 
 
 class AnalysesHubWithDefault(AnalysesHub, KnownAnalysesPlugin):

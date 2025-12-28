@@ -21,9 +21,10 @@ def new_vars_for_killing_references(
 
     if finder.confirmed_redefine:
         rewriter = ChangeKillingReferences()
-        for varid, loc in finder.confirmed_redefine.items():
-            rewriter.pending_replacements[loc].append((varid, next_vvar))
-            next_vvar += 1
+        for varid, locs in finder.confirmed_redefine.items():
+            for loc in locs:
+                rewriter.pending_replacements[loc].append((varid, next_vvar))
+                next_vvar += 1
         traverse_in_order(ail_graph, entry_block, rewriter.walk)
 
     return next_vvar
@@ -77,7 +78,7 @@ class FindKillingReferences(AILBlockWalker[State, None, None]):
         self.vvar_state: dict[int, State] = {}
         self.potential_redefine: dict[int, AILCodeLocation] = {}
         self.phi_uses: MutableMapping[int, set[int]] = defaultdict(set)
-        self.confirmed_redefine: dict[int, AILCodeLocation] = {}
+        self.confirmed_redefine: MutableMapping[int, list[AILCodeLocation]] = defaultdict(list)
 
     def _top(self, expr_idx: int, expr, stmt_idx: int, stmt, block):
         return set()
@@ -129,7 +130,7 @@ class FindKillingReferences(AILBlockWalker[State, None, None]):
             if (
                 val[0] is not None and val[1] == 0 and (loc := self.potential_redefine.pop(val[0], None)) is not None
             ):  # relax the second condition?
-                self.confirmed_redefine[val[0]] = loc
+                self.confirmed_redefine[val[0]].append(loc)
 
     def _handle_Assignment(self, stmt_idx: int, stmt, block):
         val = self._handle_expr(0, stmt.src, stmt_idx, stmt, block)
