@@ -60,20 +60,21 @@ class DisassemblerInsn:
         self.address = None
         self.mnemonic = None
         self.op_str = None
-    #@property
-    #def size(self) -> int:
+
+    # @property
+    # def size(self) -> int:
     #    raise NotImplementedError
 
-    #@property
-    #def address(self) -> int:
+    # @property
+    # def address(self) -> int:
     #    raise NotImplementedError
 
-    #@property
-    #def mnemonic(self) -> str:
+    # @property
+    # def mnemonic(self) -> str:
     #    raise NotImplementedError
 
-    #@property
-    #def op_str(self) -> str:
+    # @property
+    # def op_str(self) -> str:
     #    raise NotImplementedError
 
     def __str__(self):
@@ -430,18 +431,18 @@ class Block(Serializable):
             block_bytes = block_bytes[: self.size]
         if isinstance(self.arch, ArchRISCV64):
             try:
-                for cs_insn in disasm(block_bytes, self.addr, arch='riscv64').splitlines():
-                    elems = cs_insn.split(':', 1)
+                for cs_insn in disasm(block_bytes, self.addr, arch="riscv64").splitlines():
+                    elems = cs_insn.split(":", 1)
                     addr = elems[0].strip()
                     addr = int(addr, 16)
-                    insn_str = elems[1].strip().split(' ', 1)[1].strip()
-                    elems = insn_str.split(' ', 1)
+                    insn_str = elems[1].strip().split(" ", 1)[1].strip()
+                    elems = insn_str.split(" ", 1)
 
                     insn = DisassemblerInsn()
                     insn.size = len(block_bytes)
                     insn.address = addr
                     insn.mnemonic = elems[0].strip()
-                    insn.op_str = elems[1].strip() if len(elems) > 1 else ''
+                    insn.op_str = elems[1].strip() if len(elems) > 1 else ""
                     insns.append(insn)
             except Exception:
                 pass
