@@ -525,6 +525,8 @@ class TestDecompiler(unittest.TestCase):
         cca = p.analyses[CallingConventionAnalysis].prep()(f)
         f.calling_convention = cca.cc
         f.prototype = cca.prototype
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = p.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {f!r}."
         print_decompilation_result(dec)
@@ -579,6 +581,8 @@ class TestDecompiler(unittest.TestCase):
         optimization_passes = DECOMPILATION_PRESETS["full"].get_optimization_passes(
             p.arch, p.simos.name, additional_opts=DUPLICATING_OPTS
         )
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = p.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=optimization_passes
         )
@@ -928,6 +932,8 @@ class TestDecompiler(unittest.TestCase):
 
         func = cfg.functions[0x100003890]
 
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = p.analyses[Decompiler].prep(fail_fast=True)(func, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         print_decompilation_result(dec)
@@ -2089,6 +2095,8 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["advance_input_after_read_error"]
 
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
@@ -2620,6 +2628,8 @@ class TestDecompiler(unittest.TestCase):
 
         cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
         f = proj.kb.functions["main"]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
@@ -2887,6 +2897,8 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions[0x4030D0]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         print_decompilation_result(d)
@@ -3363,6 +3375,8 @@ class TestDecompiler(unittest.TestCase):
 
         f = proj.kb.functions["bridge_print_opt"]
         proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True, analyze_callsites=True)
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler](f, cfg=cfg.model, options=decompiler_options)
 
         print_decompilation_result(d)
@@ -3728,6 +3742,8 @@ class TestDecompiler(unittest.TestCase):
             "AMD64", "linux", disable_opts={InlinedStringTransformationSimplifier}
         )
 
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(
             f, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
@@ -4366,6 +4382,8 @@ class TestDecompiler(unittest.TestCase):
 
         # setSBUpLow
         f = proj.kb.functions[0x14002EC04]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
@@ -4405,6 +4423,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
 
         f = proj.kb.functions["main"]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
@@ -4537,6 +4557,8 @@ class TestDecompiler(unittest.TestCase):
         assert entry is not None
         entry.prototype = SimTypeFunction([], SimTypeLongLong(signed=True)).with_arch(p.arch)
         # decompile!
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = p.analyses.Decompiler(entry, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and isinstance(dec.codegen.text, str)
         print_decompilation_result(dec)
@@ -4613,6 +4635,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(analyze_callsites=True)
 
         f = proj.kb.functions[0x4012F0]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
@@ -4785,6 +4809,8 @@ class TestDecompiler(unittest.TestCase):
         proj.analyses.CompleteCallingConventions(analyze_callsites=True)
 
         f = proj.kb.functions[0x403670]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
@@ -5181,6 +5207,8 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x402360]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
@@ -5321,6 +5349,8 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFG(normalize=True)
         proj.analyses.CompleteCallingConventions()
         func = proj.kb.functions["assign_ite"]
+        decompiler_options = decompiler_options or []
+        decompiler_options.append(("semvar_naming", False))
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)

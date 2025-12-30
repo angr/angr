@@ -165,6 +165,7 @@ class Clinic(Analysis):
         notes: dict[str, DecompilationNote] | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        semvar_naming: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -217,6 +218,10 @@ class Clinic(Analysis):
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
+        self._semvar_naming = semvar_naming
+
+        if not semvar_naming and ClinicStage.SEMANTIC_VARIABLE_NAMING not in self._skip_stages:
+            self._skip_stages += (ClinicStage.SEMANTIC_VARIABLE_NAMING,)
 
         #
         # intermediate variables used during decompilation
