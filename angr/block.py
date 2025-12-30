@@ -5,8 +5,7 @@ from typing import TYPE_CHECKING
 
 import pyvex
 from pyvex import IRSB
-from archinfo import Arch, ArchARM, ArchRISCV64
-from pwnlib.asm import disasm
+from archinfo import Arch, ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
@@ -61,21 +60,21 @@ class DisassemblerInsn:
         self.mnemonic = None
         self.op_str = None
 
-    # @property
-    # def size(self) -> int:
-    #    raise NotImplementedError
+    @property
+    def size(self) -> int:
+        raise NotImplementedError
 
-    # @property
-    # def address(self) -> int:
-    #    raise NotImplementedError
+    @property
+    def address(self) -> int:
+        raise NotImplementedError
 
-    # @property
-    # def mnemonic(self) -> str:
-    #    raise NotImplementedError
+    @property
+    def mnemonic(self) -> str:
+        raise NotImplementedError
 
-    # @property
-    # def op_str(self) -> str:
-    #    raise NotImplementedError
+    @property
+    def op_str(self) -> str:
+        raise NotImplementedError
 
     def __str__(self):
         return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
@@ -127,6 +126,48 @@ class CapstoneInsn(DisassemblerInsn):
         raise AttributeError
 
 
+class PCodeBlock(DisassemblerBlock):
+    """
+    Deep copy of the pcode blocks
+    """
+
+    __slots__ = ()
+
+
+class PCodeInsn(DisassemblerInsn):
+    """
+    Represents a capstone instruction.
+    """
+
+    __slots__ = ("insn",)
+
+    def __init__(self, pcode_insn):
+        self.insn = pcode_insn
+
+    @property
+    def size(self) -> int:
+        return self.insn.length
+
+    @property
+    def address(self) -> int:
+        return self.insn.addr.offset
+
+    @property
+    def mnemonic(self) -> str:
+        return self.insn.mnem
+
+    @property
+    def op_str(self) -> str:
+        return self.insn.body
+
+    def __getattr__(self, item):
+        if item in ("__str__", "__repr__"):
+            return self.__getattribute__(item)
+        if hasattr(self.insn, item):
+            return getattr(self.insn, item)
+        raise AttributeError
+
+
 class Block(Serializable):
     """
     Represents a basic block in a binary or a program.
@@ -149,6 +190,7 @@ class Block(Serializable):
         "_load_from_ro_regions",
         "_max_size",
         "_opt_level",
+        "_pcode",
         "_project",
         "_strict_block_end",
         "_traceflags",
@@ -217,6 +259,7 @@ class Block(Serializable):
         self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
+        self._pcode = None
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
@@ -418,40 +461,21 @@ class Block(Serializable):
         return block
 
     @property
-    def capstone2(self) -> CapstoneBlock:
-        if self._capstone:
-            return self._capstone
-
-        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb  # type:ignore
+    def pcode(self) -> PCodeBlock:
+        if self._pcode:
+            return self._pcode
 
         insns = []
 
         block_bytes = self.bytes
         if self.size is not None:
             block_bytes = block_bytes[: self.size]
-        if isinstance(self.arch, ArchRISCV64):
-            try:
-                for cs_insn in disasm(block_bytes, self.addr, arch="riscv64").splitlines():
-                    elems = cs_insn.split(":", 1)
-                    addr = elems[0].strip()
-                    addr = int(addr, 16)
-                    insn_str = elems[1].strip().split(" ", 1)[1].strip()
-                    elems = insn_str.split(" ", 1)
+        lifter = pcode.lifter.PcodeLifter.get_lifter(self.arch)
+        for cs_insn in lifter.context.disassemble(block_bytes, self.addr).instructions:
+            insns.append(PCodeInsn(cs_insn))
+        block = PCodeBlock(self.addr, insns, self.thumb, self.arch)
 
-                    insn = DisassemblerInsn()
-                    insn.size = len(block_bytes)
-                    insn.address = addr
-                    insn.mnemonic = elems[0].strip()
-                    insn.op_str = elems[1].strip() if len(elems) > 1 else ""
-                    insns.append(insn)
-            except Exception:
-                pass
-        else:
-            for cs_insn in cs.disasm(block_bytes, self.addr):
-                insns.append(CapstoneInsn(cs_insn))
-        block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
-
-        self._capstone = block
+        self._pcode = block
         return block
 
     @property
