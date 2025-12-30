@@ -54,7 +54,7 @@ class SemanticNamingOrchestrator:
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
         entry_node: ailment.Block | None = None,
-        patterns: list[type[SemanticNamingBase]] | None = None,
+        patterns: list[type[ClinicNamingBase]] | None = None,
     ):
         self._graph = ail_graph
         self._variable_manager = variable_manager

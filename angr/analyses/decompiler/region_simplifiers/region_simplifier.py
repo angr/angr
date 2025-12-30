@@ -261,6 +261,7 @@ class RegionSimplifier(Analysis):
         return region
 
     def _apply_region_loop_counter_naming(self, region) -> None:
+        assert self._variable_manager is not None
         namer = RegionLoopCounterNaming(region, self._variable_manager, self.kb.functions)
         namer.analyze()
         namer.apply_names()

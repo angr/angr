@@ -15,6 +15,7 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
+from typing import TYPE_CHECKING
 import os
 import unittest
 import re
@@ -22,6 +23,9 @@ import re
 import angr
 
 from tests.common import bin_location, print_decompilation_result, WORKER
+
+if TYPE_CHECKING:
+    from angr.analyses.decompiler import Decompiler
 
 
 test_location = os.path.join(bin_location, "tests")
@@ -42,44 +46,35 @@ class TestSemvarNaming(unittest.TestCase):
         )
         cls.proj.analyses.CompleteCallingConventions()
 
-    def _decompile_function(self, func_name: str):
+    def _decompile_function(self, func_name: str) -> tuple[Decompiler, str]:
         """Helper to decompile a function by name."""
-        func = self.cfg.functions.get(func_name)
-        if func is None:
-            # Try to find by symbol
-            for f in self.cfg.functions.values():
-                if f.name == func_name:
-                    func = f
-                    break
-        self.assertIsNotNone(func, f"Function {func_name} not found")
+        func = self.cfg.functions[func_name]
+        assert func is not None, f"Function {func_name} not found"
         dec = self.proj.analyses.Decompiler(func)
-        self.assertIsNotNone(dec.codegen)
-        self.assertIsNotNone(dec.codegen.text)
+        assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        return dec
+        return dec, dec.codegen.text
 
     def test_loop_counter_naming_nested_two(self):
         """Test that nested loops get i, j naming."""
-        dec = self._decompile_function("sum_matrix")
+        _, code = self._decompile_function("sum_matrix")
 
         # Check for outer loop with 'i'
         assert (
-            re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", dec.codegen.text) is not None
+            re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None
         ), "Expected outer loop counter 'i' not found"
 
         # Check for inner loop with 'j'
         assert (
-            re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", dec.codegen.text) is not None
+            re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None
         ), "Expected inner loop counter 'j' not found"
 
     def test_loop_counter_naming_triple_nested(self):
         """Test that triple nested loops get i, j, k naming."""
-        dec = self._decompile_function("triple_nested_loops")
+        _, text = self._decompile_function("triple_nested_loops")
 
         # Check for all three loop counters
         # Note: The exact pattern depends on decompiler output format
-        text = dec.codegen.text
-
         # Should have i, j, k as loop counters
         has_i = "i" in text
         has_j = "j" in text
@@ -91,8 +86,7 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_pointer_naming(self):
         """Test that pointer variables get appropriate naming."""
-        dec = self._decompile_function("pointer_test")
-        text = dec.codegen.text
+        _, text = self._decompile_function("pointer_test")
 
         # Should have pointer-like variable names
         # The pointer iterating through the array should be named
@@ -102,8 +96,7 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_linked_list_naming(self):
         """Test that linked list traversal gets appropriate naming."""
-        dec = self._decompile_function("sum_linked_list")
-        text = dec.codegen.text
+        _, text = self._decompile_function("sum_linked_list")
 
         # Should have iterator-like variable names for linked list traversal
         # Common patterns: cur, iter, node
@@ -114,8 +107,7 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_array_index_naming(self):
         """Test that array index variables get appropriate naming."""
-        dec = self._decompile_function("array_scale")
-        text = dec.codegen.text
+        _, text = self._decompile_function("array_scale")
 
         # Should have index-like variable names
         # Common patterns: i, idx, index
@@ -125,32 +117,28 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_call_result_naming_malloc(self):
         """Test that malloc result gets 'ptr' naming."""
-        dec = self._decompile_function("duplicate_string")
-        text = dec.codegen.text
+        _, text = self._decompile_function("duplicate_string")
 
         # Should have malloc call and result stored in ptr-like variable
         assert "malloc" in text and "ptr" in text, "Expected malloc or pointer variable not found"
 
     def test_call_result_naming_strlen(self):
         """Test that strlen result gets 'len' naming."""
-        dec = self._decompile_function("duplicate_string")
-        text = dec.codegen.text
+        _, text = self._decompile_function("duplicate_string")
 
         # Should have strlen call and result stored in len-like variable
         assert "strlen" in text and "len" in text, "Expected strlen or length variable not found"
 
     def test_size_parameter_naming(self):
         """Test that size parameters get appropriate naming."""
-        dec = self._decompile_function("copy_data")
-        text = dec.codegen.text
+        _, text = self._decompile_function("copy_data")
 
         # Should have memcpy call with size parameter
         assert "memcpy" in text, "Expected memcpy call not found"
 
     def test_boolean_flag_naming(self):
         """Test that boolean flag variables get appropriate naming."""
-        dec = self._decompile_function("find_value")
-        text = dec.codegen.text
+        _, text = self._decompile_function("find_value")
 
         # Should have boolean-like variable patterns
         # Also check for 0/1 assignments typical of boolean flags
@@ -161,8 +149,7 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_multiple_boolean_flags(self):
         """Test function with multiple boolean flags."""
-        dec = self._decompile_function("validate_input")
-        text = dec.codegen.text
+        _, text = self._decompile_function("validate_input")
 
         # Should have multiple boolean-like variables
         # Check for typical boolean patterns
@@ -171,24 +158,21 @@ class TestSemvarNaming(unittest.TestCase):
 
     def test_file_io_naming(self):
         """Test that file I/O functions get appropriate naming."""
-        dec = self._decompile_function("read_file_size")
-        text = dec.codegen.text
+        _, text = self._decompile_function("read_file_size")
 
         # Should have fopen call and result in fp-like variable
         assert "fopen" in text and "fp" in text, "Expected fopen call not found"
 
     def test_memory_allocation_naming(self):
         """Test that memory allocation functions get appropriate naming."""
-        dec = self._decompile_function("allocate_buffer")
-        text = dec.codegen.text
+        _, text = self._decompile_function("allocate_buffer")
 
         # Should have malloc call
         assert "malloc" in text, "Expected malloc call not found"
 
     def test_string_processing(self):
         """Test function with multiple naming patterns."""
-        dec = self._decompile_function("count_words")
-        text = dec.codegen.text
+        _, text = self._decompile_function("count_words")
 
         # Should have various patterns:
         # - count variable

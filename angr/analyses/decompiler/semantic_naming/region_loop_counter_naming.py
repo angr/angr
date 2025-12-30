@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
 
-from angr.ailment.statement import Assignment, Store
+from angr.ailment.statement import Statement, Assignment
 from angr.ailment.expression import Expression, BinaryOp
 from angr.sim_variable import SimVariable
 from angr.analyses.decompiler.structuring.structurer_nodes import (
@@ -20,12 +20,12 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     CodeNode,
     ConditionNode,
     CascadingConditionNode,
+    BaseNode,
 )
 
 from .naming_base import RegionNamingBase
 
 if TYPE_CHECKING:
-    from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 
@@ -113,8 +113,9 @@ class RegionLoopCounterNaming(RegionNamingBase):
 
         elif isinstance(node, CascadingConditionNode):
             for _, child_node in node.condition_and_nodes:
-                self._collect_loop_nodes(child_node, nesting_depth)
-            if node.else_node is not None:
+                if isinstance(child_node, BaseNode):
+                    self._collect_loop_nodes(child_node, nesting_depth)
+            if node.else_node is not None and isinstance(node.else_node, BaseNode):
                 self._collect_loop_nodes(node.else_node, nesting_depth)
 
     def _identify_loop_counters(self) -> None:
@@ -169,13 +170,13 @@ class RegionLoopCounterNaming(RegionNamingBase):
         # We just need to extract the variable from the destination
         return dst_var
 
-    def _extract_counter_from_initializer(self, initializer) -> SimVariable | None:
+    def _extract_counter_from_initializer(self, initializer: Statement) -> SimVariable | None:
         """
         Extract the counter variable from a loop initializer statement.
 
         Pattern: i = 0 (Assignment with Const)
         """
-        if not isinstance(initializer, (Assignment, Store)):
+        if not isinstance(initializer, Assignment):
             return None
         return self._get_linked_variable(initializer.dst)
 
