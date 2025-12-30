@@ -62,19 +62,19 @@ class DisassemblerInsn:
 
     @property
     def size(self) -> int:
-       raise NotImplementedError
+        raise NotImplementedError
 
     @property
     def address(self) -> int:
-       raise NotImplementedError
+        raise NotImplementedError
 
     @property
     def mnemonic(self) -> str:
-       raise NotImplementedError
+        raise NotImplementedError
 
     @property
     def op_str(self) -> str:
-       raise NotImplementedError
+        raise NotImplementedError
 
     def __str__(self):
         return f"{self.address:#x}:\t{self.mnemonic}\t{self.op_str}"
@@ -125,6 +125,7 @@ class CapstoneInsn(DisassemblerInsn):
             return getattr(self.insn, item)
         raise AttributeError
 
+
 class PCodeBlock(DisassemblerBlock):
     """
     Deep copy of the pcode blocks
@@ -166,6 +167,7 @@ class PCodeInsn(DisassemblerInsn):
             return getattr(self.insn, item)
         raise AttributeError
 
+
 class Block(Serializable):
     """
     Represents a basic block in a binary or a program.
@@ -177,7 +179,6 @@ class Block(Serializable):
         "_backup_state",
         "_bytes",
         "_capstone",
-        "_pcode",
         "_collect_data_refs",
         "_const_prop",
         "_cross_insn_opt",
@@ -189,6 +190,7 @@ class Block(Serializable):
         "_load_from_ro_regions",
         "_max_size",
         "_opt_level",
+        "_pcode",
         "_project",
         "_strict_block_end",
         "_traceflags",
