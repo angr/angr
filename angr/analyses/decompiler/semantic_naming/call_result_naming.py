@@ -13,7 +13,7 @@ from angr import ailment
 from angr.ailment.statement import Assignment, Call
 from angr.sim_variable import SimVariable
 
-from .naming_base import SemanticNamingBase
+from .naming_base import ClinicNamingBase
 
 if TYPE_CHECKING:
     pass
@@ -100,7 +100,7 @@ FUNCTION_RESULT_NAMES = {
 }
 
 
-class CallResultNaming(SemanticNamingBase):
+class CallResultNaming(ClinicNamingBase):
     """
     Detects variables that store function call results and names them
     based on the called function.

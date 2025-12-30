@@ -384,12 +384,17 @@ class Decompiler(Analysis):
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
+            # Get variable manager for loop counter naming in RegionSimplifier
+            variable_manager = None
+            if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
+                variable_manager = clinic.variable_kb.variables[self.func.addr]
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
                 arg_vvars=set(self.clinic.arg_vvars),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
+                variable_manager=variable_manager,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result

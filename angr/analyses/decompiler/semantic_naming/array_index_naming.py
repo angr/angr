@@ -13,7 +13,7 @@ from angr.ailment.expression import BinaryOp, Const, Load
 from angr.ailment.statement import Store
 from angr.sim_variable import SimVariable
 
-from .naming_base import SemanticNamingBase
+from .naming_base import ClinicNamingBase
 
 if TYPE_CHECKING:
     from angr.ailment import Expression
@@ -25,7 +25,7 @@ l = logging.getLogger(name=__name__)
 ARRAY_INDEX_NAMES = ["idx", "index", "pos", "off"]
 
 
-class ArrayIndexNaming(SemanticNamingBase):
+class ArrayIndexNaming(ClinicNamingBase):
     """
     Detects variables used as array indices and renames them.
 

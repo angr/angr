@@ -3,6 +3,9 @@
 Orchestrator for semantic variable naming patterns.
 
 This module coordinates multiple naming patterns and applies them in priority order.
+
+Note: Loop counter naming is NOT included here as it runs in RegionSimplifier
+after structuring, where it can leverage the structured LoopNode information.
 """
 from __future__ import annotations
 from typing import TYPE_CHECKING
@@ -12,8 +15,7 @@ import networkx
 
 from angr import ailment
 from angr.sim_variable import SimVariable
-from .naming_base import SemanticNamingBase
-from .loop_counter_naming import LoopCounterNaming
+from .naming_base import ClinicNamingBase
 from .array_index_naming import ArrayIndexNaming
 from .call_result_naming import CallResultNaming
 from .size_naming import SizeNaming
@@ -26,9 +28,10 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-# All available naming patterns, will be sorted by priority
-NAMING_PATTERNS: list[type[SemanticNamingBase]] = [
-    LoopCounterNaming,
+# All available naming patterns that run in Clinic, will be sorted by priority
+# Note: LoopCounterNaming is NOT included here - it runs in RegionSimplifier
+# after structuring to leverage the structured LoopNode information.
+NAMING_PATTERNS: list[type[ClinicNamingBase]] = [
     PointerNaming,
     ArrayIndexNaming,
     CallResultNaming,

@@ -13,7 +13,7 @@ from angr.ailment import Block
 from angr.ailment.statement import Call
 from angr.sim_variable import SimVariable
 
-from .naming_base import SemanticNamingBase
+from .naming_base import ClinicNamingBase
 
 l = logging.getLogger(name=__name__)
 
@@ -49,7 +49,7 @@ SIZE_PARAM_FUNCTIONS = {
 }
 
 
-class SizeNaming(SemanticNamingBase):
+class SizeNaming(ClinicNamingBase):
     """
     Detects variables used as sizes, lengths, or counts based on:
     1. Being passed as size parameters to known functions

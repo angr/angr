@@ -1,6 +1,10 @@
 # pylint:disable=missing-class-docstring,missing-function-docstring
 """
 Base class for semantic variable naming patterns.
+
+This module provides two base classes for semantic naming:
+- ClinicNamingBase: For passes running in Clinic on AIL graphs
+- RegionNamingBase: For passes running in RegionSimplifier on structured regions
 """
 from __future__ import annotations
 from abc import ABC, abstractmethod
@@ -17,6 +21,7 @@ if TYPE_CHECKING:
     from angr.ailment import Block
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
     from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+    from angr.analyses.decompiler.structuring.structurer_nodes import BaseNode
 
 l = logging.getLogger(name=__name__)
 
@@ -26,6 +31,7 @@ class SemanticNamingBase(ABC):
     Abstract base class for semantic variable naming patterns.
 
     Subclasses implement specific naming patterns (loop counters, array indices, etc.)
+    This is the common base for both Clinic-based and RegionSimplifier-based passes.
     """
 
     # Priority determines order of application (lower = higher priority)
@@ -34,34 +40,17 @@ class SemanticNamingBase(ABC):
 
     def __init__(
         self,
-        ail_graph: networkx.DiGraph,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
-        entry_node: Block | None = None,
     ):
-        self._graph = ail_graph
         self._variable_manager = variable_manager
         self._functions = functions
-        self._entry_node = entry_node or self._find_entry_node()
         self._var_to_new_name: dict[SimVariable, str] = {}
-
-    def _find_entry_node(self) -> Block | None:
-        """Find the entry node of the graph."""
-        if not self._graph:
-            return None
-
-        # Find nodes with no predecessors
-        entry_candidates = [n for n in self._graph if self._graph.in_degree[n] == 0]
-        if entry_candidates:
-            return min(entry_candidates, key=lambda n: (n.addr, n.idx or 0))
-
-        # Fall back to node with the lowest address
-        return min(self._graph, key=lambda n: (n.addr, n.idx or 0))
 
     @abstractmethod
     def analyze(self) -> dict[SimVariable, str]:
         """
-        Analyze the graph and return a mapping of variables to their suggested names.
+        Analyze and return a mapping of variables to their suggested names.
 
         :return: Dictionary mapping SimVariable to suggested name
         """
@@ -161,3 +150,55 @@ class SemanticNamingBase(ABC):
     def _normalize_name(name: str) -> str:
         """Normalize a function name for matching."""
         return name.lower().strip("_")
+
+
+class ClinicNamingBase(SemanticNamingBase):
+    """
+    Base class for semantic naming passes that run in Clinic on AIL graphs.
+
+    These passes operate on the raw AIL graph before structuring, allowing them
+    to analyze control flow patterns directly.
+    """
+
+    def __init__(
+        self,
+        ail_graph: networkx.DiGraph,
+        variable_manager: VariableManagerInternal,
+        functions: FunctionManager,
+        entry_node: Block | None = None,
+    ):
+        super().__init__(variable_manager, functions)
+        self._graph = ail_graph
+        self._entry_node = entry_node or self._find_entry_node()
+
+    def _find_entry_node(self) -> Block | None:
+        """Find the entry node of the graph."""
+        if not self._graph:
+            return None
+
+        # Find nodes with no predecessors
+        entry_candidates = [n for n in self._graph if self._graph.in_degree[n] == 0]
+        if entry_candidates:
+            return min(entry_candidates, key=lambda n: (n.addr, n.idx or 0))
+
+        # Fall back to node with the lowest address
+        return min(self._graph, key=lambda n: (n.addr, n.idx or 0))
+
+
+class RegionNamingBase(SemanticNamingBase):
+    """
+    Base class for semantic naming passes that run in RegionSimplifier on structured regions.
+
+    These passes operate after structuring, allowing them to leverage structured information
+    like LoopNode, ConditionNode, etc. They can reuse loop analysis results from structuring
+    instead of re-analyzing the graph.
+    """
+
+    def __init__(
+        self,
+        region: BaseNode,
+        variable_manager: VariableManagerInternal,
+        functions: FunctionManager,
+    ):
+        super().__init__(variable_manager, functions)
+        self._region = region

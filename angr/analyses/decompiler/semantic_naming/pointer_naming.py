@@ -15,7 +15,7 @@ from angr.ailment.expression import BinaryOp, UnaryOp, Const, Load
 from angr.ailment.statement import Assignment, Store, Call
 from angr.sim_variable import SimVariable
 
-from .naming_base import SemanticNamingBase
+from .naming_base import ClinicNamingBase
 
 if TYPE_CHECKING:
     from angr.ailment import Expression
@@ -76,7 +76,7 @@ POINTER_PARAM_FUNCTIONS = {
 }
 
 
-class PointerNaming(SemanticNamingBase):
+class PointerNaming(ClinicNamingBase):
     """
     Detects variables used as pointers and renames them.
 

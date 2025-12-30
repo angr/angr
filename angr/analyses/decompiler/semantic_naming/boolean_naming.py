@@ -15,7 +15,7 @@ from angr.ailment.expression import BinaryOp, UnaryOp, Const
 from angr.ailment.statement import Assignment, ConditionalJump
 from angr.sim_variable import SimVariable
 
-from .naming_base import SemanticNamingBase
+from .naming_base import ClinicNamingBase
 
 if TYPE_CHECKING:
     pass
@@ -26,7 +26,7 @@ l = logging.getLogger(name=__name__)
 BOOLEAN_FLAG_NAMES = ["result"]
 
 
-class BooleanNaming(SemanticNamingBase):
+class BooleanNaming(ClinicNamingBase):
     """
     Detects variables used as boolean flags and renames them.
 
