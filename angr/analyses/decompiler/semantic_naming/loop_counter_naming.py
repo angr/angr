@@ -142,7 +142,7 @@ class LoopCounterNaming(SemanticNamingBase):
             # 2. Used in comparisons (likely in the condition)
 
             modified_vars = self._find_modified_vars_with_increment(loop_nodes)
-            condition_vars = self._find_condition_vars(head, loop_nodes)
+            condition_vars = self._find_condition_vars(loop_nodes)
 
             # The counter is likely a variable that's both modified with increment
             # and used in the condition
@@ -193,10 +193,9 @@ class LoopCounterNaming(SemanticNamingBase):
 
         return increment_vars
 
-    def _find_condition_vars(self, head: ailment.Block, loop_nodes: set[ailment.Block]) -> set[SimVariable]:
+    def _find_condition_vars(self, loop_nodes: set[ailment.Block]) -> set[SimVariable]:
         """
         Find variables used in loop conditions.
-        Check the conditional jump in the head block or any block that exits the loop.
         """
         condition_vars: set[SimVariable] = set()
 

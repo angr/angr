@@ -169,15 +169,20 @@ class PointerNaming(SemanticNamingBase):
             elif var1 is not None and isinstance(op0, Const):
                 self._record_pointer(var1, "arithmetic", access_type)
 
-    def _is_index_like(self, expr) -> bool:
-        """Check if expression looks like an index (e.g., i * 4)."""
+    @staticmethod
+    def _is_index_like(expr: Expression) -> bool:
+        """
+        Check if expression looks like an index (e.g., i * 4).
+        """
         if isinstance(expr, BinaryOp) and expr.op == "Mul":
             op0, op1 = expr.operands
             return isinstance(op0, Const) or isinstance(op1, Const)
         return False
 
     def _find_pointer_arithmetic(self) -> None:
-        """Find variables involved in pointer arithmetic patterns."""
+        """
+        Find variables involved in pointer arithmetic patterns.
+        """
         for node in self._graph:
             if not isinstance(node, ailment.Block):
                 continue
