@@ -9,6 +9,7 @@ from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
+from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
@@ -43,7 +44,7 @@ class RegionSimplifier(Analysis):
         simplify_switches: bool = True,
         simplify_ifelse: bool = True,
         variable_manager: VariableManagerInternal | None = None,
-        apply_loop_counter_naming: bool = True,
+        loopctr_naming: bool = True,
     ):
         self.func = func
         self.region = region
@@ -51,7 +52,7 @@ class RegionSimplifier(Analysis):
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
         self._variable_manager = variable_manager
-        self._apply_loop_counter_naming = apply_loop_counter_naming
+        self._apply_loop_counter_naming = loopctr_naming
 
         self.goto_manager: GotoManager | None = None
         self.result = self.region
@@ -260,17 +261,6 @@ class RegionSimplifier(Analysis):
         return region
 
     def _apply_region_loop_counter_naming(self, region) -> None:
-        """
-        Apply semantic loop counter naming to the region.
-
-        This uses the structured LoopNode information to identify loop counters
-        and rename them to standard names (i, j, k, ...) based on nesting depth.
-        """
-        # Import here to avoid circular imports
-        from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import (  # pylint:disable=import-outside-toplevel
-            RegionLoopCounterNaming,
-        )
-
         namer = RegionLoopCounterNaming(region, self._variable_manager, self.kb.functions)
         namer.analyze()
         namer.apply_names()
