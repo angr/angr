@@ -14,5 +14,5 @@ libc.add_all_from_dict(P["posix"])
 libc.add_alias("abort", "__stack_chk_fail")
 
 # Mach-O naming convention adds an underscore prefix to function names
-for name, _ in list(libc.procedures):
+for name in list(libc.procedures):
     libc.add_alias(name, "_" + name)
