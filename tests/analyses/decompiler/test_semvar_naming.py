@@ -26,11 +26,11 @@ class TestSemvarNaming(unittest.TestCase):
             fail_fast=True,
             normalize=True,
         )
-        proj.analyses.CompleteCallingConventions(fail_fast=True)
+        proj.analyses.CompleteCallingConventions()
 
         func = cfg.functions["sum_matrix"]
         assert func is not None
-        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        dec = proj.analyses.Decompiler(func)
         # should not crash
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)

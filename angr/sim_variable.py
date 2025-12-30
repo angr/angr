@@ -20,6 +20,7 @@ class SimVariable(Serializable):
     """
 
     __slots__ = [
+        "_hash",
         "candidate_names",
         "category",
         "ident",
@@ -43,6 +44,7 @@ class SimVariable(Serializable):
         self.renamed = False
         self.candidate_names = None
         self.size = size
+        self._hash = None
 
     def copy(self):
         raise NotImplementedError
@@ -86,6 +88,9 @@ class SimVariable(Serializable):
     def key(self) -> tuple[str | int | None, ...]:
         raise NotImplementedError
 
+    def clear_hash(self):
+        self._hash = None
+
     #
     # Operations
     #
@@ -106,12 +111,11 @@ class SimConstantVariable(SimVariable):
     Describes a constant variable.
     """
 
-    __slots__ = ["_hash", "value"]
+    __slots__ = ["value"]
 
     def __init__(self, size: int, ident=None, value=None, region=None):
         super().__init__(ident=ident, region=region, size=size)
         self.value = value
-        self._hash = None
 
     def __repr__(self):
         return f"<{self.region}|const {self.value}>"
@@ -149,13 +153,12 @@ class SimTemporaryVariable(SimVariable):
     Describes a temporary variable.
     """
 
-    __slots__ = ["_hash", "tmp_id"]
+    __slots__ = ["tmp_id"]
 
     def __init__(self, tmp_id: int, size: int):
         SimVariable.__init__(self, size=size)
 
         self.tmp_id = tmp_id
-        self._hash = None
 
     def __repr__(self):
         return f"<tmp {self.tmp_id}>"
@@ -205,7 +208,7 @@ class SimRegisterVariable(SimVariable):
     Describes a register variable.
     """
 
-    __slots__ = ["_hash", "reg"]
+    __slots__ = ["reg"]
 
     def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -275,7 +278,7 @@ class SimMemoryVariable(SimVariable):
     Describes a memory variable; the base class for other types of memory variables.
     """
 
-    __slots__ = ["_hash", "addr"]
+    __slots__ = ["addr"]
 
     def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -407,7 +410,9 @@ class SimStackVariable(SimMemoryVariable):
         )
 
     def __hash__(self):
-        return hash((self.ident, self.base, self.offset, self.size))
+        if self._hash is None:
+            self._hash = hash((self.ident, self.base, self.offset, self.size))
+        return self._hash
 
     def copy(self) -> SimStackVariable:
         s = SimStackVariable(

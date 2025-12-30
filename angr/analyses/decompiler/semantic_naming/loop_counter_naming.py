@@ -66,6 +66,7 @@ class LoopCounterNaming(SemanticNamingBase):
         """
         Find all natural loops in the graph using back edges.
         """
+        assert self._entry_node is not None
         try:
             back_edges = list(dfs_back_edges(self._graph, self._entry_node))
         except Exception:  # pylint:disable=broad-except

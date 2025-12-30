@@ -100,7 +100,7 @@ class SemanticNamingBase(ABC):
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
             target_var.name = new_name
             target_var.renamed = True
-            target_var._hash = None  # Clear hash cache
+            target_var.clear_hash()
             renamed_vars.add(var)
             if unified_var:
                 renamed_vars.add(unified_var)
