@@ -9,7 +9,10 @@ libc.set_library_names(
 )
 # TODO: add more functions
 libc.add_all_from_dict(P["libc"])
+libc.add_all_from_dict(P["posix"])
+
+libc.add_alias("abort", "__stack_chk_fail")
 
 # Mach-O naming convention adds an underscore prefix to function names
-for name, _ in P["libc"].items():
+for name, _ in list(libc.procedures):
     libc.add_alias(name, "_" + name)
