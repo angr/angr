@@ -11,6 +11,7 @@ import claripy
 from angr import sim_options as o
 from angr.errors import SimValueError, SimUnsatError, SimSolverModeError, SimSolverOptionError
 from angr.sim_state import SimState
+from angr.utils.balancer import constraint_to_si
 from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
 from .sim_action_object import ast_stripping_decorator, SimActionObject
@@ -746,7 +747,7 @@ class SimSolver(SimStatePlugin):
                 # it (if we could, of course), and then replace each original SI
                 # the intersection of original SI and the constrained one.
 
-                _, converted = claripy.constraint_to_si(arg)
+                _, converted = constraint_to_si(arg)
 
                 for original_expr, constrained_si in converted:
                     if not original_expr.variables:

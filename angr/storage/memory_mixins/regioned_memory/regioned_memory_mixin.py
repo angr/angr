@@ -12,6 +12,7 @@ from angr.sim_options import AVOID_MULTIVALUED_READS, CONSERVATIVE_READ_STRATEGY
 from angr.state_plugins.sim_action_object import _raw_ast
 from angr.errors import SimMemoryError, SimAbstractMemoryError
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
+from angr.utils.balancer import constraint_to_si
 from .region_data import AddressWrapper, RegionMap
 from .abstract_address_descriptor import AbstractAddressDescriptor
 
@@ -412,7 +413,7 @@ class RegionedMemoryMixin(MemoryMixin):
 
     @staticmethod
     def _apply_condition_to_symbolic_addr(addr, condition):
-        _, converted = claripy.constraint_to_si(condition)
+        _, converted = constraint_to_si(condition)
         for original_expr, constrained_expr in converted:
             addr = claripy.replace(addr, original_expr, constrained_expr)
         return addr
