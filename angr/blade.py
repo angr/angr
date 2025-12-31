@@ -1,8 +1,7 @@
 from __future__ import annotations
 import itertools
 
-import networkx
-
+from angr.knowledge_plugins.cfg.cfg_graph import RxDiGraph
 import pyvex
 
 from .errors import AngrBladeError, SimTranslationError
@@ -19,13 +18,13 @@ class BadJumpkindNotification(Exception):
 
 class Blade:
     """
-    Blade is a light-weight program slicer that works with networkx DiGraph containing CFGNodes.
+    Blade is a light-weight program slicer that works with RxDiGraph containing CFGNodes.
     It is meant to be used in angr for small or on-the-fly analyses.
     """
 
     def __init__(
         self,
-        graph: networkx.DiGraph,
+        graph: RxDiGraph,
         dst_run: int,
         dst_stmt_idx: int,
         direction: str = "backward",
@@ -75,7 +74,7 @@ class Blade:
         self._include_imarks = include_imarks
         self._control_dependence = control_dependence
 
-        self._slice = networkx.DiGraph()
+        self._slice = RxDiGraph()
 
         self.project = project
         self._cfg = cfg.model
