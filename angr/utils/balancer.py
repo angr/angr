@@ -37,6 +37,7 @@ commutative_operations = {
 class BalancerError(AngrError):
     pass
 
+
 class BalancerUnsatError(BalancerError):
     pass
 
