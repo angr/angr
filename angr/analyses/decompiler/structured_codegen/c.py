@@ -1,6 +1,8 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from __future__ import annotations
 from typing import cast, Any, TYPE_CHECKING
+
+from collections.abc import Iterable
 from collections.abc import Callable
 from collections import defaultdict, Counter
 import logging
@@ -37,7 +39,13 @@ from angr.sim_type import (
     SimCppClass,
 )
 from angr.knowledge_plugins.functions import Function
-from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
+from angr.sim_variable import (
+    SimVariable,
+    SimTemporaryVariable,
+    SimStackVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+)
 from angr.utils.constants import is_alignment_mask
 from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
@@ -470,20 +478,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         return unified_to_var_and_types
 
     def variable_list_repr_chunks(self, indent=0):
-        def _varname_to_id(varname: str) -> int:
-            # extract id from default variable name "v{id}"
-            if varname.startswith("v"):
-                try:
-                    return int(varname[1:])
-                except ValueError:
-                    pass
-            return 0
-
         indent_str = self.indent_str(indent)
 
-        for variable, cvar_and_vartypes in sorted(
-            self.unified_local_vars.items(), key=lambda x: _varname_to_id(x[0].name) if x[0].name else 0
-        ):
+        for variable in self.sort_local_vars(self.unified_local_vars):
+            cvar_and_vartypes = self.unified_local_vars[variable]
+
             yield indent_str, None
 
             # pick the first cvariable
@@ -647,6 +646,29 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             wrapped_cmt += "\n"
 
         return "".join([f"// {line}\n" for line in wrapped_cmt.splitlines()])
+
+    @staticmethod
+    def sort_local_vars(local_vars: Iterable[SimVariable]) -> list[SimVariable]:
+        # Order:
+        # - SimRegisterVariable, ordered based on their identifiers
+        # - SimStackVariables, ordered based on their stack offsets
+        # - SimMemoryVariable (but not stack variables)  - we should not have global variables anyway
+        reg_vars, stack_vars, mem_vars = [], [], []
+        for var in local_vars:
+            match var:
+                case SimRegisterVariable():
+                    reg_vars.append(var)
+                case SimStackVariable():
+                    stack_vars.append(var)
+                case SimMemoryVariable():
+                    mem_vars.append(var)
+                case _:
+                    pass
+
+        reg_vars = sorted(reg_vars, key=lambda v: v.ident)
+        stack_vars = sorted(stack_vars, key=lambda v: (v.offset, v.ident))
+        mem_vars = sorted(mem_vars, key=lambda v: (v.addr if isinstance(v.addr, int) else -1, v.ident))
+        return reg_vars + stack_vars + mem_vars
 
 
 class CStatement(CConstruct):  # pylint:disable=abstract-method

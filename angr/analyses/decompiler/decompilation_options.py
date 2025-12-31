@@ -81,6 +81,25 @@ options = [
         default_value=True,
     ),
     O(
+        "Name variables based on usage",
+        "Enable variable naming based on usage patterns. This usually results in more meaningful variable names for "
+        "unnamed variables.",
+        bool,
+        "clinic",
+        "semvar_naming",
+        category="Variables",
+        default_value=True,
+    ),
+    O(
+        "Identify and name loop counters",
+        "Identify and name loop counter variables using common naming patterns (e.g., i, j, k).",
+        bool,
+        "region_simplifier",
+        "loopctr_naming",
+        category="Variables",
+        default_value=True,
+    ),
+    O(
         "Leave the largest loop successor tree outside the loop region",
         "During region identification, treating the largest successor tree of a loop as a member of the loop body "
         "sometimes leads to seemingly unnatural and gigantic loops. Enabling this option will treat such successor "

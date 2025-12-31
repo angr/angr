@@ -59,6 +59,7 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
+from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -114,7 +115,8 @@ class ClinicStage(enum.IntEnum):
     MAKE_CALLSITES = 11
     POST_CALLSITES = 12
     RECOVER_VARIABLES = 13
-    COLLECT_EXTERNS = 14
+    SEMANTIC_VARIABLE_NAMING = 14
+    COLLECT_EXTERNS = 15
 
 
 class Clinic(Analysis):
@@ -163,6 +165,7 @@ class Clinic(Analysis):
         notes: dict[str, DecompilationNote] | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        semvar_naming: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -215,6 +218,10 @@ class Clinic(Analysis):
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
+        self._semvar_naming = semvar_naming
+
+        if not semvar_naming and ClinicStage.SEMANTIC_VARIABLE_NAMING not in self._skip_stages:
+            self._skip_stages += (ClinicStage.SEMANTIC_VARIABLE_NAMING,)
 
         #
         # intermediate variables used during decompilation
@@ -581,6 +588,7 @@ class Clinic(Analysis):
             ClinicStage.MAKE_CALLSITES: self._stage_make_function_callsites,
             ClinicStage.POST_CALLSITES: self._stage_post_callsite_simplifications,
             ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
+            ClinicStage.SEMANTIC_VARIABLE_NAMING: self._stage_semantic_variable_naming,
             ClinicStage.COLLECT_EXTERNS: self._stage_collect_externs,
         }
 
@@ -838,6 +846,36 @@ class Clinic(Analysis):
         self._make_function_prototype(self.arg_list, variable_kb)
 
         self.variable_kb = variable_kb
+
+    def _stage_semantic_variable_naming(self) -> None:
+        """
+        Apply semantic-based variable naming.
+
+        This stage analyzes the AIL graph for semantic patterns and renames variables accordingly.
+        """
+
+        if self.variable_kb is None:
+            l.debug("variable_kb is None, skipping semantic variable naming")
+            return
+
+        self._update_progress(91.0, text="Applying semantic variable naming")
+
+        # Get the variable manager for this function
+        var_manager = self.variable_kb.variables[self.function.addr]
+
+        # Find the entry node
+        entry_node: ailment.Block | None = None
+        for node in self._ail_graph:
+            if (node.addr, node.idx) == self.entry_node_addr:
+                entry_node = node
+                break
+
+        assert entry_node is not None
+
+        # Run all semantic naming patterns via the orchestrator
+        orchestrator = SemanticNamingOrchestrator(self._ail_graph, var_manager, self.kb.functions, entry_node)
+        var_name_mapping = orchestrator.analyze()
+        l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 
     def _stage_collect_externs(self) -> None:
         self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
