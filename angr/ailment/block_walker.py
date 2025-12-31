@@ -790,7 +790,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         changed = any(new is not old for (_, new), (_, old) in zip(src_and_vvars, expr.src_and_vvars))
 
         if changed:
-            assert all(isinstance(vvar, VirtualVariable) for vvar in src_and_vvars)
+            assert all(vvar is None or isinstance(vvar, VirtualVariable) for _, vvar in src_and_vvars)
             return Phi(
                 expr.idx,
                 expr.bits,

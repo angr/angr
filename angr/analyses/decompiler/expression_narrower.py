@@ -182,7 +182,7 @@ class ExpressionNarrower(AILBlockRewriter):
 
                     self.replacement_core_vvars[new_var.varid].append(new_var)
                 else:
-                    new_var = None
+                    new_var = vvar
 
                 src_and_vvars.append((src, new_var))
 

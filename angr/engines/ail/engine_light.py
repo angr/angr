@@ -443,13 +443,35 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return self.tmps[expr.tmp_idx]
 
     def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType:
-        assert self.state.history.parent is not None
-        last_addr = self.state.history.parent.recent_bbl_addrs[-1]
+        parent = self.state.history.parent
+        if parent is None or not parent.recent_bbl_addrs:
+            return self._top(expr.bits)
+
+        last_addr = parent.recent_bbl_addrs[-1]
+
+        # If we're resuming execution inside the same block (e.g., after a call/return),
+        # the immediate "previous block" in history may be the current block itself.
+        # Phi semantics are based on the *CFG predecessor at block entry*.
+        # Walk backwards until we find a different block address.
+        if last_addr == self.state.addr:
+            cur_hist = parent.parent
+            while cur_hist is not None:
+                if cur_hist.recent_bbl_addrs:
+                    cand = cur_hist.recent_bbl_addrs[-1]
+                    if cand != self.state.addr:
+                        last_addr = cand
+                        break
+                cur_hist = cur_hist.parent
+
         for src, vvar in expr.src_and_vvars:
-            if src == last_addr:
-                assert vvar is not None
-                return self._handle_expr_VirtualVariable(vvar)
-        raise errors.AngrRuntimeError("None of the predecessors in a phi node are my predecessor!")
+            if src != last_addr:
+                continue
+            if vvar is None:
+                break
+            return self._handle_expr_VirtualVariable(vvar)
+
+        log.info("Cannot resolve Phi predecessor %s in %s at %s. Returning top.", last_addr, expr, self.state.addr)
+        return self._top(expr.bits)
 
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType:
         child = self._expr(expr.operand)
