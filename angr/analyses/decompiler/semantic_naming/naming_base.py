@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from angr.ailment.statement import Call
-from angr.ailment.expression import BinaryOp, UnaryOp, Load, Const
+from angr.ailment.expression import Const
 from angr.sim_variable import SimVariable
 
 if TYPE_CHECKING:
@@ -107,31 +107,6 @@ class SemanticNamingBase(ABC):
             return expr.variable
         return None
 
-    def _extract_vars_from_expr(self, expr) -> set[SimVariable]:
-        """
-        Recursively extract all linked variables from an expression.
-        """
-        vars_found: set[SimVariable] = set()
-
-        if expr is None:
-            return vars_found
-
-        # Check if this expression has a linked variable
-        var = self._get_linked_variable(expr)
-        if var is not None:
-            vars_found.add(var)
-
-        # Recursively check operands
-        if isinstance(expr, BinaryOp):
-            for operand in expr.operands:
-                vars_found.update(self._extract_vars_from_expr(operand))
-        elif isinstance(expr, UnaryOp):
-            vars_found.update(self._extract_vars_from_expr(expr.operand))
-        elif isinstance(expr, Load):
-            vars_found.update(self._extract_vars_from_expr(expr.addr))
-
-        return vars_found
-
     def _get_function_name(self, call: Call) -> str | None:
         """
         Extract the function name from a Call expression.
@@ -165,24 +140,11 @@ class ClinicNamingBase(SemanticNamingBase):
         ail_graph: networkx.DiGraph,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
-        entry_node: Block | None = None,
+        entry_node: Block,
     ):
         super().__init__(variable_manager, functions)
         self._graph = ail_graph
-        self._entry_node = entry_node or self._find_entry_node()
-
-    def _find_entry_node(self) -> Block | None:
-        """Find the entry node of the graph."""
-        if not self._graph:
-            return None
-
-        # Find nodes with no predecessors
-        entry_candidates = [n for n in self._graph if self._graph.in_degree[n] == 0]
-        if entry_candidates:
-            return min(entry_candidates, key=lambda n: (n.addr, n.idx or 0))
-
-        # Fall back to node with the lowest address
-        return min(self._graph, key=lambda n: (n.addr, n.idx or 0))
+        self._entry_node = entry_node
 
 
 class RegionNamingBase(SemanticNamingBase):

@@ -478,15 +478,6 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         return unified_to_var_and_types
 
     def variable_list_repr_chunks(self, indent=0):
-        def _varname_to_id(varname: str) -> int:
-            # extract id from default variable name "v{id}"
-            if varname.startswith("v"):
-                try:
-                    return int(varname[1:])
-                except ValueError:
-                    pass
-            return 0
-
         indent_str = self.indent_str(indent)
 
         for variable in self.sort_local_vars(self.unified_local_vars):

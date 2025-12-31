@@ -873,12 +873,7 @@ class Clinic(Analysis):
         assert entry_node is not None
 
         # Run all semantic naming patterns via the orchestrator
-        orchestrator = SemanticNamingOrchestrator(
-            self._ail_graph,
-            var_manager,
-            self.kb.functions,
-            entry_node=entry_node,
-        )
+        orchestrator = SemanticNamingOrchestrator(self._ail_graph, var_manager, self.kb.functions, entry_node)
         var_name_mapping = orchestrator.analyze()
         l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
 

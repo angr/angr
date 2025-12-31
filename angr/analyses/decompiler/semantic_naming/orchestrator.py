@@ -53,7 +53,7 @@ class SemanticNamingOrchestrator:
         ail_graph: networkx.DiGraph,
         variable_manager: VariableManagerInternal,
         functions: FunctionManager,
-        entry_node: ailment.Block | None = None,
+        entry_node: ailment.Block,
         patterns: list[type[ClinicNamingBase]] | None = None,
     ):
         self._graph = ail_graph
@@ -82,7 +82,7 @@ class SemanticNamingOrchestrator:
                 self._graph,
                 self._variable_manager,
                 self._functions,
-                entry_node=self._entry_node,
+                self._entry_node,
             )
 
             # Analyze to get suggested renames
