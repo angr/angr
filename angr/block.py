@@ -54,7 +54,11 @@ class DisassemblerInsn:
     Helper class to represent a disassembled target architecture instruction
     """
 
-    __slots__ = ()
+    def __init__(self):
+        self.size = None
+        self.address = None
+        self.mnemonic = None
+        self.op_str = None
 
     @property
     def size(self) -> int:
@@ -122,6 +126,48 @@ class CapstoneInsn(DisassemblerInsn):
         raise AttributeError
 
 
+class PCodeBlock(DisassemblerBlock):
+    """
+    Deep copy of the pcode blocks
+    """
+
+    __slots__ = ()
+
+
+class PCodeInsn(DisassemblerInsn):
+    """
+    Represents a capstone instruction.
+    """
+
+    __slots__ = ("insn",)
+
+    def __init__(self, pcode_insn):
+        self.insn = pcode_insn
+
+    @property
+    def size(self) -> int:
+        return self.insn.length
+
+    @property
+    def address(self) -> int:
+        return self.insn.addr.offset
+
+    @property
+    def mnemonic(self) -> str:
+        return self.insn.mnem
+
+    @property
+    def op_str(self) -> str:
+        return self.insn.body
+
+    def __getattr__(self, item):
+        if item in ("__str__", "__repr__"):
+            return self.__getattribute__(item)
+        if hasattr(self.insn, item):
+            return getattr(self.insn, item)
+        raise AttributeError
+
+
 class Block(Serializable):
     """
     Represents a basic block in a binary or a program.
@@ -144,6 +190,7 @@ class Block(Serializable):
         "_load_from_ro_regions",
         "_max_size",
         "_opt_level",
+        "_pcode",
         "_project",
         "_strict_block_end",
         "_traceflags",
@@ -212,6 +259,7 @@ class Block(Serializable):
         self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
+        self._pcode = None
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
@@ -410,6 +458,24 @@ class Block(Serializable):
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block
+        return block
+
+    @property
+    def pcode(self) -> PCodeBlock:
+        if self._pcode:
+            return self._pcode
+
+        insns = []
+
+        block_bytes = self.bytes
+        if self.size is not None:
+            block_bytes = block_bytes[: self.size]
+        lifter = pcode.lifter.PcodeLifter.get_lifter(self.arch)
+        for cs_insn in lifter.context.disassemble(block_bytes, self.addr).instructions:
+            insns.append(PCodeInsn(cs_insn))
+        block = PCodeBlock(self.addr, insns, self.thumb, self.arch)
+
+        self._pcode = block
         return block
 
     @property
