@@ -212,7 +212,10 @@ class SimType:
                 typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.EnumerationType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
-                typ: SimType = SimTypeEnumeration(None, cle_typ.enumerator_values, label=label, arch=arch)
+                enum_cases = []
+                for e in cle_typ.enumerator_values:
+                    enum_cases.append(SimEnumerationCase(e.const_value, e.name))
+                typ: SimType = SimEnumeration(None, enum_cases, label=label, arch=arch)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
@@ -276,7 +279,7 @@ class SimType:
                 typ: SimTypeArray = mapping[cle_typ]
                 typ.elem_type = resolve(cle_typ.element_type)
             elif isinstance(cle_typ, variable_type.EnumerationType):
-                typ: SimTypeEnumeration = mapping[cle_typ]
+                typ: SimEnumeration = mapping[cle_typ]
                 typ.underlying_type = resolve(cle_typ.type)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimTypeFunction = mapping[cle_typ]
@@ -311,7 +314,7 @@ class SimType:
                                       variable_type.ImmutableType, variable_type.PackedType,
                                       variable_type.RestrictType, variable_type.SharedType,
                                       variable_type.VolatileType)):
-                typ: TypeModifier = mapping[cle_typ]
+                typ: SimTypeModifier = mapping[cle_typ]
                 typ.type = resolve(cle_typ.type)
             elif isinstance(cle_typ, variable_type.RValueReferenceType):
                 typ: SimTypeRValueReference = mapping[cle_typ]
@@ -916,54 +919,103 @@ class SimTypeWideChar(SimTypeReg):
     def copy(self):
         return self.__class__(signed=self.signed, label=self.label, endness=self.endness)
 
-class SimTypeEnumeration(SimTypeReg):
-    """
-    SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
-    """
+class SimEnumerationCase:
+    def __init__(self, value: int, name: str):
+        """
+        :param value: The concrete value associated with this particular enum case
+        :param name: The name of this particular variant case
+        """
+        self.value = value
+        self.name = name
 
+    def __repr__(self):
+        return f"SimEnumerationCase(value={self.value}, name={self.name})"
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __eq__(self, other):
+        if isinstance(other, SimEnumerationCase):
+            return self.value == other.value
+        return False
+
+class SimEnumerationCaseValue:
+    def __init__(self, enum_case: SimEnumerationCase, constraint: claripy.ast.Bool):
+        """
+        :param enum_case:       A SimEnumerationCase instance describing this particular case
+        :param constraint:  A boolean claripy constraint that must be true in order for this enum case to be\
+        valid.
+        """
+        self.enum_case = enum_case
+        self.constraint = constraint
+
+    def __repr__(self):
+        return f"SimEnumerationCaseValue(name={self.name}, constraint={self.constraint})"
+
+    def __str__(self):
+        return self.__repr__()
+
+    @property
+    def value(self):
+        return self.enum_case.value
+
+    @property
+    def name(self):
+        return self.enum_case.name
+
+    def copy(self):
+        return SimEnumerationCaseValue(self.enum_case, self.constraint)
+
+class SimEnumeration(SimTypeReg):
     _base_name = "enum"
     _ident = "enum"
 
-    def __init__(self, underlying_type, enumerator_values: list[variable_type.EnumeratorValue], label=None, arch=None):
+    def __init__(self, underlying_type, cases: list[SimEnumerationCase], label=None, arch=None):
         """
         :param label: the type label.
         """
         SimTypeReg.__init__(self, None, label=label, arch=arch)
         self.underlying_type = underlying_type
-        self.enumerator_values = enumerator_values
-        self.enumerator_lookup = {val.const_value: val for val in enumerator_values}
-        self.enumerator_lookup_by_name = {val.name: val for val in enumerator_values}
+        self.cases = cases
+        self.case_lookup = {c.value: c for c in cases}
+        self.case_lookup_by_name = {c.name: c for c in cases}
 
     def __repr__(self):
         return f"enum {self.label}"
 
-    def store(self, state, addr, value: StoreType | variable_type.EnumeratorValue | str):
+    def store(self, state, addr, value: StoreType | SimEnumerationCaseValue | str):
         if isinstance(value, str):
-            if value in self.enumerator_lookup_by_name:
-                value = self.enumerator_lookup_by_name[value].const_value
+            if value in self.case_lookup_by_name:
+                data = self.case_lookup_by_name[value].value
             else:
-                raise KeyError(f"Unable to find enumerator value named {value}")
-        elif isinstance(value, variable_type.EnumeratorValue):
-            value = value.const_value
-        self.underlying_type.store(state, addr, value)
+                raise KeyError(f"Unable to find enumerator case named {value}")
+        elif isinstance(value, SimEnumerationCaseValue):
+            data = value.value
+        else:
+            data = value
+        self.underlying_type.store(state, addr, data)
 
     @overload
-    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV:
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> SimEnumerationValue:
         ...
 
     @overload
-    def extract(self, state, addr, concrete: Literal[True]) -> variable_type.EnumeratorValue:
+    def extract(self, state, addr, concrete: Literal[True]) -> SimEnumerationCaseValue:
         ...
 
     def extract(self, state, addr, concrete=False) -> Any:
         out = self.underlying_type.extract(state, addr, concrete=concrete)
         if concrete:
-            if out in self.enumerator_lookup:
-                return self.enumerator_lookup[out]
+            if out in self.case_lookup:
+                return SimEnumerationCaseValue(self.case_lookup[out], claripy.ast.bool.true())
             else:
-                return variable_type.EnumeratorValue("", out)
+                return SimEnumerationCaseValue(SimEnumerationCase(out, "<unknown>"), claripy.ast.bool.true())
         else:
-            return out
+            case_values = []
+            for c in self.cases:
+                constraint = (c.value == out)
+                case_values.append(SimEnumerationCaseValue(c, constraint))
+            return SimEnumerationValue(out, case_values, self)
 
     def _init_str(self):
         return "{}({})".format(
@@ -976,7 +1028,42 @@ class SimTypeEnumeration(SimTypeReg):
         return self.underlying_type.size
 
     def copy(self):
-        return self.__class__(self.underlying_type, list(self.enumerator_values), label=self.label)
+        return self.__class__(self.underlying_type, list(self.cases), label=self.label)
+
+class SimEnumerationValue:
+    """
+    The value of an enumeration, which can be multiple values simultaneously - if for instance the underlying value is symbolic
+    """
+
+    def __init__(self, value: claripy.ast.Bits, cases: list[SimEnumerationCaseValue], enumeration: SimEnumeration):
+        """
+        :param value:        The underlying value of this enumeration. May be a mixture of symbolic and concrete data.
+        :param cases:        The possible cases that this variant could be.
+        :param enumeration:  A SimEnumeration instance describing the type of this enumeration
+        """
+        self.value = value
+        self.cases = cases
+        self.enumeration = enumeration
+
+    def __repr__(self):
+        return f"SimEnumerationValue(value={self.value}, cases={self.cases})"
+
+    def __getattr__(self, item: str):
+        return self[item]
+
+    def __getitem__(self, item: str | int):
+        if isinstance(item, int):
+            for v in self.cases:
+                if v.value == item:
+                    return v
+        elif isinstance(item, str):
+            for v in self.cases:
+                if v.name == item:
+                    return v
+        raise KeyError(f"Unknown enum case {item}")
+
+    def copy(self):
+        return SimEnumerationValue(self.value, self.cases, self.enumeration)
 
 class SimTypeBool(SimTypeReg):
     _args = ("signed", "label")
@@ -2115,6 +2202,13 @@ class SimStructValue:
 
 class SimVariantCase:
     def __init__(self, tag_value: int, name: str, offset: int, type: SimType, align=None):
+        """
+        :param tag_value: The concrete tag value associated with this particular variant case
+        :param name: The name of this particular variant case
+        :param offset: The offset in bytes to the start of this variant in memory
+        :param type: The type that contains the values of this variant
+        :param align: The memory alignment of this variant case
+        """
         self.tag_value = tag_value
         self.name = name
         self.offset = offset
@@ -2133,7 +2227,9 @@ class SimVariant(NamedTypeMixin, SimType):
                  label=None, align: int | None = None, arch=None):
         """
         :param size:        The size of the variant
-        :param cases:     The members of the variant, as a mapping name -> type
+        :param tag:         The type of the tag, if one is present
+        :param tag_offset:  The offset in bytes to the start of the tag
+        :param cases:       The possible cases of the variant
         :param name:        The name of the variant
         """
         super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
@@ -2199,7 +2295,7 @@ class SimVariant(NamedTypeMixin, SimType):
                     tag_constraint = claripy.ast.bool.true()
                 else:
                     tag_constraint = tag == c.tag_value
-                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view.resolved))
+                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view))
             return SimVariantValue(self, tag, case_values)
 
     def __repr__(self):
@@ -2284,9 +2380,9 @@ class SimTypedef(NamedTypeMixin, SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
         # TODO: Figure out what to do with these other parameters to c_repr
-        return f"typedef {self.name} {self.c_repr()}"
+        return f"typedef {self.name} {self.type.c_repr()}"
 
-class TypeModifier(NamedTypeMixin, SimType):
+class SimTypeModifier(NamedTypeMixin, SimType):
     _ident = "_type_modifier"
 
     def __init__(self, underlying_type, name=None, label=None, arch=None):
@@ -2308,10 +2404,10 @@ class TypeModifier(NamedTypeMixin, SimType):
         return self.type.store(*args, **kwargs)
 
     def copy(self):
-        return SimConst(self.type, name=self.name, label=self.label, arch=self.arch)
+        return self.__class__(self.type, name=self.name, label=self.label, arch=self.arch)
 
     def _with_arch(self, arch):
-        return SimConst(self.type, name=self.name, label=self.label, arch=arch)
+        return self.__class__(self.type, name=self.name, label=self.label, arch=arch)
 
     def _refine(self, *args, **kwargs):
         self.type._refine(*args, **kwargs)
@@ -2324,27 +2420,27 @@ class TypeModifier(NamedTypeMixin, SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
         # TODO: Figure out what to do with these other parameters to c_repr
-        return f"{self._ident} {self.c_repr()}"
+        return f"{self._ident} {self.type.c_repr()}"
 
-class SimAtomic(TypeModifier):
+class SimAtomic(SimTypeModifier):
     _ident = "atomic"
 
-class SimConst(TypeModifier):
+class SimConst(SimTypeModifier):
     _ident = "const"
 
-class SimImmutable(TypeModifier):
+class SimImmutable(SimTypeModifier):
     _ident = "immutable"
 
-class SimPacked(TypeModifier):
+class SimPacked(SimTypeModifier):
     _ident = "packed"
 
-class SimRestrict(TypeModifier):
+class SimRestrict(SimTypeModifier):
     _ident = "restrict"
 
-class SimShared(TypeModifier):
+class SimShared(SimTypeModifier):
     _ident = "shared"
 
-class SimVolatile(TypeModifier):
+class SimVolatile(SimTypeModifier):
     _ident = "volatile"
 
 class SimUnion(NamedTypeMixin, SimType):
@@ -2483,23 +2579,23 @@ class SimUnionValue:
 
 class SimVariantCaseValue:
     def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool,
-                 value: claripy.ast.Bits):
+                 value: SimMemView):
         """
         :param variant_case:    A SimVariantCase instance describing this particular case
         :param tag_constraint:  A boolean claripy constraint that must be true in order for this variant case to be\
         valid.
-        :param value:           The value of this particular variant case.
+        :param value:           The value of the variant if this particular case is True
         """
         self.variant_case = variant_case
         self.tag_constraint = tag_constraint
         self.value = value
 
     @property
-    def tag_value(self):
+    def tag_value(self) -> int:
         return self.variant_case.tag_value
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.variant_case.name
 
     def copy(self):
@@ -2524,20 +2620,8 @@ class SimVariantValue:
         self.tag = tag
         self.case_values = case_values
 
-    def __indented_repr__(self, indent=0):
-        fields = []
-        for name, value in self.values.items():
-            try:
-                f = value.__indented_repr__  # type: ignore[reportAttributeAccessIssue]
-                s = f(indent=indent + 2)
-            except AttributeError:
-                s = repr(value)
-            fields.append(" " * (indent + 2) + f".{name} = {s}")
-
-        return "{{\n{}\n{}}}".format(",\n".join(fields), " " * indent)
-
     def __repr__(self):
-        return self.__indented_repr__()
+        return f"SimVariantValue(tag={self.tag}, case_values={self.case_values})"
 
     def __getattr__(self, item: str):
         return self[item]
@@ -2545,7 +2629,7 @@ class SimVariantValue:
     def __getitem__(self, item: str | int):
         if isinstance(item, int):
             for v in self.case_values:
-                if v.tag == item:
+                if v.tag_value == item:
                     return v
             return self.variant_cases[item]
         elif isinstance(item, str):
