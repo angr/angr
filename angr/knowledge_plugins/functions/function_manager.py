@@ -15,7 +15,6 @@ import bisect
 import os
 import tempfile
 import uuid
-import atexit
 
 import lmdb
 import networkx
@@ -166,9 +165,6 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._currently_loading: set[K] = set()
 
         super().__init__(backref, *args, key_types=key_types, **kwargs)
-
-        # Register database cleanup on exit in case __del__ is not called for whatever reason
-        atexit.register(self._cleanup_lmdb)
 
     def __del__(self):
         self._cleanup_lmdb()
@@ -435,7 +431,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         if self._lmdb_path is None:
             self._lmdb_path = os.path.join(tempfile.gettempdir(), f"angr_lru_cache_{uuid.uuid4().hex}")
 
-        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=1024 * 1024 * 1024, max_dbs=1)
+        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=1024 * 1024 * 10, max_dbs=1)
         self._lmdb_funcsdb = self._lmdb_env.open_db(b"functions.radb")
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
 
