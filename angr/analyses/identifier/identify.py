@@ -7,12 +7,13 @@ import claripy
 from cle.backends.cgc import CGC
 from networkx import NetworkXError
 
-from .errors import IdentifierException
-from .functions import Functions
-from .runner import Runner
 from angr.analyses import Analysis, AnalysesHub
 from angr import options
 from angr.errors import AngrError, SimSegfaultError, SimEngineError, SimMemoryError, SimError
+
+from .errors import IdentifierException
+from .functions import Functions
+from .runner import Runner
 
 l = logging.getLogger(name=__name__)
 
@@ -126,7 +127,7 @@ class Identifier(Analysis):
                 else:
                     l.debug("Found match for function %#x, %s", f.addr, match_name)
                 self.matches[f] = match_name, match_func
-                if match_name != "malloc" and match_name != "free":
+                if match_name not in ("malloc", "free"):
                     yield f.addr, match_name
             else:
                 if f.name is not None:
@@ -169,7 +170,7 @@ class Identifier(Analysis):
         # fixup malloc/free
         to_remove = []
         for f, (match_name, match_func) in self.matches.items():
-            if match_name == "malloc" or match_name == "free":
+            if match_name in ("malloc", "free"):
                 if not self.can_call_same_name(f.addr, match_name):
                     yield f.addr, match_func.get_name()
                 else:
@@ -284,8 +285,9 @@ class Identifier(Analysis):
 
         # create inverse callsite map
         self.inv_callsites = defaultdict(set)
-        for c, f in self.callsites.items():
-            self.inv_callsites[f].add(c)
+        for c, targets in self.callsites.items():
+            for target in targets:
+                self.inv_callsites[target].add(c)
 
         # create map of blocks to the function they reside in
         self.block_to_func = {}
@@ -748,9 +750,9 @@ class Identifier(Analysis):
     def _no_sp_or_bp(self, bl):
         for s in bl.vex.statements:
             for e in chain([s], s.expressions):
-                if e.tag == "Iex_Get" or e.tag == "Ist_Put":
+                if e.tag in ("Iex_Get", "Ist_Put"):
                     reg = self.get_reg_name(self.project.arch, e.offset)
-                    if reg == "ebp" or reg == "esp":
+                    if reg in ("ebp", "esp"):
                         return False
         return True
 
