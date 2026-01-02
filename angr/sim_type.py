@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import enum
 import re
 import logging
 from typing import Literal, Any, cast, overload
@@ -851,16 +852,29 @@ class SimTypeFd(SimTypeReg):
         return state.solver.eval(out)
 
 
+class PointerDisposition(enum.IntEnum):
+    IN_OUT = 0
+    IN = 1
+    OUT = 2
+    # outmaybe = conditionally overwritten
+    IN_OUTMAYBE = 3
+    OUTMAYBE = 4
+    NONE = 5
+    UNKNOWN = 6
+
+
 class SimTypePointer(SimTypeReg):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
-    _args = ("pts_to", "label", "offset")
+    _fields = (*(x for x in SimTypeReg._fields if x != "size"), "pts_to")
+    _args = ("pts_to", "label", "offset", "disposition")
     _ident = "ptr"
 
-    def __init__(self, pts_to, label=None, offset=0):
+    def __init__(
+        self, pts_to, label=None, offset=0, disposition: PointerDisposition | int = PointerDisposition.UNKNOWN
+    ):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
@@ -869,6 +883,9 @@ class SimTypePointer(SimTypeReg):
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
+        if not isinstance(disposition, PointerDisposition):
+            disposition = PointerDisposition(disposition)
+        self.disposition = disposition
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         if memo is None:
@@ -876,6 +893,10 @@ class SimTypePointer(SimTypeReg):
         d = super().to_json(fields=fields, memo=memo)
         if d["offset"] == 0:
             d.pop("offset")
+        if d["disposition"] == PointerDisposition.UNKNOWN:
+            d.pop("disposition")
+        else:
+            d["disposition"] = int(self.disposition)
         return d
 
     def __repr__(self):
@@ -909,16 +930,19 @@ class SimTypePointer(SimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = SimTypePointer(self.pts_to.with_arch(arch), self.label, self.offset, self.disposition)
         out._arch = arch
         return out
 
     def _init_str(self):
         label_str = f', label="{self.label}"' if self.label is not None else ""
-        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}, offset={self.offset})"
+        disposition_str = (
+            f", disposition={int(self.disposition)}" if self.disposition != PointerDisposition.UNKNOWN else ""
+        )
+        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}{disposition_str}, offset={self.offset})"
 
     def copy(self):
-        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset, disposition=self.disposition)
 
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
@@ -2853,7 +2877,7 @@ GLIBC_TYPES = {
         name="dirent64",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
-    "stat": SimStruct(
+    "struct stat": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -2871,7 +2895,7 @@ GLIBC_TYPES = {
         name="stat",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L86
-    "stat64": SimStruct(
+    "struct stat64": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent

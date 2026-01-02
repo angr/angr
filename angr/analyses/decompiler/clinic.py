@@ -14,6 +14,8 @@ import capstone
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import VirtualVariable
+from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.analyses.decompiler.fix_killing_references import new_vars_for_killing_references
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -192,7 +194,7 @@ class Clinic(Analysis):
         self._skip_stages = skip_stages
 
         self._blocks_by_addr_and_size = {}
-        self.entry_node_addr: tuple[int, int | None] = self.function.addr, None
+        self.entry_node_addr: ailment.Address = self.function.addr, None
 
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._insert_labels = insert_labels
@@ -246,7 +248,7 @@ class Clinic(Analysis):
         self._complete_successors = complete_successors
 
         self._register_save_areas_removed: bool = False
-        self.edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] = []
+        self.edges_to_remove: list[tuple[ailment.Address, ailment.Address]] = []
         self.copied_var_ids: set[int] = set()
 
         self._new_block_addrs: set[int] = set()
@@ -441,7 +443,7 @@ class Clinic(Analysis):
         # update the source block ID of all phi variables
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
-                new_src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]] = [
+                new_src_and_vvars: list[tuple[ailment.Address, VirtualVariable | None]] = [
                     ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
@@ -804,6 +806,13 @@ class Clinic(Analysis):
         )
 
     def _stage_post_callsite_simplifications(self) -> None:
+        # make new vvars if any function call takes a strict outparam
+        self.vvar_id_start = new_vars_for_killing_references(
+            self._ail_graph,
+            next(iter(bb for bb in self._ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
+            self.vvar_id_start,
+        )
+
         self.arg_list = []
         self.vvar_to_vvar = {}
         self.copied_var_ids = set()
@@ -1514,7 +1523,7 @@ class Clinic(Analysis):
         :return:                        None
         """
 
-        blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = {}
+        blocks_by_addr_and_idx: dict[ailment.Address, ailment.Block] = {}
 
         for ail_block in ail_graph.nodes():
             simplified = self._simplify_block(
@@ -1681,7 +1690,7 @@ class Clinic(Analysis):
         stack_pointer_tracker=None,
         **kwargs,
     ):
-        addr_and_idx_to_blocks: dict[tuple[int, int | None], ailment.Block] = {}
+        addr_and_idx_to_blocks: dict[ailment.Address, ailment.Block] = {}
         addr_to_blocks: dict[int, set[ailment.Block]] = defaultdict(set)
 
         # update blocks_map to allow node_addr to node lookup
@@ -1879,9 +1888,10 @@ class Clinic(Analysis):
             removed_vvar_ids = set()
 
         def _handler(block):
-            csm = self.project.analyses.AILCallSiteMaker(
-                block,
+            csm = self.project.analyses[CallSiteMaker].prep(
                 fail_fast=self._fail_fast,
+            )(
+                block,
                 reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
@@ -2592,7 +2602,7 @@ class Clinic(Analysis):
         )
 
         # build the false block
-        false_block = self.project.factory.block(ite_ins_addr, num_inst=1)
+        false_block = self.project.factory.block(ite_ins_addr, num_inst=1, cross_insn_opt=False)
         false_block_ail = ailment.IRSBConverter.convert(false_block.vex, self._ail_manager)
         false_block_ail.addr = false_block_addr
 
@@ -2897,12 +2907,16 @@ class Clinic(Analysis):
         split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
         # note that the two blocks can be fully overlapping, so block_0 will be empty...
         intended_head_block_0 = (
-            self.project.factory.block(intended_head.addr, size=split_ins_addr - intended_head.addr)
+            self.project.factory.block(
+                intended_head.addr, size=split_ins_addr - intended_head.addr, cross_insn_opt=False
+            )
             if split_ins_addr != intended_head.addr
             else None
         )
         intended_head_block_1 = self.project.factory.block(
-            split_ins_addr, size=intended_head.addr + intended_head.original_size - split_ins_addr
+            split_ins_addr,
+            size=intended_head.addr + intended_head.original_size - split_ins_addr,
+            cross_insn_opt=False,
         )
         intended_head_0 = self._convert_vex(intended_head_block_0) if intended_head_block_0 is not None else None
         intended_head_1 = self._convert_vex(intended_head_block_1)
@@ -2947,7 +2961,9 @@ class Clinic(Analysis):
                 o_block = self.project.factory.block(o.addr, size=o.original_size)
                 o_split_addr = o_block.instruction_addrs[-other_head_split_insns]
                 new_o_block = (
-                    self.project.factory.block(o.addr, size=o_split_addr - o.addr) if o_split_addr != o.addr else None
+                    self.project.factory.block(o.addr, size=o_split_addr - o.addr, cross_insn_opt=False)
+                    if o_split_addr != o.addr
+                    else None
                 )
                 new_head = self._convert_vex(new_o_block) if new_o_block is not None else None
             else:

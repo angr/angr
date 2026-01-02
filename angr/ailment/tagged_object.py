@@ -31,6 +31,7 @@ class TagDict(TypedDict, total=False):
     vex_block_addr: int
     vex_stmt_idx: int
     write_size: int
+    extra_defs: list[int]
 
 
 class TaggedObject:
