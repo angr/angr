@@ -42,9 +42,14 @@ class TestSimTypeFunction(unittest.TestCase):
         assert pyproto.c_repr(name="main", full=True) == "int (main)(...)"
 
     def test_c_repr_strtok_qual(self):
-        _, pyproto, _ = convert_cproto_to_py("char * (strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS);")
+        _, pyproto, _ = convert_cproto_to_py(
+            "char * (strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS);"
+        )
         assert pyproto.c_repr(name="strtok", full=False) == "char *(strtok)(char *restrict, const char *restrict)"
-        assert pyproto.c_repr(name="strtok", full=True) == "char *(strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS)"
+        assert (
+            pyproto.c_repr(name="strtok", full=True)
+            == "char *(strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS)"
+        )
 
     def test_c_repr_strdup_qual(self):
         _, pyproto, _ = convert_cproto_to_py("char * (strdup)(const char *S);")
