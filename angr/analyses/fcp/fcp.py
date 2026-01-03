@@ -12,7 +12,7 @@ from angr.block import Block
 from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode
+from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimStackArg, default_cc
 from angr.analyses.propagator.vex_vars import VEXReg, VEXTmp
@@ -333,10 +333,12 @@ class FastConstantPropagation(Analysis):
                     node = self.kb.functions.get_by_addr(node.addr)
                 else:
                     continue
-            if isinstance(node, Function):
-                if node.calling_convention is not None and node.prototype is not None:
-                    # consume args and overwrite the return register
-                    self._handle_function(state, node)
+            if isinstance(node, FuncNode):
+                if self.kb.functions.contains_addr(node.addr):
+                    callee = self.kb.functions.get_by_addr(node.addr)
+                    if callee.calling_convention is not None and callee.prototype is not None:
+                        # consume args and overwrite the return register
+                        self._handle_function(state, callee)
                 continue
 
             block = self.project.factory.block(node.addr, size=node.size, cross_insn_opt=self._vex_cross_insn_opt)
@@ -345,14 +347,13 @@ class FastConstantPropagation(Analysis):
             # if the node ends with a function call, call _handle_function
             if node in func_graph_with_callees:
                 succs = list(func_graph_with_callees.successors(node))
-                if any(isinstance(succ, (Function, HookNode)) for succ in succs):
-                    callee = next(succ for succ in succs if isinstance(succ, (Function, HookNode)))
-                    if isinstance(callee, HookNode):
-                        # attempt to convert it into a function
-                        if self.kb.functions.contains_addr(callee.addr):
-                            callee = self.kb.functions.get_by_addr(callee.addr)
-                        else:
-                            callee = None
+                if any(isinstance(succ, (FuncNode, HookNode)) for succ in succs):
+                    callee = next(succ for succ in succs if isinstance(succ, (FuncNode, HookNode)))
+                    # attempt to convert it into a function
+                    if self.kb.functions.contains_addr(callee.addr):
+                        callee = self.kb.functions.get_by_addr(callee.addr)
+                    else:
+                        callee = None
                     state = self._handle_function(state, callee)
 
             states[node] = state
