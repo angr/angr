@@ -107,6 +107,38 @@ class SootBlockNode(BlockNode):
         self.__init__(*data)
 
 
+class FuncNode(CodeNode):
+
+    __slots__ = ("func_name", "is_syscall")
+
+    def __init__(self, addr: int, is_syscall: bool | None = None, func_name: str | None = None, **kwargs):
+        super().__init__(addr, 0, **kwargs)
+        self.func_name = func_name
+        self.is_syscall = is_syscall
+
+    def __repr__(self) -> str:
+        if self.func_name is not None:
+            return f"<FuncNode {self.func_name}@{self.addr:#x}>"
+        return f"<FuncNode {self.addr:#x}>"
+
+    def __hash__(self):
+        return hash((FuncNode, self.addr, self.func_name))
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, FuncNode)
+            and super().__eq__(other)
+            and self.func_name == other.func_name
+            and self.is_syscall == other.is_syscall
+        )
+
+    def __getstate__(self):
+        return self.addr, self.func_name, self.is_syscall
+
+    def __setstate__(self, state):
+        self.__init__(*state)
+
+
 class HookNode(CodeNode):
     __slots__ = ["sim_procedure"]
 
@@ -129,7 +161,7 @@ class HookNode(CodeNode):
         return super().__eq__(other) and self.sim_procedure == other.sim_procedure
 
     def __getstate__(self):
-        return (self.addr, self.size, self.sim_procedure)
+        return self.addr, self.size, self.sim_procedure
 
     def __setstate__(self, dat):
         self.__init__(*dat)

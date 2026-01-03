@@ -6,7 +6,7 @@ import itertools
 from collections import defaultdict
 from collections.abc import Iterable
 import contextlib
-from typing import overload, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import networkx
 import pydemumble
@@ -30,6 +30,7 @@ from angr.utils.library import get_cpp_function_name_and_metadata
 from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
+    from angr.codenode import FuncNode
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 l = logging.getLogger(name=__name__)
@@ -865,14 +866,13 @@ class Function(Serializable):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
+    def _call_to(self, from_node, to_func: FuncNode, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
         """
         Registers an edge between the caller basic block and callee function.
 
         :param from_addr:   The basic block that control flow leaves during the transition.
         :type  from_addr:   angr.knowledge.CodeNode
-        :param to_func:     The function that we are calling
-        :type  to_func:     Function
+        :param to_func:     The function that we are calling, represented as a FuncNode.
         :param ret_node     The basic block that control flow should return to after the
                             function call.
         :type  to_func:     angr.knowledge.CodeNode or None
@@ -914,7 +914,7 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     def _return_from_call(self, from_func, to_node, to_outside=False):
-        self.transition_graph.add_edge(from_func, to_node, type="return", to_outside=to_outside)
+        self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
             if "type" in data and data["type"] == "fake_return":
                 data["confirmed"] = True
@@ -930,13 +930,7 @@ class Function(Serializable):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
-    @overload
-    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode: ...
-
-    @overload
-    def _register_node(self, is_local: bool, node: Function) -> Function: ...
-
-    def _register_node(self, is_local: bool, node: CodeNode | Function) -> CodeNode | Function:
+    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode:
         # if the node already exists and is the same, we reuse the existing node
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
@@ -944,10 +938,6 @@ class Function(Serializable):
         if node.addr not in self and node not in self.transition_graph:
             # only add each node to the graph once
             self.transition_graph.add_node(node)
-
-        if not isinstance(node, CodeNode):
-            # function and other things bail here
-            return node
 
         # this is either a new node or a different node at the same address
         node.set_graph(self.transition_graph)
