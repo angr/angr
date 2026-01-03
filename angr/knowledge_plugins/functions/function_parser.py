@@ -6,7 +6,7 @@ import json
 from collections import defaultdict
 
 from angr.calling_conventions import SimCC, SimCCUsercall, CC_NAMES
-from angr.codenode import BlockNode, HookNode
+from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.utils.enums_conv import func_edge_type_to_pb, func_edge_type_from_pb
 from angr.sim_type import SimType, SimTypeFunction
 from angr.protos import primitives_pb2, function_pb2
@@ -205,7 +205,6 @@ class FunctionParser:
                     edge_cmsg.src_ea,
                     blocks,
                     external_addrs,
-                    function_manager,
                     project,
                     all_func_addrs=all_func_addrs,
                 )
@@ -222,15 +221,7 @@ class FunctionParser:
             ) or (  # call has to go to either a HookNode or a function
                 all_func_addrs is not None and dst_addr in all_func_addrs
             ):  # jumps to another function
-                if function_manager is not None:
-                    # get a function
-                    dst = FunctionParser._get_func(dst_addr, function_manager)
-                else:
-                    l.warning(
-                        "About to get or create a function at %#x, but function_manager is not provided. "
-                        "Will create a block instead.",
-                        dst_addr,
-                    )
+                dst = FunctionParser._get_func(dst_addr)
 
             if dst is None:
                 # create a block instead
@@ -239,7 +230,6 @@ class FunctionParser:
                         dst_addr,
                         blocks,
                         external_addrs,
-                        function_manager,
                         project,
                         all_func_addrs=all_func_addrs,
                     )
@@ -292,7 +282,7 @@ class FunctionParser:
                         dst_addr,
                     )
                 else:
-                    if isinstance(dst, Function):
+                    if isinstance(dst, FuncNode):
                         obj._call_to(
                             src,
                             dst,
@@ -321,7 +311,7 @@ class FunctionParser:
         return obj
 
     @staticmethod
-    def _get_block_or_func(addr, blocks, external_addrs, function_manager, project, all_func_addrs=None):
+    def _get_block_or_func(addr, blocks, external_addrs, project, all_func_addrs=None):
         # should we get a block or a function?
         try:
             return blocks[addr]
@@ -334,8 +324,8 @@ class FunctionParser:
                 # get a hook node instead
                 return HookNode(addr, 0, project.hooked_by(addr))
             if all_func_addrs is not None and addr in all_func_addrs:
-                # get a function (which is yet to be created in the function manager)
-                return function_manager.function(addr=addr, create=True)
+                # get a function node
+                return FuncNode(addr)
             # create a block
             # TODO: We are deciding the size by re-lifting the block from project. This is usually fine except for
             # TODO: the cases where the block does not exist in project (e.g., when the block was dynamically
@@ -357,5 +347,5 @@ class FunctionParser:
         )
 
     @staticmethod
-    def _get_func(addr, function_manager):
-        return function_manager.function(addr=addr, create=True)
+    def _get_func(addr):
+        return FuncNode(addr)

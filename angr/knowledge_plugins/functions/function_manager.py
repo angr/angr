@@ -23,6 +23,7 @@ from archinfo.arch_soot import SootMethodDescriptor
 import cle
 
 from angr.errors import SimEngineError
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
@@ -160,6 +161,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._lmdb_env: lmdb.Environment | None = None
         self._lmdb_path: str | None = None
         self._lmdb_funcsdb = None
+        self._lmdb_mapsize: int = 1024 * 1024 * 10
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
         self._currently_loading: set[K] = set()
@@ -266,12 +268,13 @@ class SpillingFunctionDict(FunctionDict[K]):
 
     def get(self, addr, default=_missing, /):
         # First check in-memory
-        try:
-            func = super().__getitem__(addr)
-            self._touch(addr)
-            return func
-        except KeyError:
-            pass
+        if self.is_cached(addr):
+            try:
+                func = super().__getitem__(addr)
+                self._touch(addr)
+                return func
+            except KeyError:
+                pass
 
         # Check if spilled to LMDB
         if addr in self._spilled_keys and not self._loading_from_lmdb:
@@ -365,7 +368,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         :return: True if at least one function was successfully evicted, False otherwise.
         """
         evicted_any = False
-        while SortedDict.__len__(self) > self._cache_limit:
+        while self.cached_count > self._cache_limit:
             if not self._evict_one():
                 break
             evicted_any = True
@@ -410,7 +413,7 @@ class SpillingFunctionDict(FunctionDict[K]):
             # Add to spilled set
             self._spilled_keys.add(lru_addr)
 
-            l.debug("Evicted function %s to LMDB", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
+            l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
             evicted = True
             break
 
@@ -431,7 +434,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         if self._lmdb_path is None:
             self._lmdb_path = os.path.join(tempfile.gettempdir(), f"angr_lru_cache_{uuid.uuid4().hex}")
 
-        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=1024 * 1024 * 10, max_dbs=1)
+        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=self._lmdb_mapsize, max_dbs=1)
         self._lmdb_funcsdb = self._lmdb_env.open_db(b"functions.radb")
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
 
@@ -449,6 +452,15 @@ class SpillingFunctionDict(FunctionDict[K]):
                 shutil.rmtree(self._lmdb_path)
             self._lmdb_path = None
 
+    def _increase_lmdb_map_size(self) -> None:
+        """
+        Increase the LMDB map size.
+        """
+        delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
+        l.debug("Increasing LMDB map size by %d bytes", delta)
+        self._lmdb_mapsize += delta
+        self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+
     def _save_to_lmdb(self, func: Function) -> None:
         """
         Save a single function to LMDB.
@@ -458,8 +470,14 @@ class SpillingFunctionDict(FunctionDict[K]):
         cmsg = func.serialize_to_cmessage()
         key = str(func.addr).encode("utf-8")
 
-        with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
-            txn.put(key, cmsg.SerializeToString())
+        try:
+            with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+                txn.put(key, cmsg.SerializeToString())
+        except lmdb.MapFullError:
+            # Increase map size and retry
+            self._increase_lmdb_map_size()
+            with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+                txn.put(key, cmsg.SerializeToString())
 
     def _delete_from_lmdb(self, addr: K) -> None:
         """
@@ -760,12 +778,12 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
-            dest_func = self._function_map[to_addr]
+            dest_func_node = FuncNode(to_addr)
             if syscall in (True, False):
-                dest_func.is_syscall = syscall
+                dest_func_node.is_syscall = syscall
             func._call_to(
                 from_node,
-                dest_func,
+                dest_func_node,
                 retn_node,
                 stmt_idx=stmt_idx,
                 ins_addr=ins_addr,
