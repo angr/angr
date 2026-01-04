@@ -55,10 +55,7 @@ class DisassemblerInsn:
     """
 
     def __init__(self):
-        self.size = None
-        self.address = None
-        self.mnemonic = None
-        self.op_str = None
+        pass
 
     @property
     def size(self) -> int:
@@ -452,7 +449,7 @@ class Block(Serializable):
 
         block_bytes = self.bytes
         if self.size is not None:
-            block_bytes = block_bytes[: self.size]
+            block_bytes = block_bytes[:self.size] # type:ignore
         for cs_insn in cs.disasm(block_bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
@@ -469,8 +466,8 @@ class Block(Serializable):
 
         block_bytes = self.bytes
         if self.size is not None:
-            block_bytes = block_bytes[: self.size]
-        lifter = pcode.lifter.PcodeLifter.get_lifter(self.arch)
+            block_bytes = block_bytes[:self.size] # type:ignore
+        lifter = pcode.lifter.PcodeLifter.get_lifter(self.arch) # type:ignore
         for cs_insn in lifter.context.disassemble(block_bytes, self.addr).instructions:
             insns.append(PCodeInsn(cs_insn))
         block = PCodeBlock(self.addr, insns, self.thumb, self.arch)
@@ -520,7 +517,8 @@ class Block(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.Block()  # pylint: disable=no-member
+        # pylint: disable=no-member
+        return pb2.Block() # type:ignore
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -531,7 +529,7 @@ class Block(Serializable):
         return obj
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg):
+    def parse_from_cmessage(cls, cmsg, **kwargs):
         return cls(
             cmsg.ea,
             size=cmsg.size,
