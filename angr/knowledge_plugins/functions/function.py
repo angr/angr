@@ -6,6 +6,7 @@ import itertools
 from collections import defaultdict
 from collections.abc import Iterable
 import contextlib
+from functools import wraps
 from typing import TYPE_CHECKING
 
 import networkx
@@ -36,6 +37,15 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+def dirty_func(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self._dirty = True
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
 class Function(Serializable):
     """
     A representation of a function and various information about it.
@@ -47,8 +57,10 @@ class Function(Serializable):
         "_argument_stack_variables",
         "_block_sizes",
         "_call_sites",
+        "_calling_convention",
         "_callout_sites",
         "_cyclomatic_complexity",
+        "_dirty",
         "_endpoints",
         "_function_manager",
         "_jumpout_sites",
@@ -57,6 +69,8 @@ class Function(Serializable):
         "_local_transition_graph",
         "_name",
         "_project",
+        "_prototype",
+        "_prototype_libname",
         "_ret_sites",
         "_retout_sites",
         "_returning",
@@ -64,7 +78,6 @@ class Function(Serializable):
         "addr",
         "binary_name",
         "bp_on_stack",
-        "calling_convention",
         "from_signature",
         "info",
         "is_alignment",
@@ -75,8 +88,6 @@ class Function(Serializable):
         "is_syscall",
         "normalized",
         "previous_names",
-        "prototype",
-        "prototype_libname",
         "ran_cca",
         "retaddr_on_stack",
         "sp_delta",
@@ -147,10 +158,10 @@ class Function(Serializable):
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention = calling_convention
+        self._calling_convention = calling_convention
         # Function prototype
-        self.prototype = prototype
-        self.prototype_libname = prototype_libname
+        self._prototype = prototype
+        self._prototype_libname = prototype_libname
         self.is_prototype_guessed = is_prototype_guessed
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -177,6 +188,7 @@ class Function(Serializable):
         self._project: Project | None = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
+        self._dirty: bool = True
 
         #
         # Initialize unspecified properties
@@ -256,9 +268,12 @@ class Function(Serializable):
 
     @name.setter
     def name(self, v):
+        if v == self._name:
+            return
         self.previous_names.append(self._name)
         self._name = v
         self._function_manager._kb.labels[self.addr] = v
+        self.mark_dirty()
 
     @property
     def project(self):
@@ -273,7 +288,39 @@ class Function(Serializable):
 
     @returning.setter
     def returning(self, v):
+        if self._returning == v:
+            return
         self._returning = v
+        self.mark_dirty()
+
+    @property
+    def calling_convention(self):
+        return self._calling_convention
+
+    @calling_convention.setter
+    @dirty_func
+    def calling_convention(self, cc: SimCC):
+        self._calling_convention = cc
+
+    @property
+    def prototype(self):
+        return self._prototype
+
+    @prototype.setter
+    @dirty_func
+    def prototype(self, proto: SimTypeFunction):
+        self._prototype = proto
+
+    @property
+    def prototype_libname(self):
+        return self._prototype_libname
+
+    @prototype_libname.setter
+    def prototype_libname(self, libname: str):
+        if self._prototype_libname == libname:
+            return
+        self._prototype_libname = libname
+        self.mark_dirty()
 
     @property
     def blocks(self):
@@ -652,6 +699,14 @@ class Function(Serializable):
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text if dec.codegen else None
 
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    @dirty_func
     def add_jumpout_site(self, node: CodeNode):
         """
         Add a custom jumpout site.
@@ -664,6 +719,7 @@ class Function(Serializable):
         self._jumpout_sites.add(node)
         self._add_endpoint(node, "transition")
 
+    @dirty_func
     def add_retout_site(self, node: CodeNode):
         """
         Add a custom retout site.
@@ -768,6 +824,7 @@ class Function(Serializable):
         # Cannot determine
         return None
 
+    @dirty_func
     def _init_prototype_and_calling_convention(self) -> None:
         """
         Initialize prototype and calling convention from a SimProcedure, if available.
@@ -796,6 +853,7 @@ class Function(Serializable):
                     cc = cc_cls(arch)
         self.calling_convention = cc
 
+    @dirty_func
     def _clear_transition_graph(self):
         self._block_sizes = {}
         self._addr_to_block_node = {}
@@ -812,6 +870,7 @@ class Function(Serializable):
         self._endpoints = defaultdict(set)
         self._call_sites = {}
 
+    @dirty_func
     def _confirm_fakeret(self, src, dst):
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
@@ -827,6 +886,7 @@ class Function(Serializable):
 
         self.transition_graph[src][dst]["confirmed"] = True
 
+    @dirty_func
     def _transit_to(
         self, from_node: CodeNode, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False
     ):
@@ -866,6 +926,7 @@ class Function(Serializable):
         # clear the cache
         self._local_transition_graph = None
 
+    @dirty_func
     def _call_to(self, from_node, to_func: FuncNode, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
         """
         Registers an edge between the caller basic block and callee function.
@@ -894,6 +955,7 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
         from_node = self._register_node(True, from_node)
         if confirmed:
@@ -908,11 +970,13 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _remove_fakeret(self, from_node, to_node):
         self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _return_from_call(self, from_func, to_node, to_outside=False):
         self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
@@ -921,11 +985,13 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _update_local_blocks(self, node: CodeNode):
         if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
             self._local_blocks[node.addr] = node
             self._local_block_addrs.add(node.addr)
 
+    @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
@@ -935,6 +1001,7 @@ class Function(Serializable):
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
 
+        self.mark_dirty()
         if node.addr not in self and node not in self.transition_graph:
             # only add each node to the graph once
             self.transition_graph.add_node(node)
@@ -955,6 +1022,7 @@ class Function(Serializable):
             #    assert node == self._addr_to_block_node[node.addr]
         return node
 
+    @dirty_func
     def _add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
@@ -968,6 +1036,7 @@ class Function(Serializable):
         # after returning
         self._add_endpoint(return_site, "return")
 
+    @dirty_func
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.
@@ -978,6 +1047,7 @@ class Function(Serializable):
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
+    @dirty_func
     def _add_endpoint(self, endpoint_node, sort):
         """
         Registers an endpoint with a type of `sort`. The type can be one of the following:
@@ -1051,6 +1121,7 @@ class Function(Serializable):
                         if the_node is not None:
                             self._callout_sites.add(the_node)
                             self._add_endpoint(the_node, "call")
+                            self.mark_dirty()
 
     def get_call_sites(self) -> Iterable[int]:
         """
@@ -1315,6 +1386,7 @@ class Function(Serializable):
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
+    @dirty_func
     def _add_argument_register(self, reg_offset):
         """
         Registers a register offset as being used as an argument to the function.
@@ -1324,6 +1396,7 @@ class Function(Serializable):
         if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
+    @dirty_func
     def _add_argument_stack_variable(self, stack_var_offset):
         if stack_var_offset not in self._argument_stack_variables:
             self._argument_stack_variables.append(stack_var_offset)
@@ -1345,6 +1418,7 @@ class Function(Serializable):
         assert self.project is not None
         return self.project.factory.callable(self.addr)
 
+    @dirty_func
     def normalize(self):
         """
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
@@ -1809,6 +1883,7 @@ class Function(Serializable):
         func._local_block_addrs = self._local_block_addrs.copy()
         func.info = self.info.copy()
         func.tags = self.tags
+        func._dirty = self._dirty
 
         return func
 

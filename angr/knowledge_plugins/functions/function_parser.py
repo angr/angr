@@ -308,6 +308,8 @@ class FunctionParser:
             if block not in added_nodes:
                 obj._register_node(True, block)
 
+        obj._dirty = False
+
         return obj
 
     @staticmethod

@@ -384,7 +384,7 @@ class SpillingFunctionDict(FunctionDict[K]):
             return False
 
         evicted = False
-        for lru_addr in list(self._lru_order.keys()):
+        for lru_addr in self._lru_order:
             # Don't evict if it's not in memory
             if not self.is_cached(lru_addr):
                 self._lru_order.pop(lru_addr)
@@ -393,16 +393,17 @@ class SpillingFunctionDict(FunctionDict[K]):
             # Get the function
             func = super().__getitem__(lru_addr)
 
-            # Save to LMDB before evicting
-            try:
-                self._save_to_lmdb(func)
-            except Exception as ex:
-                l.warning(
-                    "Failed to serialize function %s for eviction: %s",
-                    hex(lru_addr) if isinstance(lru_addr, int) else lru_addr,
-                    ex,
-                )
-                continue
+            if func.dirty:
+                # Save to LMDB before evicting
+                try:
+                    self._save_to_lmdb(func)
+                except Exception as ex:
+                    l.warning(
+                        "Failed to serialize function %s for eviction: %s",
+                        hex(lru_addr) if isinstance(lru_addr, int) else lru_addr,
+                        ex,
+                    )
+                    continue
 
             # Remove from in-memory map
             super().__delitem__(lru_addr)
