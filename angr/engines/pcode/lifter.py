@@ -21,7 +21,6 @@ from cachetools import LRUCache
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 from pyvex.expr import IRExpr, Const, U8, U16, U32, U64
 
-from .behavior import BehaviorFactory
 from angr.engines.engine import SimEngine
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.sim_state import SimState
@@ -29,6 +28,8 @@ from angr.misc.ux import once
 from angr.errors import SimEngineError, SimTranslationError, SimError
 from angr import sim_options as o
 from angr.block import DisassemblerBlock, DisassemblerInsn
+
+from .behavior import BehaviorFactory
 
 if TYPE_CHECKING:
     from pypcode import PcodeOp, Context
