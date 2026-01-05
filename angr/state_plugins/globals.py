@@ -22,6 +22,8 @@ class SimStateGlobals(SimStatePlugin):
             for k in other:
                 if k not in self:
                     self[k] = other[k]
+                elif k == "last_added_state_split_cond":
+                    self[k] = other[k]
 
         return True
 

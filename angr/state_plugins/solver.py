@@ -884,25 +884,61 @@ class SimSolver(SimStatePlugin):
     @overload
     def eval_one(self, e: claripy.ast.FP, cast_to: type[CastType], **kwargs) -> CastType: ...
 
+    # def eval_one(self, e, cast_to=None, **kwargs):
+    #     """
+    #     Evaluate an expression to get the only possible solution. Errors if either no or more than one solution is
+    #     returned. A kwarg parameter `default` can be specified to be returned instead of failure!
+    #
+    #     :param e: the expression to get a solution for
+    #     :param cast_to: desired type of resulting values
+    #     :param default: A value can be passed as a kwarg here. It will be returned in case of failure.
+    #     :param kwargs: Any additional kwargs will be passed down to `eval_upto`
+    #     :raise SimUnsatError: if no solution could be found satisfying the given constraints
+    #     :raise SimValueError: if more than one solution was found to satisfy the given constraints
+    #     :return: The value for `e`
+    #     """
+    #     try:
+    #         return self.eval_exact(e, 1, cast_to, **{k: v for (k, v) in kwargs.items() if k != "default"})[0]
+    #     except (SimUnsatError, SimValueError, SimSolverModeError):
+    #         if "default" in kwargs:
+    #             return kwargs.pop("default")
+    #         raise
+
+
+
     def eval_one(self, e, cast_to=None, **kwargs):
         """
-        Evaluate an expression to get the only possible solution. Errors if either no or more than one solution is
-        returned. A kwarg parameter `default` can be specified to be returned instead of failure!
-
-        :param e: the expression to get a solution for
-        :param cast_to: desired type of resulting values
-        :param default: A value can be passed as a kwarg here. It will be returned in case of failure.
-        :param kwargs: Any additional kwargs will be passed down to `eval_upto`
-        :raise SimUnsatError: if no solution could be found satisfying the given constraints
-        :raise SimValueError: if more than one solution was found to satisfy the given constraints
-        :return: The value for `e`
+        Evaluate an expression to get the only possible solution.
+        On Z3 timeout/interrupt ('unknown: canceled'), reload the solver once and retry.
         """
         try:
             return self.eval_exact(e, 1, cast_to, **{k: v for (k, v) in kwargs.items() if k != "default"})[0]
         except (SimUnsatError, SimValueError, SimSolverModeError):
-            if "default" in kwargs:
-                return kwargs.pop("default")
+                if "default" in kwargs:
+                    return kwargs.pop("default")
+                raise
+        # NEW: catch Z3 timeouts/interrupts only
+        except (claripy.ClaripyZ3Error, claripy.ClaripySolverInterruptError) as ex:
+            # Reload the frontend (fresh Z3), restore replacements, empty caches, then retry once.
+            self._reload_frontend_preserve_replacements()
             raise
+
+    def _reload_frontend_preserve_replacements(self):
+        """
+        Rebuild the underlying Claripy frontend (fresh Z3 context) and
+        restore replacement rules. Keep the cache empty to avoid slow reseeding.
+        """
+        rf = self._solver  # e.g., ReplacementFrontend
+
+        self.reload_solver()  # rebuild Claripy/Z3
+
+        rf2 = self._solver
+        if hasattr(rf2, "_replacements"):
+            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
+            rf2._replacements = repl
+        if hasattr(rf2, "_replacement_cache"):
+            repl = dict(getattr(rf, "_replacements", {}))  # copy the rules
+            rf2._replacement_cache = repl
 
     @overload
     def eval_atmost(self, e: claripy.ast.BV, n: int, cast_to: None = ..., **kwargs) -> list[int]: ...
