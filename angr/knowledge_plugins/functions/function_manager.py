@@ -162,6 +162,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._lmdb_path: str | None = None
         self._lmdb_funcsdb = None
         self._lmdb_mapsize: int = 1024 * 1024 * 10
+        self._lmdb_batch_size: int = 100
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
         self._currently_loading: set[K] = set()
@@ -245,10 +246,9 @@ class SpillingFunctionDict(FunctionDict[K]):
         # Remove from in-memory map if present
         if self.is_cached(key):
             super().__delitem__(key)
-        # Remove from spilled set and lmdb if present
+        # Remove from spilled set if present; don't remove it from lmdb to save time
         if key in self._spilled_keys:
             self._spilled_keys.discard(key)
-            self._delete_from_lmdb(key)
         # Remove from LRU order
         if key in self._lru_order:
             del self._lru_order[key]
@@ -307,11 +307,8 @@ class SpillingFunctionDict(FunctionDict[K]):
         Set the maximum number of functions to keep in memory.
         """
         self._cache_limit = value
-        if value is not None:
-            # Evict excess functions, but stop if eviction fails
-            while SortedDict.__len__(self) > value:
-                if not self._evict_lru():
-                    break
+        if value is not None and self.cached_count > value + self._lmdb_batch_size:
+            self._evict_lru()
 
     @property
     def cached_count(self) -> int:
@@ -368,23 +365,27 @@ class SpillingFunctionDict(FunctionDict[K]):
         :return: True if at least one function was successfully evicted, False otherwise.
         """
         evicted_any = False
-        while self.cached_count > self._cache_limit:
-            if not self._evict_one():
+        while self.cached_count > self._cache_limit + self._lmdb_batch_size:
+            if self._evict_n(self._lmdb_batch_size) == 0:
                 break
             evicted_any = True
         return evicted_any
 
-    def _evict_one(self) -> bool:
+    def _evict_n(self, n: int) -> int:
         """
-        Evict the least recently used function to LMDB.
+        Evict n least recently used functions to LMDB.
 
-        :return: True if a function was successfully evicted, False otherwise.
+        :return: The number of functions that were successfully evicted.
         """
         if not self._lru_order:
-            return False
+            return 0
 
-        evicted = False
-        for lru_addr in self._lru_order:
+        evicted = 0
+        funcs_to_evict = []
+        for lru_addr in list(self._lru_order):
+            if evicted >= n:
+                break
+
             # Don't evict if it's not in memory
             if not self.is_cached(lru_addr):
                 self._lru_order.pop(lru_addr)
@@ -392,18 +393,8 @@ class SpillingFunctionDict(FunctionDict[K]):
 
             # Get the function
             func = super().__getitem__(lru_addr)
-
             if func.dirty:
-                # Save to LMDB before evicting
-                try:
-                    self._save_to_lmdb(func)
-                except Exception as ex:
-                    l.warning(
-                        "Failed to serialize function %s for eviction: %s",
-                        hex(lru_addr) if isinstance(lru_addr, int) else lru_addr,
-                        ex,
-                    )
-                    continue
+                funcs_to_evict.append(func)
 
             # Remove from in-memory map
             super().__delitem__(lru_addr)
@@ -413,10 +404,12 @@ class SpillingFunctionDict(FunctionDict[K]):
 
             # Add to spilled set
             self._spilled_keys.add(lru_addr)
+            evicted += 1
 
             l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
-            evicted = True
-            break
+
+        if funcs_to_evict:
+            self._save_to_lmdb(funcs_to_evict)
 
         return evicted
 
@@ -462,23 +455,30 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._lmdb_mapsize += delta
         self._lmdb_env.set_mapsize(self._lmdb_mapsize)
 
-    def _save_to_lmdb(self, func: Function) -> None:
+    def _save_to_lmdb(self, funcs: list[Function]) -> None:
         """
-        Save a single function to LMDB.
+        Save multiple functions to LMDB.
         """
         self._init_lmdb()
 
-        cmsg = func.serialize_to_cmessage()
-        key = str(func.addr).encode("utf-8")
+        last_idx = 0
 
-        try:
-            with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
-                txn.put(key, cmsg.SerializeToString())
-        except lmdb.MapFullError:
-            # Increase map size and retry
-            self._increase_lmdb_map_size()
-            with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
-                txn.put(key, cmsg.SerializeToString())
+        while True:
+            try:
+                with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+                    for idx, func in enumerate(funcs):
+                        if idx < last_idx:
+                            continue
+                        cmsg = func.serialize_to_cmessage()
+                        key = str(func.addr).encode("utf-8")
+                        txn.put(key, cmsg.SerializeToString())
+                        last_idx = idx
+            except lmdb.MapFullError:
+                # Increase map size and retry
+                self._increase_lmdb_map_size()
+                continue
+
+            break
 
     def _delete_from_lmdb(self, addr: K) -> None:
         """
@@ -547,7 +547,7 @@ class SpillingFunctionDict(FunctionDict[K]):
                 not self._loading_from_lmdb
                 and self._eviction_enabled
                 and self._cache_limit is not None
-                and SortedDict.__len__(self) > self._cache_limit
+                and self.cached_count > self._cache_limit + self._lmdb_batch_size
             ):
                 self._evict_lru()
 
