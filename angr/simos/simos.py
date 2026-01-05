@@ -198,7 +198,7 @@ class SimOS:
                 continue
 
             if o.ABSTRACT_MEMORY in state.options and is_addr:
-                address = claripy.ValueSet(state.arch.bits, mem_region, region_base, val)
+                address = claripy.VS(state.arch.bits, mem_region, region_base, val)
                 state.registers.store(reg, address)
             else:
                 state.registers.store(reg, val)
