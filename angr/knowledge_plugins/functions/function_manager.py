@@ -598,7 +598,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
         self.function_addrs_set: set = set()
         self.callgraph = networkx.MultiDiGraph()
-        self.block_map = {}
 
         # Registers used for passing arguments around
         self._arg_registers = kb._project.arch.argument_registers
@@ -615,7 +614,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self.address_types = state["address_types"]
         self._function_map = state["_function_map"]
         self.callgraph = state["callgraph"]
-        self.block_map = state["block_map"]
 
         self._function_map._backref = weakref.proxy(self)
         for func in self._function_map.values():
@@ -642,7 +640,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             "address_types": self.address_types,
             "_function_map": self._function_map,
             "callgraph": self.callgraph,
-            "block_map": self.block_map,
         }
 
     def copy(self):
@@ -671,7 +668,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
 
         self.callgraph = networkx.MultiDiGraph()
-        self.block_map.clear()
         self.function_addrs_set = set()
         # cache
         self._rplt_cache = None
@@ -744,7 +740,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         if syscall in (True, False):
             dst_func.is_syscall = syscall
         dst_func._register_node(True, node)
-        self.block_map[node.addr] = node
 
     def _add_call_to(
         self,
