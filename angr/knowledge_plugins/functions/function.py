@@ -247,7 +247,8 @@ class Function(Serializable):
 
             self._returning = self._get_initial_returning()
 
-        self._init_prototype_and_calling_convention()
+        if self._calling_convention is None and self._prototype is None and self._prototype_libname is None:
+            self._init_prototype_and_calling_convention()
 
     @property
     def name(self):
