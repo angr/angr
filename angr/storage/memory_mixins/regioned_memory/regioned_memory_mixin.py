@@ -164,7 +164,7 @@ class RegionedMemoryMixin(MemoryMixin):
             r, s, i = self._regions[region].find(si, data, max_search, **kwargs)
             # Post-process r so that it's still a ValueSet
             region_base_addr = self._region_base(region)
-            r = claripy.ValueSet(r.size(), region, region_base_addr, r)
+            r = claripy.VS(r.size(), region, region_base_addr, r)
             return r, s, i
         return None
 
