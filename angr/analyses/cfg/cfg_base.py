@@ -1763,21 +1763,20 @@ class CFGBase(Analysis):
         # we assume all PLT entries are all located at the same region. the moment we come across the end of it, we
         # stop looping.
         for fn_addr in sorted_func_addrs:
-            fn = functions.get_by_addr(fn_addr)
-            addr = fn.addr - (fn.addr % 16)
-            if (
-                addr != fn.addr
-                and addr in functions
-                and functions[addr].is_plt
-                and not _is_function_a_plt_stub(arch, fn)
-            ):
-                to_remove.add(fn.addr)
-                continue
+            fn_meta = functions.get_by_addr(fn_addr, meta_only=True)
+            addr = fn_meta.addr - (fn_meta.addr % 16)
+            if addr != fn_meta.addr and addr in functions:
+                fn2_meta = functions.get_by_addr(addr, meta_only=True)
+                if fn2_meta.is_plt:
+                    fn = functions.get_by_addr(fn_addr, meta_only=False)
+                    if not _is_function_a_plt_stub(arch, fn):
+                        to_remove.add(fn.addr)
+                        continue
 
-            if fn.is_plt:
+            if fn_meta.is_plt:
                 met_plts = True
                 non_plt_funcs = 0
-            if met_plts and not fn.is_plt:
+            if met_plts and not fn_meta.is_plt:
                 non_plt_funcs += 1
             if non_plt_funcs >= 2:
                 break
@@ -2169,8 +2168,8 @@ class CFGBase(Analysis):
 
             # copy over existing metadata
             if known_functions.contains_addr(addr):
-                kf = known_functions.get_by_addr(addr)
-                f.is_plt = kf.is_plt
+                kf_meta = known_functions.get_by_addr(addr, meta_only=True)
+                f.is_plt = kf_meta.is_plt
 
             blockaddr_to_function[addr] = f
 
