@@ -54,8 +54,7 @@ class DisassemblerInsn:
     Helper class to represent a disassembled target architecture instruction
     """
 
-    def __init__(self):
-        pass
+    __slots__ = ()
 
     @property
     def size(self) -> int:
