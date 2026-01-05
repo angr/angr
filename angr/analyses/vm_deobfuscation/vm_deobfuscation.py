@@ -1,3 +1,4 @@
+import ipdb
 import networkx
 from functools import wraps
 import time
@@ -27,6 +28,7 @@ from angr.errors import SimMemoryMissingError
 from pyvex.expr import DataSensitiveRdTmp
 from pyvex.const import U64, U32
 
+from ...state_plugins import SimSolver
 from ...engines.vex import TrackActionsMixin, SimInspectMixin, HeavyResilienceMixin, SuperFastpathMixin
 from ...engines.unicorn import SimEngineUnicorn
 from ...engines.failure import SimEngineFailure
@@ -59,6 +61,57 @@ filename = "/media/sf_Security/sample_vm/simple_vm_set/sample_vm_with_input/samp
 l = logging.getLogger(name=__name__)
 
 TIMING = True
+
+class AndingSimSolver(SimSolver):
+    def merge(self, others, merge_conditions, common_ancestor=None):  # pylint: disable=W0613
+        # Start from our current constraints
+
+        fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+
+        repl = claripy.solvers.SolverReplacement(
+            actual_frontend=fast_exact,
+            unsafe_replacement=True,
+            auto_replace=False,
+        )
+        merged_frontend = repl
+
+        cons_dict = defaultdict(list)
+        general_constraints = []
+        for cons in self.constraints:
+            if len(cons.variables) == 1 and list(cons.variables)[0].startswith("mba_state_split_cond"):
+                cons_dict[list(cons.variables)[0]].append(cons)
+            else:
+                general_constraints.append(cons)
+
+        for o in others:
+            for cons in o.constraints:
+                if len(cons.variables) == 1 and list(cons.variables)[0].startswith("mba_state_split_cond"):
+                    cons_dict[list(cons.variables)[0]].append(cons)
+                else:
+                    general_constraints.append(cons)
+
+
+        for var, cons in cons_dict.items():
+            if len(cons) == 2:
+                merged_frontend.add(cons[0] | cons[1])
+            elif len(cons) == 1:
+                merged_frontend.add(cons[0])
+            elif len(cons) > 2:
+                import ipdb;ipdb.set_trace()
+
+        for con in general_constraints:
+            merged_frontend.add(con)
+
+        for other in others:
+            for var, val in other._solver._replacements.items():
+                merged_frontend.add_replacement(var.ast, val)
+
+        for var, val in self._solver._replacements.items():
+            merged_frontend.add_replacement(var.ast, val)
+
+        # Store and report
+        self._stored_solver = merged_frontend
+        return True
 
 class DataSensitiveU64(pyvex.const.U64):
     def __init__(self, value, block_id):
@@ -284,31 +337,38 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
             #     return final_cond
 
 
-            elif len(conc_addrs) == 2:
+            elif len(conc_addrs) == 2 and self.state.scratch.ins_addr not in self.project.bt_ins_addrs:# and self.state.block(self.state.scratch.ins_addr).disassembly.insns[0].mnemonic.startswith("mov"):
                 loaded_values = []
                 for conc_addr in conc_addrs:
                     loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
                                                           endness=self.state.arch.memory_endness)
                     loaded_values.append(loaded_value)
-                if len(simplified_addr.variables) == 2:
-                    is_mba_addr_1 = False
-                    is_mba_addr_2 = False
-                    for var in simplified_addr.variables:
-                        if var.startswith('mba_state_split_cond'):
-                            is_mba_addr_1 = True
-                        elif var.startswith('precon_sp'):
-                            is_mba_addr_2 = True
-                    if is_mba_addr_2 and is_mba_addr_1:
-                        print("experimental")
-                        import ipdb;ipdb.set_trace()
+                # if len(simplified_addr.variables) == 2:
+                #     is_mba_addr_1 = False
+                #     is_mba_addr_2 = False
+                #     for var in simplified_addr.variables:
+                #         if var.startswith('mba_state_split_cond'):
+                #             is_mba_addr_1 = True
+                #         elif var.startswith('precon_sp'):
+                #             is_mba_addr_2 = True
+                #     if is_mba_addr_2 and is_mba_addr_1:
+                #         print("experimental")
+                #         import ipdb;ipdb.set_trace()
 
-                if simplified_addr.symbolic and len(simplified_addr.variables) == 1 and list(simplified_addr.variables)[0].startswith('mba_state_split_cond'):
+                existing_state_split_var = False
+                if self.state.globals['last_added_state_split_cond'] is not None:
+                    for var in simplified_addr.variables:
+                        if var.startswith(self.state.globals['last_added_state_split_cond'].args[0]):
+                            existing_state_split_var = True
+                            break
+
+                if existing_state_split_var:
                     print("experimental")
                     # import ipdb;
                     # ipdb.set_trace()
-                    for ast in list(simplified_addr.leaf_asts()):
-                        if ast.symbolic:
-                            state_split_cond = ast
+                    # for ast in list(simplified_addr.leaf_asts()):
+                    #     if ast.symbolic:
+                    state_split_cond = self.state.globals['last_added_state_split_cond']
                     solns = self.state.partial_symbolic_constraint_solver._solver.batch_eval([state_split_cond, simplified_addr], 2)
                     loaded_value_0 = self.state.memory.load(solns[0][1], self._ty_to_bytes(ty),
                                                             endness=self.state.arch.memory_endness)
@@ -322,6 +382,11 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                     # import ipdb;ipdb.set_trace()
                     return to_return
                 state_split_cond = claripy.BoolS('mba_state_split_cond')
+                if state_split_cond.args[0].startswith("mba_state_split_cond_1096_-1") or state_split_cond.args[0].startswith("mba_state_split_cond_1092_-1") or  state_split_cond.args[0].startswith("mba_state_split_cond_1094_-1"):
+                    import ipdb;ipdb.set_trace()
+                # if state_split_cond.args[0].startswith('mba_state_split_cond_1012') or state_split_cond.args[0].startswith('mba_state_split_cond_1016') and  state_split_cond.args[0].startswith('mba_state_split_cond_1014'):
+                self.state.globals['last_added_state_split_cond'] = state_split_cond
+                self.state.globals['last_state_split_cond_block_id'] = self.state.globals["cur_block_id"]
                 ## IF OPTIMIZATION IS ZERO THEN WE HAVE TO STORE THIS IN THE REGISTER WHICH CREATED THIS TMP AS WELL,SINCE THE TEMP WILL NOT BE USED LATER WHEN THE REGISTER IS READ
                 ## OR WE CAN JUST DO _replacement on all regs and current temps....... but still possible it might be on stack
                 addr_mba=claripy.If(state_split_cond, conc_addrs[0], conc_addrs[1])
@@ -345,6 +410,13 @@ class InputConcretizeEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, SimE
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] - addr.args[1], conc_addrs[1] - addr.args[1]))
                             elif addr.op == "__sub__":
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[0] ,claripy.If(state_split_cond, conc_addrs[0] + addr.args[1], conc_addrs[1] + addr.args[1]))
+                        elif addr.args[0].depth == 2 and len(addr.args[0].variables) == 1 and list(addr.args[0].variables)[0].startswith("precon_sp"):
+                            if addr.op == "__add__":
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - addr.args[0], conc_addrs[1] - addr.args[0]))
+
+                            elif addr.op == "__sub__":
+                                import ipdb;ipdb.set_trace()
+                                self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
 
                     elif len(addr.args) == 3:
                         if addr.args[0].depth == 1:
@@ -553,7 +625,8 @@ class VMDeobfuscation(Analysis):
                  deobfuscation_start_addr=None, deobfuscation_end_addr=None,vpc_loc=None, vpc_mem_loc=None, allow_global_dead_ass_elim=False,
                  max_symbolizer_iterations=None, allow_global_mem_simplifications=True, constant_prop_level=0, use_vip_finder=False, skip_call_ret=False,
                  symbolizer_start_state=None, nodes_to_prune=[], themida_split_branches=False, remove_dead_simprocedures=False, only_verification_test=False,
-                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False):
+                 ail_propagator_init_values=None, unroll_same_vpc_loop=False, byte_code_regions=None, min_entropy_threshold=5.00, use_mem_vpc_finder=False, hook_other_functions=False,
+                 remove_vmp_semantically_same_branch=False):
 
         # This is the address of the node where the virtual machine implementation starts
         self.vm_start_addr = vm_start_addr
@@ -574,6 +647,9 @@ class VMDeobfuscation(Analysis):
         self.project.min_entropy_threshold = min_entropy_threshold
         self.project.start_deobfuscation_immediately = start_deobfuscation_immediately
         self.project_dir = Path(self.project.filename).resolve().parent
+        self.hook_other_functions = hook_other_functions
+        self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
+
 
         DUMP = "dump"
         LOAD = "load"
@@ -637,13 +713,38 @@ class VMDeobfuscation(Analysis):
                                               cfg_fast_graph=cfg_fast_graph, avoid_runs=avoid_runs, remove_insts=remove_insts,
                                               unroll_same_vpc_loop=unroll_same_vpc_loop)
 
-        pickled_file_name = self.project_dir / "hunatch_input_cfg_pickle"
-        cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+        with open('./total_node_count','w') as f:
+            f.write(str(len(list(cfg.graph.nodes()))))
+
         import pickle
         pickled_file_name = self.project_dir / "rep_movsb_addr_pickle"
         with open(pickled_file_name, 'wb') as f:
             pickle.dump(self.project.rep_movsb_addr, f)
 
+        pickled_file_name = self.project_dir / "same_branch_points"
+        with open(pickled_file_name, 'wb') as f:
+            pickle.dump(self.project.semantically_same_branch_points, f)
+
+
+        self.project.kb.cfgs.cfgs = {}
+        # clearing the saved states to save space
+        for node in cfg.graph.nodes():
+            node.input_state = None
+            node.final_states = None
+
+        self.draw_graph_flag =True
+        self.draw_graph(cfg, self.project_dir / "input.svg")
+        self.draw_graph_flag = False
+
+        # removing path terminators, cause...............they causing problems
+        cfg = self.new_model_without_terminator_graph(cfg.graph, proj, 'without_path_terminator')
+
+        cfg = self.keep_only_one_graph(cfg, start_addr)
+        start_state_copy = start_state.copy()
+        cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
+
+        pickled_file_name = self.project_dir / "data_sens_cfg"
+        cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
 
         self.project.kb.cfgs.cfgs = {}
         # clearing the saved states to save space
@@ -658,13 +759,13 @@ class VMDeobfuscation(Analysis):
         start_state_copy = start_state.copy()
         cfg = self.convert_to_data_sensitive_irsb(cfg, proj, start_state_copy)
 
-        pickled_file_name = self.project_dir / "data_sens_cfg"
-        cfg = self.pickle_dump_load_cfg(cfg, pickled_file_name, DUMP)
+        cfg = self.remove_vmp_semantic_same_branches(cfg)
 
         self.draw_graph_flag =True
         self.draw_graph(cfg, self.project_dir / "input.svg")
         self.draw_graph_flag = False
         new_cfg=cfg
+        cfg = None
         all_symbolic_expr_locations = {}
         import pickle
         prev_node_count=0
@@ -688,12 +789,12 @@ class VMDeobfuscation(Analysis):
             #we need to pass previous symb exprs because, once a conditonal jmp is symbolized, we may not necessariy explore the branchs in the correct order
             # in symbolizer. which could lead to a incomplete graph. e.g exploring the False branch first, will cause us to miss the loop branch which symbolzies the
             # correct variable. this is specifically in themida which has two conditionals jmp for every conditional jump
-            _, symbolic_expr_locations= self.symbolizer(new_cfg, proj,
+            symbolic_expr_locations= self.symbolizer(new_cfg, proj,
                                                                   start_addr, None,
                                                                   start_state=symbolizer_start_state,
                                                                   prev_symbolic_expr_locations=all_symbolic_expr_locations,
                                                                   prev_unroll_vm_addrs=prev_unroll_vm_addrs,
-                                                                  constant_prop_level=constant_prop_level)
+                                                                  constant_prop_level=constant_prop_level)[1]
 
             import pickle
             pickled_file_name = self.project_dir / f"symbolizer_z3_time_prof_iter_{symb_iter}"
@@ -709,14 +810,20 @@ class VMDeobfuscation(Analysis):
 
             self.merge_symbolic_expr_locations(all_symbolic_expr_locations, symbolic_expr_locations)
 
+            pickled_file_name = self.project_dir / f"pickled_{symb_iter}_all_symbolic_expr_location"
+            with open(pickled_file_name, 'wb') as f:
+                pickle.dump(all_symbolic_expr_locations, f)
+
             self.project.kb.cfgs.cfgs = {}
             # clearing the saved states to save space
             for node in new_cfg.graph.nodes():
                 node.input_state = None
                 node.final_states = None
-
-            # release the memory
+            node = None # remove refernce to this node, so gc can collect it
+            new_cfg.graph.clear()
             new_cfg = None
+            import gc
+            gc.collect()
             start_state_copy = start_state.copy()
             #here we discover new nodes based on the values to symbolize from the symbolizer
             #here we discover one nested branch each iteration,so more the nested branches more iterations of this needed
@@ -750,6 +857,8 @@ class VMDeobfuscation(Analysis):
             pickled_file_name = self.project_dir / f"{symb_iter}_symbolizer_cfg_pickle"
             new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
 
+            new_cfg = self.remove_vmp_semantic_same_branches(new_cfg)
+
             self.draw_graph_flag=True
             self.draw_graph(new_cfg, self.project_dir / f"{symb_iter}symb_result.svg")
             self.draw_graph_flag=False
@@ -770,7 +879,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph(new_cfg, self.project_dir / "after_all_symb_and_split.svg")
 
-        self.draw_graph_flag = False
+        # self.draw_graph_flag = False
 
         import pickle
         pickled_file_name = self.project_dir / "pickled_load_addr_mba_to_jump_addr_mapping"
@@ -794,6 +903,7 @@ class VMDeobfuscation(Analysis):
         new_cfg = self.pickle_dump_load_cfg(new_cfg, pickled_file_name, DUMP)
         self.inst_count(new_cfg)
 
+        new_cfg = self.vmp_remove_bt_rdtsc_insts(new_cfg, self.project.bt_ins_addrs, self.project.rdtsc_ins_addrs)
         if remove_dead_simprocedures:
             new_cfg = self.eliminate_dead_simprocedures(new_cfg, proj, self.project.simprocedures_to_remove)
 
@@ -992,7 +1102,7 @@ class VMDeobfuscation(Analysis):
 
         self.draw_graph_flag = True
 
-        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=True, super_graph_only=True)
+        self.draw_graph(new_cfg, self.project_dir /  "final_result.svg", without_insts=False, super_graph_only=False)
 
         self.try_decompilation(new_cfg, decomp_start_end_node_str, decomp_function_addresses=decomp_function_addresses,
                                decomp_function_prototypes=decomp_function_prototypes, semantic_verf_hooks=semantic_verf_hooks,
@@ -1011,6 +1121,396 @@ class VMDeobfuscation(Analysis):
         # self.compare_vex(initial_cfg, new_cfg, folder_name)
         # self.pattern_match_to_x86_instructions(new_cfg, initial_cfg, proj, folder_name)
 
+    def remove_vmp_semantic_same_branches(self, cfg):
+        # NOTE: this does not remove the branch only makes one of the paths unaccessible, so it will later be removedby dead ass elim
+        for node in cfg.graph.nodes():
+            if node.addr in self.project.semantically_same_branch_points:
+                succs = list(cfg.graph.successors(node))
+                if len(succs) == 1:
+                    for stmt in node.irsb.statements:
+                        if isinstance(stmt, pyvex.stmt.Exit):
+                            exit_addr = stmt.dst
+
+                    if exit_addr.value == succs[0].addr:
+                        new_addr = exit_addr.value
+                        if self.project.arch.bits == 32:
+                            new_addr = pyvex.expr.Const(DataSensitiveU32(new_addr, succs[0].block_id))
+                        elif self.project.arch.bits == 64:
+                            new_addr = pyvex.expr.Const(DataSensitiveU64(new_addr, succs[0].block_id))
+
+                        node.irsb.next = new_addr
+                    else:
+                        new_addr = succs[0].addr
+                        for stmt in node.irsb.statements:
+                            if isinstance(stmt, pyvex.stmt.Exit):
+                                if self.project.arch.bits == 32:
+                                    stmt.dst = DataSensitiveU32(new_addr, succs[0].block_id)
+                                elif self.project.arch.bits == 64:
+                                    stmt.dst = DataSensitiveU64(new_addr, succs[0].block_id)
+                else:
+                    for stmt in node.irsb.statements:
+                        if isinstance(stmt, pyvex.stmt.Exit):
+                            exit_addr = stmt.dst
+
+                    if exit_addr.value == succs[0].addr:
+                        new_addr = exit_addr.value
+                        if self.project.arch.bits == 32:
+                            new_addr = pyvex.expr.Const(DataSensitiveU32(new_addr, succs[0].block_id))
+                        elif self.project.arch.bits == 64:
+                            new_addr = pyvex.expr.Const(DataSensitiveU64(new_addr, succs[0].block_id))
+
+                        node.irsb.next = new_addr
+                    else:
+                        new_addr = succs[0].addr
+                        for stmt in node.irsb.statements:
+                            if isinstance(stmt, pyvex.stmt.Exit):
+                                if self.project.arch.bits == 32:
+                                    stmt.dst = DataSensitiveU32(new_addr, succs[0].block_id)
+                                elif self.project.arch.bits == 64:
+                                    stmt.dst = DataSensitiveU64(new_addr, succs[0].block_id)
+
+        return cfg
+
+    def faster_eliminate_dead_assignments(self, cfg, proj, keep_sp_changes_dae=False):
+
+        def remove_path(cur_cfg, start_node):
+            reachable = set(networkx.dfs_preorder_nodes(cur_cfg.graph, source=start_node))
+            to_prune = [n for n in cur_cfg.graph.nodes if n not in reachable]
+            return to_prune
+
+        dsa_new_model = cfg
+
+        # find start node
+        for node in dsa_new_model.nodes():
+            if node.addr == self.vm_start_addr:
+                start_node = node
+                break
+
+        nodes_to_remove = set()
+
+        for node in list(dsa_new_model.nodes()):
+            if node.is_simprocedure:
+                continue
+
+            cur_block = angr.Block(node.irsb.addr, project=proj, vex=node.irsb)
+
+            # --- RD once per block; we'll iterate eliminations using the same model
+            rd = self.project.analyses.ReachingDefinitions(
+                cur_block,
+                track_tmps=True,
+                track_consts=False,
+                observation_points=[('node', node.addr, OP_AFTER)]
+            )
+            rd.model.liveness.def_to_liveness = None
+            rd.model.liveness.loc_to_defs = None
+
+            live_defs = rd.one_result
+            all_defs = rd.all_definitions
+
+            # Keep a growing set of removed statement indices for this block
+            removed_stmt_idxs: set[int] = set()
+
+            def _filter_uses_excluding_removed(uses):
+                """
+                'uses' can be a set/list of Use objects or CodeLocations depending on angr version.
+                We conservatively check for .codeloc or treat the object itself as a CodeLocation.
+                """
+                filtered = []
+                for u in uses or []:
+                    cl = getattr(u, 'codeloc', u)
+                    if getattr(cl, 'stmt_idx', None) is None:
+                        filtered.append(u)
+                    else:
+                        if cl.stmt_idx not in removed_stmt_idxs:
+                            filtered.append(u)
+                return filtered
+
+            def _defs_excluding_removed(defs_set):
+                """Filter a set of Definition objects so only keep those not already removed."""
+                out = set()
+                for d in defs_set:
+                    si = getattr(d.codeloc, 'stmt_idx', None)
+                    if si is None or si not in removed_stmt_idxs:
+                        out.add(d)
+                return out
+
+            changed_any = False
+
+            # Iterate until no more new eliminations (fixed point) using the same RD
+            while True:
+                pass_removed_now = set()
+                dead_defs_stmt_idx = defaultdict(int)
+
+                # Recompute used_tmp_indices *considering only non-removed uses*
+                used_tmp_indices = set()
+                for tmp_idx, tmp_uses in (getattr(live_defs, 'tmp_uses', {}) or {}).items():
+                    filt = _filter_uses_excluding_removed(tmp_uses)
+                    if filt:
+                        used_tmp_indices.add(tmp_idx)
+
+                # Scan all defs; if their only remaining uses are in removed stmts (or none), mark stmt dead
+                for d in all_defs:
+                    si = getattr(d.codeloc, 'stmt_idx', None)
+                    if isinstance(d.codeloc, ExternalCodeLocation) or d.dummy:
+                        continue
+                    if si is None or si in removed_stmt_idxs:
+                        # Already out of consideration
+                        continue
+
+                    if isinstance(d.atom, atoms.Tmp):
+                        tmp_idx = d.atom.tmp_idx
+                        uses = _filter_uses_excluding_removed(live_defs.tmp_uses.get(tmp_idx, []))
+                        if not uses:
+                            # Preserve tmp if it flows into next
+                            if isinstance(node.irsb.next, DataSensitiveRdTmp):
+                                if node.irsb.next.tmp != tmp_idx:
+                                    dead_defs_stmt_idx[si] += 1
+                                else:
+                                    used_tmp_indices.add(tmp_idx)
+                            else:
+                                dead_defs_stmt_idx[si] += 1
+                        else:
+                            used_tmp_indices.add(tmp_idx)
+
+                    else:
+                        # Non-tmp atoms: check liveness at block end; if not alive, candidate for removal
+                        defs_ = set()
+                        vs = None
+
+                        if isinstance(d.atom, atoms.Register):
+                            if keep_sp_changes_dae and d.atom.reg_offset == self.project.arch.sp_offset:
+                                continue
+                            try:
+                                vs = live_defs.register_definitions.load(
+                                    d.atom.reg_offset, size=d.atom.size
+                                )
+                            except SimMemoryMissingError:
+                                vs = None
+
+                        elif isinstance(d.atom, atoms.MemoryLocation) and isinstance(d.atom.addr, SpOffset):
+                            stack_addr = live_defs.stack_offset_to_stack_addr(d.atom.addr.offset)
+                            try:
+                                vs = live_defs.stack_definitions.load(
+                                    stack_addr, size=d.atom.size, endness=d.atom.endness
+                                )
+                            except SimMemoryMissingError:
+                                vs = None
+
+                        elif isinstance(d.atom, atoms.MemoryLocation) and \
+                                isinstance(node.irsb.statements[si], pyvex.stmt.Store) and \
+                                isinstance(node.irsb.statements[si].addr, pyvex.expr.Const):
+                            try:
+                                vs = live_defs.memory_definitions.load(
+                                    d.atom.addr, size=d.atom.size, endness=d.atom.endness
+                                )
+                            except SimMemoryMissingError:
+                                vs = None
+                        else:
+                            # Unsupported/complex address cases; skip this def
+                            continue
+
+                        if vs is None:
+                            continue
+
+                        for values in vs.values():
+                            for value in values:
+                                defs_.update(live_defs.extract_defs(value))
+
+                        # Only consider non-removed defs
+                        defs_ = _defs_excluding_removed(defs_)
+
+                        if d not in defs_:
+                            # Additional aliasing guard for concrete-address mem stores:
+                            if isinstance(d.atom, atoms.MemoryLocation) and not isinstance(d.atom.addr, SpOffset):
+                                possible_alias = False
+                                # Look for any symbolic loads between d and the next def, skipping removed stmts
+                                for n_def in defs_:
+                                    assert d.codeloc.stmt_idx < n_def.codeloc.stmt_idx
+                                    for i in range(d.codeloc.stmt_idx, n_def.codeloc.stmt_idx):
+                                        if i in removed_stmt_idxs:
+                                            continue
+                                        st = node.irsb.statements[i]
+                                        if isinstance(st, pyvex.stmt.WrTmp) and isinstance(st.data, pyvex.expr.Load):
+                                            if not isinstance(st.data.addr, pyvex.IRExpr.Const):
+                                                possible_alias = True
+                                                break
+                                    if possible_alias:
+                                        break
+                                if not possible_alias:
+                                    dead_defs_stmt_idx[si] += 1
+                            else:
+                                dead_defs_stmt_idx[si] += 1
+
+                # Decide which stmts to remove in this pass (excluding those already removed)
+                for idx, stmt in enumerate(cur_block.vex.statements):
+                    if idx in removed_stmt_idxs:
+                        continue
+
+                    # Kill dead tmps (WrTmp) whose tmp is not used anymore (after filtering)
+                    if isinstance(stmt, pyvex.stmt.WrTmp):
+                        if stmt.tmp not in used_tmp_indices:
+                            pass_removed_now.add(idx)
+                            continue
+
+                    # CAS must have both defs dead
+                    if isinstance(stmt, pyvex.stmt.CAS):
+                        if dead_defs_stmt_idx.get(idx, 0) >= 2:
+                            pass_removed_now.add(idx)
+                            continue
+
+                    # Any stmt with dead def(s)
+                    if idx in dead_defs_stmt_idx:
+                        pass_removed_now.add(idx)
+                        continue
+
+                if not pass_removed_now:
+                    break  # fixed point for this block
+
+                removed_stmt_idxs |= pass_removed_now
+                changed_any = True
+
+            # If nothing changed for this block, we still may simplify constant-guard Exits
+            new_statements = []
+            for idx, stmt in enumerate(cur_block.vex.statements):
+                if idx in removed_stmt_idxs:
+                    continue
+
+                # Keep original "end-of-block" IMarks/AbiHints cleanup and duplicates skip
+                if isinstance(stmt, pyvex.stmt.IMark) and idx == len(cur_block.vex.statements) - 1:
+                    continue
+                elif isinstance(stmt, pyvex.stmt.AbiHint) and idx == len(cur_block.vex.statements) - 1:
+                    continue
+                elif isinstance(stmt, pyvex.stmt.IMark) and idx + 1 < len(cur_block.vex.statements) and \
+                        isinstance(cur_block.vex.statements[idx + 1], (pyvex.stmt.IMark, pyvex.stmt.AbiHint)):
+                    continue
+
+                # Constant-guard Exit pruning + CFG surgery (unchanged logic)
+                if isinstance(stmt, pyvex.stmt.Exit) and type(stmt.guard) == pyvex.expr.Const:
+                    if stmt.guard.con.value == 0:
+                        edge_to_remove_node = None
+                        succs = list(dsa_new_model.graph.successors(node))
+                        if len(succs) == 2:
+                            for succ in succs:
+                                if succ.addr == stmt.dst.value and stmt.dst.block_id == succ.block_id:
+                                    edge_to_remove_node = succ
+                            if not edge_to_remove_node:
+                                for succ in succs:
+                                    if succ.addr == stmt.dst.value:
+                                        import ipdb;
+                                        ipdb.set_trace()
+                                continue
+                            dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
+                        continue
+                    elif stmt.guard.con.value == 1:
+                        edge_to_remove_node = None
+                        succs = list(dsa_new_model.graph.successors(node))
+                        if len(succs) == 2:
+                            for succ in succs:
+                                if succ.addr == node.irsb.next.con.value and node.irsb.next.con.block_id == succ.block_id:
+                                    edge_to_remove_node = succ
+                            dsa_new_model.graph.remove_edge(node, edge_to_remove_node)
+                            nodes_to_remove = nodes_to_remove.union(remove_path(dsa_new_model, start_node))
+                        node.irsb.next = pyvex.expr.Const(stmt.dst)
+                        continue
+
+                new_statements.append(stmt)
+
+            # If the block becomes empty, splice it out like before
+            if not new_statements:
+                if len(list(dsa_new_model.graph.successors(node))) > 0:
+                    succ = next(dsa_new_model.graph.successors(node))
+                    preds = dsa_new_model.graph.predecessors(node)
+                    to_remove = False
+                    for pred in preds:
+                        pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
+                        if not pred.is_simprocedure:
+                            dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                            if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
+                                if pred.irsb.statements[-1].dst.block_id == node.block_id:
+                                    pred.irsb.statements[-1].dst = node.irsb.next.con
+                                else:
+                                    pred.irsb.next = node.irsb.next
+                                if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and \
+                                        pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
+                                    pred.irsb.statements = pred.irsb.statements[:-1]
+                            else:
+                                pred.irsb.next = node.irsb.next
+                            to_remove = True
+                        else:
+                            print("Not removing this block, since there the previous block is a Sim Procedure")
+                    if to_remove:
+                        dsa_new_model.graph.remove_node(node)
+                else:
+                    dsa_new_model.graph.remove_node(node)
+            else:
+                # Rebuild block once with all removals applied
+                node.irsb = pyvex.IRSB.empty_block(
+                    node.irsb.arch,
+                    node.irsb.addr,
+                    statements=new_statements,
+                    tyenv=node.irsb.tyenv,
+                    nxt=node.irsb.next,
+                    direct_next=node.irsb.direct_next,
+                    jumpkind=node.irsb.jumpkind,
+                    size=node.irsb.size
+                )
+
+        dsa_new_model.graph.remove_nodes_from(nodes_to_remove)
+        return dsa_new_model
+
+    def remove_action_tracking(self, state):
+        ACTION_TRACKING = {
+            "TRACK_MEMORY_ACTIONS",
+            "TRACK_REGISTER_ACTIONS",
+            "TRACK_TMP_ACTIONS",
+            "TRACK_JMP_ACTIONS",
+            "TRACK_CONSTRAINT_ACTIONS",
+            "TRACK_OP_ACTIONS",
+            "TRACK_ACTION_HISTORY",
+        }
+        removed = []
+        for opt in ACTION_TRACKING:
+            if opt in state.options._options:  # present & True/False stored
+                state.options.discard(opt)  # drop the key entirely
+                removed.append(opt)
+        return removed
+    def vmp_remove_bt_rdtsc_insts(self, cfg, inst_to_remove, rdtsc_ins_addr):
+        for node in cfg.nodes():
+            if not node.is_simprocedure:
+                to_remove = set()
+                for stmt_idx, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in inst_to_remove:
+                        skip = True
+                    elif isinstance(stmt, pyvex.stmt.IMark) and not(stmt.addr in inst_to_remove):
+                        skip = False
+                    if skip and isinstance(stmt, pyvex.stmt.Store):
+                        # the stores in bt* insts are not tracked by RDA, because the addrs has been crafted using shift and AND operations possibly
+                        #removing just the store instrs is enough, as rest will be removed by dead assignment elimination
+                        to_remove.add(stmt_idx)
+
+                for stmt_idx, stmt in enumerate(node.irsb.statements):
+                    if isinstance(stmt, pyvex.stmt.IMark) and stmt.addr in rdtsc_ins_addr:
+                        skip = True
+                    elif isinstance(stmt, pyvex.stmt.IMark) and not(stmt.addr in rdtsc_ins_addr):
+                        skip = False
+
+                    if skip:
+                        to_remove.add(stmt_idx)
+
+                new_statements = []
+                for stmt_idx, stmt in enumerate(node.irsb.statements):
+                    if stmt_idx not in to_remove:
+                        new_statements.append(stmt)
+                node.irsb = pyvex.IRSB.empty_block(node.irsb.arch,
+                                                   node.irsb.addr,
+                                                   statements=new_statements,
+                                                   tyenv=node.irsb.tyenv,
+                                                   nxt=node.irsb.next,
+                                                   direct_next=node.irsb.direct_next,
+                                                   jumpkind=node.irsb.jumpkind,
+                                                   size=node.irsb.size)
+        return cfg
     def inst_count(self, cfg):
         count=0
         for node in cfg.nodes():
@@ -1616,7 +2116,8 @@ class VMDeobfuscation(Analysis):
     def find_exit_stmt(self, irsb):
 
         for stmt_idx, stmt in reversed(list(enumerate(irsb.statements))):
-            if isinstance(stmt, pyvex.stmt.Exit):
+            # ignore the exits created by popf and trap flag checks for single stepping
+            if isinstance(stmt, pyvex.stmt.Exit) and stmt.jumpkind not in ["Ijk_EmWarn"]:
                 return stmt, stmt_idx
         return None, None
 
@@ -1653,9 +2154,13 @@ class VMDeobfuscation(Analysis):
             elif old_node.irsb.jumpkind == "Ijk_Ret" and not successors[0].is_simprocedure and successors[0].addr not in decomp_function_addresses:
                 new_jumpkind = "Ijk_Boring"
 
+            same_ip = False
+            if len(successors) == 2 and successors[0].addr == successors[1].addr:
+                same_ip = True
+
             orig_exit_stmt, orig_exit_stmt_idx = self.find_exit_stmt(old_node.irsb)
             # replace indirect jumps that are acutally a branch, by adding exit statement
-            if len(successors) == 2 and not orig_exit_stmt:
+            if len(successors) == 2 and not orig_exit_stmt and not same_ip:
                 new_jumpkind = "Ijk_Boring"
 
 
@@ -1693,7 +2198,7 @@ class VMDeobfuscation(Analysis):
 
                 old_node.irsb.tyenv.types.append('Ity_I1')
 
-            elif len(successors) == 2 and orig_exit_stmt:
+            elif len(successors) == 2 and orig_exit_stmt and not same_ip:
                 # For existing branches we need to replace the addrs with the new hashed addresses
                 true_addr_block_id = None
                 false_addr_block_id = None
@@ -1843,11 +2348,34 @@ class VMDeobfuscation(Analysis):
                                                                         'TOP_LIST_MEMORY_SYMBOLIZER'})  # 'REPLACEMENT_SOLVER' removed to test the spped without replacements
             # initial_input_state.register_plugin('partial_symbolic_constraint_solver', angr.state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
 
-            initial_input_state.register_plugin('partial_symbolic_constraint_solver',
-                                                angr.state_plugins.solver.SimSolver(
-                                                    claripy.solvers.SolverReplacement(claripy.Solver(timeout=1200000),
-                                                                                      unsafe_replacement=True,
-                                                                                      auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
+            # initial_input_state.register_plugin('partial_symbolic_constraint_solver',
+            #                                     angr.state_plugins.solver.SimSolver(
+            #                                         claripy.solvers.SolverReplacement(claripy.Solver(timeout=1200000),
+            #                                                                           unsafe_replacement=True,
+            #                                                                           auto_replace=False)))  # auto replace needs to be Fals otherwiseit will wrongly replace constraints that start with NOT to False
+
+            fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+
+            repl = claripy.solvers.SolverReplacement(
+                actual_frontend=fast_exact,
+                unsafe_replacement=True,
+                auto_replace=False,
+            )
+
+            initial_input_state.register_plugin('solver', angr.state_plugins.solver.SimSolver(repl))
+
+            fast_exact = claripy.solvers.SolverCacheless(track=False, timeout=1200000)
+
+            repl = claripy.solvers.SolverReplacement(
+                actual_frontend=fast_exact,
+                unsafe_replacement=True,
+                auto_replace=False,
+            )
+
+            initial_input_state.register_plugin(
+                'partial_symbolic_constraint_solver',
+                AndingSimSolver(repl)
+            )
 
             if proj.arch.bits == 32:
                 initial_input_state.registers.store('ss', 0)
@@ -1906,6 +2434,7 @@ class VMDeobfuscation(Analysis):
             if is_stack_touched:
                 state.inspect.mem_read_expr = annotate_with_new_replacements(state, state.inspect.mem_read_expr,
                                                                              StackTouchedAnnotation(1))
+        self.remove_action_tracking(initial_input_state)
 
 
         ## annotating and preconstraining the stack pointer
@@ -1964,6 +2493,7 @@ class VMDeobfuscation(Analysis):
         start_state.globals['to_use_symbolic_exprs'] = []
         start_state.globals['expr_loc_map'] = {}
         self.project.prev_symbolic_expr_locations = symbolic_expr_locations
+        self.remove_action_tracking(start_state)
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                                data_sensitive=True,
                                                starts=(start_addr,),
@@ -1971,7 +2501,7 @@ class VMDeobfuscation(Analysis):
                                                max_iterations=1,
                                                resolve_indirect_jumps=False,
                                                keep_state=False,
-                                               state_add_options=angr.sim_options.refs | {angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
+                                               state_add_options={angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
                                                iropt_level=1,
                                                cfg_fast_graph=cfg_fast_graph,
                                                avoid_runs=avoid_runs,
@@ -1980,7 +2510,9 @@ class VMDeobfuscation(Analysis):
                                                deobfuscation_start_addr=self.deobfuscation_start_addr,
                                                deobfuscation_end_addr = self.deobfuscation_end_addr,
                                                nodes_to_prune=self.nodes_to_prune,
-                                               unroll_same_vpc_loop=unroll_same_vpc_loop
+                                               unroll_same_vpc_loop=unroll_same_vpc_loop,
+                                               hook_other_functions=self.hook_other_functions,
+                                               remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch
                                                # enable_advanced_backward_slicing=True
                                                )
         self.project.prev_symbolic_expr_locations = None
@@ -2328,6 +2860,8 @@ class VMDeobfuscation(Analysis):
             # This is to check if the node was deleted or not
             if node in new_model.graph.nodes():
                 if not node.is_simprocedure and len(list(new_model.graph.successors(node))) == 1:
+                    if node.addr == 0x1401f1572 and node.block_id.vm_vpc == 10737664954:
+                        import ipdb;ipdb.set_trace()
                     if skip_call_ret and node.irsb.jumpkind in ['Ijk_Call', 'Ijk_Ret']:
                         continue
                     succ = list(new_model.graph.successors(node))[0]
@@ -3328,23 +3862,26 @@ class VMDeobfuscation(Analysis):
                     preds = dsa_new_model.graph.predecessors(node)
                     to_remove = False
                     for pred in preds:
-                        pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
-                        # Reassigning the next expression of the previous
-                        if not pred.is_simprocedure:
-                            dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
-                            if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
-                                if pred.irsb.statements[-1].dst.block_id == node.block_id:
-                                    pred.irsb.statements[-1].dst = node.irsb.next.con
+                        succ_of_pred = list(dsa_new_model.graph.successors(pred))
+
+                        if len(succ_of_pred) == 1:
+                            pred_edge_data = dsa_new_model.graph.get_edge_data(pred, node)
+                            # Reassigning the next expression of the previous
+                            if not pred.is_simprocedure:
+                                dsa_new_model.graph.add_edge(pred, succ, jumpkind=pred_edge_data['jumpkind'])
+                                if len(pred.irsb.statements) > 0 and isinstance(pred.irsb.statements[-1], pyvex.stmt.Exit):
+                                    if pred.irsb.statements[-1].dst.block_id == node.block_id:
+                                        pred.irsb.statements[-1].dst = node.irsb.next.con
+                                    else:
+                                        pred.irsb.next = node.irsb.next
+                                    if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
+                                        # remove the redundant if cond, if both targets become same
+                                        pred.irsb.statements = pred.irsb.statements[:-1]
                                 else:
                                     pred.irsb.next = node.irsb.next
-                                if pred.irsb.next.con.block_id == pred.irsb.statements[-1].dst.block_id and pred.irsb.statements[-1].dst.value == pred.irsb.next.con.value:
-                                    # remove the redundant if cond, if both targets become same
-                                    pred.irsb.statements = pred.irsb.statements[:-1]
+                                to_remove = True
                             else:
-                                pred.irsb.next = node.irsb.next
-                            to_remove = True
-                        else:
-                            print("Not removing this block, since there the previous block is a Sim Procedure")
+                                print("Not removing this block, since there the previous block is a Sim Procedure")
                     if to_remove:
                         dsa_new_model.graph.remove_node(node)
                 else:
@@ -4339,6 +4876,8 @@ class VMDeobfuscation(Analysis):
                 start_state.registers.store(start_state.arch.registers['ss'][0], 0)
         # self.annotate_and_preconstrain_sp(start_state)
 
+        self.remove_action_tracking(start_state)
+
         cfg = proj.analyses.CFGVMDeobfuscation(fail_fast=True,
                                         data_sensitive=True,
                                         starts=(start_addr,),
@@ -4346,7 +4885,7 @@ class VMDeobfuscation(Analysis):
                                         max_iterations=1,
                                         resolve_indirect_jumps=False,
                                         keep_state=False,
-                                        state_add_options=angr.sim_options.refs| {angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
+                                        state_add_options={angr.sim_options.DO_CCALLS, angr.sim_options.REPLACEMENT_SOLVER},
                                         iropt_level=1,
                                         cfg_fast_graph=cfg_fast_graph,
                                         avoid_runs=avoid_runs,
@@ -4355,7 +4894,9 @@ class VMDeobfuscation(Analysis):
                                         deobfuscation_start_addr=self.deobfuscation_start_addr,
                                         deobfuscation_end_addr=self.deobfuscation_end_addr,
                                         nodes_to_prune=self.nodes_to_prune,
-                                        unroll_same_vpc_loop=unroll_same_vpc_loop
+                                        unroll_same_vpc_loop=unroll_same_vpc_loop,
+                                        hook_other_functions=self.hook_other_functions,
+                                        remove_vmp_semantically_same_branch=self.remove_vmp_semantically_same_branch
                                         # enable_advanced_backward_slicing=True
                                         )
         self.release_memory(cfg, proj)
