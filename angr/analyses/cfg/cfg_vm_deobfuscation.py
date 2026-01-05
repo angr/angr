@@ -363,7 +363,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                  deobfuscation_start_addr=None,
                  deobfuscation_end_addr=None,
                  nodes_to_prune=[],
-                 unroll_same_vpc_loop=False
+                 unroll_same_vpc_loop=False,
+                 hook_other_functions=False,
+                 remove_vmp_semantically_same_branch=False,
                  ):
         """
         All parameters are optional.
@@ -426,6 +428,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         self._model = None
         self.saved_call_stack = None
         self.nodes_to_prune = nodes_to_prune
+        self.hook_other_functions = hook_other_functions
+        self.remove_vmp_semantically_same_branch = remove_vmp_semantically_same_branch
 
         #global counter used to unroll control flow flattened areas and loops within the same vpc
         self.loop_counter=1
@@ -439,7 +443,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         # create a new solver which holds partial constriants, this is essentially used as simplification solver
         #initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(solver=claripy.solvers.SolverComposite()))
         if not hasattr(initial_state, 'partial_symbolic_constraint_solver'):
-            initial_state.register_plugin('partial_symbolic_constraint_solver', state_plugins.solver.SimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
+            from ..vm_deobfuscation.vm_deobfuscation import AndingSimSolver
+            initial_state.register_plugin('partial_symbolic_constraint_solver', AndingSimSolver(claripy.solvers.SolverReplacement(claripy.Solver(),
                                                                                   unsafe_replacement=True,
                                                                                   auto_replace=False)))
         initial_state.globals['existing_mba_split_constraints'] = []
@@ -449,6 +454,9 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         initial_state.globals['vpc'] = 0
         initial_state.globals['cur_vm_vpc'] = None
         initial_state.globals['vm_graph_exploration'] = True
+        initial_state.globals['last_added_state_split_cond'] = None
+        initial_state.globals['prev_candidate_vips'] = {}
+        initial_state.globals["last_change_time"] = 5
 
         for cons in initial_state.preconstrainer.preconstraints:
             for var in cons.variables:
@@ -1505,7 +1513,6 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 vpc_same = True
 
                             if not vpc_same:
-                                import ipdb;ipdb.set_trace()
                                 continue
 
                             if child is self._nodes[src_block_id]:
@@ -1546,9 +1553,13 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             # remove btc, btr
             cur_block = job.state.block(addr)
             for ins in cur_block.capstone.insns:
-                if ins.mnemonic in ['btc', 'bts', 'bt', 'btr', 'rdtsc']:
-                    job.state.memory.store(ins.address, ins.size*b"\x90")
-                elif ins.address in self.remove_insts:
+                # for now we uncomment this for VMP old version(remove bt insts), even though it should work with it but
+                # right now the vpc entropy detection messes up with these instruction and we get non existent loop becasue of that
+                # TODO: make the entropy based VPC detection more robust, in the presence of btc, bt, bts.......
+                # we need the bt insts for the new VMP versions becasue it does some sort of byte checking to make sure that it's not tampered with
+                # if ins.mnemonic in ['btc', 'bts', 'bt', 'btr', 'rdtsc']:
+                #     job.state.memory.store(ins.address, ins.size*b"\x90")
+                if ins.address in self.remove_insts:
                     job.state.memory.store(ins.address, ins.size * b"\x90")
 
         self.project.factory.default_engine.clear_cache()
@@ -1578,16 +1589,59 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
                     elif k=='reg':
                         job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
+        elif block_id in self.project.updated_block_id_map and self.project.updated_block_id_map[block_id] in self.project.to_symbolize:
+            new_block_id = self.project.updated_block_id_map[block_id]
+
+            for k in self.project.to_symbolize[new_block_id].keys():
+                for page_no, offset, size in self.project.to_symbolize[new_block_id][k]:
+                    sym_result = job.state.solver.BVS("symbolified_expr" + str(hex(new_block_id.addr))+str(new_block_id.vm_vpc), size*self.project.arch.byte_width)
+                    if k=='mem':
+                        job.state.memory.store(page_no+offset, sym_result, endness=self.project.arch.memory_endness, inspect=False)
+                    elif k=='reg':
+                        job.state.registers.store(page_no+offset, sym_result, endness=self.project.arch.register_endness, inspect=False)
+
+        if not self.project.is_hooked(addr) and self.hook_other_functions:
+            skip = False
+            for tmp_addr in self._starts:
+                if tmp_addr in self._starts:
+                    skip = True
+
+            if not skip:
+                # hook all unhooked functions with stubs, don't explore them
+                for ins in job.state.block(addr).capstone.insns:
+                    if ins.mnemonic == 'sub' and ins.op_str.startswith('rsp, 0x') and not ins.op_str.startswith(
+                            'rsp, 0x140') and addr not in [0x16B9BAE6310]:
+                        self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
+                        with open('./runtime_hooked_addrs', 'a') as fp:
+                            fp.write(hex(addr)+"\n")
+
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
+
+        #trim history
+        for succ in sim_successors.all_successors:
+            succ.history.trim()
 
         if 'use_vip_finder' in job.state.globals and job.state.globals['use_vip_finder'] and len(sim_successors.all_successors) > 0 and \
                 block_id.vm_vpc != sim_successors.all_successors[0].globals['cur_vm_vpc']:
             job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
                                             sim_successors.all_successors[0].globals['cur_vm_vpc'])
             job.vm_vpc = sim_successors.all_successors[0].globals['cur_vm_vpc']
+            self.project.updated_block_id_map[block_id] = job.block_id
+
             block_id = job.block_id
             l.debug("UPDATED Block Id!!: " + str(block_id))
 
+        if addr == 0x16b9bab51a1:
+            # this is for rorshark
+            job._block_id = BlockID.new(job.addr, job.call_stack.stack_suffix(self._context_sensitivity_level), 'normal',
+                                            self.project.global_counter)
+            job.vm_vpc = self.project.global_counter
+            block_id = job.block_id
+            sim_successors.all_successors[0].globals['cur_vm_vpc'] = self.project.global_counter
+            self.project.global_counter += 1
+            l.debug("UPDATED Block Id!!: " + str(block_id))
+
+        self.project.existing_vpc_values.add(block_id.vm_vpc)
         # if 0x3331000 <= addr <= 0x334D000:
         #     # in .text section
         #     with open('./text_entry_points.txt', 'a') as f:
@@ -1625,6 +1679,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
             job.state.globals['start_deobfuscation'] = False
             job.state.globals['cur_vm_vpc'] = None
 
+        VMP_branch = False
         if self.data_sensitive:
             split_same_ip_state = False
             if len(sim_successors.all_successors) == 1:
@@ -1638,6 +1693,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 if split_same_ip_state:
                     try:
                         sim_successors.all_successors[0].partial_symbolic_constraint_solver.eval_one(sim_successors.all_successors[0].regs.ip)
+                        import ipdb;ipdb.set_trace()
                         #check if it evaluates to one address only, if it does, we need to split the state
                     except:
                         # if evaluates to two address, the states are anyway going to split
@@ -1691,12 +1747,16 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 state_var_ast.append(ast)
 
 
-                        if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
-                            import ipdb;ipdb.set_trace()
+                        # if len(state_var_ast) != 1 and sim_successors.all_successors[0].regs.ip.depth>2:
+                        #     import ipdb;ipdb.set_trace()
 
                         if len(state_var_ast) > 0:
+                            VMP_branch = True
 
-                            state_var_ast = state_var_ast[0]
+                            # state_var_ast = state_var_ast[0]
+
+                            state_var_ast = sim_successors.all_successors[0].globals['last_added_state_split_cond']
+                            sim_successors.all_successors[0].globals['last_added_state_split_cond'] = None
 
                             sim_successors.all_successors[0].globals['existing_mba_split_constraints'].append(state_var_ast.args[0])
 
@@ -1726,6 +1786,23 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
 
                                 new_state.partial_symbolic_constraint_solver.add(state_var_ast == soln_pair[1])
 
+                                for reg in new_state.arch.registers.keys():
+                                    offset = new_state.arch.registers[reg][0]
+                                    size = new_state.arch.registers[reg][1]
+                                    old_val = new_state.registers.load(offset, size)
+                                    if new_state.solver.symbolic(old_val):
+                                        is_sp = False
+                                        for var in old_val.variables:
+                                            if var.startswith("precon_sp"):
+                                                is_sp = True
+                                        if not is_sp:
+                                            try:
+                                                new_val = new_state.partial_symbolic_constraint_solver.eval_one(old_val)
+                                                new_val = claripy.BVV(new_val, size*self.project.arch.byte_width)
+                                                new_state.registers.store(offset, new_val)
+                                            except:
+                                                pass
+
                                 # we are doing eval_one because only when one soln exists unsafe replacements will happen
 
                                 k= new_state.partial_symbolic_constraint_solver.eval_one(new_state.partial_symbolic_constraint_solver._solver._replacement(new_state.regs.ip))
@@ -1734,6 +1811,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 new_state.scratch.target = new_state.partial_symbolic_constraint_solver.eval_one(new_state.scratch.target)
 
                                 if split_same_ip_state:
+                                    self.project.split_same_ips_block_addrs[block_id] = (sim_successors.all_successors[0].addr,  sim_successors.all_successors[0].globals['last_state_split_cond_block_id'])
                                     if soln_pair[1] is True:
                                         new_state.globals['cur_vm_vpc'] = cur_addr_mba.args[1].args[0]
                                     elif soln_pair[1] is False:
@@ -1742,6 +1820,12 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                                 new_states.append(new_state)
                                 # import ipdb;ipdb.set_trace()
                         else:
+                            with open('./unconstrained_ip_variables', 'a') as f:
+                                for var in sim_successors.all_successors[0].regs.ip.variables:
+                                    f.write(var)
+                                    f.write(", ")
+
+                                f.write("\n")
                             print("The VIP/some reg has probably become symbolic, or we have reached last node")
 
                         if len(new_states) != 0:
@@ -1776,7 +1860,7 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                 symbolic_sim_successors.description = sim_successors.description
                 symbolic_sim_successors.sort = sim_successors.sort
                 for successor in sim_successors.all_successors:
-                    l.debug("Successor: " + str(successor))
+                    # l.debug("Successor: " + str(successor))
                     l.debug("Guard: " + str(successor.scratch.guard.shallow_repr()))
                     l.debug("Guard annotations: " + str(successor.scratch.guard.annotations))
 
@@ -1914,7 +1998,10 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
         #                                                                                     successor.scratch.source)
         #     sim_successors=symbolic_sim_successors
 
-        l.debug("After pruning: " + str(sim_successors.all_successors))
+
+        if self.remove_vmp_semantically_same_branch and not VMP_branch and (len(sim_successors.successors) == 2):
+        #     # for the rorshark VMP malware, we keep only one branch, to  prevent semantically same branches
+            self.project.semantically_same_branch_points.add(addr)
 
         # Should we skip tracing this block?
         if 'stop_analysis' in job.state.globals and job.state.globals['stop_analysis'] is True:

@@ -40,6 +40,22 @@ class EvalTopMergerMixin(MemoryMixin):
         except:
             do_check = False
 
+        if state1.globals['last_added_state_split_cond'] is not None and state1.globals['last_added_state_split_cond'] is not state0.globals['last_added_state_split_cond']:
+            existing_state_split_var = None
+
+            # this is when the mba state var had been set but not yet used to do the indirect jump but the loop merged back around and the jump will happen later
+            # we keep the state var instead of symbolizing it, so that the indirect jump can happen correctly
+
+            for var in value1.variables:
+                if var.startswith(state1.globals['last_added_state_split_cond'].args[0]):
+                    existing_state_split_var = var
+                    break
+
+            if conc_addr1 is None and existing_state_split_var:
+                solns = state1.partial_symbolic_constraint_solver.eval_upto(value1, 3)
+                if len(solns) == 2:
+                    return value1
+
         if do_check and conc_addr0 == conc_addr1:
             # we return value0 aka the older states values, because of the following case I observedd
             # if there's a loop, because of which a new mba_state_split_cond variable is added to constraints and merged with the
@@ -178,10 +194,11 @@ class EvalTopMergerMixin(MemoryMixin):
         if value0.op == "__or__" and value1.op == "__or__" and value0.args[0].concrete and value1.args[0].concrete and \
             value1.args[0].concrete_value == value0.args[0].concrete_value:
             merged_val = self._top_func(merged_size * self.state.arch.byte_width)
+            self.state.project.merger_top_dict_debug[merged_val.args[0]] = (values, "This comes from the special case")
             return value1.args[0].concrete_value | merged_val
 
         merged_val = self._top_func(merged_size * self.state.arch.byte_width)
-        self.state.project.merger_top_dict_debug[merged_val.args[0]] = values
+        self.state.project.merger_top_dict_debug[merged_val.args[0]] = (values, self.state.globals['cur_block_id'])
         if self.id not in self.state.project.to_symbolize[self.state.globals['cur_block_id']]:
             self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id] = []
         self.state.project.to_symbolize[self.state.globals['cur_block_id']][self.id].append((page_addr, offset, size))
