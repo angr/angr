@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import operator
 from collections.abc import Generator
+from typing import cast, overload
 
 import claripy
 from claripy.annotation import RegionAnnotation, StridedIntervalAnnotation
@@ -46,8 +47,8 @@ class Balancer:
     def __init__(self, c: Bool):
         self._truisms: list[Bool] = []
         self._ast_hash_map: dict[int, BV] = {}
-        self._lower_bounds: dict[BV, int] = {}
-        self._upper_bounds: dict[BV, int] = {}
+        self._lower_bounds: dict[int, int] = {}
+        self._upper_bounds: dict[int, int] = {}
 
         self.sat = True
         try:
@@ -62,7 +63,7 @@ class Balancer:
     def compat_ret(self) -> tuple[bool, list[tuple[BV, BV]]]:
         return (self.sat, self.replacements)
 
-    def _replacements_iter(self) -> Generator[tuple[BV, BV], None, None]:
+    def _replacements_iter(self) -> Generator[tuple[BV, BV]]:
         all_keys = set(self._lower_bounds.keys()) | set(self._upper_bounds.keys())
         for k in all_keys:
             ast = self._ast_hash_map[k]
@@ -73,7 +74,7 @@ class Balancer:
             bound_si = claripy.BVS("bound", len(ast)).annotate(StridedIntervalAnnotation(1, mn, mx))
             log.debug("Yielding bound %s for %s.", bound_si, ast)
             if ast.op == "Reverse":
-                yield (ast.args[0], ast.intersection(bound_si).reversed)
+                yield (cast(BV, ast.args[0]), ast.intersection(bound_si).reversed)
             else:
                 yield (ast, ast.intersection(bound_si))
 
@@ -109,10 +110,6 @@ class Balancer:
         si_anno = si.get_annotation(StridedIntervalAnnotation)
         stride = si_anno.stride if si_anno is not None else 0
         return claripy.BVS("bounds", len(a)).annotate(StridedIntervalAnnotation(stride, mn, mx))
-
-    @staticmethod
-    def _cardinality(a: Base) -> int:
-        return a.cardinality if isinstance(a, Base) else 0
 
     @staticmethod
     def _min(a: BV, signed=False) -> int:
@@ -155,7 +152,9 @@ class Balancer:
     @staticmethod
     def _align_truism(truism: Bool) -> Bool:
         outer_aligned = Balancer._align_ast(truism)
-        inner_aligned = Bool(outer_aligned.op, (Balancer._align_ast(outer_aligned.args[0]), *outer_aligned.args[1:]))
+        inner_aligned = Bool(
+            outer_aligned.op, (Balancer._align_ast(cast(BV, outer_aligned.args[0])), *outer_aligned.args[1:])
+        )
 
         if not claripy.backends.vsa.identical(inner_aligned, truism):
             log.critical(
@@ -163,14 +162,22 @@ class Balancer:
                 "Please submit the binary and script to the angr project, if possible. "
                 "Outer op is %s and inner op is %s.",
                 truism.op,
-                truism.args[0].op,
+                cast(BV, truism.args[0]).op,
             )
             return truism
 
-        return inner_aligned
+        return cast(Bool, inner_aligned)
+
+    @overload
+    @staticmethod
+    def _align_ast(a: Bool) -> Bool: ...
+
+    @overload
+    @staticmethod
+    def _align_ast(a: BV) -> BV: ...
 
     @staticmethod
-    def _align_ast(a: Base) -> Base:
+    def _align_ast(a: Bool | BV) -> Bool | BV:
         """
         Aligns the AST so that the argument with the highest cardinality is on the left.
 
@@ -180,7 +187,11 @@ class Balancer:
         try:
             if isinstance(a, BV):
                 return Balancer._align_bv(a)
-            if isinstance(a, Bool) and len(a.args) == 2 and a.args[1].cardinality > a.args[0].cardinality:
+            if (
+                isinstance(a, Bool)
+                and len(a.args) == 2
+                and cast(Bool, a.args[1]).cardinality > cast(Bool, a.args[0]).cardinality
+            ):
                 return Balancer._reverse_comparison(a)
             return a
         except BalancerError:
@@ -188,30 +199,31 @@ class Balancer:
 
     @staticmethod
     def _reverse_comparison(a: Bool) -> Bool:
+        lhs, rhs = cast(tuple[BV, BV], a.args)
         match a.op:
             case "ULT":
-                return claripy.UGT(a.args[1], a.args[0])
+                return claripy.UGT(rhs, lhs)
             case "ULE":
-                return claripy.UGE(a.args[1], a.args[0])
+                return claripy.UGE(rhs, lhs)
             case "UGT":
-                return claripy.ULT(a.args[1], a.args[0])
+                return claripy.ULT(rhs, lhs)
             case "UGE":
-                return claripy.ULE(a.args[1], a.args[0])
+                return claripy.ULE(rhs, lhs)
             case "SLT":
-                return claripy.SGT(a.args[1], a.args[0])
+                return claripy.SGT(rhs, lhs)
             case "SLE":
-                return claripy.SGE(a.args[1], a.args[0])
+                return claripy.SGE(rhs, lhs)
             case "SGT":
-                return claripy.SLT(a.args[1], a.args[0])
+                return claripy.SLT(rhs, lhs)
             case "SGE":
-                return claripy.SLE(a.args[1], a.args[0])
+                return claripy.SLE(rhs, lhs)
             case _:
                 raise BalancerError(f"unable to reverse comparison {a.op}")
 
     @staticmethod
     def _align_bv(a: BV) -> BV:
         if a.op in commutative_operations:
-            return BV(a.op, tuple(sorted(a.args, key=lambda v: -Balancer._cardinality(v))), length=a.length)
+            return BV(a.op, tuple(sorted(cast(tuple[BV, ...], a.args), key=lambda v: -v.cardinality)), length=a.length)
 
         match a.op:
             case "__sub__":
@@ -221,12 +233,13 @@ class Balancer:
 
     @staticmethod
     def _align_sub(a: BV) -> BV:
-        cardinalities = [Balancer._cardinality(v) for v in a.args]
+        args = cast(tuple[BV, ...], a.args)
+
+        cardinalities = [v.cardinality for v in args]
         if max(cardinalities) == cardinalities[0]:
             return a
-
-        adjusted = tuple(operator.__neg__(v) for v in a.args[1:]) + a.args[:1]
-        return BV("__add__", tuple(sorted(adjusted, key=lambda v: -Balancer._cardinality(v))), length=a.length)
+        adjusted = tuple(-v for v in args[1:]) + args[:1]
+        return BV("__add__", tuple(sorted(adjusted, key=lambda v: -v.cardinality)), length=a.length)
 
     #
     # Find bounds
@@ -280,7 +293,9 @@ class Balancer:
         if len(t.args) < 2:
             log.debug("can't do anything with an unop bool")
             return False
-        if t.args[0].cardinality > 1 and t.args[1].cardinality > 1:
+        lhs = cast(BV, t.args[0])
+        rhs = cast(BV, t.args[1])
+        if lhs.cardinality > 1 and rhs.cardinality > 1:
             log.debug("can't do anything because we have multiple multivalued guys")
             return False
         if t.op == "If":
@@ -294,7 +309,8 @@ class Balancer:
         Swap the operands of the truism if the unknown variable is on the right side and the concrete value is on the
         left side.
         """
-        if t.args[0].cardinality == 1 and t.args[1].cardinality > 1:
+        lhs, rhs = cast(tuple[BV, BV], t.args)
+        if lhs.cardinality == 1 and rhs.cardinality > 1:
             return Balancer._reverse_comparison(t)
         return t
 
@@ -308,15 +324,16 @@ class Balancer:
         Given a constraint, _get_assumptions() returns a set of constraints that are implicitly
         assumed to be true. For example, `x <= 10` would return `x >= 0`.
         """
+        lhs = cast(BV, t.args[0])
 
         if t.op in ("ULE", "ULT"):
-            return [t.args[0] >= 0]
+            return [lhs >= 0]
         if t.op in ("UGE", "UGT"):
-            return [t.args[0] <= 2 ** len(t.args[0]) - 1]
+            return [lhs <= 2 ** len(lhs) - 1]
         if t.op in ("SLE", "SLT"):
-            return [claripy.SGE(t.args[0], -(1 << (len(t.args[0]) - 1)))]
+            return [claripy.SGE(lhs, -(1 << (len(lhs) - 1)))]
         if t.op in ("SGE", "SGT"):
-            return [claripy.SLE(t.args[0], (1 << (len(t.args[0]) - 1)) - 1)]
+            return [claripy.SLE(lhs, (1 << (len(lhs) - 1)) - 1)]
         return []
 
     #
@@ -341,23 +358,25 @@ class Balancer:
 
     @staticmethod
     def _unpack_truisms_and(c: Bool) -> set[Bool]:
-        return set.union(*[Balancer._unpack_truisms(a) for a in c.args])
+        return set.union(*[Balancer._unpack_truisms(a) for a in cast(tuple[Bool, ...], c.args)])
 
     @staticmethod
     def _unpack_truisms_not(c: Bool) -> set[Bool]:
-        if c.args[0].op == "And":
-            return Balancer._unpack_truisms(claripy.Or(*[claripy.Not(a) for a in c.args[0].args]))
-        if c.args[0].op == "Or":
-            return Balancer._unpack_truisms(claripy.And(*[claripy.Not(a) for a in c.args[0].args]))
+        arg = cast(Bool, c.args[0])
+        if arg.op == "And":
+            return Balancer._unpack_truisms(claripy.Or(*[claripy.Not(a) for a in arg.args]))
+        if arg.op == "Or":
+            return Balancer._unpack_truisms(claripy.And(*[claripy.Not(a) for a in arg.args]))
         return set()
 
     @staticmethod
     def _unpack_truisms_or(c: Bool) -> set[Bool]:
-        vals = [claripy.backends.vsa.is_false(v) for v in c.args]
+        args = cast(tuple[Bool, ...], c.args)
+        vals = [claripy.backends.vsa.is_false(v) for v in args]
         if all(vals):
             raise BalancerUnsatError
         if vals.count(False) == 1:
-            return Balancer._unpack_truisms(c.args[vals.index(False)])
+            return Balancer._unpack_truisms(args[vals.index(False)])
         return set()
 
     #
@@ -377,11 +396,13 @@ class Balancer:
 
             try:
                 inner_aligned = Balancer._align_truism(truism)
-                if inner_aligned.args[1].cardinality > 1:
+                inner_lhs = cast(BV, inner_aligned.args[0])
+                inner_rhs = cast(BV, inner_aligned.args[1])
+                if inner_rhs.cardinality > 1:
                     log.debug("can't do anything because we have multiple multivalued guys")
                     return truism
 
-                match inner_aligned.args[0].op:
+                match inner_lhs.op:
                     case "Reverse":
                         balanced = Balancer._balance_reverse(inner_aligned)
                     case "__add__":
@@ -417,70 +438,86 @@ class Balancer:
     @staticmethod
     def _balance_reverse(truism: Bool) -> Bool:
         if truism.op in ["__eq__", "__ne__"]:
-            return BV(truism.op, (truism.args[0].args[0], truism.args[1].reversed), length=truism.args[1].length)
+            return Bool(
+                truism.op,
+                (cast(BV, truism.args[0]).args[0], cast(BV, truism.args[1]).reversed),
+                length=cast(BV, truism.args[1]).length,
+            )
         return truism
 
     @staticmethod
     def _balance_add(truism: Bool) -> Bool:
         if len(truism.args) != 2:
             return truism
-        old_rhs = truism.args[1]
-        lhs = truism.args[0]
-        if all(a.concrete for a in lhs.args):
+        lhs, old_rhs = cast(tuple[BV, BV], truism.args)
+        lhs_args = cast(tuple[BV, ...], lhs.args)
+        if all(a.concrete for a in lhs_args):
             # the old logic
-            new_lhs = lhs.args[0]
-            other_adds = lhs.args[1:]
+            new_lhs = lhs_args[0]
+            other_adds = lhs_args[1:]
         else:
-            new_lhs = tuple(a for a in lhs.args if a.symbolic)
+            new_lhs = tuple(a for a in lhs_args if a.symbolic)
             if not new_lhs:
                 return truism
             new_lhs = new_lhs[0] if len(new_lhs) == 1 else BV("__add__", new_lhs, length=lhs.length)
-            other_adds = tuple(a for a in lhs.args if a.concrete)
+            other_adds = tuple(a for a in lhs_args if a.concrete)
             if not other_adds:
                 return truism
-        new_rhs = BV("__sub__", (old_rhs, *other_adds), length=truism.args[0].length)
+        new_rhs = BV("__sub__", (old_rhs, *other_adds), length=lhs.length)
         return Bool(truism.op, (new_lhs, new_rhs))
 
     @staticmethod
     def _balance_sub(truism: Bool) -> Bool:
         if len(truism.args) != 2:
             return truism
-        new_lhs = truism.args[0].args[0]
-        old_rhs = truism.args[1]
-        other_adds = truism.args[0].args[1:]
-        new_rhs = BV("__add__", (old_rhs, *other_adds), length=truism.args[0].length)
+        old_lhs = cast(BV, truism.args[0])
+        new_lhs = cast(BV, old_lhs.args[0])
+        old_rhs = cast(BV, truism.args[1])
+        other_adds = old_lhs.args[1:]
+        new_rhs = BV("__add__", (old_rhs, *other_adds), length=old_lhs.length)
         return Bool(truism.op, (new_lhs, new_rhs))
 
     @staticmethod
     def _balance_zeroext(truism: Bool) -> Bool:
-        num_zeroes, inner = truism.args[0].args
-        other_side = truism.args[1][len(truism.args[1]) - 1 : len(truism.args[1]) - num_zeroes]
+        orig_lhs = cast(BV, truism.args[0])
+        orig_rhs = cast(BV, truism.args[1])
+
+        num_zeroes, inner = cast(tuple[int, BV], orig_lhs.args)
+        other_side = orig_rhs[len(orig_rhs) - 1 : len(orig_rhs) - num_zeroes]
 
         if claripy.backends.vsa.is_true(other_side == 0):
             # We can safely eliminate this layer of ZeroExt
-            new_args = (inner, truism.args[1][len(truism.args[1]) - num_zeroes - 1 : 0])
+            new_args = (inner, orig_rhs[len(orig_rhs) - num_zeroes - 1 : 0])
             return Bool(truism.op, new_args)
 
         return truism
 
     @staticmethod
     def _balance_signext(truism: Bool) -> Bool:
-        num_zeroes = truism.args[0].args[0]
-        left_side = truism.args[0][len(truism.args[1]) - 1 : len(truism.args[1]) - num_zeroes]
-        other_side = truism.args[1][len(truism.args[1]) - 1 : len(truism.args[1]) - num_zeroes]
+        orig_lhs = cast(BV, truism.args[0])
+        orig_rhs = cast(BV, truism.args[1])
+
+        num_zeroes = cast(int, orig_lhs.args[0])
+        left_side = orig_lhs[len(orig_rhs) - 1 : len(orig_rhs) - num_zeroes]
+        other_side = orig_rhs[len(orig_rhs) - 1 : len(orig_rhs) - num_zeroes]
 
         # TODO: what if this is a set value, but *not* the same as other_side
         if claripy.backends.vsa.identical(left_side, other_side):
             # We can safely eliminate this layer of ZeroExt
-            new_args = (truism.args[0].args[1], truism.args[1][len(truism.args[1]) - num_zeroes - 1 : 0])
+            new_args = (orig_lhs.args[1], orig_rhs[len(orig_rhs) - num_zeroes - 1 : 0])
             return Bool(truism.op, new_args)
 
         return truism
 
     @staticmethod
     def _balance_extract(truism: Bool) -> Bool:
-        high, low, inner = truism.args[0].args
+        lhs = cast(BV, truism.args[0])
+        high, low, inner = cast(tuple[int, int, BV], lhs.args)
         inner_size = len(inner)
+        rhs = cast(BV, truism.args[1])
+
+        left_msb: BV | None
+        left_msb_zero: bool | None
 
         if high < inner_size - 1:
             left_msb = inner[inner_size - 1 : high + 1]
@@ -488,6 +525,9 @@ class Balancer:
         else:
             left_msb = None
             left_msb_zero = None
+
+        left_lsb: BV | None
+        left_lsb_zero: bool | None
 
         if low > 0:
             left_lsb = inner[high - 1 : 0]
@@ -498,34 +538,37 @@ class Balancer:
 
         if left_msb_zero and left_lsb_zero:
             new_left = inner
-            new_right = claripy.Concat(claripy.BVV(0, len(left_msb)), truism.args[1], claripy.BVV(0, len(left_lsb)))
+            new_right = claripy.Concat(
+                claripy.BVV(0, len(cast(BV, left_msb))), rhs, claripy.BVV(0, len(cast(BV, left_lsb)))
+            )
             return Bool(truism.op, (new_left, new_right))
         if left_msb_zero:
             new_left = inner
-            new_right = claripy.Concat(claripy.BVV(0, len(left_msb)), truism.args[1])
+            new_right = claripy.Concat(claripy.BVV(0, len(cast(BV, left_msb))), rhs)
             return Bool(truism.op, (new_left, new_right))
         if left_lsb_zero:
             new_left = inner
-            new_right = claripy.Concat(truism.args[1], claripy.BVV(0, len(left_lsb)))
+            new_right = claripy.Concat(rhs, claripy.BVV(0, len(cast(BV, left_lsb))))
             return Bool(truism.op, (new_left, new_right))
-        if low == 0 and truism.args[1].op == "BVV" and truism.op not in {"SGE", "SLE", "SGT", "SLT"}:
+        if low == 0 and rhs.op == "BVV" and truism.op not in {"SGE", "SLE", "SGT", "SLT"}:
             # single-valued rhs value with an unsigned operator
             # Eliminate Extract on lhs and zero-extend the value on rhs
             new_left = inner
-            new_right = claripy.ZeroExt(inner.size() - truism.args[1].size(), truism.args[1])
+            new_right = claripy.ZeroExt(inner.size() - rhs.size(), rhs)
             return Bool(truism.op, (new_left, new_right))
 
         return truism
 
     @staticmethod
     def _balance_and(truism: Bool) -> Bool:
-        if len(truism.args[0].args) != 2:
+        lhs = cast(BV, truism.args[0])
+        if len(lhs.args) != 2:
             return truism
-        op0, op1 = truism.args[0].args
+        op0, op1 = cast(tuple[BV, BV], lhs.args)
 
         if op1.op == "BVV":
             # if all low bits of right are 1 and all high bits of right are 0, then this is equivalent to Extract()
-            v = op1.args[0]
+            v = cast(int, op1.args[0])
             low_ones = 0
             while v != 0:
                 if v & 1 == 0:
@@ -535,10 +578,10 @@ class Balancer:
                 v >>= 1
             if low_ones == 0:
                 # this should probably never happen
-                new_left = BV("BVV", (0, truism.args[0].size()), length=truism.args[0].size())
+                new_left = BV("BVV", (0, op0.size()), length=op0.size())
                 return Bool(truism.op, (new_left, truism.args[1]))
 
-            if op0.op == "ZeroExt" and op0.args[0] + low_ones == op0.size():
+            if op0.op == "ZeroExt" and cast(int, op0.args[0]) + low_ones == op0.size():
                 # ZeroExt(56, a) & 0xff == a  if a.size() == 8
                 # we can safely remove __and__
                 new_left = op0
@@ -548,24 +591,27 @@ class Balancer:
 
     @staticmethod
     def _balance_concat(truism: Bool) -> Bool:
-        size = len(truism.args[0])
-        left_msb = truism.args[0].args[0]
-        right_msb = truism.args[1][size - 1 : size - len(left_msb)]
+        lhs = cast(BV, truism.args[0])
+        rhs = cast(BV, truism.args[1])
+        size = len(lhs)
+        left_msb = cast(BV, lhs.args[0])
+        right_msb = rhs[size - 1 : size - len(left_msb)]
 
         if claripy.backends.vsa.is_true(left_msb == 0) and claripy.backends.vsa.is_true(right_msb == 0):
             # we can cut these guys off!
-            remaining_left = claripy.Concat(*truism.args[0].args[1:])
-            remaining_right = truism.args[1][size - len(left_msb) - 1 : 0]
+            lhs_args = cast(tuple[BV, ...], lhs.args)
+            remaining_left = claripy.Concat(*lhs_args[1:])
+            remaining_right = rhs[size - len(left_msb) - 1 : 0]
             return Bool(truism.op, (remaining_left, remaining_right))
         # TODO: handle non-zero single-valued cases
         return truism
 
     @staticmethod
     def _balance_lshift(truism: Bool) -> Bool:
-        lhs = truism.args[0]
-        rhs = truism.args[1]
-        shift_amount_expr = lhs.args[1]
-        expr = lhs.args[0]
+        lhs = cast(BV, truism.args[0])
+        rhs = cast(BV, truism.args[1])
+        shift_amount_expr = cast(BV, lhs.args[1])
+        expr = cast(BV, lhs.args[0])
 
         shift_amount_values = claripy.backends.vsa.eval(shift_amount_expr, 2)
         if len(shift_amount_values) != 1:
@@ -582,7 +628,8 @@ class Balancer:
         return truism
 
     def _balance_if(self, truism: Bool) -> Bool:
-        condition, true_expr, false_expr = truism.args[0].args
+        lhs = cast(BV, truism.args[0])
+        condition, true_expr, false_expr = cast(tuple[Bool, BV, BV], lhs.args)
 
         try:
             true_condition = getattr(true_expr, truism.op)(truism.args[1])
@@ -621,7 +668,7 @@ class Balancer:
 
         if claripy.backends.vsa.is_false(truism):
             raise BalancerUnsatError
-        if Balancer._cardinality(truism.args[0]) == 1:
+        if cast(Base, truism.args[0]).cardinality == 1:
             # we are down to single-cardinality arguments, so our work is not
             # necessary
             return
@@ -655,15 +702,16 @@ class Balancer:
         """
 
         is_lt, is_equal, is_unsigned = self.comparison_info[truism.op]
+        lhs, rhs = cast(tuple[BV, BV], truism.args)
 
-        size = len(truism.args[0])
+        size = len(lhs)
         int_max = 2**size - 1 if is_unsigned else 2 ** (size - 1) - 1
         int_min = -(2 ** (size - 1))
 
-        left_min = Balancer._min(truism.args[0], signed=not is_unsigned)
-        left_max = Balancer._max(truism.args[0], signed=not is_unsigned)
-        right_min = Balancer._min(truism.args[1], signed=not is_unsigned)
-        right_max = Balancer._max(truism.args[1], signed=not is_unsigned)
+        left_min = Balancer._min(lhs, signed=not is_unsigned)
+        left_max = Balancer._max(lhs, signed=not is_unsigned)
+        right_min = Balancer._min(rhs, signed=not is_unsigned)
+        right_max = Balancer._max(rhs, signed=not is_unsigned)
 
         bound_max = right_max if is_equal else (right_max - 1 if is_lt else right_max + 1)
         bound_min = right_min if is_equal else (right_min - 1 if is_lt else right_min + 1)
@@ -680,13 +728,13 @@ class Balancer:
 
         if is_lt:
             current_max = min(int_max, left_max, bound_max)
-            self._add_upper_bound(truism.args[0], current_max)
+            self._add_upper_bound(lhs, current_max)
         else:
             current_min = max(int_min, left_min, bound_min)
-            self._add_lower_bound(truism.args[0], current_min)
+            self._add_lower_bound(lhs, current_min)
 
     def _handle_eq(self, truism: Bool) -> None:
-        lhs, rhs = truism.args
+        lhs, rhs = cast(tuple[BV, BV], truism.args)
         if rhs.cardinality != 1:
             common = Balancer._same_bound_bv(lhs.intersection(rhs))
             mn, mx = Balancer._range(common)
@@ -700,7 +748,7 @@ class Balancer:
             self._add_lower_bound(lhs, mn)
 
     def _handle_ne(self, truism: Bool) -> None:
-        lhs, rhs = truism.args
+        lhs, rhs = cast(tuple[BV, BV], truism.args)
         if rhs.cardinality == 1:
             val = claripy.backends.vsa.eval(rhs, 1)[0]
             max_int = claripy.BVV((1 << len(lhs)) - 1, len(lhs)).args[0]
@@ -711,10 +759,11 @@ class Balancer:
                 self._add_upper_bound(lhs, max_int - 1)
 
     def _handle_if(self, truism: Bool) -> None:
-        if claripy.backends.vsa.is_false(truism.args[2]):
-            self._truisms.append(truism.args[0])
-        elif claripy.backends.vsa.is_false(truism.args[1]):
-            self._truisms.append(~truism.args[0])
+        condition, true_expr, false_expr = cast(tuple[Bool, BV, BV], truism.args)
+        if claripy.backends.vsa.is_false(false_expr):
+            self._truisms.append(condition)
+        elif claripy.backends.vsa.is_false(true_expr):
+            self._truisms.append(claripy.Not(condition))
 
 
 def constraint_to_si(expr: Bool) -> tuple[bool, list[tuple[BV, BV]]]:
