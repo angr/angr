@@ -938,9 +938,9 @@ class SimCC:
         for i, (loc, val) in enumerate(zip(arg_locs, vals)):
             if not isinstance(loc, SimReferenceArgument):
                 continue
-            dumped = allocator.dump(val, state, loc=val.main_loc)
+            dumped = allocator.dump(val, state, loc=loc.main_loc)
             vals[i] = dumped
-            arg_locs[i] = val.ptr_loc
+            arg_locs[i] = loc.ptr_loc
 
         # step 1.75 allocate implicit outparam stuff
         if self.return_in_implicit_outparam(prototype.returnty):
