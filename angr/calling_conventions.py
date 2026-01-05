@@ -16,6 +16,7 @@ import angr
 from .errors import AngrTypeError
 from .sim_type import (
     NamedTypeMixin,
+    SimCppClass,
     SimType,
     SimTypeChar,
     SimTypePointer,
@@ -714,7 +715,7 @@ class SimCC:
 
     ArgSession = ArgSession  # import this from global scope so SimCC subclasses can subclass it if they like
 
-    def arg_session(self, ret_ty: SimType | None):
+    def arg_session(self, ret_ty: SimType | None) -> ArgSession:
         """
         Return an arg session.
 
@@ -786,7 +787,7 @@ class SimCC:
         """
         return self.RETURN_ADDR
 
-    def next_arg(self, session: ArgSession, arg_type: SimType):
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
@@ -1677,17 +1678,19 @@ class SimCCSystemVAMD64(SimCC):
         # :P
         return isinstance(self.return_val(ty), SimReferenceArgument)
 
-    def _classify(self, ty, chunksize=None):
+    def _classify(self, ty: SimType, chunksize=None) -> list[str]:
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if ty.size is None else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
+            raise TypeError("Cannot lay out an opaque class")
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
-            # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
+            # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
@@ -1697,6 +1700,7 @@ class SimCCSystemVAMD64(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
@@ -1866,6 +1870,7 @@ class SimCCARM(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size is not None
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
@@ -2136,6 +2141,7 @@ class SimCCO32(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size is not None
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
