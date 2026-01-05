@@ -1,6 +1,8 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
 from typing import TYPE_CHECKING, Any
+
+from collections.abc import Callable
 import logging
 from collections import defaultdict
 
@@ -1607,7 +1609,7 @@ class CFGBase(Analysis):
         # Clear old functions dict by creating a new function manager
         self.kb.functions = FunctionManager(self.kb)
 
-        blockaddr_to_function = {}
+        blockaddr_to_funcaddr = {}
         traversed_cfg_nodes = set()
 
         function_nodes = set()
@@ -1629,15 +1631,15 @@ class CFGBase(Analysis):
         predetermined_function_addrs = called_function_addrs | self._function_addresses_from_symbols
 
         removed_functions_a = self._process_irrational_functions(
-            tmp_functions, predetermined_function_addrs, blockaddr_to_function
+            tmp_functions, predetermined_function_addrs, blockaddr_to_funcaddr
         )
         removed_functions_b, adjusted_cfgnodes = self._process_irrational_function_starts(
-            tmp_functions, predetermined_function_addrs, blockaddr_to_function
+            tmp_functions, predetermined_function_addrs, blockaddr_to_funcaddr
         )
         self._process_jump_table_targeted_functions(
             tmp_functions,
             predetermined_function_addrs,
-            blockaddr_to_function,
+            blockaddr_to_funcaddr,
         )
         removed_functions = removed_functions_a | removed_functions_b
 
@@ -1668,7 +1670,7 @@ class CFGBase(Analysis):
                 self.graph,
                 [fn],
                 self._graph_traversal_handler,
-                blockaddr_to_function,
+                blockaddr_to_funcaddr,
                 tmp_functions,
                 traversed_cfg_nodes,
             )
@@ -1682,7 +1684,7 @@ class CFGBase(Analysis):
             node = self.model.get_any_node(func_addr, force_fastpath=True)
             if node is None:
                 continue
-            if node.addr not in blockaddr_to_function:
+            if node.addr not in blockaddr_to_funcaddr:
                 secondary_function_nodes.add(node)
 
         missing_cfg_nodes = set(self.graph.nodes()) - traversed_cfg_nodes
@@ -1706,7 +1708,7 @@ class CFGBase(Analysis):
                 self.graph,
                 [fn],
                 self._graph_traversal_handler,
-                blockaddr_to_function,
+                blockaddr_to_funcaddr,
                 tmp_functions,
                 traversed_cfg_nodes,
             )
@@ -1727,8 +1729,8 @@ class CFGBase(Analysis):
 
         # Update CFGNode.function_address
         for node in self._nodes.values():
-            if node.addr in blockaddr_to_function:
-                node.function_address = blockaddr_to_function[node.addr].addr
+            if node.addr in blockaddr_to_funcaddr:
+                node.function_address = blockaddr_to_funcaddr[node.addr]
 
         # Update function.info
         for func in self.kb.functions.values(meta_only=True):
@@ -1783,7 +1785,7 @@ class CFGBase(Analysis):
 
         return to_remove
 
-    def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_function):
+    def _process_irrational_functions(self, functions, predetermined_function_addrs, blockaddr_to_funcaddr):
         """
         When force_complete_scan is enabled, for unresolveable indirect jumps, angr will find jump targets and mark
         them as individual functions. For example, usually the following pattern is seen:
@@ -1810,7 +1812,7 @@ class CFGBase(Analysis):
 
         :param angr.knowledge_plugins.FunctionManager functions: all functions that angr recovers, including those ones
             that are misidentified as functions.
-        :param dict blockaddr_to_function: A mapping between block addresses and Function instances.
+        :param dict blockaddr_to_funcaddr: A mapping between block addresses and their function addresses.
         :return: A set of addresses of all removed functions
         :rtype: set
         """
@@ -1936,16 +1938,16 @@ class CFGBase(Analysis):
 
         # merge all functions
         for to_remove, merge_with in functions_to_remove.items():
-            func_merge_with = self._addr_to_function(merge_with, blockaddr_to_function, functions)
+            func_merge_with_addr = self._addr_to_funcaddr(merge_with, blockaddr_to_funcaddr, functions)
 
             for block_addr in functions[to_remove].block_addrs:
-                blockaddr_to_function[block_addr] = func_merge_with
+                blockaddr_to_funcaddr[block_addr] = func_merge_with_addr
 
             del functions[to_remove]
 
         return set(functions_to_remove.keys())
 
-    def _process_irrational_function_starts(self, functions, predetermined_function_addrs, blockaddr_to_function):
+    def _process_irrational_function_starts(self, functions, predetermined_function_addrs, blockaddr_to_funcaddr):
         """
         Functions that are identified via function prologues can be starting after the actual beginning of the function.
         For example, the following function (with an incorrect start) might exist after a CFG recovery:
@@ -2066,8 +2068,8 @@ class CFGBase(Analysis):
                     if block_addr == addr_1 and cfgnode_1_merged:
                         # Skip addr_1 (since it has been merged to the preceding block)
                         continue
-                    merge_with = self._addr_to_function(addr_0, blockaddr_to_function, functions)
-                    blockaddr_to_function[block_addr] = merge_with
+                    func_merge_with_addr = self._addr_to_funcaddr(addr_0, blockaddr_to_funcaddr, functions)
+                    blockaddr_to_funcaddr[block_addr] = func_merge_with_addr
 
                 functions_to_remove.add(addr_1)
 
@@ -2077,7 +2079,7 @@ class CFGBase(Analysis):
         return functions_to_remove, adjusted_cfgnodes
 
     def _process_jump_table_targeted_functions(
-        self, functions, predetermined_function_addrs, blockaddr_to_function
+        self, functions, predetermined_function_addrs, blockaddr_to_funcaddr
     ) -> set[int]:
         """
         Sometimes compilers will optimize "cold" code regions, make them separate functions, mark them as cold, which
@@ -2134,25 +2136,26 @@ class CFGBase(Analysis):
 
         for to_remove in functions_to_remove:
             del functions[to_remove]
-            if to_remove in blockaddr_to_function:
-                del blockaddr_to_function[to_remove]
+            if to_remove in blockaddr_to_funcaddr:
+                del blockaddr_to_funcaddr[to_remove]
 
         return functions_to_remove
 
-    def _addr_to_function(self, addr, blockaddr_to_function, known_functions):
+    def _addr_to_funcaddr(self, addr: int, blockaddr_to_funcaddr: dict, known_functions: FunctionManager) -> int:
         """
-        Convert an address to a Function object, and store the mapping in a dict. If the block is known to be part of a
-        function, just return that function.
+        Convert a block address to its function address, and store the mapping in the blockaddr_to_funcaddr dict. If
+        this is the first time encountering the block, we load or create the function for the function manager of the
+        current knowledge base. If the block is known to be part of a function, just return the address of that
+        function.
 
-        :param int addr: Address to convert
-        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge_plugins.FunctionManager known_functions: Recovered functions.
-        :return: a Function object
-        :rtype: angr.knowledge.Function
+        :param addr:                    Address of the block to convert.
+        :param blockaddr_to_funcaddr:   A mapping between block addresses to their function addresses.
+        :param known_functions:         A mapping of known functions. We use it read-only.
+        :return:    The address of the function that the block belongs to.
         """
 
-        if addr in blockaddr_to_function:
-            f = blockaddr_to_function[addr]
+        if addr in blockaddr_to_funcaddr:
+            f_addr = blockaddr_to_funcaddr[addr]
         else:
             is_syscall = self.project.simos.is_syscall_addr(addr)
 
@@ -2164,6 +2167,7 @@ class CFGBase(Analysis):
 
             self.kb.functions._add_node(addr, node, syscall=is_syscall)
             f = self.kb.functions.function(addr=addr)
+            f_addr = f.addr
             assert f is not None
 
             # copy over existing metadata
@@ -2171,7 +2175,7 @@ class CFGBase(Analysis):
                 kf_meta = known_functions.get_by_addr(addr, meta_only=True)
                 f.is_plt = kf_meta.is_plt
 
-            blockaddr_to_function[addr] = f
+            blockaddr_to_funcaddr[addr] = addr
 
             function_is_returning = False
             if addr in known_functions and known_functions.function(addr).returning:
@@ -2183,7 +2187,7 @@ class CFGBase(Analysis):
                 # self._updated_nonreturning_functions so it can be picked up by function feature analysis later.
                 self._updated_nonreturning_functions.add(addr)
 
-        return f
+        return f_addr
 
     def _is_tail_call_optimization(
         self,
@@ -2193,7 +2197,7 @@ class CFGBase(Analysis):
         src_function,
         all_edges: list[tuple[CFGNode, CFGNode, Any]],
         known_functions,
-        blockaddr_to_function,
+        blockaddr_to_funcaddr: dict[int, int],
     ):
         """
         If source and destination belong to the same function, and the following criteria apply:
@@ -2243,10 +2247,10 @@ class CFGBase(Analysis):
             if dst_addr in known_functions:
                 # dst_addr cannot be the same as src_function.addr. Pass
                 pass
-            elif dst_addr in blockaddr_to_function:
+            elif dst_addr in blockaddr_to_funcaddr:
                 # it seems that we already know where this function should belong to. Pass.
-                dst_func = blockaddr_to_function[dst_addr]
-                if dst_func is src_function:
+                dst_funcaddr = blockaddr_to_funcaddr[dst_addr]
+                if dst_funcaddr == src_function.addr:
                     # they belong to the same function right now, but they'd better not
                     candidate = True
                     # treat it as a tail-call optimization
@@ -2277,10 +2281,10 @@ class CFGBase(Analysis):
                         maxaddr = dst_addr
                     elif dst_addr < src_addr:
                         # jumping back; is it jumping beyond the function header?
-                        src_func = blockaddr_to_function[src_addr]
-                        if dst_addr < src_func.addr and src_func.addr - dst_addr >= 0x100:
+                        src_funcaddr = blockaddr_to_funcaddr[src_addr]
+                        if dst_addr < src_funcaddr and src_funcaddr - dst_addr >= 0x100:
                             minaddr = dst_addr
-                            maxaddr = src_func.addr
+                            maxaddr = src_funcaddr
 
                     if minaddr is not None and maxaddr is not None:
                         # are there other function in between?
@@ -2294,19 +2298,26 @@ class CFGBase(Analysis):
 
         return False
 
-    def _graph_bfs_custom(self, g, starts, callback, blockaddr_to_function, known_functions, traversed_cfg_nodes=None):
+    def _graph_bfs_custom(
+        self,
+        g: networkx.DiGraph,
+        starts: list,
+        callback: Callable,
+        blockaddr_to_funcaddr: dict[int, int],
+        known_functions: FunctionManager,
+        traversed_cfg_nodes: set | None = None,
+    ) -> None:
         """
         A customized control flow graph BFS implementation with the following rules:
         - Call edges are not followed.
         - Syscall edges are not followed.
 
-        :param networkx.DiGraph g: The graph.
-        :param list starts: A collection of beginning nodes to start graph traversal.
-        :param func callback: Callback function for each edge and node.
-        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
-        :param set traversed_cfg_nodes: A set of CFGNodes that are traversed before.
-        :return: None
+        :param g: The graph.
+        :param starts: A collection of beginning nodes to start graph traversal.
+        :param callback: Callback function for each edge and node.
+        :param blockaddr_to_funcaddr: A mapping between block addresses to function addresses.
+        :param known_functions: Already recovered functions.
+        :param traversed_cfg_nodes: A set of CFGNodes that are traversed before.
         """
 
         stack = OrderedSet(starts)
@@ -2321,18 +2332,18 @@ class CFGBase(Analysis):
             traversed.add(n)
 
             if n.has_return:
-                callback(g, n, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_function, known_functions, None)
+                callback(g, n, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_funcaddr, known_functions, None)
             # NOTE: A block that has_return CAN have successors that aren't the return.
             # This is particularly the case for ARM conditional instructions.  Yes, conditional rets are a thing.
 
             if g.out_degree(n) == 0:
                 # it's a single node
-                callback(g, n, None, None, blockaddr_to_function, known_functions, None)
+                callback(g, n, None, None, blockaddr_to_funcaddr, known_functions, None)
 
             else:
                 all_out_edges = g.out_edges(n, data=True)
                 for src, dst, data in all_out_edges:
-                    callback(g, src, dst, data, blockaddr_to_function, known_functions, all_out_edges)
+                    callback(g, src, dst, data, blockaddr_to_funcaddr, known_functions, all_out_edges)
 
                     jumpkind = data.get("jumpkind", "")
                     if (not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys"))) and (
@@ -2340,23 +2351,32 @@ class CFGBase(Analysis):
                     ):
                         stack.add(dst)
 
-    def _graph_traversal_handler(self, g, src, dst, data, blockaddr_to_function, known_functions, all_edges):
+    def _graph_traversal_handler(
+        self,
+        g,
+        src: CFGNode,
+        dst: CFGNode,
+        data: dict,
+        blockaddr_to_funcaddr: dict[int, int],
+        known_functions: FunctionManager,
+        all_edges: list | None,
+    ) -> None:
         """
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
         functions accordingly. Oh, it also create edges on the transition map of functions.
 
         :param g:           The control flow graph that is currently being traversed.
-        :param CFGNode src: Beginning of the edge, or a single node when dst is None.
-        :param CFGNode dst: Destination of the edge. For processing a single node, `dst` is None.
-        :param dict data: Edge data in the CFG. 'jumpkind' should be there if it's not None.
-        :param dict blockaddr_to_function: A mapping between block addresses to Function instances.
-        :param angr.knowledge_plugins.FunctionManager known_functions: Already recovered functions.
-        :param list or None all_edges: All edges going out from src.
-        :return: None
+        :param src:         Beginning of the edge, or a single node when dst is None.
+        :param dst:         Destination of the edge. For processing a single node, `dst` is None.
+        :param data:        Edge data in the CFG. 'jumpkind' should be there if it's not None.
+        :param blockaddr_to_funcaddr: A mapping between block addresses to their function addresses.
+        :param known_functions: Already recovered functions.
+        :param all_edges:   All edges going out from src.
         """
 
         src_addr = src.addr
-        src_function = self._addr_to_function(src_addr, blockaddr_to_function, known_functions)
+        src_funcaddr = self._addr_to_funcaddr(src_addr, blockaddr_to_funcaddr, known_functions)
+        src_function = self.kb.functions.get_by_addr(src_funcaddr)
 
         if src_addr not in src_function.block_addrs_set:
             n = self.model.get_any_node(src_addr, force_fastpath=True)
@@ -2380,14 +2400,15 @@ class CFGBase(Analysis):
         dst_addr = dst.addr
 
         # get instruction address and statement index
-        ins_addr = data.get("ins_addr", None)
-        stmt_idx = data.get("stmt_idx", None)
+        ins_addr = data.get("ins_addr")
+        stmt_idx = data.get("stmt_idx")
 
         if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
             is_syscall = jumpkind.startswith("Ijk_Sys")
 
             # It must be calling a function
-            dst_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+            dst_funcaddr = self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
+            dst_function = self.kb.functions.get_by_addr(dst_funcaddr)
 
             n = self.model.get_any_node(src_addr, force_fastpath=True)
             if n is None:
@@ -2412,13 +2433,13 @@ class CFGBase(Analysis):
             returning_snippet = None
             if dst_function.returning and fakeret_node is not None:
                 returning_target = src.addr + src.size
-                if returning_target not in blockaddr_to_function:
+                if returning_target not in blockaddr_to_funcaddr:
                     if returning_target not in known_functions:
-                        blockaddr_to_function[returning_target] = src_function
+                        blockaddr_to_funcaddr[returning_target] = src_funcaddr
                     else:
-                        self._addr_to_function(returning_target, blockaddr_to_function, known_functions)
+                        self._addr_to_funcaddr(returning_target, blockaddr_to_funcaddr, known_functions)
 
-                return_to_outside = blockaddr_to_function[returning_target] is not src_function
+                return_to_outside = blockaddr_to_funcaddr[returning_target] != src_funcaddr
 
                 n = self.model.get_any_node(returning_target, force_fastpath=True)
                 if n is None:
@@ -2459,16 +2480,16 @@ class CFGBase(Analysis):
                 # function
                 belong_to_same_section = self._addrs_belong_to_same_section(src_addr, dst_addr)
                 if not belong_to_same_section:
-                    _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                    self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
 
             if self._detect_tail_calls and self._is_tail_call_optimization(
-                g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_function
+                g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
             ):
                 l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
                 # it's (probably) a tail-call optimization. we should make the destination node a new function
                 # instead.
-                blockaddr_to_function.pop(dst_addr, None)
-                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                blockaddr_to_funcaddr.pop(dst_addr, None)
+                self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
                 self.kb.functions._add_outside_transition_to(
                     src_function.addr, src_node, dst_node, to_function_addr=dst_addr
                 )
@@ -2481,12 +2502,10 @@ class CFGBase(Analysis):
                 is_known_function_addr = dst_addr in known_functions
 
             if (is_known_function_addr and dst_addr != src_function.addr) or (
-                dst_addr in blockaddr_to_function and blockaddr_to_function[dst_addr] is not src_function
+                dst_addr in blockaddr_to_funcaddr and blockaddr_to_funcaddr[dst_addr] != src_funcaddr
             ):
                 # yes it is
-                dst_function_addr = (
-                    blockaddr_to_function[dst_addr].addr if dst_addr in blockaddr_to_function else dst_addr
-                )
+                dst_function_addr = blockaddr_to_funcaddr.get(dst_addr, dst_addr)
 
                 self.kb.functions._add_outside_transition_to(
                     src_function.addr,
@@ -2498,13 +2517,13 @@ class CFGBase(Analysis):
                     is_exception=jumpkind == "Ijk_Exception",
                 )
 
-                _ = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
             else:
                 # no it's not
                 # add the transition code
 
-                if dst_addr not in blockaddr_to_function:
-                    blockaddr_to_function[dst_addr] = src_function
+                if dst_addr not in blockaddr_to_funcaddr:
+                    blockaddr_to_funcaddr[dst_addr] = src_funcaddr
 
                 self.kb.functions._add_transition_to(
                     src_function.addr,
@@ -2523,21 +2542,21 @@ class CFGBase(Analysis):
             n = self.model.get_any_node(dst_addr, force_fastpath=True)
             dst_node = dst_addr if n is None else self._to_snippet(n)
 
-            if dst_addr not in blockaddr_to_function:
+            if dst_addr not in blockaddr_to_funcaddr:
                 if isinstance(dst_addr, SootAddressDescriptor):
                     if dst_addr.method not in known_functions:
-                        blockaddr_to_function[dst_addr] = src_function
-                        target_function = src_function
+                        blockaddr_to_funcaddr[dst_addr] = src_funcaddr
+                        target_funcaddr = src_funcaddr
                     else:
-                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                        target_funcaddr = self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
                 else:
                     if dst_addr not in known_functions:
-                        blockaddr_to_function[dst_addr] = src_function
-                        target_function = src_function
+                        blockaddr_to_funcaddr[dst_addr] = src_funcaddr
+                        target_funcaddr = src_funcaddr
                     else:
-                        target_function = self._addr_to_function(dst_addr, blockaddr_to_function, known_functions)
+                        target_funcaddr = self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
             else:
-                target_function = blockaddr_to_function[dst_addr]
+                target_funcaddr = blockaddr_to_funcaddr[dst_addr]
 
             # Figure out if the function called (not the function returned to) returns.
             # We may have determined that this does not happen, since the time this path
@@ -2546,16 +2565,16 @@ class CFGBase(Analysis):
             called_function_addr = None
             # Try to find the call that this fakeret goes with
             for _, d, e in all_edges:
-                if e["jumpkind"] == "Ijk_Call" and d.addr in blockaddr_to_function:
-                    called_function = blockaddr_to_function[d.addr]
+                if e["jumpkind"] == "Ijk_Call" and d.addr in blockaddr_to_funcaddr:
                     called_function_addr = d.addr
+                    called_function = self.kb.functions.function(called_function_addr, create=True)
                     break
             # We may have since figured out that the called function doesn't ret.
             # It's important to assume that all unresolved targets do return
             if called_function is not None and called_function.returning is False:
                 return
 
-            to_outside = target_function is not src_function
+            to_outside = target_funcaddr != src_funcaddr
 
             confirmed = called_function is None or called_function.returning is True
             self.kb.functions._add_fakeret_to(
