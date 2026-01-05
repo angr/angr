@@ -1895,14 +1895,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # Clear the cache
             f._local_transition_graph = None
 
-        # Scan all functions, and make sure .returning for all functions are either True or False
-        for f in self.functions.values():
+            # Scan all functions, and make sure .returning for all functions are either True or False
             if f.returning is None:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
 
-        # Finally, mark endpoints of every single function
-        for function in self.kb.functions.values():
-            function.mark_nonreturning_calls_endpoints()
+            # Finally, mark endpoints of every single function
+            f.mark_nonreturning_calls_endpoints()
 
         # optional: find and mark functions that must be alignments
         self.mark_function_alignments()

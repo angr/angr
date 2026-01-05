@@ -101,13 +101,13 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
         super().__delitem__(key)
 
     @overload
-    def get(self, key: K, default: None = None, /) -> Function: ...
+    def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: Function, /) -> Function: ...
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: T, /) -> Function | T: ...
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
 
-    def get(self, addr, default=_missing, /):
+    def get(self, addr, default=_missing, /, meta_only: bool = False):
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -266,7 +266,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         all_addrs = set(self.cached_keys) | self._spilled_keys
         yield from sorted(all_addrs)
 
-    def get(self, addr, default=_missing, /):
+    def get(self, addr, default=_missing, /, meta_only: bool = False):
         # First check in-memory
         if self.is_cached(addr):
             try:
@@ -278,7 +278,7 @@ class SpillingFunctionDict(FunctionDict[K]):
 
         # Check if spilled to LMDB
         if addr in self._spilled_keys and not self._loading_from_lmdb:
-            func = self._load_from_lmdb(addr)
+            func = self._load_from_lmdb(addr, meta_only=meta_only)
             if func is not None:
                 return func
 
@@ -492,7 +492,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
             txn.delete(key)
 
-    def _load_from_lmdb(self, addr: K) -> Function | None:
+    def _load_from_lmdb(self, addr: K, meta_only: bool = False) -> Function | None:
         """
         Load a function from LMDB and bring it back into memory.
         """
@@ -527,6 +527,7 @@ class SpillingFunctionDict(FunctionDict[K]):
                     function_manager=self._backref,
                     project=self._backref._kb._project,
                     all_func_addrs=self._backref.function_addrs_set,
+                    meta_only=meta_only,
                 )
 
             # Remove from spilled set
@@ -945,8 +946,12 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
         yield from self._function_map
 
-    def get_by_addr(self, addr) -> Function:
-        return self._function_map.get(addr)
+    def values(self, /, meta_only: bool = False):
+        for addr in self._function_map:
+            yield self._function_map.get(addr, meta_only=meta_only)
+
+    def get_by_addr(self, addr, meta_only: bool = False) -> Function:
+        return self._function_map.get(addr, meta_only=meta_only)
 
     def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function]:
         # For SpillingFunctionDict, we need to iterate over all addresses

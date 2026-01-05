@@ -78,6 +78,7 @@ class FunctionParser:
             obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
+        obj.info = json.dumps(function.info).encode("utf-8") if function.info else b""
 
         # signature matched?
         if not function.from_signature:
@@ -133,7 +134,7 @@ class FunctionParser:
         return obj
 
     @staticmethod
-    def parse_from_cmsg(cmsg, function_manager=None, project=None, all_func_addrs=None):
+    def parse_from_cmsg(cmsg, function_manager=None, project=None, all_func_addrs=None, meta_only: bool = False):
         """
         :param cmsg: The data to instantiate the <Function> from.
 
@@ -175,6 +176,7 @@ class FunctionParser:
         )
         obj._project = project
         obj.normalized = cmsg.normalized
+        obj.info = json.loads(cmsg.info.decode("utf-8")) if cmsg.info else {}
 
         # signature matched?
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:
@@ -183,6 +185,16 @@ class FunctionParser:
             obj.from_signature = "flirt"
         else:
             raise ValueError(f"Cannot convert SignatureSource enum {cmsg.matched_from} to Function.from_signature.")
+
+        if meta_only:
+            startpoint_addr = cmsg.ea
+            obj.startpoint = (
+                HookNode(startpoint_addr, 0, project.hooked_by(startpoint_addr))
+                if project and project.is_hooked(startpoint_addr)
+                else BlockNode(startpoint_addr, 1)
+            )  # the size is incorrect, but it should probably be fine?
+            obj._dirty = False
+            return obj
 
         # blocks
         blocks = {}

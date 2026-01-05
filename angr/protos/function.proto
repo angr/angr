@@ -29,4 +29,5 @@ message Function {
     bytes           calling_convention = 18;  // the recovered calling convention (pickle serialized, can be None)
     string          prototype_libname = 19; // if we found this prototype in a library, which library?
     bool            is_prototype_guessed = 20; // did we guess this prototype?
+    bytes           info = 21; // a JSON-serialized dictionary
 }

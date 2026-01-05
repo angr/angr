@@ -1718,7 +1718,7 @@ class CFGBase(Analysis):
             to_remove |= self._remove_dummy_plt_stubs(self.kb.functions)
 
         # remove empty functions
-        for func in self.kb.functions.values():
+        for func in self.kb.functions.values(meta_only=True):
             if func.startpoint is None:
                 to_remove.add(func.addr)
 
@@ -1731,7 +1731,7 @@ class CFGBase(Analysis):
                 node.function_address = blockaddr_to_function[node.addr].addr
 
         # Update function.info
-        for func in self.kb.functions.values():
+        for func in self.kb.functions.values(meta_only=True):
             if func.addr in tmp_functions:
                 func.info = tmp_functions[func.addr].info
 
@@ -1981,7 +1981,7 @@ class CFGBase(Analysis):
             if addr_0 in functions_to_remove:
                 continue
 
-            func_0 = functions[addr_0]
+            func_0 = functions.get_by_addr(addr_0)
 
             if len(func_0.block_addrs_set) >= 1:
                 if len(func_0.jumpout_sites) != 1:
