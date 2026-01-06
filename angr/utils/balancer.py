@@ -200,6 +200,10 @@ class Balancer:
     def _reverse_comparison(a: Bool) -> Bool:
         lhs, rhs = cast(tuple[BV, BV], a.args)
         match a.op:
+            case "__eq__":
+                return rhs == lhs
+            case "__ne__":
+                return rhs != lhs
             case "ULT":
                 return claripy.UGT(rhs, lhs)
             case "ULE":
