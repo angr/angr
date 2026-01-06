@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import unittest
 from functools import cache
+from types import SimpleNamespace
 
 import claripy
 
@@ -212,6 +213,52 @@ class TestAILExec(unittest.TestCase):
         bvs_name = out.args[0].name if hasattr(out.args[0], "name") else out.args[0]
         assert isinstance(bvs_name, str)
         assert bvs_name.startswith("ail_engine_top")
+
+    def test_callless_call_evaluates_reference_args(self):
+        # Regression test: even under CALLLESS, call arguments should be evaluated so that side-effecting expressions
+        # (notably Reference(vvar_*)) materialize stack vvars into the AIL callstack frame.
+        p = angr.load_shellcode(b"\x00", arch="ARMEL", load_address=0x400000)
+        state = p.factory.blank_state(add_options={angr.options.CALLLESS})
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        # Minimal globals required by SimEngineAILSimState._handle_unop_Reference.
+        state.globals["ail_var_memory_cls"] = DefaultMemory
+        state.globals["ail_lifter"] = lambda _addr: SimpleNamespace(function=SimpleNamespace(name="f"))
+
+        # &vvar_217 (8-bit stack local), returned as a 32-bit pointer.
+        vvar = ailment.expression.VirtualVariable(
+            idx=0,
+            varid=217,
+            bits=8,
+            category=ailment.expression.VirtualVariableCategory.STACK,
+            oident="s-212",
+        )
+        ref = ailment.expression.UnaryOp(idx=0, op="Reference", operand=vvar, bits=p.arch.bits)
+
+        call_tgt = ailment.expression.Const(None, None, 0xDEADBEEF, p.arch.bits)
+        call = ailment.statement.Call(idx=0, target=call_tgt, args=[ref])
+        call.tags["ins_addr"] = 0x400000
+
+        jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, p.arch.bits))
+        jmp.tags["ins_addr"] = 0x400000
+
+        block = ailment.Block(0x400000, 0, statements=[call, jmp])
+
+        successors = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, successors)
+        engine.process(state, block=block)
+
+        # Ensure the Reference(vvar) was evaluated and materialized in the current frame, even though the call was
+        # callless.
+        frame = state.callstack
+        assert 217 in frame.vars
+        assert 217 in frame.var_refs_rev
 
     def test_statement_call_unused_return_is_ignored(self):
         # Regression test for SimEngineAILSimState._handle_stmt_Call: a Call statement may have no ret_expr even if the

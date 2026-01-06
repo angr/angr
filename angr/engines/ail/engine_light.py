@@ -223,6 +223,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return result
 
     def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
+        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
+
         if angr.options.CALLLESS in self.state.options:
             if is_expr:
                 # ????? if doing ret emulation and this is an expr (no lvalue expression)
@@ -238,7 +240,6 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     ),
                 )
             return ()
-        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
         target_addr = self._expr_bv(call.target)
         assert target_addr.concrete
         if self.ret_idx < len(self.frame.passed_rets):
