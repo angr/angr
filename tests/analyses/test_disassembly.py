@@ -195,6 +195,43 @@ c  lw      $t9, -0x7ee0($gp)
         assert len(pcode.insns) == 3
         assert pcode.insns[-1].mnemonic == "ret"
 
+    # TODO: add RVC jump tests
+    def test_riscv64_directness_instructions(self):
+        # 0x0:  ef 02 40 06    jal     t0, 0x640      ; Direct Call
+        # 0x4:  63 00 10 00    beq     zero, ra, 0x4  ; Direct Branch
+        # 0x8:  67 00 25 00    jalr    zero, 0(a0)    ; Indirect Branch (jr a0)
+        # 0xc:  67 80 00 00    jalr    zero, 0(ra)    ; Indirect Branch (ret)
+        # 0x10: e7 00 05 00    jalr    ra, 0(a0)      ; Indirect Call
+
+        proj = angr.load_shellcode(
+            b"\xef\x02\x40\x06"
+            b"\x63\x00\x10\x00"
+            b"\x67\x00\x25\x00"
+            b"\x67\x80\x00\x00"
+            b"\xe7\x00\x05\x00",
+            "RISCV64",
+            0,
+        )
+
+        block = proj.factory.block(0, size=20)
+        disasm = proj.analyses[Disassembly].prep()(ranges=[(block.addr, block.addr + block.size)])
+        insns = [r for r in disasm.raw_result if isinstance(r, Instruction)]
+
+        assert len(insns) == 5
+        for i, insn in enumerate(insns):
+            assert insn.addr == i * 4
+            assert insn.size == 4
+
+        # jal t0, 0x640
+        assert insns[0].branch_type == "direct"
+        # beq zero, ra
+        assert insns[1].branch_type == "direct"
+        # jalr x0, 0(a0) / jr a0
+        assert insns[2].branch_type == "indirect"
+        # jalr x0, 0(ra) / ret
+        assert insns[3].branch_type == "indirect"
+        # jalr ra, 0(a0)
+        assert insns[4].branch_type == "indirect"
 
 if __name__ == "__main__":
     main()
