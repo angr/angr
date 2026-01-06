@@ -80,6 +80,22 @@ class FunctionParser:
         obj.is_prototype_guessed = function.is_prototype_guessed
         obj.info = json.dumps(function.info).encode("utf-8") if function.info else b""
 
+        for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
+            for node in endpoint_nodes:
+                ep = primitives_pb2.Endpoint()
+                ep.ea = node.addr
+                ep.size = node.size
+                match endpoint_type:
+                    case "call":
+                        ep.type = primitives_pb2.EndpointType.CALL
+                    case "return":
+                        ep.type = primitives_pb2.EndpointType.RETURN
+                    case "transition":
+                        ep.type = primitives_pb2.EndpointType.TRANSITION
+                    case _:
+                        continue
+                obj.endpoints.append(ep)
+
         # signature matched?
         if not function.from_signature:
             obj.matched_from = function_pb2.Function.UNMATCHED
@@ -159,6 +175,10 @@ class FunctionParser:
             else None
         )
 
+        returning = None
+        if cmsg.HasField("returning"):
+            returning = cmsg.returning
+
         obj = Function(
             function_manager,
             cmsg.ea,
@@ -166,7 +186,7 @@ class FunctionParser:
             is_plt=cmsg.is_plt,
             syscall=cmsg.is_syscall,
             is_simprocedure=cmsg.is_simprocedure,
-            returning=cmsg.returning,
+            returning=returning,
             alignment=cmsg.alignment,
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=cc,
@@ -315,6 +335,21 @@ class FunctionParser:
                         )
             elif edge_type == "fake_return":
                 pass
+
+        for endpoint in cmsg.endpoints:
+            if endpoint.ea not in blocks:
+                continue
+            block = blocks[endpoint.ea]
+            match endpoint.type:
+                case primitives_pb2.EndpointType.CALL:
+                    obj._callout_sites.add(block)
+                    obj._add_endpoint(block, "call")
+                case primitives_pb2.EndpointType.RETURN:
+                    obj.add_retout_site(block)
+                case primitives_pb2.EndpointType.TRANSITION:
+                    obj.add_jumpout_site(block)
+                case _:
+                    continue
 
         # add leftover blocks
         for block in blocks.values():

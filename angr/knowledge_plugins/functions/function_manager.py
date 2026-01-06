@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import shutil
 from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
-from collections.abc import Iterator
+from collections.abc import Iterator, Generator
 from collections import OrderedDict
 import contextlib
-from collections.abc import Generator
 import logging
 import collections.abc
 import re
@@ -39,8 +38,7 @@ if TYPE_CHECKING:
         def irange(self, *args, **kwargs) -> Iterator[K]: ...
 
 else:
-    from sortedcontainers import SortedDict
-
+    from sortedcontainers import SortedDict, SortedList, SortedKeysView, SortedItemsView, SortedValuesView
 
 QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
@@ -49,26 +47,21 @@ l = logging.getLogger(name=__name__)
 _missing = object()
 
 # Default maximum number of functions to keep in memory (None means unlimited)
-DEFAULT_MAX_CACHED_FUNCTIONS: int | None = None
+DEFAULT_MAX_CACHED_FUNCTIONS: int | None = 1000
 
 
-class FunctionDict(Generic[K], SortedDict[K, Function]):
+class FunctionDictBase(Generic[K]):
     """
-    FunctionDict is a dict where the keys are function starting addresses and
-    map to the associated :class:`Function`.
+    Base class for FunctionDict and SpillingFunctionDict.
     """
 
-    def __init__(self, backref: FunctionManager[K] | None, *args, key_types: type = int, **kwargs):
+    def __init__(self, backref: FunctionManager[K] | None, key_types: type = int):
         self._backref = (
             cast(FunctionManager[K], backref if isinstance(backref, weakref.ProxyType) else weakref.proxy(backref))
             if backref is not None
             else None
         )
         self._key_types = key_types
-        super().__init__(*args, **kwargs)
-
-    def copy(self) -> FunctionDict[K]:
-        return FunctionDict(self._backref, self, key_types=self._key_types)
 
     def _getitem_create_new_function(self, addr: K) -> Function:
         # Create a new function
@@ -76,19 +69,73 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
             t = SootFunction(self._backref, addr)
         else:
             t = Function(self._backref, addr)
-        with contextlib.suppress(Exception):
-            self[addr] = t
+        self[addr] = t
         if self._backref is not None:
             self._backref._function_added(t)
         return t
+
+    def floor_addr(self, addr: K):
+        try:
+            return next(self.irange(maximum=addr, reverse=True))
+        except StopIteration as err:
+            raise KeyError(addr) from err
+
+    def ceiling_addr(self, addr):
+        try:
+            return next(self.irange(minimum=addr, reverse=False))
+        except StopIteration as err:
+            raise KeyError(addr) from err
+
+    def __setstate__(self, state):
+        for v, k in state.items():
+            self[k] = v
+
+    def __getstate__(self):
+        return dict(self.items())
+
+    def __setitem__(self, addr: K, value: Function):
+        raise NotImplementedError
+
+    def __getitem__(self, addr: K) -> Function:
+        raise NotImplementedError
+
+    def __delitem__(self, key: K) -> None:
+        raise NotImplementedError
+
+    def items(self):
+        raise NotImplementedError
+
+    @overload
+    def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
+    @overload
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...
+    @overload
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
+
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):
+        raise NotImplementedError
+
+    def irange(self, minimum=None, maximum=None, inclusive=(True, True), reverse=False):
+        raise NotImplementedError
+
+
+class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
+    """
+    FunctionDict is a dict where the keys are function starting addresses and map to the associated :class:`Function`.
+    """
+
+    def __init__(self, backref: FunctionManager[K] | None, *args, key_types: type = int, **kwargs):
+        SortedDict.__init__(self, *args, **kwargs)
+        FunctionDictBase.__init__(self, backref, key_types=key_types)
+
+    def copy(self) -> FunctionDict[K]:
+        return FunctionDict(self._backref, self, key_types=self._key_types)
 
     def __setitem__(self, addr: K, value: Function):
         """
         Override SortedDict.__setitem__ because it uses __contains__, which may be overwritten by SpillingFunctionDict.
         """
-        if not dict.__contains__(self, addr):
-            self._list_add(addr)
-        dict.__setitem__(self, addr, value)
+        super().__setitem__(addr, value)
 
     def __getitem__(self, addr: K) -> Function:
         try:
@@ -101,14 +148,7 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
     def __delitem__(self, key: K) -> None:
         super().__delitem__(key)
 
-    @overload
-    def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
-    @overload
-    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...
-    @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...
-
-    def get(self, addr, default=_missing, /, meta_only: bool = False):
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -118,7 +158,7 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
             raise KeyError(addr)
         return default
 
-    def floor_addr(self, addr):
+    def floor_addr(self, addr: K):
         try:
             return next(self.irange(maximum=addr, reverse=True))
         except StopIteration as err:
@@ -138,14 +178,17 @@ class FunctionDict(Generic[K], SortedDict[K, Function]):
         return dict(self.items())
 
 
-class SpillingFunctionDict(FunctionDict[K]):
+class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
     """
-    SpillingFunctionDict extends FunctionDict with LRU caching and LMDB spilling.
+    SpillingFunctionDict extends FunctionDict with LRU caching and LMDB spilling. This class keeps only the most
+    recently accessed N functions in memory, spilling others to an LMDB database on disk.
 
-    This class keeps only the most recently accessed N functions in memory, spilling others to an LMDB database on
-    disk.
+    SpillingFunctionDict also keeps a cache of meta-only Function objects that do not have graph or block information.
+    These meta-only Function objects are read-only and may become stale if the full Function is later loaded and
+    updated. Therefore, please be extremely cautious when using these meta-only Function objects.
 
-    :ivar cache_limit:
+    :ivar cache_limit:          The maximum number of functions to keep in memory.
+    :ivar _lmdb_batch_size:     The number of functions that are evicted in a single batch.
     """
 
     def __init__(
@@ -156,9 +199,15 @@ class SpillingFunctionDict(FunctionDict[K]):
         cache_limit: int | None = None,
         **kwargs,
     ):
+        dict.__init__(self, *args, **kwargs)
+        FunctionDictBase.__init__(self, backref, key_types=key_types)
+
         self._cache_limit: int | None = cache_limit
         self._lru_order: OrderedDict[K, None] = OrderedDict()
         self._spilled_keys: set[K] = set()
+        self._list = SortedList()  # a sorted list of all keys (cached + spilled)
+        self.irange = self._list.irange
+
         self._meta_func_cache: LRUCache[K, Function] = LRUCache(maxsize=cache_limit)
         self._lmdb_env: lmdb.Environment | None = None
         self._lmdb_path: str | None = None
@@ -169,10 +218,50 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._loading_from_lmdb: bool = False
         self._currently_loading: set[K] = set()
 
-        super().__init__(backref, *args, key_types=key_types, **kwargs)
-
     def __del__(self):
         self._cleanup_lmdb()
+
+    def __getitem__(self, addr: K) -> Function:
+        # First try to get from in-memory cache
+        if self.is_cached(addr):
+            try:
+                func = super().__getitem__(addr)
+                # Touch to update LRU order
+                self._touch(addr)
+                return func
+            except KeyError:
+                pass
+
+        # not found in memory
+        if isinstance(addr, bool) or not isinstance(addr, self._key_types):
+            raise TypeError(f"SpillingFunctionDict only supports {self._key_types} as key type")
+
+        # Try to load from LMDB if it's spilled
+        if addr in self._spilled_keys and not self._loading_from_lmdb:
+            func = self._load_from_lmdb(addr)
+            if func is not None:
+                return func
+
+        return self._getitem_create_new_function(addr)
+
+    def __setitem__(self, key: K, value: Function) -> None:
+        if key not in self:
+            self._list.add(key)
+        super().__setitem__(key, value)
+        self._on_function_stored(key)
+
+    def __delitem__(self, key: K) -> None:
+        # Remove from in-memory map if present
+        if self.is_cached(key):
+            super().__delitem__(key)
+        # Remove from spilled set if present; don't remove it from lmdb to save time
+        if key in self._spilled_keys:
+            self._spilled_keys.discard(key)
+        # Remove from LRU order
+        if key in self._lru_order:
+            del self._lru_order[key]
+        # Remove from sorted list
+        self._list.remove(key)
 
     def copy(self) -> SpillingFunctionDict[K]:
         # Load all spilled functions for copying
@@ -217,56 +306,17 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._spilled_keys.clear()
         self._cleanup_lmdb()
 
-    def __getitem__(self, addr: K) -> Function:
-        # First try to get from in-memory cache
-        if self.is_cached(addr):
-            try:
-                func = SortedDict.__getitem__(self, addr)
-                # Touch to update LRU order
-                self._touch(addr)
-                return func
-            except KeyError:
-                pass
-
-        # not found in memory
-        if isinstance(addr, bool) or not isinstance(addr, self._key_types):
-            raise TypeError(f"SpillingFunctionDict only supports {self._key_types} as key type")
-
-        # Try to load from LMDB if it's spilled
-        if addr in self._spilled_keys and not self._loading_from_lmdb:
-            func = self._load_from_lmdb(addr)
-            if func is not None:
-                return func
-
-        return self._getitem_create_new_function(addr)
-
-    def __setitem__(self, key: K, value: Function) -> None:
-        super().__setitem__(key, value)
-        self._on_function_stored(key)
-
-    def __delitem__(self, key: K) -> None:
-        # Remove from in-memory map if present
-        if self.is_cached(key):
-            super().__delitem__(key)
-        # Remove from spilled set if present; don't remove it from lmdb to save time
-        if key in self._spilled_keys:
-            self._spilled_keys.discard(key)
-        # Remove from LRU order
-        if key in self._lru_order:
-            del self._lru_order[key]
-
     def __contains__(self, item) -> bool:
         # Check both in-memory and spilled
-        return SortedDict.__contains__(self, item) or item in self._spilled_keys
+        return super().__contains__(item) or item in self._spilled_keys
 
     def __len__(self) -> int:
         # Total count includes both in-memory and spilled functions
         return self.cached_count + len(self._spilled_keys)
 
     def __iter__(self):
-        # Iterate over all function addresses (in-memory + spilled)
-        all_addrs = set(self.cached_keys) | self._spilled_keys
-        yield from sorted(all_addrs)
+        # Iterate over all function addresses (cached + spilled)
+        return self._list.__iter__()
 
     def get(self, addr, default=_missing, /, meta_only: bool = False):
         # First check in-memory
@@ -290,6 +340,15 @@ class SpillingFunctionDict(FunctionDict[K]):
         if default is _missing:
             raise KeyError(addr)
         return default
+
+    def keys(self):
+        return SortedKeysView(self)
+
+    def items(self):
+        return SortedItemsView(self)
+
+    def values(self):
+        return SortedValuesView(self)
 
     #
     # Properties
@@ -343,13 +402,13 @@ class SpillingFunctionDict(FunctionDict[K]):
         """
         if addr in self._lru_order:
             self._lru_order.move_to_end(addr)
+        else:
+            self._lru_order[addr] = None
+        if addr in self._meta_func_cache:
+            del self._meta_func_cache[addr]
 
     def _on_function_stored(self, addr: K) -> None:
-        # Add to LRU order if not already there
-        if addr not in self._lru_order:
-            self._lru_order[addr] = None
-        else:
-            self._lru_order.move_to_end(addr)
+        self._touch(addr)
 
         # Remove from spilled set if it was there
         self._spilled_keys.discard(addr)

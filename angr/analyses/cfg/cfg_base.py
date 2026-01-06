@@ -1629,7 +1629,12 @@ class CFGBase(Analysis):
         # For any function, if there is a call to it, it won't be removed
         called_function_addrs = {n.addr for n in function_nodes}
         # Any function addresses that appear as symbols won't be removed
-        predetermined_function_addrs = called_function_addrs | self._function_addresses_from_symbols
+        predetermined_function_addrs = called_function_addrs
+        for saddr in self._function_addresses_from_symbols:
+            if saddr in predetermined_function_addrs:
+                continue
+            if saddr in self.model._nodes_by_addr:
+                predetermined_function_addrs.add(saddr)
 
         removed_functions_a = self._process_irrational_functions(
             tmp_functions, predetermined_function_addrs, blockaddr_to_funcaddr
@@ -1646,9 +1651,14 @@ class CFGBase(Analysis):
 
         # Remove all nodes that are adjusted
         function_nodes.difference_update(adjusted_cfgnodes)
-        for n in self.graph.nodes():
+        for n in self.graph:
             if n.addr in tmp_functions or n.addr in removed_functions:
                 function_nodes.add(n)
+
+        # ensure all function nodes are mapped to their function addresses
+        for func_addr in predetermined_function_addrs:
+            self.kb.functions.function(func_addr, create=True)
+            blockaddr_to_funcaddr[func_addr] = func_addr
 
         # traverse the graph starting from each node, not following call edges
         # it's important that we traverse all functions in order so that we have a greater chance to come across
@@ -1909,9 +1919,9 @@ class CFGBase(Analysis):
             while i < len(all_func_addrs) and all_func_addrs[i] < endpoint_addr:
                 f_addr = all_func_addrs[i]
                 i += 1
-                f = functions[f_addr]
                 if f_addr == func_addr:
                     continue
+                f = functions[f_addr]
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and all(
                     max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs
                 ):
@@ -2479,13 +2489,17 @@ class CFGBase(Analysis):
                 if not belong_to_same_section:
                     self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
 
-            if self._detect_tail_calls and self._is_tail_call_optimization(
-                g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
+            if blockaddr_to_funcaddr.get(dst_addr) == dst_addr or (
+                self._detect_tail_calls
+                and self._is_tail_call_optimization(
+                    g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
+                )
             ):
                 l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
                 # it's (probably) a tail-call optimization. we should make the destination node a new function
                 # instead.
-                blockaddr_to_funcaddr.pop(dst_addr, None)
+                if blockaddr_to_funcaddr.get(dst_addr) != dst_addr:
+                    blockaddr_to_funcaddr.pop(dst_addr, None)
                 self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
                 self.kb.functions._add_outside_transition_to(
                     src_function.addr, src_node, dst_node, to_function_addr=dst_addr
