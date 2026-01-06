@@ -3944,9 +3944,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         all_endpoints = func.endpoints_with_type
         return all_endpoints.get("return", [])
 
-    def _get_jumpout_targets(self, func):
+    def _get_jumpout_targets(self, func_addr):
         jumpout_targets = set()
-        callgraph_outedges = self.functions.callgraph.out_edges(func.addr, data=True)
+        callgraph_outedges = self.functions.callgraph.out_edges(func_addr, data=True)
         # find the ones whose type is transition
         for _, dst, data in callgraph_outedges:
             if data.get("type", None) == "transition":
@@ -3967,12 +3967,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # it is, for example, a PLT stub
             # we take the endpoints of the function it calls. this is not always correct, but it can handle many
             # cases.
-            jumpout_targets = self._get_jumpout_targets(func)
+            jumpout_targets = self._get_jumpout_targets(func.addr)
             jumpout_target_endpoints = set()
 
             for jumpout_func_addr in jumpout_targets:
                 if jumpout_func_addr in self.functions:
-                    jumpout_target_endpoints |= set(self._get_return_endpoints(self.functions[jumpout_func_addr]))
+                    jumpout_target_endpoints |= set(
+                        self._get_return_endpoints(self.functions.get_by_addr(jumpout_func_addr, meta_only=True))
+                    )
 
             endpoints = jumpout_target_endpoints
         else:
@@ -4015,24 +4017,24 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
-        for func_addr, func in self.functions.items():
-            if func.returning is False:
+        for func_addr, func_meta in self.functions.items(meta_only=True):
+            if func_meta.returning is False:
                 continue
 
             func_addr_str = hex(func_addr) if isinstance(func_addr, int) else str(func_addr)
 
             # get the node on CFG
-            if func.startpoint is None:
+            if func_meta.startpoint is None:
                 l.warning("Function %s does not have a startpoint (yet).", func_addr_str)
                 continue
 
-            startpoint = self.model.get_any_node(func.startpoint.addr)
+            startpoint = self.model.get_any_node(func_meta.startpoint.addr)
             if startpoint is None:
                 # weird...
                 l.warning("No CFGNode is found for function %s in _make_return_edges().", func_addr_str)
                 continue
 
-            endpoints = self._get_return_sources(func)
+            endpoints = self._get_return_sources(func_meta)
 
             # get all callers
             callers = self.model.get_predecessors(startpoint, jumpkind="Ijk_Call")
@@ -4589,10 +4591,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             # also check the distance between `addr` and the closest function.
             # we don't want to have a basic block that spans across function boundaries
-            next_func = self.functions.ceiling_func(addr + 1)
-            if next_func is not None:
+            next_func_addr = self.functions.ceiling_addr(addr + 1)
+            if next_func_addr is not None:
                 distance_to_func = (
-                    next_func.addr & (~1) if is_arm_arch(self.project.arch) else next_func.addr
+                    next_func_addr & (~1) if is_arm_arch(self.project.arch) else next_func_addr
                 ) - real_addr
                 if distance_to_func != 0:
                     distance = distance_to_func if distance is None else min(distance, distance_to_func)

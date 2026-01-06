@@ -1114,8 +1114,8 @@ class Function(Serializable):
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and data["type"] == "call":
                 func_addr = dst.addr
-                if func_addr in self._function_manager:
-                    function = self._function_manager[func_addr]
+                if self._function_manager.contains_addr(func_addr):
+                    function = self._function_manager.get_by_addr(func_addr, meta_only=True)
                     if function.returning is False:
                         # the target function does not return
                         the_node = self.get_node(src.addr)

@@ -590,7 +590,6 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
                     cmsg,
                     function_manager=self._backref,
                     project=self._backref._kb._project,
-                    all_func_addrs=self._backref.function_addrs_set,
                     meta_only=meta_only,
                 )
 
@@ -1007,6 +1006,10 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
         yield from self._function_map
 
+    def items(self, /, meta_only: bool = False):
+        for addr in self._function_map:
+            yield addr, self._function_map.get(addr, meta_only=meta_only)
+
     def values(self, /, meta_only: bool = False):
         for addr in self._function_map:
             yield self._function_map.get(addr, meta_only=meta_only)
@@ -1046,19 +1049,44 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         """
         return addr in self._function_map
 
-    def ceiling_func(self, addr):
+    def ceiling_addr(self, addr: K) -> K | None:
         """
         Return the function who has the least address that is greater than or equal to `addr`.
 
         :param int addr: The address to query.
         :return:         A Function instance, or None if there is no other function after `addr`.
-        :rtype:          Function or None
+        """
+
+        try:
+            return self._function_map.ceiling_addr(addr)
+        except KeyError:
+            return None
+
+    def ceiling_func(self, addr) -> Function | None:
+        """
+        Return the function who has the least address that is greater than or equal to `addr`.
+
+        :param int addr: The address to query.
+        :return:         A Function instance, or None if there is no other function after `addr`.
         """
 
         try:
             next_addr = self._function_map.ceiling_addr(addr)
             return self._function_map.get(next_addr)
 
+        except KeyError:
+            return None
+
+    def floor_addr(self, addr: K) -> K | None:
+        """
+        Return the function who has the greatest address that is less than or equal to `addr`.
+
+        :param int addr: The address to query.
+        :return:         An address, or None if there is no other function before `addr`.
+        """
+
+        try:
+            return self._function_map.floor_addr(addr)
         except KeyError:
             return None
 

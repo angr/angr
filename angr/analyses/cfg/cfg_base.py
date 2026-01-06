@@ -1546,10 +1546,11 @@ class CFGBase(Analysis):
             return
 
         for func_addr in self.kb.functions:
-            function = self.kb.functions[func_addr]
-            if function.is_simprocedure or function.is_syscall:
+            func_meta = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+            if func_meta.is_simprocedure or func_meta.is_syscall:
                 continue
-            if len(function.block_addrs_set) == 1:
+            if len(func_meta.block_addrs_set) == 1:
+                function = self.kb.functions.get_by_addr(func_addr)
                 block = next((b for b in function.blocks), None)
                 if block is None:
                     continue
@@ -1590,12 +1591,12 @@ class CFGBase(Analysis):
         # TODO:  enforced?
 
         tmp_functions = self.kb.functions
+        non_return_func_callers: set[int] = set()
 
-        for function in tmp_functions.values():
-            function.mark_nonreturning_calls_endpoints()
-            if function.returning is False:
+        for func_meta in tmp_functions.values(meta_only=True):
+            if func_meta.returning is False:
                 # remove all FakeRet edges that are related to this function
-                func_node = self.model.get_any_node(function.addr, force_fastpath=True)
+                func_node = self.model.get_any_node(func_meta.addr, force_fastpath=True)
                 if func_node is not None:
                     callsite_nodes = [
                         src
@@ -1606,6 +1607,16 @@ class CFGBase(Analysis):
                         for _, dst, data in list(self.graph.out_edges(callsite_node, data=True)):
                             if data.get("jumpkind", None) == "Ijk_FakeRet":
                                 self.graph.remove_edge(callsite_node, dst)
+
+                # check its callers
+                for caller_addr in set(tmp_functions.callgraph.predecessors(func_meta.addr)):
+                    if caller_addr == func_meta.addr:
+                        continue
+                    non_return_func_callers.add(caller_addr)
+
+        for func_addr in non_return_func_callers:
+            caller = tmp_functions.get_by_addr(func_addr)
+            caller.mark_nonreturning_calls_endpoints()
 
         # Clear old functions dict by creating a new function manager
         self.kb.functions = FunctionManager(self.kb)
@@ -1827,29 +1838,24 @@ class CFGBase(Analysis):
         functions_to_remove = {}
 
         all_func_addrs = sorted(set(functions.keys()))
+        ij_by_funcaddr = defaultdict(list)  # unresolved indirect jumps indexed by function address
+        for ij in self.indirect_jumps.values():
+            if ij.jumpkind == "Ijk_Boring" and not ij.resolved_targets:
+                ij_by_funcaddr[ij.func_addr].append(ij)
 
-        for func_pos, (func_addr, function) in enumerate(functions.items()):
-            if func_addr in functions_to_remove:
+        for func_pos, func_addr in enumerate(all_func_addrs):
+            if func_addr in functions_to_remove or func_addr not in ij_by_funcaddr:
                 continue
 
-            # check all blocks and see if any block ends with an indirect jump and is not resolved
-            has_unresolved_jumps = False
+            function = functions.get_by_addr(func_addr)
+
             # the functions to merge with must be locating between the unresolved basic block address and the endpoint
             # of the current function
             max_unresolved_jump_addr = 0
-            for block_addr in function.block_addrs_set:
-                if (
-                    block_addr in self.indirect_jumps
-                    and self.indirect_jumps[block_addr].jumpkind == "Ijk_Boring"
-                    and not self.indirect_jumps[block_addr].resolved_targets
-                ):
-                    # it's not resolved
-                    # we should also make sure it's a jump, not a call
-                    has_unresolved_jumps = True
-                    max_unresolved_jump_addr = max(max_unresolved_jump_addr, block_addr)
-
-            if not has_unresolved_jumps:
-                continue
+            for ij in ij_by_funcaddr[func_addr]:
+                # it's not resolved
+                # we should also make sure it's a jump, not a call
+                max_unresolved_jump_addr = max(max_unresolved_jump_addr, ij.addr)
 
             if function.startpoint is None:
                 continue
@@ -1989,6 +1995,21 @@ class CFGBase(Analysis):
             if addr_0 in functions_to_remove:
                 continue
 
+            # first check: if there are no incoming edges to addr_1 or any non-boring edges to addr_1, skip
+            cfgnode_1 = self.model.get_any_node(addr_1, force_fastpath=True)
+            if cfgnode_1 is None:
+                continue
+            cfgnode_1_preds = self.model.get_predecessors_and_jumpkinds(cfgnode_1, excluding_fakeret=True)
+            if not cfgnode_1_preds:
+                continue
+            abort = False
+            for _, jumpkind in cfgnode_1_preds:
+                if jumpkind != "Ijk_Boring":
+                    abort = True
+                    break
+            if abort:
+                continue
+
             func_0 = functions.get_by_addr(addr_0)
 
             if len(func_0.block_addrs_set) >= 1:
@@ -2026,13 +2047,10 @@ class CFGBase(Analysis):
                     continue
 
                 cfgnode_0 = self.model.get_any_node(block_node.addr, force_fastpath=True)
-                cfgnode_1 = self.model.get_any_node(addr_1, force_fastpath=True)
-
-                if cfgnode_0 is None or cfgnode_1 is None:
+                if cfgnode_0 is None:
                     continue
 
                 # who's jumping to or calling cfgnode_1?
-                cfgnode_1_preds = self.model.get_predecessors_and_jumpkinds(cfgnode_1, excluding_fakeret=True)
                 func_1 = functions[addr_1]
                 abort = False
                 for pred, jumpkind in cfgnode_1_preds:
