@@ -484,7 +484,9 @@ class SimProcedure:
             ret_addr = self._compute_ret_addr(expr)  # pylint:disable=assignment-from-no-return
         elif isinstance(self.state.callstack, angr.engines.ail.AILCallStack):
             ret_addr = self.state.callstack.return_addr
-            self.state.callstack.pop()
+            # When successors is None, this is an internal/inline SimProcedure call (e.g. inline_call()).
+            if self.should_add_successors:
+                self.state.callstack.pop()
             if isinstance(expr, int):
                 expr = claripy.BVV(expr, 64)
             self.state.callstack.passed_rets += ((expr,),)
