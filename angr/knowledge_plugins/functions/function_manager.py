@@ -525,24 +525,17 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         """
         self._init_lmdb()
 
-        last_idx = 0
-
         while True:
             try:
                 with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
-                    for idx, func in enumerate(funcs):
-                        if idx < last_idx:
-                            continue
+                    for func in funcs:
                         cmsg = func.serialize_to_cmessage()
                         key = str(func.addr).encode("utf-8")
                         txn.put(key, cmsg.SerializeToString())
-                        last_idx = idx
+                break
             except lmdb.MapFullError:
                 # Increase map size and retry
                 self._increase_lmdb_map_size()
-                continue
-
-            break
 
     def _delete_from_lmdb(self, addr: K) -> None:
         """
