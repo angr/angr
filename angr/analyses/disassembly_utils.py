@@ -111,5 +111,5 @@ def decode_instruction(arch, instr):
                 instr.branch_type = "indirect"
             else:
                 instr.branch_type = "direct"
-            
+
             instr.branch_target_operand = len(instr.insn.operands) - 1
