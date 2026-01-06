@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .knowledge_plugins import TypesStore
     from .knowledge_plugins import PropagationManager
     from .knowledge_plugins import XRefManager
+    from .knowledge_plugins import RuntimeDb
 
 
 l = logging.getLogger(name=__name__)
@@ -45,6 +46,7 @@ class KnowledgeBase:
     xrefs: XRefManager
     decompilations: StructuredCodeManager
     obfuscations: Obfuscations
+    rtdb: RuntimeDb
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:

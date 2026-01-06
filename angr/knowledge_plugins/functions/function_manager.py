@@ -1,19 +1,15 @@
 # pylint:disable=raise-missing-from
 from __future__ import annotations
 
-import shutil
 from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
 from collections.abc import Iterator, Generator
 from collections import OrderedDict
-import contextlib
 import logging
 import collections.abc
 import re
 import weakref
 import bisect
 import os
-import tempfile
-import uuid
 
 import lmdb
 import networkx
@@ -33,6 +29,7 @@ T = TypeVar("T")
 
 if TYPE_CHECKING:
     from angr import KnowledgeBase
+    from angr.knowledge_plugins.rtdb import RuntimeDb
 
     class SortedDict(Generic[K, T], dict[K, T]):
         def irange(self, *args, **kwargs) -> Iterator[K]: ...
@@ -188,12 +185,13 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
     updated. Therefore, please be extremely cautious when using these meta-only Function objects.
 
     :ivar cache_limit:          The maximum number of functions to keep in memory.
-    :ivar _lmdb_batch_size:     The number of functions that are evicted in a single batch.
+    :ivar _db_batch_size:       The number of functions that are evicted in a single batch.
     """
 
     def __init__(
         self,
         backref: FunctionManager[K] | None,
+        rtdb: RuntimeDb,
         *args,
         key_types: type = int,
         cache_limit: int | None = None,
@@ -203,17 +201,15 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         FunctionDictBase.__init__(self, backref, key_types=key_types)
 
         self._cache_limit: int | None = cache_limit
+        self.rtdb = rtdb
         self._lru_order: OrderedDict[K, None] = OrderedDict()
         self._spilled_keys: set[K] = set()
         self._list = SortedList()  # a sorted list of all keys (cached + spilled)
         self.irange = self._list.irange
 
         self._meta_func_cache: LRUCache[K, Function] = LRUCache(maxsize=cache_limit)
-        self._lmdb_env: lmdb.Environment | None = None
-        self._lmdb_path: str | None = None
-        self._lmdb_funcsdb = None
-        self._lmdb_mapsize: int = 1024 * 1024 * 10
-        self._lmdb_batch_size: int = 100
+        self._funcsdb = None
+        self._db_batch_size: int = 100
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
         self._currently_loading: set[K] = set()
@@ -269,6 +265,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
 
         new_dict = SpillingFunctionDict(
             self._backref,
+            self.rtdb,
             key_types=self._key_types,
             cache_limit=self._cache_limit,
         )
@@ -281,11 +278,11 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
             new_dict._lru_order[address] = None
 
         # Copy any remaining spilled addresses and their LMDB data
-        if self._spilled_keys and self._lmdb_env is not None:
+        if self._spilled_keys and self._funcsdb is not None:
             new_dict._init_lmdb()
             with (
-                self._lmdb_env.begin(db=self._lmdb_funcsdb) as src_txn,
-                new_dict._lmdb_env.begin(write=True, db=new_dict._lmdb_funcsdb) as dst_txn,
+                self.rtdb.begin_txn(self._funcsdb) as src_txn,
+                self.rtdb.begin_txn(new_dict._funcsdb, write=True) as dst_txn,
             ):
                 for addr in self._spilled_keys:
                     key = str(addr).encode("utf-8")
@@ -371,7 +368,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         Set the maximum number of functions to keep in memory.
         """
         self._cache_limit = value
-        if value is not None and self.cached_count > value + self._lmdb_batch_size:
+        if value is not None and self.cached_count > value + self._db_batch_size:
             self._evict_lru()
 
     @property
@@ -429,8 +426,8 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         :return: True if at least one function was successfully evicted, False otherwise.
         """
         evicted_any = False
-        while self.cached_count > self._cache_limit + self._lmdb_batch_size:
-            if self._evict_n(self._lmdb_batch_size) == 0:
+        while self.cached_count > self._cache_limit + self._db_batch_size:
+            if self._evict_n(self._db_batch_size) == 0:
                 break
             evicted_any = True
         return evicted_any
@@ -485,39 +482,16 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         """
         Lazily initialize the LMDB database for spilling functions.
         """
-        if self._lmdb_env is not None:
-            return
-
-        # Only generate the path once
-        if self._lmdb_path is None:
-            self._lmdb_path = os.path.join(tempfile.gettempdir(), f"angr_lru_cache_{uuid.uuid4().hex}")
-
-        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=self._lmdb_mapsize, max_dbs=1)
-        self._lmdb_funcsdb = self._lmdb_env.open_db(b"functions.radb")
-        l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
+        if self._funcsdb is None:
+            self._funcsdb = self.rtdb.get_db("functions")
+        l.debug("Initialized LRU cache LMDB.")
 
     def _cleanup_lmdb(self):
         """
         Clean up LMDB resources.
         """
-        if self._lmdb_env is not None:
-            self._lmdb_env.close()
-            self._lmdb_env = None
-            self._lmdb_funcsdb = None
-
-        if self._lmdb_path is not None:
-            with contextlib.suppress(OSError):
-                shutil.rmtree(self._lmdb_path)
-            self._lmdb_path = None
-
-    def _increase_lmdb_map_size(self) -> None:
-        """
-        Increase the LMDB map size.
-        """
-        delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
-        l.debug("Increasing LMDB map size by %d bytes", delta)
-        self._lmdb_mapsize += delta
-        self._lmdb_env.set_mapsize(self._lmdb_mapsize)
+        if self._funcsdb is not None:
+            self.rtdb.drop_db(self._funcsdb)
 
     def _save_to_lmdb(self, funcs: list[Function]) -> None:
         """
@@ -527,7 +501,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
 
         while True:
             try:
-                with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+                with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:
                     for func in funcs:
                         cmsg = func.serialize_to_cmessage()
                         key = str(func.addr).encode("utf-8")
@@ -535,25 +509,22 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
                 break
             except lmdb.MapFullError:
                 # Increase map size and retry
-                self._increase_lmdb_map_size()
+                self.rtdb.increase_lmdb_map_size()
 
     def _delete_from_lmdb(self, addr: K) -> None:
         """
         Delete a function from LMDB.
         """
-        if self._lmdb_env is None:
-            return
-
         key = str(addr).encode("utf-8")
 
-        with self._lmdb_env.begin(write=True, db=self._lmdb_funcsdb) as txn:
+        with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:
             txn.delete(key)
 
     def _load_from_lmdb(self, addr: K, meta_only: bool = False) -> Function | None:
         """
         Load a function from LMDB and bring it back into memory.
         """
-        if self._lmdb_env is None:
+        if self._funcsdb is None:
             return None
 
         # Prevent recursive loading
@@ -567,7 +538,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         try:
             key = str(addr).encode("utf-8")
 
-            with self._lmdb_env.begin(db=self._lmdb_funcsdb) as txn:
+            with self.rtdb.begin_txn(self._funcsdb) as txn:
                 value = txn.get(key)
                 if value is None:
                     return None
@@ -606,7 +577,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
                 not self._loading_from_lmdb
                 and self._eviction_enabled
                 and self._cache_limit is not None
-                and self.cached_count > self._cache_limit + self._lmdb_batch_size
+                and self.cached_count > self._cache_limit + self._db_batch_size
             ):
                 self._evict_lru()
 
@@ -649,7 +620,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # Use SpillingFunctionDict when caching is enabled, otherwise plain FunctionDict
         if cache_limit is not None:
             self._function_map: FunctionDict[K] | SpillingFunctionDict[K] = SpillingFunctionDict(
-                self, key_types=self.function_address_types, cache_limit=cache_limit
+                self, kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit
             )
         else:
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
@@ -720,7 +691,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             cache_limit = self._function_map.cache_limit
             self._function_map.clear()
             self._function_map = SpillingFunctionDict(
-                self, key_types=self.function_address_types, cache_limit=cache_limit
+                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=cache_limit
             )
         else:
             self._function_map = FunctionDict(self, key_types=self.function_address_types)
@@ -1234,7 +1205,9 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         elif value is not None:
             # Need to convert FunctionDict to SpillingFunctionDict
             old_map = self._function_map
-            new_map = SpillingFunctionDict(self, key_types=self.function_address_types, cache_limit=value)
+            new_map = SpillingFunctionDict(
+                self, self._kb.rtdb, key_types=self.function_address_types, cache_limit=value
+            )
             # Disable eviction during bulk copy
             new_map._eviction_enabled = False
             # Copy existing functions

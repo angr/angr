@@ -18,6 +18,7 @@ from .types import TypesStore
 from .callsite_prototypes import CallsitePrototypes
 from .custom_strings import CustomStrings
 from .obfuscations import Obfuscations
+from .rtdb import RuntimeDb
 
 
 __all__ = (
@@ -36,6 +37,7 @@ __all__ = (
     "Obfuscations",
     "PatchManager",
     "PropagationManager",
+    "RuntimeDb",
     "StructuredCodeManager",
     "TypesStore",
     "VariableManager",
