@@ -437,7 +437,7 @@ class Balancer:
     @staticmethod
     def _balance_reverse(truism: Bool) -> Bool:
         if truism.op in ["__eq__", "__ne__"]:
-            return Bool(
+            return BV(
                 truism.op,
                 (cast(BV, truism.args[0]).args[0], cast(BV, truism.args[1]).reversed),
                 length=cast(BV, truism.args[1]).length,
