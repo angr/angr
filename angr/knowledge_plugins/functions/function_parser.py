@@ -193,6 +193,7 @@ class FunctionParser:
                 if project and project.is_hooked(startpoint_addr)
                 else BlockNode(startpoint_addr, 1)
             )  # the size is incorrect, but it should probably be fine?
+            obj.meta_only = True  # can't be serialized again when evicted from the cache
             obj._dirty = False
             return obj
 

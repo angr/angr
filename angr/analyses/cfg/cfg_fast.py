@@ -3870,7 +3870,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             # in the newly merged function. Fix this bug in the future when it becomes an issue.
                             continue
 
-                        if self.kb.functions.get_by_addr(fr.caller_func_addr).returning is not True:
+                        if self.kb.functions.get_by_addr(fr.caller_func_addr, meta_only=True).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
                         return_to_node = self._nodes.get(fr.return_to, None)

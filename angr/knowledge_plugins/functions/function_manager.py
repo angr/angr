@@ -21,6 +21,7 @@ import networkx
 
 from archinfo.arch_soot import SootMethodDescriptor
 import cle
+from cachetools import LRUCache
 
 from angr.errors import SimEngineError
 from angr.codenode import FuncNode
@@ -158,6 +159,7 @@ class SpillingFunctionDict(FunctionDict[K]):
         self._cache_limit: int | None = cache_limit
         self._lru_order: OrderedDict[K, None] = OrderedDict()
         self._spilled_keys: set[K] = set()
+        self._meta_func_cache: LRUCache[K, Function] = LRUCache(maxsize=cache_limit)
         self._lmdb_env: lmdb.Environment | None = None
         self._lmdb_path: str | None = None
         self._lmdb_funcsdb = None
@@ -277,10 +279,13 @@ class SpillingFunctionDict(FunctionDict[K]):
                 pass
 
         # Check if spilled to LMDB
-        if addr in self._spilled_keys and not self._loading_from_lmdb:
-            func = self._load_from_lmdb(addr, meta_only=meta_only)
-            if func is not None:
-                return func
+        if addr in self._spilled_keys:
+            if meta_only and addr in self._meta_func_cache:
+                return self._meta_func_cache[addr]
+            if not self._loading_from_lmdb:
+                func = self._load_from_lmdb(addr, meta_only=meta_only)
+                if func is not None:
+                    return func
 
         if default is _missing:
             raise KeyError(addr)
@@ -530,12 +535,14 @@ class SpillingFunctionDict(FunctionDict[K]):
                     meta_only=meta_only,
                 )
 
-            # Remove from spilled set
-            self._spilled_keys.discard(addr)
-
-            # Add to in-memory map
-            super().__setitem__(addr, func)
-            self._on_function_stored(addr)
+            if meta_only:
+                self._meta_func_cache[addr] = func
+            else:
+                # Remove from spilled set
+                self._spilled_keys.discard(addr)
+                # Add to in-memory map
+                super().__setitem__(addr, func)
+                self._on_function_stored(addr)
 
             l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
             return func
@@ -881,8 +888,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         if type(to_node) is int:  # pylint: disable=unidiomatic-typecheck
             to_node = self._kb._project.factory.snippet(to_node)
         func = self._function_map[function_addr]
-        src_func = self._function_map[src_function_addr]
-        func._return_from_call(src_func, to_node, to_outside=to_outside)
+        src_funcnode = FuncNode(src_function_addr)
+        func._return_from_call(src_funcnode, to_node, to_outside=to_outside)
 
     #
     # Dict methods

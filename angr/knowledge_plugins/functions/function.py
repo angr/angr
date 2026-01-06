@@ -75,7 +75,6 @@ class Function(Serializable):
         "_retout_sites",
         "_returning",
         "addr",
-        "addr",
         "binary_name",
         "bp_on_stack",
         "from_signature",
@@ -86,6 +85,7 @@ class Function(Serializable):
         "is_prototype_guessed",
         "is_simprocedure",
         "is_syscall",
+        "meta_only",
         "normalized",
         "previous_names",
         "ran_cca",
@@ -189,6 +189,7 @@ class Function(Serializable):
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
         self._dirty: bool = True
+        self.meta_only: bool = False
 
         #
         # Initialize unspecified properties
@@ -977,7 +978,7 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     @dirty_func
-    def _return_from_call(self, from_func, to_node, to_outside=False):
+    def _return_from_call(self, from_func: FuncNode, to_node, to_outside=False):
         self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
         for _, _, data in self.transition_graph.in_edges(to_node, data=True):
             if "type" in data and data["type"] == "fake_return":

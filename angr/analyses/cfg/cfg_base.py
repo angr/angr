@@ -1110,30 +1110,31 @@ class CFGBase(Analysis):
         """
 
         changes = {"functions_return": [], "functions_do_not_return": []}
+        # short-hand
+        functions: FunctionManager = self.kb.functions
 
         if self._updated_nonreturning_functions is not None:
             all_func_addrs = self._updated_nonreturning_functions
 
             # Convert addresses to objects
-            all_functions = [
-                self.kb.functions.get_by_addr(f) for f in all_func_addrs if self.kb.functions.contains_addr(f)
+            all_functions_meta = [
+                functions.get_by_addr(f, meta_only=True) for f in all_func_addrs if functions.contains_addr(f)
             ]
 
         else:
-            all_functions = list(self.kb.functions.values())
+            all_functions_meta = list(functions.values(meta_only=True))
 
         analyzed_functions = set()
-        # short-hand
-        functions: FunctionManager = self.kb.functions
 
-        while all_functions:
-            func: Function = all_functions.pop(-1)
-            analyzed_functions.add(func.addr)
+        while all_functions_meta:
+            func_meta: Function = all_functions_meta.pop(-1)
+            analyzed_functions.add(func_meta.addr)
 
-            if func.returning is not None:
+            if func_meta.returning is not None:
                 # It has been determined before. Skip it
                 continue
 
+            func = functions.get_by_addr(func_meta.addr)
             returning = self._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
 
             if returning:
@@ -1150,7 +1151,7 @@ class CFGBase(Analysis):
                     if caller in analyzed_functions:
                         continue
                     if functions.contains_addr(caller):
-                        all_functions.append(functions.get_by_addr(caller))
+                        all_functions_meta.append(functions.get_by_addr(caller, meta_only=True))
 
         return changes
 
@@ -1720,9 +1721,10 @@ class CFGBase(Analysis):
             to_remove |= self._remove_dummy_plt_stubs(self.kb.functions)
 
         # remove empty functions
-        for func in self.kb.functions.values(meta_only=True):
-            if func.startpoint is None:
-                to_remove.add(func.addr)
+        for func_meta in self.kb.functions.values(meta_only=True):
+            if func_meta.startpoint is None:
+                to_remove.add(func_meta.addr)
+                continue
 
         for addr in to_remove:
             del self.kb.functions[addr]
@@ -1731,11 +1733,6 @@ class CFGBase(Analysis):
         for node in self._nodes.values():
             if node.addr in blockaddr_to_funcaddr:
                 node.function_address = blockaddr_to_funcaddr[node.addr]
-
-        # Update function.info
-        for func in self.kb.functions.values(meta_only=True):
-            if func.addr in tmp_functions:
-                func.info = tmp_functions[func.addr].info
 
     def _remove_dummy_plt_stubs(self, functions):
         def _is_function_a_plt_stub(arch_, func):
@@ -2171,16 +2168,16 @@ class CFGBase(Analysis):
             assert f is not None
 
             # copy over existing metadata
+            function_is_returning = False
             if known_functions.contains_addr(addr):
                 kf_meta = known_functions.get_by_addr(addr, meta_only=True)
                 f.is_plt = kf_meta.is_plt
+                f.info = kf_meta.info
+                if kf_meta.returning:
+                    f.returning = True
+                    function_is_returning = True
 
             blockaddr_to_funcaddr[addr] = addr
-
-            function_is_returning = False
-            if addr in known_functions and known_functions.function(addr).returning:
-                f.returning = True
-                function_is_returning = True
 
             if not function_is_returning and self._updated_nonreturning_functions is not None:
                 # We will rerun function feature analysis on this function later. Add it to
