@@ -667,7 +667,7 @@ class Balancer:
 
         if claripy.backends.vsa.is_false(truism):
             raise BalancerUnsatError
-        if cast(Base, truism.args[0]).cardinality == 1:
+        if truism.op in {"BoolV", "BoolS"} or cast(Base, truism.args[0]).cardinality == 1:
             # we are down to single-cardinality arguments, so our work is not
             # necessary
             return
