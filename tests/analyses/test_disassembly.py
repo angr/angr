@@ -204,11 +204,7 @@ c  lw      $t9, -0x7ee0($gp)
         # 0x10: e7 00 05 00    jalr    ra, 0(a0)      ; Indirect Call
 
         proj = angr.load_shellcode(
-            b"\xef\x02\x40\x06"
-            b"\x63\x00\x10\x00"
-            b"\x67\x00\x25\x00"
-            b"\x67\x80\x00\x00"
-            b"\xe7\x00\x05\x00",
+            b"\xef\x02\x40\x06" b"\x63\x00\x10\x00" b"\x67\x00\x25\x00" b"\x67\x80\x00\x00" b"\xe7\x00\x05\x00",
             "RISCV64",
             0,
         )
@@ -232,6 +228,7 @@ c  lw      $t9, -0x7ee0($gp)
         assert insns[3].branch_type == "indirect"
         # jalr ra, 0(a0)
         assert insns[4].branch_type == "indirect"
+
 
 if __name__ == "__main__":
     main()
