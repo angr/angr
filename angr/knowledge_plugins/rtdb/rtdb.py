@@ -41,7 +41,33 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         # Only generate the path once
         if self._lmdb_path is None:
-            self._lmdb_path = os.path.join(tempfile.gettempdir(), f"angr_lru_cache_{uuid.uuid4().hex}")
+            # get the base directory of the project binary
+            main_binary_path = self._kb._project.loader.main_object.binary
+            basedir = None
+            db_filename = None
+            if isinstance(main_binary_path, str):
+                basedir = os.path.dirname(os.path.abspath(main_binary_path))
+                basename = os.path.basename(main_binary_path)
+                db_filename = basename + "_angr_rtdb"
+
+                # is the location writable?
+                if not os.access(basedir, os.W_OK):
+                    l.error("The directory %s is not writable. Falling back to temporary directory.", basedir)
+                    basedir = None
+                else:
+                    # find a unique rtdb name
+                    while True:
+                        db_path = os.path.join(basedir, db_filename)
+                        if not os.path.exists(db_path):
+                            break
+                        db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
+
+            if db_filename is None:
+                db_filename = f"angr_rtdb_{uuid.uuid4().hex}"
+            if basedir is None:
+                basedir = tempfile.gettempdir()
+
+            self._lmdb_path = os.path.join(basedir, db_filename)
 
         self._lmdb_env = lmdb.open(self._lmdb_path, map_size=self._lmdb_mapsize, max_dbs=10)
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
