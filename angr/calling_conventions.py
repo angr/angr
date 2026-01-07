@@ -2045,10 +2045,19 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
         return state.regs.x8
 
 
-class SimCCRISCV64LinuxSyscall(SimCCSyscall):
-    # TODO: Make sure all the information is correct
+class SimCCRISCV64(SimCC):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = ["fa0", "fa1", "fa2", "fa3", "fa4", "fa5", "fa6", "fa7"]
+    STACKARG_SP_BUFF = 0xA0
+    RETURN_VAL = SimRegArg("a0", 8)
+    RETURN_ADDR = SimRegArg("x1", 8)
+    ARCH = archinfo.ArchRISCV64
+
+
+class SimCCRISCV64LinuxSyscall(SimCCSyscall):
+    # reference: https://elixir.bootlin.com/linux/v6.13/source/arch/riscv/kernel/traps.c#L318
+    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5"]
+    FP_ARG_REGS = []
     RETURN_VAL = SimRegArg("a0", 8)
     RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
     ARCH = archinfo.ArchRISCV64
@@ -2060,7 +2069,7 @@ class SimCCRISCV64LinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        return state.regs.a0
+        return state.regs.a7
 
 
 class SimCCO32(SimCC):
@@ -2432,6 +2441,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "AVR8": {"Linux": SimCCUnknown},
     "MSP": {"Linux": SimCCUnknown},
     "S390X": {"Linux": SimCCS390X},
+    "RISCV64": {"Linux": SimCCRISCV64},
 }
 
 

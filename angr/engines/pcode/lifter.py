@@ -21,7 +21,6 @@ from cachetools import LRUCache
 from pyvex.errors import PyVEXError, SkipStatementsError, LiftingException
 from pyvex.expr import IRExpr, Const, U8, U16, U32, U64
 
-from .behavior import BehaviorFactory
 from angr.engines.engine import SimEngine
 from angr.state_plugins.inspect import BP_AFTER, BP_BEFORE
 from angr.sim_state import SimState
@@ -29,6 +28,8 @@ from angr.misc.ux import once
 from angr.errors import SimEngineError, SimTranslationError, SimError
 from angr import sim_options as o
 from angr.block import DisassemblerBlock, DisassemblerInsn
+
+from .behavior import BehaviorFactory
 
 if TYPE_CHECKING:
     from pypcode import PcodeOp, Context
@@ -829,6 +830,7 @@ class PcodeBasicBlockLifter:
                 "X86": "x86:LE:32:default",
                 "AMD64": "x86:LE:64:default",
                 "AVR8": "avr8:LE:16:atmega256",
+                "RISCV64": "RISCV:LE:64:default",
             }
             if arch.name not in archinfo_to_lang_map:
                 l.error("Unknown mapping of %s to pcode language id", arch.name)
@@ -968,11 +970,14 @@ class PcodeLifter(Lifter):
 
     _lifter_cache = {}
 
+    @classmethod
+    def get_lifter(cls, arch):
+        if arch not in PcodeLifter._lifter_cache:
+            PcodeLifter._lifter_cache[arch] = PcodeBasicBlockLifter(arch)
+        return PcodeLifter._lifter_cache[arch]
+
     def lift(self) -> None:
-        if self.arch not in PcodeLifter._lifter_cache:
-            PcodeLifter._lifter_cache[self.arch] = PcodeBasicBlockLifter(self.arch)
-        lifter = PcodeLifter._lifter_cache[self.arch]
-        lifter.lift(
+        self.get_lifter(self.arch).lift(
             self.irsb,
             self.addr,
             self.data,
