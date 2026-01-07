@@ -37,6 +37,7 @@ from angr.sim_type import (
     SimTypeInt256,
     SimTypeInt512,
     SimCppClass,
+    SimTypeEnum,
 )
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import (
@@ -2290,6 +2291,13 @@ class CConstant(CExpression):
         if self.collapsed:
             yield "...", self
             return
+
+        # Check for enum type - resolve integer to enum member name
+        if isinstance(self._type, SimTypeEnum) and isinstance(self.value, int):
+            member_name = self._type.resolve(self.value)
+            if member_name is not None:
+                yield member_name, self
+                return
 
         if self.reference_values is not None:
             if self._type is not None and self._type in self.reference_values:

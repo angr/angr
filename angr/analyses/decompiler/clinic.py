@@ -1061,8 +1061,10 @@ class Clinic(Analysis):
                 cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
-                    target_func.prototype = cc.prototype
-                    target_func.prototype_libname = cc.prototype_libname
+                    # Only set prototype if not already defined (preserve user-defined prototypes)
+                    if target_func.prototype is None:
+                        target_func.prototype = cc.prototype
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 3: the callee is a PLT function
@@ -1070,8 +1072,10 @@ class Clinic(Analysis):
                 cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
-                    target_func.prototype = cc.prototype
-                    target_func.prototype_libname = cc.prototype_libname
+                    # Only set prototype if not already defined (preserve user-defined prototypes)
+                    if target_func.prototype is None:
+                        target_func.prototype = cc.prototype
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 4: fall back to call site analysis

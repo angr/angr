@@ -37,6 +37,7 @@ from .sim_type import (
     SimTypeReference,
     SimTypeRef,
     SimTypeBool,
+    SimTypeEnum,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -1685,7 +1686,7 @@ class SimCCSystemVAMD64(SimCC):
         nchunks = 1 if ty.size is None else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
-        if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
+        if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum)):
             return ["INTEGER"] * nchunks
         if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
             raise TypeError("Cannot lay out an opaque class")
