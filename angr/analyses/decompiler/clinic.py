@@ -19,7 +19,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.codenode import BlockNode
+from angr.codenode import BlockNode, FuncNode
 from angr.utils import timethis
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
@@ -1034,8 +1034,8 @@ class Clinic(Analysis):
             ):
                 # tail jumps
                 target_func = self.kb.functions.get_by_addr(node.addr)
-            elif isinstance(node, Function):
-                target_func = node
+            elif isinstance(node, FuncNode):
+                target_func = self.kb.functions.get_by_addr(node.addr)
             else:
                 # TODO: Enable call-site analysis for indirect calls
                 continue

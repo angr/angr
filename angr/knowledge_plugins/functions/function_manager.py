@@ -813,6 +813,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
+            self.function(addr=to_addr, create=True)
             dest_func_node = FuncNode(to_addr)
             if syscall in (True, False):
                 dest_func_node.is_syscall = syscall
