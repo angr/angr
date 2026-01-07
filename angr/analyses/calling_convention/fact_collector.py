@@ -11,7 +11,7 @@ from angr.block import Block
 from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode
+from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
 from angr.sim_type import SimTypeBottom, SimTypeFunction
@@ -276,7 +276,12 @@ class FactCollector(Analysis):
 
         traversed = set()
         queue: list[
-            tuple[int, FactCollectorState, CodeNode | BlockNode | HookNode | Function, BlockNode | HookNode | None]
+            tuple[
+                int,
+                FactCollectorState,
+                CodeNode | BlockNode | HookNode | FuncNode,
+                BlockNode | HookNode | FuncNode | None,
+            ]
         ] = [(0, init_state, startpoint, None)]
         end_states: list[FactCollectorState] = []
         while queue:
@@ -291,17 +296,18 @@ class FactCollector(Analysis):
 
             if isinstance(node, BlockNode) and node.size == 0:
                 continue
-            if isinstance(node, HookNode):
+            func: Function | None = None
+            if isinstance(node, (HookNode, FuncNode)):
                 # attempt to convert it into a function
                 if self.kb.functions.contains_addr(node.addr):
-                    node = self.kb.functions.get_by_addr(node.addr)
+                    func = self.kb.functions.get_by_addr(node.addr)
                 else:
                     continue
-            if isinstance(node, Function):
-                if node.calling_convention is not None and node.prototype is not None:
+            if func is not None:
+                if func.calling_convention is not None and func.prototype is not None:
                     # consume args and overwrite the return register
-                    self._handle_function(state, node)
-                if node.returning is False or retnode is None:
+                    self._handle_function(state, func)
+                if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)
                 else:
@@ -331,12 +337,9 @@ class FactCollector(Analysis):
                     elif edge_type == "call" or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
-                        if not isinstance(succ, Function):
-                            if self.kb.functions.contains_addr(succ.addr):
-                                succ = self.kb.functions.get_by_addr(succ.addr)
-                            else:
-                                # not sure who we are calling
-                                continue
+                        if not isinstance(succ, FuncNode) and not self.kb.functions.contains_addr(succ.addr):
+                            # not sure who we are calling
+                            continue
                         call_succ = succ
             if call_succ is not None:
                 successor_added = True
@@ -406,21 +409,22 @@ class FactCollector(Analysis):
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
 
-                if isinstance(node, HookNode):
+                func = None
+                if isinstance(node, (FuncNode, HookNode)):
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(node.addr):
-                        node = self.kb.functions.get_by_addr(node.addr)
+                        func = self.kb.functions.get_by_addr(node.addr)
                     else:
                         continue
-                if isinstance(node, Function):
+                if func is not None:
                     if (
-                        node.calling_convention is not None
-                        and node.prototype is not None
-                        and node.prototype.returnty is not None
-                        and not isinstance(node.prototype.returnty, SimTypeBottom)
+                        func.calling_convention is not None
+                        and func.prototype is not None
+                        and func.prototype.returnty is not None
+                        and not isinstance(func.prototype.returnty, SimTypeBottom)
                     ):
                         # assume the function overwrites the return variable
-                        returnty_size = node.prototype.returnty.with_arch(self.project.arch).size
+                        returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
                         retval_sizes.append(retval_size)
@@ -430,16 +434,15 @@ class FactCollector(Analysis):
                 func_succs = [
                     succ
                     for succ in func_graph.successors(node)
-                    if isinstance(succ, (Function, HookNode)) or self.kb.functions.contains_addr(succ.addr)
+                    if isinstance(succ, (FuncNode, HookNode)) or self.kb.functions.contains_addr(succ.addr)
                 ]
                 if len(func_succs) == 1:
-                    func_succ = func_succs[0]
-                    if isinstance(func_succ, (BlockNode, HookNode)) and self.kb.functions.contains_addr(func_succ.addr):
+                    succ = func_succs[0]
+                    func_succ: Function | None = None
+                    if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
-                        func_succ = self.kb.functions.get_by_addr(func_succ.addr)
-                    if isinstance(func_succ, Function) and func_succ.name not in {  # noqa:SIM102
-                        "_security_check_cookie"
-                    }:
+                        func_succ = self.kb.functions.get_by_addr(succ.addr)
+                    if func_succ is not None and func_succ.name not in {"_security_check_cookie"}:  # noqa:SIM102
                         if (
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None
@@ -506,7 +509,7 @@ class FactCollector(Analysis):
         }
         for endpoint in self.function.endpoints:
             traversed = set()
-            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            queue: list[tuple[int, BlockNode | HookNode | FuncNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
                 traversed.add(node)
@@ -516,7 +519,7 @@ class FactCollector(Analysis):
 
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
-                if isinstance(node, (HookNode, Function)):
+                if isinstance(node, (HookNode, FuncNode)):
                     continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
