@@ -2112,8 +2112,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         new_indented = " " * new_indent if new_indent is not None else ""
         newline = "\n" if indent is not None else " "
         members_str = ("," + newline).join(
-            f"{new_indented}{member_name} = {member_value}"
-            for member_name, member_value in self.members.items()
+            f"{new_indented}{member_name} = {member_value}" for member_name, member_value in self.members.items()
         )
         out = f"enum {self._name} {{{newline}{members_str}{newline}{indented}}}"
         if self.qualifier:
@@ -2282,8 +2281,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         new_indented = " " * new_indent if new_indent is not None else ""
         newline = "\n" if indent is not None else " "
         flags_str = ("," + newline).join(
-            f"{new_indented}{flag_name} = {hex(flag_value)}"
-            for flag_name, flag_value in self.flags.items()
+            f"{new_indented}{flag_name} = {hex(flag_value)}" for flag_name, flag_value in self.flags.items()
         )
         out = f"enum {self._name} {{{newline}{flags_str}{newline}{indented}}}"
         if self.qualifier:
