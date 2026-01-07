@@ -31,6 +31,11 @@ class MockFunctionManager:
     def function(self, address):
         return self._function_map[address]
 
+    def noop(self, *args, **kwargs):
+        pass
+
+    set_function_returning = noop
+
 
 class TestFunction(TestCase):
     def setUp(self):
