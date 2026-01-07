@@ -1228,7 +1228,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         for func in self._function_map.values():
             if func.block_addrs_set:
                 for node in func.transition_graph.nodes():
-                    if isinstance(node, Function):
+                    if isinstance(node, FuncNode):
                         self.callgraph.add_edge(func.addr, node.addr)
                     else:
                         cfgnode = cfg.get_any_node(node.addr)
@@ -1275,6 +1275,15 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         :return:        True if non-returning, False if returning or unknown.
         """
         return addr in self._non_returning_func_addrs
+
+    def is_func_returning_unknown(self, addr: K) -> bool:
+        """
+        Check if a function's returning status is unknown.
+
+        :param addr:    Address of the function.
+        :return:        True if returning status is unknown, False otherwise.
+        """
+        return addr in self._unknown_returning_func_addrs
 
     #
     # Function block count cache

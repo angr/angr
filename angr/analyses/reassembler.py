@@ -17,9 +17,8 @@ from . import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
 from .cfg.cfg_fast import CFGFast
-from angr.codenode import CodeNode
+from angr.codenode import CodeNode, FuncNode
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.functions import Function
 from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimTemporaryVariable
 
@@ -1150,9 +1149,15 @@ class Procedure:
                 # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
                 # first let's identify which function is the get_pc function
                 for src, dst, _data in self.function.transition_graph.edges(data=True):
-                    if isinstance(src, CodeNode) and isinstance(dst, Function) and "get_pc" in dst.info:
-                        # found it!
-                        x86_getpc_retsites.add(src.addr + src.size)
+                    if (
+                        isinstance(src, CodeNode)
+                        and isinstance(dst, FuncNode)
+                        and self.project.kb.functions.contains_addr(dst.addr)
+                    ):
+                        dst_func = self.project.kb.functions.get_by_addr(dst.addr)
+                        if "get_pc" in dst_func.info:
+                            # found it!
+                            x86_getpc_retsites.add(src.addr + src.size)
             for block_addr in self.function.block_addrs:
                 b = BasicBlock(
                     self.binary,
@@ -2312,7 +2317,7 @@ class Reassembler(Analysis):
             callees = [
                 node
                 for node in init_func.transition_graph.nodes()
-                if isinstance(node, Function) and node.addr != self.cfg._unresolvable_call_target_addr
+                if isinstance(node, FuncNode) and node.addr != self.cfg._unresolvable_call_target_addr
             ]
             # special handling for GCC-generated X86 PIE binaries
             non_getpc_callees = [callee for callee in callees if "get_pc" not in callee.info]

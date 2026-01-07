@@ -45,7 +45,7 @@ from angr.errors import (
     AngrUnsupportedSyscallError,
     SimError,
 )
-from angr.codenode import HookNode, BlockNode
+from angr.codenode import HookNode, BlockNode, FuncNode
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE, VEX_IRSB_MAX_INST
 from angr.analyses import Analysis
 from angr.analyses.stack_pointer_tracker import StackPointerTracker
@@ -1063,16 +1063,18 @@ class CFGBase(Analysis):
             # for ret-out sites, determine what function it calls
             if type_ == "retout":
                 # see whether the function being called returns or not
-                func_successors = [succ for succ in goout_site_successors if isinstance(succ, Function)]
+                func_successors = [succ for succ in goout_site_successors if isinstance(succ, FuncNode)]
                 if func_successors and all(
-                    func_successor.returning in (None, False) for func_successor in func_successors
+                    self.functions.is_func_nonreturning(succ.addr)
+                    or self.functions.is_func_returning_unknown(succ.addr)
+                    for succ in func_successors
                 ):
                     # the returning of all possible function calls are undetermined, or they do not return
                     # ignore this site
                     continue
 
             if type_ == "retout":
-                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, Function)), None)
+                goout_target = next((succ for succ in goout_site_successors if not isinstance(succ, FuncNode)), None)
             else:
                 goout_target = next((succ for succ in goout_site_successors), None)
             if goout_target is None:

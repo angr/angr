@@ -25,8 +25,7 @@ from angr.analyses import AnalysesHub
 from angr.misc.ux import once
 from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.xrefs import XRef, XRefType
-from angr.knowledge_plugins.functions import Function
-from angr.codenode import HookNode
+from angr.codenode import HookNode, FuncNode
 from angr import sim_options as o
 from angr.errors import (
     AngrCFGError,
@@ -2043,8 +2042,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             else:
                 # security_cookie_addr is None; let's invoke the stricter version to find _security_check_cookie
-                for func in self.kb.functions.values():
-                    if len(func.block_addrs_set) in {5, 6}:
+                for func_addr in self.kb.functions:
+                    if self.kb.functions.get_func_block_count(func_addr) in {5, 6}:
+                        func = self.kb.functions.get_by_addr(func_addr)
                         r, cookie_addr = is_function_security_check_cookie_strict(func, self.project)
                         if r:
                             security_cookie_addr = cookie_addr
@@ -2060,14 +2060,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 start_func = self.functions.get_by_addr(self.project.entry)
                 for callee in start_func.transition_graph:
                     if (
-                        isinstance(callee, Function)
+                        isinstance(callee, FuncNode)
                         and not security_init_cookie_found
-                        and is_function_likely_security_init_cookie(callee)
+                        and self.kb.functions.contains_addr(callee.addr)
                     ):
-                        security_init_cookie_found = True
-                        callee.is_default_name = False
-                        callee.name = "_security_init_cookie"
-                        break
+                        callee_func = self.kb.functions.get_by_addr(callee.addr)
+                        if is_function_likely_security_init_cookie(callee_func):
+                            security_init_cookie_found = True
+                            callee_func.is_default_name = False
+                            callee_func.name = "_security_init_cookie"
+                            break
 
     def _post_process_string_references(self) -> None:
         """
@@ -5388,7 +5390,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 edges = list(callee_func.transition_graph.edges())
                 if len(edges) == 1:
                     target_func = edges[0][1]
-                    if isinstance(target_func, (HookNode, Function)) and self.project.is_hooked(target_func.addr):
+                    if isinstance(target_func, (HookNode, FuncNode)) and self.project.is_hooked(target_func.addr):
                         hooker = self.project.hooked_by(target_func.addr)
                         assert hooker is not None
                         if hooker.DYNAMIC_RET:

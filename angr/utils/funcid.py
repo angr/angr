@@ -4,6 +4,7 @@ from typing import Any
 
 import capstone
 
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.functions import Function
 
 
@@ -229,8 +230,11 @@ def is_function_likely_security_init_cookie(func: Function) -> bool:
     Conducts a fuzzy match for security_init_cookie function.
     """
 
-    callees = [node for node in func.transition_graph if isinstance(node, Function)]
-    callee_names = {callee.name for callee in callees}
+    callees = {node.addr for node in func.transition_graph if isinstance(node, FuncNode)}
+    callee_funcs = [
+        func.project.kb.functions.get_by_addr(addr) for addr in callees if func.project.kb.functions.contains_addr(addr)
+    ]
+    callee_names = {callee.name for callee in callee_funcs}
     return bool(
         callee_names.issuperset(
             {

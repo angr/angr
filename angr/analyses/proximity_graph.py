@@ -6,7 +6,7 @@ import networkx
 
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
-from angr.codenode import BlockNode
+from angr.codenode import BlockNode, FuncNode
 from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
 from .analysis import Analysis, AnalysesHub
@@ -54,7 +54,7 @@ class FunctionProxiNode(BaseProxiNode):
     Proximity node showing current and expanded function calls in graph.
     """
 
-    def __init__(self, func, ref_at: set[int] | None = None):
+    def __init__(self, func: FuncNode, ref_at: set[int] | None = None):
         super().__init__(ProxiNodeTypes.Function, ref_at=ref_at)
         self.func = func
 
@@ -104,7 +104,7 @@ class CallProxiNode(BaseProxiNode):
     Call node
     """
 
-    def __init__(self, callee, ref_at: set[int] | None = None, args: tuple[BaseProxiNode] | None = None):
+    def __init__(self, callee: FuncNode, ref_at: set[int] | None = None, args: tuple[BaseProxiNode] | None = None):
         super().__init__(ProxiNodeTypes.FunctionCall, ref_at=ref_at)
         self.callee = callee
         self.args = args
@@ -275,7 +275,7 @@ class ProximityGraphAnalysis(Analysis):
 
         # function calls
         for n_ in func.nodes:
-            if isinstance(n_, Function):
+            if isinstance(n_, FuncNode):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if "ins_addr" in data:
