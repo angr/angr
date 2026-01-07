@@ -1,21 +1,30 @@
 from __future__ import annotations
+from typing import TypeVar
 import logging
 import weakref
 
+from archinfo.arch_soot import SootMethodDescriptor
+
 l = logging.getLogger(name=__name__)
 
+K = TypeVar("K", int, SootMethodDescriptor)
 
-def repr_addr(addr):
+
+def repr_addr(addr: K) -> str:
     if isinstance(addr, int):
         return hex(addr)
     return repr(addr)
 
 
 class CodeNode:
+    """
+    The base class of nodes in a function graph.
+    """
+
     __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
 
-    def __init__(self, addr: int, size: int, graph=None, thumb=False):
-        self.addr: int = addr
+    def __init__(self, addr: K, size: int, graph=None, thumb=False):
+        self.addr: K = addr
         self.size: int = size
         self.thumb = thumb
         self._graph = weakref.proxy(graph) if graph is not None else None
@@ -61,7 +70,7 @@ class CodeNode:
         return list(self._graph.predecessors(self))
 
     def __getstate__(self):
-        return (self.addr, self.size)
+        return self.addr, self.size
 
     def __setstate__(self, dat):
         self.__init__(*dat)
@@ -70,6 +79,10 @@ class CodeNode:
 
 
 class BlockNode(CodeNode):
+    """
+    Represents a block of code in a function graph.
+    """
+
     __slots__ = ["bytestr"]
 
     is_hook = False
@@ -89,9 +102,13 @@ class BlockNode(CodeNode):
 
 
 class SootBlockNode(BlockNode):
+    """
+    Represents a Soot block of code in a function graph.
+    """
+
     __slots__ = ["stmts"]
 
-    def __init__(self, addr, size, stmts, **kwargs):
+    def __init__(self, addr: SootMethodDescriptor, size, stmts, **kwargs):
         super().__init__(addr, size, **kwargs)
         self.stmts = stmts
 
@@ -108,13 +125,20 @@ class SootBlockNode(BlockNode):
 
 
 class FuncNode(CodeNode):
+    """
+    Represents a function callee in a function graph.
+    """
 
     __slots__ = ("func_name", "is_syscall")
 
-    def __init__(self, addr: int, is_syscall: bool | None = None, func_name: str | None = None, **kwargs):
+    def __init__(self, addr: K, is_syscall: bool | None = False, func_name: str | None = None, **kwargs):
         super().__init__(addr, 0, **kwargs)
-        self.func_name = func_name
+        self.func_name = func_name  # only used when addr is -1 (unknown address)
         self.is_syscall = is_syscall
+
+    @property
+    def is_addr_known(self) -> bool:
+        return self.addr >= 0
 
     def __repr__(self) -> str:
         if self.func_name is not None:
@@ -128,7 +152,7 @@ class FuncNode(CodeNode):
         return (
             isinstance(other, FuncNode)
             and super().__eq__(other)
-            and self.func_name == other.func_name
+            and (self.is_addr_known or (not self.is_addr_known and self.func_name == other.func_name))
             and self.is_syscall == other.is_syscall
         )
 
@@ -140,6 +164,10 @@ class FuncNode(CodeNode):
 
 
 class HookNode(CodeNode):
+    """
+    Represents a hook in a function graph.
+    """
+
     __slots__ = ["sim_procedure"]
 
     is_hook = True
@@ -168,6 +196,10 @@ class HookNode(CodeNode):
 
 
 class SyscallNode(HookNode):
+    """
+    Represents a syscall in a function graph.
+    """
+
     is_hook = False
 
     def __repr__(self):
