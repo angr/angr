@@ -1673,7 +1673,7 @@ class CFGBase(Analysis):
             if tmp_functions.contains_addr(func_addr):
                 kf_meta = tmp_functions.get_by_addr(func_addr, meta_only=True)
                 func.is_plt = kf_meta.is_plt
-                func.info = kf_meta.info
+                func.info = kf_meta.info.copy(func)
                 if kf_meta.returning:
                     func.returning = True
             blockaddr_to_funcaddr[func_addr] = func_addr
@@ -2207,7 +2207,7 @@ class CFGBase(Analysis):
             if known_functions.contains_addr(addr):
                 kf_meta = known_functions.get_by_addr(addr, meta_only=True)
                 f.is_plt = kf_meta.is_plt
-                f.info = kf_meta.info
+                f.info = kf_meta.info.copy(f)
                 if kf_meta.returning:
                     f.returning = True
                     function_is_returning = True

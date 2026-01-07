@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import logging
 import itertools
-from collections import defaultdict
+from collections import defaultdict, UserDict
 from collections.abc import Iterable
 import contextlib
 from functools import wraps
@@ -46,6 +46,33 @@ def dirty_func(func):
     return wrapper
 
 
+class FunctionInfo(UserDict):
+    """
+    A dictionary that updates the .dirty field of the Function object when modified.
+    """
+
+    def __init__(self, func: Function):
+        super().__init__()
+        self._func = func
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, (str, int, float, bool)):
+            raise TypeError("FunctionInfo only supports str, int, float, and bool values.")
+        if not isinstance(key, str):
+            raise TypeError("FunctionInfo only supports str keys.")
+        self._func._dirty = True
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        self._func._dirty = True
+        super().__delitem__(key)
+
+    def copy(self, owner: Function) -> FunctionInfo:
+        new_info = FunctionInfo(owner)
+        new_info.data = self.data.copy()
+        return new_info
+
+
 class Function(Serializable):
     """
     A representation of a function and various information about it.
@@ -63,6 +90,7 @@ class Function(Serializable):
         "_dirty",
         "_endpoints",
         "_function_manager",
+        "_info",
         "_jumpout_sites",
         "_local_block_addrs",
         "_local_blocks",
@@ -78,7 +106,6 @@ class Function(Serializable):
         "binary_name",
         "bp_on_stack",
         "from_signature",
-        "info",
         "is_alignment",
         "is_default_name",
         "is_plt",
@@ -173,7 +200,7 @@ class Function(Serializable):
         self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
-        self.info = {}  # storing special information, like $gp values for MIPS32
+        self._info = FunctionInfo(self)  # storing special information, like $gp values for MIPS32
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
         # Initialize _cyclomatic_complexity to None
@@ -326,6 +353,21 @@ class Function(Serializable):
             return
         self._prototype_libname = libname
         self.mark_dirty()
+
+    @property
+    def info(self) -> FunctionInfo:
+        return self._info
+
+    @info.setter
+    @dirty_func
+    def info(self, info: FunctionInfo | dict):
+        if not isinstance(info, FunctionInfo):
+            o = FunctionInfo(self)
+            o.update(info)
+            info = o
+        self._info = info
+        # update the owner
+        self._info._func = self
 
     @property
     def blocks(self):
@@ -1888,7 +1930,7 @@ class Function(Serializable):
         func._block_sizes = self._block_sizes.copy()
         func._local_blocks = self._local_blocks.copy()
         func._local_block_addrs = self._local_block_addrs.copy()
-        func.info = self.info.copy()
+        func._info = self.info.copy(func)
         func.tags = self.tags
         func._dirty = self._dirty
 
