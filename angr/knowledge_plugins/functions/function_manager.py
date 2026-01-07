@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TypeVar, Generic, cast, TYPE_CHECKING, overload
 from collections.abc import Iterator, Generator
-from collections import OrderedDict
+from collections import OrderedDict, UserDict
 import logging
 import collections.abc
 import re
@@ -84,7 +84,7 @@ class FunctionDictBase(Generic[K]):
             raise KeyError(addr) from err
 
     def __setstate__(self, state):
-        for v, k in state.items():
+        for k, v in state.items():
             self[k] = v
 
     def __getstate__(self):
@@ -175,7 +175,7 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
         return dict(self.items())
 
 
-class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
+class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     """
     SpillingFunctionDict extends FunctionDict with LRU caching and LMDB spilling. This class keeps only the most
     recently accessed N functions in memory, spilling others to an LMDB database on disk.
@@ -192,12 +192,12 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
         self,
         backref: FunctionManager[K] | None,
         rtdb: RuntimeDb,
-        *args,
+        /,
         key_types: type = int,
         cache_limit: int | None = None,
         **kwargs,
     ):
-        dict.__init__(self, *args, **kwargs)
+        UserDict.__init__(self, **kwargs)
         FunctionDictBase.__init__(self, backref, key_types=key_types)
 
         self._cache_limit: int | None = cache_limit
@@ -258,6 +258,32 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
             del self._lru_order[key]
         # Remove from sorted list
         self._list.remove(key)
+
+    def __setstate__(self, state: dict):
+        self._cache_limit = state["cache_limit"]
+        self._db_batch_size = state["db_batch_size"]
+        self.data = {}
+        self.rtdb = None
+        self._lru_order = OrderedDict()
+        self._spilled_keys = set()
+        self._list = SortedList()
+        self.irange = self._list.irange
+
+        self._meta_func_cache = LRUCache(maxsize=self._cache_limit)
+        self._funcsdb = None
+        self._eviction_enabled = True
+        self._loading_from_lmdb = False
+        self._currently_loading = set()
+
+        for k, v in state["items"].items():
+            self[k] = v
+
+    def __getstate__(self):
+        return {
+            "cache_limit": self._cache_limit,
+            "db_batch_size": self._db_batch_size,
+            "items": dict(self.items()),
+        }
 
     def copy(self) -> SpillingFunctionDict[K]:
         # Load all spilled functions for copying
@@ -415,7 +441,7 @@ class SpillingFunctionDict(dict[K, Function], FunctionDictBase[K]):
             self._eviction_enabled
             and not self._loading_from_lmdb
             and self._cache_limit is not None
-            and SortedDict.__len__(self) > self._cache_limit
+            and self.cached_count > self._cache_limit + self._db_batch_size
         ):
             self._evict_lru()
 
@@ -644,7 +670,6 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._func_block_counts: dict[int, int] = {}
 
     def __setstate__(self, state):
-        self._kb = state["_kb"]
         self.function_address_types = state["function_address_types"]
         self.address_types = state["address_types"]
         self._function_map = state["_function_map"]
@@ -659,18 +684,14 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._rplt_cache = None
         self._binname_cache = None
 
-        # If the unpickled function_map is a SpillingFunctionDict, reinitialize its LRU state
+    def set_kb(self, kb: KnowledgeBase):
+        super().set_kb(kb)
+        # If the unpickled function_map is a SpillingFunctionDict, set rtdb properly
         if isinstance(self._function_map, SpillingFunctionDict):
-            self._function_map._lru_order = OrderedDict()
-            for addr in SortedDict.keys(self._function_map):
-                self._function_map._lru_order[addr] = None
+            self._function_map.rtdb = kb.rtdb
 
     def __getstate__(self):
-        # Before pickling, bring all spilled functions back to memory
-        if isinstance(self._function_map, SpillingFunctionDict):
-            self._function_map._load_all_spilled()
         return {
-            "_kb": self._kb,
             "function_address_types": self.function_address_types,
             "address_types": self.address_types,
             "_function_map": self._function_map,
