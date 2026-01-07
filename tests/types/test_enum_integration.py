@@ -11,7 +11,6 @@ from angr.sim_type import (
     SimTypeEnum,
     SimTypeBitfield,
     SimTypeInt,
-    SimTypeLong,
     SimTypeFunction,
     SimTypePointer,
     SimTypeChar,
