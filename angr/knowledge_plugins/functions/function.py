@@ -6,6 +6,7 @@ import itertools
 from collections import defaultdict, UserDict
 from collections.abc import Iterable
 import contextlib
+import json
 from functools import wraps
 from typing import TYPE_CHECKING
 
@@ -73,6 +74,15 @@ class FunctionInfo(UserDict):
         new_info = FunctionInfo(owner)
         new_info.data = self.data.copy()
         return new_info
+
+    def to_json(self) -> str:
+        return json.dumps(self.data)
+
+    @classmethod
+    def from_json(cls, json_str: str, owner: Function) -> FunctionInfo:
+        info = cls(owner)
+        info.data = json.loads(json_str)
+        return info
 
 
 class Function(Serializable):

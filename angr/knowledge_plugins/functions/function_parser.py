@@ -78,7 +78,7 @@ class FunctionParser:
             obj.prototype = json.dumps(prototype_ref.to_json()).encode("utf-8")
         obj.prototype_libname = (function.prototype_libname or "").encode()
         obj.is_prototype_guessed = function.is_prototype_guessed
-        obj.info = json.dumps(function.info).encode("utf-8") if function.info else b""
+        obj.info = function.info.to_json().encode("utf-8") if function.info else b""
 
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:

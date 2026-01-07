@@ -441,7 +441,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             self._eviction_enabled
             and not self._loading_from_lmdb
             and self._cache_limit is not None
-            and self.cached_count > self._cache_limit + self._db_batch_size
+            and self.cached_count > self._cache_limit
         ):
             self._evict_lru()
 
@@ -452,8 +452,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         :return: True if at least one function was successfully evicted, False otherwise.
         """
         evicted_any = False
-        while self.cached_count > self._cache_limit + self._db_batch_size:
-            if self._evict_n(self._db_batch_size) == 0:
+        while self.cached_count > self._cache_limit:
+            if self._evict_n(min(self._db_batch_size, self.cached_count)) == 0:
                 break
             evicted_any = True
         return evicted_any
@@ -518,6 +518,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         """
         if self._funcsdb is not None:
             self.rtdb.drop_db(self._funcsdb)
+            self._funcsdb = None
 
     def _save_to_lmdb(self, funcs: list[Function]) -> None:
         """
@@ -603,7 +604,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 not self._loading_from_lmdb
                 and self._eviction_enabled
                 and self._cache_limit is not None
-                and self.cached_count > self._cache_limit + self._db_batch_size
+                and self.cached_count > self._cache_limit
             ):
                 self._evict_lru()
 
@@ -1330,8 +1331,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             new_map._eviction_enabled = False
             # Copy existing functions
             for addr, func in old_map.items():
-                SortedDict.__setitem__(new_map, addr, func)
-                new_map._lru_order[addr] = None
+                new_map[addr] = func
             # Re-enable eviction
             new_map._eviction_enabled = True
             self._function_map = new_map
