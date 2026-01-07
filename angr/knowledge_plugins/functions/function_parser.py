@@ -125,7 +125,7 @@ class FunctionParser:
                 block = primitives_pb2.Block()
                 block.ea = node.addr
                 block.size = node.size
-                block.bytes = node.bytestr
+                block.bytes = node.bytestr if node.bytestr else b""
                 external_blocks.append(block)
 
         TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
