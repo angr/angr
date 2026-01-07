@@ -4487,13 +4487,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # find adjustment
                     adjustment = self._x86_gcc_pie_find_pc_register_adjustment(addr, pc_reg_offset)
                     if adjustment is not None:
-                        func.info["pc_reg"] = (pc_reg, addr + adjustment)
+                        func.info["pc_reg"] = {"reg": pc_reg, "value": addr + adjustment}
                     else:
-                        func.info["pc_reg"] = (pc_reg, addr)
+                        func.info["pc_reg"] = {"reg": pc_reg, "value": addr}
             if self.kb.functions.contains_addr(current_function_addr):
                 func = self.kb.functions.get_by_addr(current_function_addr)
                 if not initial_regs and "pc_reg" in func.info:
-                    pc_reg, pc_reg_value = func.info["pc_reg"]
+                    pc_reg, pc_reg_value = func.info["pc_reg"]["reg"], func.info["pc_reg"]["value"]
                     initial_regs = [
                         (
                             self.project.arch.registers[pc_reg][0],

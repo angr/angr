@@ -56,8 +56,10 @@ class FunctionInfo(UserDict):
         self._func = func
 
     def __setitem__(self, key, value):
-        if not isinstance(value, (str, int, float, bool)):
-            raise TypeError("FunctionInfo only supports str, int, float, and bool values.")
+        if not isinstance(value, (str, int, float, bool, list, dict)):
+            raise TypeError(
+                "FunctionInfo only supports JSON-serializable values (str, int, float, bool, list, and dict)."
+            )
         if not isinstance(key, str):
             raise TypeError("FunctionInfo only supports str keys.")
         self._func._dirty = True
