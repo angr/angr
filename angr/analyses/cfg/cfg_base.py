@@ -1668,6 +1668,14 @@ class CFGBase(Analysis):
         # ensure all function nodes are mapped to their function addresses
         for func_addr in predetermined_function_addrs:
             self.kb.functions.function(func_addr, create=True)
+            func = self.kb.functions.get_by_addr(func_addr)
+            # copy over existing metadata if any
+            if tmp_functions.contains_addr(func_addr):
+                kf_meta = tmp_functions.get_by_addr(func_addr, meta_only=True)
+                func.is_plt = kf_meta.is_plt
+                func.info = kf_meta.info
+                if kf_meta.returning:
+                    func.returning = True
             blockaddr_to_funcaddr[func_addr] = func_addr
 
         # traverse the graph starting from each node, not following call edges
