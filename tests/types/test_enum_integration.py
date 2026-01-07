@@ -99,7 +99,7 @@ class TestEnumDecompilerIntegration(unittest.TestCase):
             os.path.join(TEST_LOCATION, "fauxware"),
             auto_load_libs=False,
         )
-        cfg = proj.analyses.CFGFast(normalize=True)
+        _ = proj.analyses.CFGFast(normalize=True)
 
         # Create STDIO enum
         stdio_enum = SimTypeEnum(
@@ -136,7 +136,7 @@ class TestEnumDecompilerIntegration(unittest.TestCase):
             os.path.join(TEST_LOCATION, "fauxware"),
             auto_load_libs=False,
         )
-        cfg = proj.analyses.CFGFast(normalize=True)
+        _ = proj.analyses.CFGFast(normalize=True)
 
         # Create enum and set prototype
         stdio_enum = SimTypeEnum(
