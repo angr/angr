@@ -43,8 +43,8 @@ ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
 l = logging.getLogger(name=__name__)
 _missing = object()
 
-# Default maximum number of functions to keep in memory (None means unlimited)
-DEFAULT_MAX_CACHED_FUNCTIONS: int | None = 1000
+# a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
+USE_SPILLING_FUNCTION_DICT = os.environ.get("USE_SPILLING_FUNCTION_DICT", "True").lower() not in ("0", "false", "no")
 
 
 class FunctionDictBase(Generic[K]):
@@ -493,7 +493,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             self._spilled_keys.add(lru_addr)
             evicted += 1
 
-            l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
+            # l.debug("Evicted function %s", hex(lru_addr) if isinstance(lru_addr, int) else lru_addr)
 
         if funcs_to_evict:
             self._save_to_lmdb(funcs_to_evict)
@@ -592,7 +592,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 super().__setitem__(addr, func)
                 self._on_function_stored(addr)
 
-            l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
+            # l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
             return func
         finally:
             self._currently_loading.discard(addr)
@@ -638,10 +638,13 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                         None.
     """
 
-    def __init__(self, kb: KnowledgeBase, cache_limit: int | None = DEFAULT_MAX_CACHED_FUNCTIONS):
+    def __init__(self, kb: KnowledgeBase, cache_limit: int | None = None):
         super().__init__(kb=kb)
         self.function_address_types = self._kb._project.arch.function_address_types
         self.address_types = self._kb._project.arch.address_types
+
+        if cache_limit is None and USE_SPILLING_FUNCTION_DICT:
+            cache_limit = self.get_default_cache_limit()
 
         # Use SpillingFunctionDict when caching is enabled, otherwise plain FunctionDict
         if cache_limit is not None:
@@ -732,6 +735,21 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._non_returning_func_addrs = set()
         self._unknown_returning_func_addrs = set()
         self._func_block_counts = {}
+
+    def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
+        """
+        Get the default function cache limit based on the size of the binary.
+
+        :return: The default cache limit; None means unlimited.
+        """
+        if self._kb is None or self._kb._project is None:
+            return max_limit
+        limit = self._kb._project.get_function_cache_limit()
+        if limit is None:
+            return limit
+        if limit < 100:
+            limit = 100
+        return min(max_limit, limit)
 
     def _generate_callmap_sif(self, filepath):
         """
