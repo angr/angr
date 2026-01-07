@@ -252,14 +252,14 @@ class Function(Serializable):
 
         # Determine returning status for SimProcedures and Syscalls
         if returning is not None:
-            self._returning = returning
+            self.returning = returning
         else:
             if self.project is None:
                 raise ValueError(
                     "'returning' must be specified if you do not specify a function manager for this new function."
                 )
 
-            self._returning = self._get_initial_returning()
+            self.returning = self._get_initial_returning()
 
         self._init_prototype_and_calling_convention()
 
@@ -293,6 +293,10 @@ class Function(Serializable):
             return
         self._returning = v
         self.mark_dirty()
+
+        # update the cache
+        if self._function_manager is not None:
+            self._function_manager.set_function_returning(self.addr, v)
 
     @property
     def calling_convention(self):
@@ -991,6 +995,8 @@ class Function(Serializable):
         if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
             self._local_blocks[node.addr] = node
             self._local_block_addrs.add(node.addr)
+            if self._function_manager is not None:
+                self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
 
     @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
@@ -1114,15 +1120,15 @@ class Function(Serializable):
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and data["type"] == "call":
                 func_addr = dst.addr
-                if self._function_manager.contains_addr(func_addr):
-                    function = self._function_manager.get_by_addr(func_addr, meta_only=True)
-                    if function.returning is False:
-                        # the target function does not return
-                        the_node = self.get_node(src.addr)
-                        if the_node is not None:
-                            self._callout_sites.add(the_node)
-                            self._add_endpoint(the_node, "call")
-                            self.mark_dirty()
+                if self._function_manager.contains_addr(func_addr) and self._function_manager.is_func_nonreturning(
+                    func_addr
+                ):
+                    # the target function does not return
+                    the_node = self.get_node(src.addr)
+                    if the_node is not None:
+                        self._callout_sites.add(the_node)
+                        self._add_endpoint(the_node, "call")
+                        self.mark_dirty()
 
     def get_call_sites(self) -> Iterable[int]:
         """

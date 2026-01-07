@@ -637,6 +637,12 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # local binary name cache: min_addr -> (max_addr, binary_name)
         self._binname_cache: None | SortedDict[int, tuple[int, str | None]] = None
 
+        # non-returning functions cache
+        self._non_returning_func_addrs: set[int] = set()
+        self._unknown_returning_func_addrs: set[int] = set()
+        # function # blocks cache
+        self._func_block_counts: dict[int, int] = {}
+
     def __setstate__(self, state):
         self._kb = state["_kb"]
         self.function_address_types = state["function_address_types"]
@@ -702,8 +708,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._rplt_cache = None
         self._rplt_cache_ranges = None
         self._binname_cache = None
+        self._non_returning_func_addrs = set()
+        self._unknown_returning_func_addrs = set()
+        self._func_block_counts = {}
 
-    def _genenate_callmap_sif(self, filepath):
+    def _generate_callmap_sif(self, filepath):
         """
         Generate a sif file from the call map.
 
@@ -956,6 +965,9 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             if k in self.callgraph:
                 self.callgraph.remove_node(k)
             self.function_addrs_set.discard(k)
+            self._non_returning_func_addrs.discard(k)
+            self._unknown_returning_func_addrs.discard(k)
+            self._func_block_counts.pop(k, None)
         else:
             raise ValueError(
                 f"FunctionManager.__delitem__ only accepts the following address types: "
@@ -999,6 +1011,12 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
         # Add the function address to the set of function addresses
         self.function_addrs_set.add(func.addr)
+
+        # update the non-returning cache
+        self.set_function_returning(func.addr, func.returning)
+
+        # update the function block count cache
+        self.set_func_block_count(func.addr, len(func.block_addrs_set))
 
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
@@ -1179,6 +1197,66 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                             and cfgnode.function_address != func.addr
                         ):
                             self.callgraph.add_edge(func.addr, cfgnode.function_address)
+
+    #
+    # Non-returning function cache
+    #
+
+    def set_function_returning(self, addr: K, v: bool | None) -> None:
+        if v is False:
+            self._non_returning_func_addrs.add(addr)
+            self._unknown_returning_func_addrs.discard(addr)
+        elif v is True:
+            self._non_returning_func_addrs.discard(addr)
+            self._unknown_returning_func_addrs.discard(addr)
+        else:
+            # v is None
+            self._unknown_returning_func_addrs.add(addr)
+            self._non_returning_func_addrs.discard(addr)
+
+    def nonreturning_func_addrs(self) -> Generator[int]:
+        """
+        Yield all non-returning function addresses.
+        """
+        yield from self._non_returning_func_addrs
+
+    def unknown_returning_func_addrs(self) -> Generator[int]:
+        """
+        Yield all function addresses with unknown returning status.
+        """
+        yield from self._unknown_returning_func_addrs
+
+    def is_func_nonreturning(self, addr: K) -> bool:
+        """
+        Check if a function is non-returning.
+
+        :param addr:    Address of the function.
+        :return:        True if non-returning, False if returning or unknown.
+        """
+        return addr in self._non_returning_func_addrs
+
+    #
+    # Function block count cache
+    #
+
+    def get_func_block_count(self, addr: K) -> int | None:
+        """
+        Get the number of blocks in a function.
+
+        :param addr:    Address of the function.
+        :return:        Number of blocks, or None if unknown.
+        """
+        return self._func_block_counts.get(addr)
+
+    def set_func_block_count(self, addr: K, count: int) -> None:
+        """
+        Set the number of blocks in a function.
+
+        :param addr:    Address of the function.
+        :param count:   Number of blocks.
+        :return:        None
+        """
+        self._func_block_counts[addr] = count
 
     #
     # LRU Cache Management (delegates to SpillingFunctionDict when available)

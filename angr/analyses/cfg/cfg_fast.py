@@ -1866,41 +1866,52 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._analyze_all_function_features(all_funcs_completed=True)
 
         # Scan all functions, and make sure all fake ret edges are either confirmed or removed
-        for f in self.functions.values():
-            all_edges = f.transition_graph.edges(data=True)
+        for nonreturning_func_addr in sorted(self.functions.nonreturning_func_addrs()):
+            callers = {
+                pred
+                for pred in self.functions.callgraph.predecessors(nonreturning_func_addr)
+                if pred != nonreturning_func_addr
+            }
 
-            callsites_to_functions = defaultdict(list)  # callsites to functions mapping
+            for caller_addr in callers:
+                f = self.functions.function(caller_addr)
+                all_edges = f.transition_graph.edges(data=True)
 
-            for src, dst, data in all_edges:
-                if "type" in data and data["type"] == "call":
-                    callsites_to_functions[src.addr].append(dst.addr)
+                callsites_to_functions = defaultdict(list)  # callsites to functions mapping
 
-            edges_to_remove = []
-            for src, dst, data in all_edges:
-                if "type" in data and data["type"] == "fake_return" and data.get("confirmed", False) is False:
-                    # Get all possible functions being called here
-                    target_funcs = [
-                        self.functions.function(addr=func_addr) for func_addr in callsites_to_functions[src.addr]
-                    ]
-                    if target_funcs and all(t is not None and t.returning is False for t in target_funcs):
-                        # Remove this edge
-                        edges_to_remove.append((src, dst))
-                    else:
-                        # Mark this edge as confirmed
-                        f._confirm_fakeret(src, dst)
+                for src, dst, data in all_edges:
+                    if "type" in data and data["type"] == "call":
+                        callsites_to_functions[src.addr].append(dst.addr)
 
-            for edge in edges_to_remove:
-                f.transition_graph.remove_edge(*edge)
+                edges_to_remove = []
+                for src, dst, data in all_edges:
+                    if "type" in data and data["type"] == "fake_return" and data.get("confirmed", False) is False:
+                        # Get all possible functions being called here
+                        target_funcs = set(callsites_to_functions[src.addr])
+                        if target_funcs and all(
+                            self.functions.contains_addr(t) and self.functions.is_func_nonreturning(t)
+                            for t in target_funcs
+                        ):
+                            # Remove this edge
+                            edges_to_remove.append((src, dst))
+                        else:
+                            # Mark this edge as confirmed
+                            f._confirm_fakeret(src, dst)
 
-            # Clear the cache
-            f._local_transition_graph = None
+                for edge in edges_to_remove:
+                    f.transition_graph.remove_edge(*edge)
 
+                # Clear the cache
+                f._local_transition_graph = None
+
+                # Finally, mark endpoints of every single function
+                f.mark_nonreturning_calls_endpoints()
+
+        for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
+            f = self.functions.function(func_addr)
             # Scan all functions, and make sure .returning for all functions are either True or False
             if f.returning is None:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
-
-            # Finally, mark endpoints of every single function
-            f.mark_nonreturning_calls_endpoints()
 
         # optional: find and mark functions that must be alignments
         self.mark_function_alignments()

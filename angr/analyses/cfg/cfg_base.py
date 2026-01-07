@@ -1546,10 +1546,10 @@ class CFGBase(Analysis):
             return
 
         for func_addr in self.kb.functions:
-            func_meta = self.kb.functions.get_by_addr(func_addr, meta_only=True)
-            if func_meta.is_simprocedure or func_meta.is_syscall:
-                continue
-            if len(func_meta.block_addrs_set) == 1:
+            if self.kb.functions.get_func_block_count(func_addr) == 1:
+                func_meta = self.kb.functions.get_by_addr(func_addr, meta_only=True)
+                if func_meta.is_simprocedure or func_meta.is_syscall or func_meta.is_plt:
+                    continue
                 function = self.kb.functions.get_by_addr(func_addr)
                 block = next((b for b in function.blocks), None)
                 if block is None:
@@ -1593,26 +1593,25 @@ class CFGBase(Analysis):
         tmp_functions = self.kb.functions
         non_return_func_callers: set[int] = set()
 
-        for func_meta in tmp_functions.values(meta_only=True):
-            if func_meta.returning is False:
-                # remove all FakeRet edges that are related to this function
-                func_node = self.model.get_any_node(func_meta.addr, force_fastpath=True)
-                if func_node is not None:
-                    callsite_nodes = [
-                        src
-                        for src, _, data in self.graph.in_edges(func_node, data=True)
-                        if data.get("jumpkind", None) == "Ijk_Call"
-                    ]
-                    for callsite_node in callsite_nodes:
-                        for _, dst, data in list(self.graph.out_edges(callsite_node, data=True)):
-                            if data.get("jumpkind", None) == "Ijk_FakeRet":
-                                self.graph.remove_edge(callsite_node, dst)
+        for non_return_func_addr in tmp_functions.nonreturning_func_addrs():
+            # remove all FakeRet edges that are related to this function
+            func_node = self.model.get_any_node(non_return_func_addr, force_fastpath=True)
+            if func_node is not None:
+                callsite_nodes = [
+                    src
+                    for src, _, data in self.graph.in_edges(func_node, data=True)
+                    if data.get("jumpkind", None) == "Ijk_Call"
+                ]
+                for callsite_node in callsite_nodes:
+                    for _, dst, data in list(self.graph.out_edges(callsite_node, data=True)):
+                        if data.get("jumpkind", None) == "Ijk_FakeRet":
+                            self.graph.remove_edge(callsite_node, dst)
 
-                # check its callers
-                for caller_addr in set(tmp_functions.callgraph.predecessors(func_meta.addr)):
-                    if caller_addr == func_meta.addr:
-                        continue
-                    non_return_func_callers.add(caller_addr)
+            # check its callers
+            for caller_addr in set(tmp_functions.callgraph.predecessors(non_return_func_addr)):
+                if caller_addr == non_return_func_addr:
+                    continue
+                non_return_func_callers.add(caller_addr)
 
         for func_addr in non_return_func_callers:
             caller = tmp_functions.get_by_addr(func_addr)
