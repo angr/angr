@@ -19,7 +19,7 @@ import cle
 from cachetools import LRUCache
 
 from angr.errors import SimEngineError
-from angr.codenode import FuncNode
+from angr.codenode import FuncNode, HookNode
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .function import Function
 from .soot_function import SootFunction
@@ -1222,22 +1222,18 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
     def rebuild_callgraph(self):
         self.callgraph = networkx.MultiDiGraph()
-        cfg = self._kb.cfgs.get_most_accurate()
         for func_addr in self._function_map:
             self.callgraph.add_node(func_addr)
         for func in self._function_map.values():
             if func.block_addrs_set:
-                for node in func.transition_graph.nodes():
-                    if isinstance(node, FuncNode):
+                for node in func.transition_graph:
+                    if isinstance(node, (HookNode, FuncNode)):
                         self.callgraph.add_edge(func.addr, node.addr)
                     else:
-                        cfgnode = cfg.get_any_node(node.addr)
-                        if (
-                            cfgnode is not None
-                            and cfgnode.function_address is not None
-                            and cfgnode.function_address != func.addr
-                        ):
-                            self.callgraph.add_edge(func.addr, cfgnode.function_address)
+                        inedges = func.transition_graph.in_edges(node, data=True)
+                        for _, _, data in inedges:
+                            if data.get("type") == "transition" and data.get("outside") is True:
+                                self.callgraph.add_edge(func.addr, node.addr)
 
     #
     # Non-returning function cache
