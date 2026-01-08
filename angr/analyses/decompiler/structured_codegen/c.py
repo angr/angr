@@ -37,6 +37,8 @@ from angr.sim_type import (
     SimTypeInt256,
     SimTypeInt512,
     SimCppClass,
+    SimTypeEnum,
+    SimTypeBitfield,
 )
 from angr.knowledge_plugins.functions import Function
 from angr.sim_variable import (
@@ -2289,6 +2291,19 @@ class CConstant(CExpression):
 
         if self.collapsed:
             yield "...", self
+            return
+
+        # Check for enum type - resolve integer to enum member name
+        if isinstance(self._type, SimTypeEnum) and isinstance(self.value, int):
+            member_name = self._type.resolve(self.value)
+            if member_name is not None:
+                yield member_name, self
+                return
+
+        # Check for bitfield type - render as combined flag names
+        if isinstance(self._type, SimTypeBitfield) and isinstance(self.value, int):
+            rendered = self._type.render(self.value)
+            yield rendered, self
             return
 
         if self.reference_values is not None:

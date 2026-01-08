@@ -2033,6 +2033,286 @@ class SimUnionValue:
         return SimUnionValue(self._union, values=self._values)
 
 
+class SimTypeEnum(NamedTypeMixin, SimType):
+    """
+    An enum type with named integer constants.
+
+    :param members: A mapping from member names to their integer values.
+    :param base_type: The underlying integer type (default: SimTypeInt).
+    :param name: The name of the enum type.
+    """
+
+    _fields = ("name", "members")
+    _args = ("members", "base_type", "name", "label", "qualifier")
+    _ident = "enum"
+
+    def __init__(
+        self,
+        members: dict[str, int],
+        base_type: SimType | None = None,
+        name: str | None = None,
+        label: str | None = None,
+        qualifier: Iterable[str] | None = None,
+    ):
+        super().__init__(label, name=name if name is not None else "<anon>")
+        self.members: dict[str, int] = dict(members)
+        self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
+        self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
+        if qualifier:
+            self.qualifier = qualifier
+
+    @property
+    def base_type(self) -> SimType:
+        return self._base_type
+
+    @property
+    def size(self) -> int | None:
+        return self._base_type.size
+
+    @property
+    def alignment(self):
+        return self._base_type.alignment
+
+    def resolve(self, value: int) -> str | None:
+        """
+        Resolve an integer value to its enum member name.
+
+        :param value: The integer value to resolve.
+        :return: The member name if found, None otherwise.
+        """
+        return self._reverse_members.get(value)
+
+    def _with_arch(self, arch):
+        out = SimTypeEnum(
+            members=self.members,
+            base_type=self._base_type.with_arch(arch),
+            name=self._name,
+            label=self.label,
+            qualifier=self.qualifier,
+        )
+        out._arch = arch
+        return out
+
+    def __repr__(self):
+        return f"enum {self._name}"
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        if not full or (memo is not None and self in memo):
+            out = f"enum {self._name}"
+            if self.qualifier:
+                out = f"{' '.join(sorted(self.qualifier))} {out}"
+            if name is not None:
+                out = f"{out} {name}"
+            return out
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        members_str = ("," + newline).join(
+            f"{new_indented}{member_name} = {member_value}" for member_name, member_value in self.members.items()
+        )
+        out = f"enum {self._name} {{{newline}{members_str}{newline}{indented}}}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        if name is not None:
+            out = f"{out} {name}"
+        return out
+
+    def _init_str(self):
+        members_str = ", ".join(f'"{k}": {v}' for k, v in self.members.items())
+        return f'{self.__class__.__name__}({{{members_str}}}, name="{self._name}")'
+
+    def __hash__(self):
+        return hash((SimTypeEnum, self._name, tuple(sorted(self.members.items()))))
+
+    def copy(self):
+        return SimTypeEnum(
+            members=dict(self.members),
+            base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
+            name=self._name,
+            label=self.label,
+            qualifier=self.qualifier,
+        )
+
+    def extract(self, state, addr, concrete=False):
+        return self._base_type.extract(state, addr, concrete=concrete)
+
+    def store(self, state, addr, value):
+        self._base_type.store(state, addr, value)
+
+
+class SimTypeBitfield(NamedTypeMixin, SimType):
+    """
+    A bitfield/flags type where values can be combinations of named bit flags.
+
+    This is useful for representing flags like PROT_READ | PROT_WRITE where
+    multiple flags can be combined with bitwise OR.
+
+    :param flags: A mapping from flag names to their bitmask values.
+    :param base_type: The underlying integer type (default: SimTypeInt).
+    :param name: The name of the bitfield type.
+    """
+
+    _fields = ("name", "flags")
+    _args = ("flags", "base_type", "name", "label", "qualifier")
+    _ident = "bitfield"
+
+    def __init__(
+        self,
+        flags: dict[str, int],
+        base_type: SimType | None = None,
+        name: str | None = None,
+        label: str | None = None,
+        qualifier: Iterable[str] | None = None,
+    ):
+        super().__init__(label, name=name if name is not None else "<anon>")
+        self.flags: dict[str, int] = dict(flags)
+        self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
+        # Sort flags by value (descending) to prefer higher-value flags when resolving
+        self._sorted_flags: list[tuple[str, int]] = sorted(flags.items(), key=lambda x: x[1], reverse=True)
+        if qualifier:
+            self.qualifier = qualifier
+
+    @property
+    def base_type(self) -> SimType:
+        return self._base_type
+
+    @property
+    def size(self) -> int | None:
+        return self._base_type.size
+
+    @property
+    def alignment(self):
+        return self._base_type.alignment
+
+    def resolve(self, value: int) -> tuple[list[str], int]:
+        """
+        Resolve an integer value to a combination of flag names.
+
+        :param value: The integer value to resolve.
+        :return: A tuple of (matched_flag_names, unknown_bits).
+                 If unknown_bits != 0, there are bits set that don't match any known flag.
+        """
+        matched_flags: list[str] = []
+        remaining = value
+
+        for flag_name, flag_value in self._sorted_flags:
+            if flag_value == 0:
+                continue  # Skip zero-value flags unless nothing else matches
+            if (remaining & flag_value) == flag_value:
+                matched_flags.append(flag_name)
+                remaining &= ~flag_value
+
+        # Check for a zero flag if nothing matched and value is 0
+        if value == 0 and not matched_flags:
+            for flag_name, flag_value in self.flags.items():
+                if flag_value == 0:
+                    matched_flags.append(flag_name)
+                    break
+
+        return matched_flags, remaining
+
+    def render(self, value: int) -> str:
+        """
+        Render an integer value as a combination of flag names.
+
+        :param value: The integer value to render.
+        :return: A string like "PROT_READ | PROT_WRITE" or "PROT_READ | PROT_WRITE | 0x100"
+                 if there are unknown bits.
+        """
+        matched_flags, unknown_bits = self.resolve(value)
+        parts = matched_flags.copy()
+        if unknown_bits != 0:
+            parts.append(hex(unknown_bits))
+        if not parts:
+            return "0"
+        return " | ".join(parts)
+
+    def has_unknown_bits(self, value: int) -> bool:
+        """
+        Check if a value contains bits that don't match any known flag.
+
+        :param value: The integer value to check.
+        :return: True if there are unknown bits, False otherwise.
+        """
+        _, unknown_bits = self.resolve(value)
+        return unknown_bits != 0
+
+    def validate(self, value: int) -> bool:
+        """
+        Check if a value contains only known flags.
+
+        :param value: The integer value to validate.
+        :return: True if all bits match known flags, False otherwise.
+        """
+        return not self.has_unknown_bits(value)
+
+    def _with_arch(self, arch):
+        out = SimTypeBitfield(
+            flags=self.flags,
+            base_type=self._base_type.with_arch(arch),
+            name=self._name,
+            label=self.label,
+            qualifier=self.qualifier,
+        )
+        out._arch = arch
+        return out
+
+    def __repr__(self):
+        return f"bitfield {self._name}"
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        # Bitfields are rendered similarly to enums in C
+        if not full or (memo is not None and self in memo):
+            out = f"enum {self._name}"  # Use enum syntax since C doesn't have bitfield types
+            if self.qualifier:
+                out = f"{' '.join(sorted(self.qualifier))} {out}"
+            if name is not None:
+                out = f"{out} {name}"
+            return out
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        flags_str = ("," + newline).join(
+            f"{new_indented}{flag_name} = {hex(flag_value)}" for flag_name, flag_value in self.flags.items()
+        )
+        out = f"enum {self._name} {{{newline}{flags_str}{newline}{indented}}}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        if name is not None:
+            out = f"{out} {name}"
+        return out
+
+    def _init_str(self):
+        flags_str = ", ".join(f'"{k}": {hex(v)}' for k, v in self.flags.items())
+        return f'{self.__class__.__name__}({{{flags_str}}}, name="{self._name}")'
+
+    def __hash__(self):
+        return hash((SimTypeBitfield, self._name, tuple(sorted(self.flags.items()))))
+
+    def copy(self):
+        return SimTypeBitfield(
+            flags=dict(self.flags),
+            base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
+            name=self._name,
+            label=self.label,
+            qualifier=self.qualifier,
+        )
+
+    def extract(self, state, addr, concrete=False):
+        return self._base_type.extract(state, addr, concrete=concrete)
+
+    def store(self, state, addr, value):
+        self._base_type.store(state, addr, value)
+
+
 class SimCppClass(SimStruct):
 
     _args = (
