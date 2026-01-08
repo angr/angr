@@ -36,7 +36,7 @@ from .sim_type import (
     SimTypeReference,
     SimTypedef,
     SimConst,
-    SimTypeBool, SimTypeModifier,
+    SimTypeBool, SimTypeModifier, SimUnionValue,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -75,6 +75,8 @@ class AllocHelper:
             return SimStructValue(
                 val.struct, {field: self.translate(subval, base) for field, subval in val._values.items()}
             )
+        if isinstance(val, SimUnionValue):
+            return SimUnionValue(val._union, {field: self.translate(subval, base) for (field, subval) in val._values.items()})
         if isinstance(val, claripy.ast.Bits):
             return claripy.replace(val, self.base, base)
         if type(val) is list:
@@ -179,10 +181,11 @@ def refine_locs_with_struct_type(
         }
         return SimStructArg(arg_type, locs_dict)
     if isinstance(arg_type, SimUnion):
-        # Treat a SimUnion as functionality equivalent to its longest member
-        for member in arg_type.members.values():
-            if member.size == arg_type.size:
-                return refine_locs_with_struct_type(arch, locs, member, offset)
+        locs_dict = {
+            field: refine_locs_with_struct_type(arch, locs, field_ty, offset=0)
+            for field, field_ty in arg_type.members.items()
+        }
+        return SimUnionArg(arg_type, locs_dict)
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
@@ -286,6 +289,21 @@ class SimFunctionArgument:
             return value.raw_to_fp()
         return value
 
+    @staticmethod
+    def _ite_union(a, b):
+        # Simulate a union value by using a claripy.If. Note that claripy.union
+        # will not work here. Z3 doesn't seem to understand claripy.union, and it
+        # seems that this construct is used only by the VSA analyzer.
+        condition = claripy.BoolS("union_sym")
+        return claripy.If(condition, a, b)
+
+    def union_value(self, state, value, **kwargs):
+        """
+        The subclasses that implement this method should first get the value currently in the state,
+        then union on the passed value. This particular method is used for storing union values into memory
+        """
+        raise NotImplementedError
+
     def set_value(self, state, value, **kwargs):
         raise NotImplementedError
 
@@ -339,6 +357,10 @@ class SimRegArg(SimFunctionArgument):
     def check_offset(self, arch) -> int:
         return arch.registers[self.reg_name][0] + self.reg_offset
 
+    def union_value(self, state, value, **kwargs):
+        curr_val = self.get_value(state)
+        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), **kwargs)
+
     def set_value(self, state, value, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         value = self.check_value_set(value, state.arch)
         offset = self.check_offset(state.arch)
@@ -389,6 +411,10 @@ class SimStackArg(SimFunctionArgument):
     def __hash__(self):
         return hash((self.size, self.stack_offset))
 
+    def union_value(self, state, value, stack_base=None, **kwargs):
+        curr_val = self.get_value(state, stack_base=stack_base)
+        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), stack_base=stack_base, **kwargs)
+
     def set_value(self, state, value, stack_base=None, **kwargs):  # pylint: disable=arguments-differ
         value = self.check_value_set(value, state.arch)
         if stack_base is None:
@@ -428,6 +454,10 @@ class SimComboArg(SimFunctionArgument, Generic[T]):
 
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
+
+    def union_value(self, state, value, **kwargs):
+        curr_val = self.get_value(state)
+        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), **kwargs)
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ
         value = self.check_value_set(value, state.arch)
@@ -513,6 +543,10 @@ class SimStructArg(SimFunctionArgument):
             return regs[0]
         return SimComboArg(regs)
 
+    def union_value(self, state, value, **kwargs):
+        for field, setter in self.locs.items():
+            setter.union_value(state, value[field], **kwargs)
+
     def get_value(self, state, **kwargs):
         return SimStructValue(
             self.struct, {field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()}
@@ -522,11 +556,45 @@ class SimStructArg(SimFunctionArgument):
         for field, setter in self.locs.items():
             setter.set_value(state, value[field], **kwargs)
 
+class SimUnionArg(SimFunctionArgument):
+    def __init__(self, union: SimUnion, locs: dict[str, SimFunctionArgument]):
+        super().__init__(max(loc.size for loc in locs.values()))
+        self.union = union
+        # The keys of the locs dictionary are the names of the members of the union
+        self.locs = locs
+
+    def union_value(self, state, value, **kwargs):
+        for field in value.values:
+            setter = self.locs[field]
+            setter.union_value(state, value[field], **kwargs)
+
+    def get_value(self, state, **kwargs):
+        return SimUnionValue(self.union, {
+            field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()
+        })
+
+    def set_value(self, state, value, **kwargs):
+        # Note that we're going to say that it's okay if some members present in the
+        # union type aren't present in the value. This may happen
+        first = True
+        for field in value.values:
+            setter = self.locs[field]
+            # TODO: Figure out what to do if the first field doesn't cover all the data in the union
+            # if this happens the next case may have an unconstrained value. Is this okay?
+            if first:
+                setter.set_value(state, value[field], **kwargs)
+            else:
+                setter.union_value(state, value[field], **kwargs)
+            first = False
 
 class SimArrayArg(SimFunctionArgument):
     def __init__(self, locs):
         super().__init__(sum(loc.size for loc in locs))
         self.locs = locs
+
+    def union_value(self, state, value, **kwargs):
+        for (subvalue, setter) in zip(value, self.locs):
+            setter.union_value(state, subvalue, **kwargs)
 
     def get_footprint(self):
         return {y for x in self.locs for y in x.get_footprint()}
@@ -557,6 +625,10 @@ class SimReferenceArgument(SimFunctionArgument):
 
     def get_footprint(self):
         return self.main_loc.get_footprint()
+
+    def union_value(self, state, value, **kwargs):
+        ptr_val = self.ptr_loc.get_value(state, **kwargs)
+        self.main_loc.union_value(state, value, stack_base=ptr_val, **kwargs)
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -1115,9 +1187,7 @@ class SimCC:
                 val = alloc(val, state)
             return val
 
-        if isinstance(arg, (tuple, dict, SimStructValue)):
-            if not isinstance(ty, SimStruct):
-                raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
+        if isinstance(arg, (tuple, dict, SimStructValue)) and isinstance(ty, SimStruct):
             if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
                     raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
@@ -1125,6 +1195,16 @@ class SimCC:
             return SimStructValue(
                 ty, [SimCC._standardize_value(arg[field], ty.fields[field], state, alloc) for field in ty.fields]
             )
+
+        if isinstance(arg, (tuple, dict, SimUnionValue)) and isinstance(ty, SimUnion):
+            if not isinstance(arg, SimUnionValue):
+                arg = SimUnionValue(ty, arg)
+            return SimUnionValue(
+                ty, {field: SimCC._standardize_value(arg[field], ty.members[field], state, alloc) for field in arg.values}
+            )
+
+        if isinstance(arg, (tuple, dict)):
+            raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct or union)")
 
         if isinstance(arg, int):
             if isinstance(ty, SimTypeFloat):

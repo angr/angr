@@ -202,7 +202,7 @@ class SimType:
                         raise ValueError(f"Unable to convert cle base DWARF type {type(cle_typ)} with encoding {cle_typ.encoding} to corresponding angr type.")
             elif isinstance(cle_typ, variable_type.UnionType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
-                typ: SimType = SimUnion(dict(), label=label, name=cle_typ.name)
+                typ: SimType = SimUnion(dict(), label=label, name=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.StructType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
                 typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, label=label, name=cle_typ.name, offsets=dict(), arch=arch)
@@ -2448,12 +2448,12 @@ class SimUnion(NamedTypeMixin, SimType):
     _args = ("members", "name", "label")
     _ident = "union"
 
-    def __init__(self, members: dict[str, SimType], name=None, label=None):
+    def __init__(self, members: dict[str, SimType], name=None, label=None, arch=None):
         """
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
         """
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
         self.members = members
 
     @property
@@ -2550,6 +2550,14 @@ class SimUnionValue:
         """
         self._union = union
         self._values = defaultdict(lambda: None, values or ())
+
+    @property
+    def union(self):
+        return self._union
+
+    @property
+    def values(self):
+        return self._values
 
     def __indented_repr__(self, indent=0):
         fields = []
