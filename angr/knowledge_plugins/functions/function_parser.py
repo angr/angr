@@ -57,6 +57,7 @@ class FunctionParser:
         obj.ea = function.addr
         obj.is_entrypoint = False  # TODO: Set this up accordingly
         obj.name = function.name
+        obj.is_default_name = function.is_default_name
         obj.is_plt = function.is_plt
         obj.is_syscall = function.is_syscall
         obj.is_simprocedure = function.is_simprocedure
@@ -206,6 +207,7 @@ class FunctionParser:
         obj._project = project
         obj.normalized = cmsg.normalized
         obj.info = json.loads(cmsg.info.decode("utf-8")) if cmsg.info else {}
+        obj.is_default_name = cmsg.is_default_name
 
         # signature matched?
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:

@@ -31,5 +31,6 @@ message Function {
     bool            is_prototype_guessed = 20; // did we guess this prototype?
     bytes           info = 21; // a JSON-serialized dictionary
     repeated Endpoint endpoints = 22; // Endpoints within this function
-    repeated Block  external_blocks = 24;  // Referenced blocks outside this function
+    repeated Block  external_blocks = 24; // Referenced blocks outside this function
+    bool            is_default_name = 25; // Whether the function name is a default name (e.g., sub_123456) or not
 }
