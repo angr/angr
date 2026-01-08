@@ -108,6 +108,6 @@ class VariableAccess(Serializable):
             variable,
             access_type,
             location,
-            cmsg.offset if cmsg.HasField("offset") else None,
+            cmsg.offset if hasattr(cmsg, "offset") else None,
             atom_hash=cmsg.atom_hash if cmsg.HasField("atom_hash") else None,
         )
