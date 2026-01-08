@@ -1682,6 +1682,9 @@ class CFGBase(Analysis):
                 if kf_meta.returning:
                     func.returning = True
             blockaddr_to_funcaddr[func_addr] = func_addr
+            # update self._update_nonreturning_functions so that function feature analysis can pick it up later
+            if func.returning is not True and self._updated_nonreturning_functions is not None:
+                self._updated_nonreturning_functions.add(func_addr)
 
         # traverse the graph starting from each node, not following call edges
         # it's important that we traverse all functions in order so that we have a greater chance to come across
