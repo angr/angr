@@ -6,6 +6,8 @@ from __future__ import annotations
 import os
 import unittest
 
+import archinfo
+
 import angr
 from angr.sim_type import (
     SimTypeEnum,
@@ -31,8 +33,6 @@ class TestEnumCallingConvention(unittest.TestCase):
 
     def test_enum_classified_as_integer_amd64(self):
         """Test that SimTypeEnum is classified as INTEGER in AMD64 System V ABI."""
-        import archinfo
-
         arch = archinfo.ArchAMD64()
         cc = SimCCSystemVAMD64(arch)
 
@@ -48,8 +48,6 @@ class TestEnumCallingConvention(unittest.TestCase):
 
     def test_bitfield_classified_as_integer_amd64(self):
         """Test that SimTypeBitfield is classified as INTEGER in AMD64 System V ABI."""
-        import archinfo
-
         arch = archinfo.ArchAMD64()
         cc = SimCCSystemVAMD64(arch)
 
@@ -64,8 +62,6 @@ class TestEnumCallingConvention(unittest.TestCase):
 
     def test_enum_in_function_args_no_recursion(self):
         """Test that enum types in function prototypes don't cause recursion."""
-        import archinfo
-
         arch = archinfo.ArchAMD64()
         cc = SimCCSystemVAMD64(arch)
 
@@ -117,11 +113,11 @@ class TestEnumDecompilerIntegration(unittest.TestCase):
             read_func.prototype = read_func.prototype.with_arch(proj.arch)
 
             # Decompile main
-            main_func = proj.kb.functions.function(name="main")
+            main_func = proj.kb.functions["main"]
             dec = proj.analyses.Decompiler(main_func)
+            assert dec.codegen is not None and dec.codegen.text is not None
 
             # Check that enum member name appears in output
-            assert dec.codegen is not None
             output = dec.codegen.text
             assert "STDIN_FILENO" in output
 
@@ -143,22 +139,21 @@ class TestEnumDecompilerIntegration(unittest.TestCase):
             name="stdio_fd",
         )
 
-        read_func = proj.kb.functions.function(name="read")
-        if read_func:
-            original_proto = SimTypeFunction(
-                args=[stdio_enum, SimTypePointer(SimTypeChar()), SimTypeInt()],
-                returnty=SimTypeInt(),
-            )
-            original_proto = original_proto.with_arch(proj.arch)
-            read_func.prototype = original_proto
+        read_func = proj.kb.functions["read"]
+        original_proto = SimTypeFunction(
+            args=[stdio_enum, SimTypePointer(SimTypeChar()), SimTypeInt()],
+            returnty=SimTypeInt(),
+        )
+        original_proto = original_proto.with_arch(proj.arch)
+        read_func.prototype = original_proto
 
-            # Decompile main (which calls read)
-            main_func = proj.kb.functions.function(name="main")
-            proj.analyses.Decompiler(main_func)
+        # Decompile main (which calls read)
+        main_func = proj.kb.functions["main"]
+        proj.analyses.Decompiler(main_func)
 
-            # Check that prototype is preserved
-            assert read_func.prototype is not None
-            assert isinstance(read_func.prototype.args[0], SimTypeEnum)
+        # Check that prototype is preserved
+        assert read_func.prototype is not None
+        assert isinstance(read_func.prototype.args[0], SimTypeEnum)
 
 
 class TestEnumKnowledgeBaseIntegration(unittest.TestCase):
@@ -179,6 +174,7 @@ class TestEnumKnowledgeBaseIntegration(unittest.TestCase):
 
         # Retrieve and verify
         retrieved = proj.kb.types["test_enum"]
+        assert isinstance(retrieved, TypeRef)
         assert retrieved.name == "test_enum"
         assert isinstance(retrieved.type, SimTypeEnum)
         assert retrieved.type.resolve(0) == "A"
@@ -199,6 +195,7 @@ class TestEnumKnowledgeBaseIntegration(unittest.TestCase):
 
         # Retrieve and verify
         retrieved = proj.kb.types["prot_flags"]
+        assert isinstance(retrieved, TypeRef)
         assert retrieved.name == "prot_flags"
         assert isinstance(retrieved.type, SimTypeBitfield)
         flags, unknown = retrieved.type.resolve(3)
