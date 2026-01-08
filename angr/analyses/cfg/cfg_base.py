@@ -633,6 +633,9 @@ class CFGBase(Analysis):
                 all_bytes = None
 
         size = end - start
+        if size <= 16:
+            # small regions are never considered sparse
+            return False
 
         if all_bytes is None:
             # load from the binary
