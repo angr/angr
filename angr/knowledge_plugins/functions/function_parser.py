@@ -278,13 +278,16 @@ class FunctionParser:
             assert edge_type is not None
 
             try:
-                dst = FunctionParser._get_block_or_func(
-                    edge_cmsg.dst_ea,
-                    blocks,
-                    external_blocks,
-                    external_func_addrs,
-                    project,
-                )
+                if edge_type == "call":
+                    dst = FuncNode(edge_cmsg.dst_ea)
+                else:
+                    dst = FunctionParser._get_block_or_func(
+                        edge_cmsg.dst_ea,
+                        blocks,
+                        external_blocks,
+                        external_func_addrs,
+                        project,
+                    )
             except KeyError as err:
                 raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
