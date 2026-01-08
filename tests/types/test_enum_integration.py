@@ -19,13 +19,9 @@ from angr.sim_type import (
     TypeRef,
 )
 from angr.calling_conventions import SimCCSystemVAMD64
+from tests.common import bin_location
 
-
-TEST_LOCATION = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)),
-    "..",
-    "..",
-)
+TEST_LOCATION = os.path.join(bin_location, "tests")
 
 
 class TestEnumCallingConvention(unittest.TestCase):
@@ -84,14 +80,10 @@ class TestEnumCallingConvention(unittest.TestCase):
 class TestEnumDecompilerIntegration(unittest.TestCase):
     """Test enum types in decompiler output."""
 
-    @unittest.skipUnless(
-        os.path.exists(os.path.join(TEST_LOCATION, "fauxware")),
-        "fauxware binary not found",
-    )
     def test_enum_rendering_in_decompiler(self):
         """Test that enum values are rendered as member names in decompiled code."""
         proj = angr.Project(
-            os.path.join(TEST_LOCATION, "fauxware"),
+            os.path.join(TEST_LOCATION, "x86_64", "fauxware"),
             auto_load_libs=False,
         )
         _ = proj.analyses.CFGFast(normalize=True)
@@ -121,16 +113,9 @@ class TestEnumDecompilerIntegration(unittest.TestCase):
             output = dec.codegen.text
             assert "STDIN_FILENO" in output
 
-    @unittest.skipUnless(
-        os.path.exists(os.path.join(TEST_LOCATION, "fauxware")),
-        "fauxware binary not found",
-    )
     def test_prototype_preserved_after_decompilation(self):
         """Test that user-defined prototypes are preserved during decompilation."""
-        proj = angr.Project(
-            os.path.join(TEST_LOCATION, "fauxware"),
-            auto_load_libs=False,
-        )
+        proj = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"), auto_load_libs=False)
         _ = proj.analyses.CFGFast(normalize=True)
 
         # Create enum and set prototype
@@ -161,10 +146,7 @@ class TestEnumKnowledgeBaseIntegration(unittest.TestCase):
 
     def test_enum_store_and_retrieve(self):
         """Test storing and retrieving enum from kb.types."""
-        proj = angr.Project(
-            os.path.join(TEST_LOCATION, "fauxware"),
-            auto_load_libs=False,
-        )
+        proj = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"), auto_load_libs=False)
 
         enum = SimTypeEnum(
             members={"A": 0, "B": 1, "C": 2},
@@ -182,10 +164,7 @@ class TestEnumKnowledgeBaseIntegration(unittest.TestCase):
 
     def test_bitfield_store_and_retrieve(self):
         """Test storing and retrieving bitfield from kb.types."""
-        proj = angr.Project(
-            os.path.join(TEST_LOCATION, "fauxware"),
-            auto_load_libs=False,
-        )
+        proj = angr.Project(os.path.join(TEST_LOCATION, "x86_64", "fauxware"), auto_load_libs=False)
 
         bf = SimTypeBitfield(
             flags={"READ": 1, "WRITE": 2, "EXEC": 4},
