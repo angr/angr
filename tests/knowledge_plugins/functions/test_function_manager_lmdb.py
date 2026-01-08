@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint:disable=missing-class-docstring
 """Test cases for FunctionManager LMDB save/load and LRU cache functionality."""
 from __future__ import annotations
 

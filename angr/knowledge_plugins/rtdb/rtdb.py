@@ -79,7 +79,6 @@ class RuntimeDb(KnowledgeBasePlugin):
         if self._lmdb_env is not None:
             self._lmdb_env.close()
             self._lmdb_env = None
-            self._lmdb_funcsdb = None
 
         if self._lmdb_path is not None:
             with contextlib.suppress(OSError):
