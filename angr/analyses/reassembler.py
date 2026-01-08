@@ -2319,8 +2319,13 @@ class Reassembler(Analysis):
                 for node in init_func.transition_graph.nodes()
                 if isinstance(node, FuncNode) and node.addr != self.cfg._unresolvable_call_target_addr
             ]
+            callee_funcs = [
+                self.cfg.functions.get_by_addr(callee.addr)
+                for callee in callees
+                if self.cfg.functions.contains_addr(callee.addr)
+            ]
             # special handling for GCC-generated X86 PIE binaries
-            non_getpc_callees = [callee for callee in callees if "get_pc" not in callee.info]
+            non_getpc_callees = [callee for callee in callee_funcs if "get_pc" not in callee.info]
             if len(non_getpc_callees) == 1:
                 # we found the _init_proc
                 _init_proc = non_getpc_callees[0]
