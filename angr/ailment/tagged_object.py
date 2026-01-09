@@ -54,5 +54,5 @@ class TaggedObject:
             self._hash = self._hash_core()
         return self._hash
 
-    def _hash_core(self):
+    def _hash_core(self) -> int:
         raise NotImplementedError

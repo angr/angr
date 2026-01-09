@@ -5,6 +5,7 @@ from collections.abc import Iterable
 import logging
 from typing import cast
 
+import archinfo
 from archinfo.types import RegisterOffset
 import claripy
 import angr.ailment as ailment
@@ -592,6 +593,44 @@ class SimEngineRDAIL(
         _: MultiValues = self._expr(expr.iffalse)
         top = self.state.top(len(iftrue))
         return MultiValues(top)
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
+        base = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        one_offset = offset.one_value()
+        if one_offset is None:
+            return self._top(expr.bits)
+        conc_offset = one_offset.concrete_value
+        if conc_offset is None:
+            return self._top(expr.bits)
+
+        return cast(
+            MultiValues[claripy.ast.BV | claripy.ast.FP],
+            base.extract(conc_offset, expr.offset.size, archinfo.Endness.BE),
+        )
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        base = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        value = self._expr_bv(expr.value)
+
+        one_offset = offset.one_value()
+        if one_offset is None:
+            return self._top(expr.bits)
+        conc_offset = one_offset.concrete_value
+        if conc_offset is None:
+            return self._top(expr.bits)
+
+        return cast(
+            MultiValues[claripy.ast.BV | claripy.ast.FP],
+            base.extract(0, conc_offset, archinfo.Endness.BE)
+            .concat(value)
+            .concat(
+                base.extract(
+                    conc_offset + expr.offset.size, len(base) // 8 - conc_offset - expr.offset.size, archinfo.Endness.BE
+                )
+            ),
+        )
 
     def _handle_unop_Not(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         operand = self._expr_bv(expr.operand)

@@ -17,6 +17,7 @@ from angr.ailment.expression import (
     Expression,
     Tmp,
 )
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Assignment, Store, Return, Jump, ConditionalJump
 
 from angr.knowledge_plugins.functions import Function
@@ -65,6 +66,7 @@ class SPropagatorAnalysis(Analysis):
         stack_pointer_tracker=None,
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
+        ail_manager: Manager | None = None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -82,6 +84,7 @@ class SPropagatorAnalysis(Analysis):
         self.func_args = func_args
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
+        self._ail_manager = ail_manager
 
         bp_as_gpr = False
         the_func = None
@@ -373,7 +376,8 @@ class SPropagatorAnalysis(Analysis):
                     for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.sp_offset)
                         if sb_offset is not None:
-                            v = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            idx = None if self._ail_manager is None else self._ail_manager.next_atom()
+                            v = StackBaseOffset(idx, self.project.arch.bits, sb_offset)
                             if sp_bits is not None and vvar.bits < sp_bits:
                                 # truncation needed
                                 v = Convert(None, sp_bits, vvar.bits, False, v)
@@ -388,7 +392,8 @@ class SPropagatorAnalysis(Analysis):
                     for vvar_at_use, useloc in vvar_uselocs_set:
                         sb_offset = self._sp_tracker.offset_before(useloc.ins_addr, self.project.arch.bp_offset)
                         if sb_offset is not None:
-                            v = StackBaseOffset(None, self.project.arch.bits, sb_offset)
+                            idx = None if self._ail_manager is None else self._ail_manager.next_atom()
+                            v = StackBaseOffset(idx, self.project.arch.bits, sb_offset)
                             if bp_bits is not None and vvar.bits < bp_bits:
                                 # truncation needed
                                 v = Convert(None, bp_bits, vvar.bits, False, v)

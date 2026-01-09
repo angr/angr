@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeVar
+from collections.abc import MutableMapping
 from collections.abc import Callable
 from functools import partial
 import logging
@@ -11,15 +12,20 @@ from angr.ailment import Block
 from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, Statement
 
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 from angr.analyses import ForwardAnalysis
 from angr.analyses.forward_analysis import FunctionGraphVisitor
 from angr.utils.ail import is_head_controlled_loop_block, extract_partial_expr
 from angr.utils.ssa import get_reg_offset_base_and_size, is_phi_assignment
-from .rewriting_engine import SimEngineSSARewriting, DefExprType, AT
+from .rewriting_engine import SimEngineSSARewriting
 from .rewriting_state import RewritingState
 
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
+
 l = logging.getLogger(__name__)
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, object, object]):
@@ -33,14 +39,12 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         project,
         func,
         ail_graph,
-        sp_tracker,
-        bp_as_gpr: bool,
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
-        stackvar_locs: dict[int, set[int]],
         rewrite_tmps: bool,
         ail_manager,
         func_args: set[VirtualVariable],
+        def_to_udef: MutableMapping[Def, UDef],
         vvar_id_start: int = 0,
     ):
         self.project = project
@@ -53,20 +57,15 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._graph = ail_graph
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
-        self._stackvar_locs = stackvar_locs
         self._rewrite_tmps = rewrite_tmps
         self._ail_manager = ail_manager
         self._func_args = func_args
         self._engine_ail = SimEngineSSARewriting(
             self.project,
-            sp_tracker=sp_tracker,
-            bp_as_gpr=bp_as_gpr,
-            udef_to_phiid=self._udef_to_phiid,
-            phiid_to_loc=self._phiid_to_loc,
-            stackvar_locs=self._stackvar_locs,
             rewrite_tmps=self._rewrite_tmps,
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
+            def_to_udef=def_to_udef,
         )
 
         self._visited_blocks: set[Any] = set()
@@ -83,19 +82,14 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
         self._analyze()
 
-        self.def_to_vvid: dict[tuple[int, int | None, int, DefExprType, AT], int] = self._engine_ail.def_to_vvid
-        # during SSA conversion, we create secondary stack variables because they overlap and are larger than the
-        # actual stack variables. these secondary stack variables can be safely eliminated during dead assignment
-        # elimination if not used by anything else.
-        self.secondary_stackvars: set[int] = self._engine_ail.secondary_stackvars
         self.out_graph = self._make_new_graph(ail_graph)
 
     @property
     def max_vvar_id(self) -> int | None:
         return self._engine_ail.current_vvar_id
 
-    def _make_new_graph(self, old_graph: networkx.DiGraph) -> networkx.DiGraph:
-        new_graph = networkx.DiGraph()
+    def _make_new_graph(self, old_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph[ailment.Block]:
+        new_graph: networkx.DiGraph[ailment.Block] = networkx.DiGraph()
         for node in old_graph:
             new_graph.add_node(self.out_blocks.get((node.addr, node.idx), node))
 
@@ -116,22 +110,23 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
             match category:
                 case "reg":
-                    _, reg_offset, reg_bits = udef
+                    _, reg_offset, reg_bytes = udef
 
                     phi_var = Phi(
                         self._ail_manager.next_atom(),
-                        reg_bits,
+                        reg_bytes * self.project.arch.byte_width,
                         src_and_vvars=[],  # back patch later
                         ins_addr=node.addr,
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        self._engine_ail.next_vvar_id(),
-                        reg_bits,
+                        self._engine_ail._current_vvar_id,
+                        reg_bytes * self.project.arch.byte_width,
                         VirtualVariableCategory.REGISTER,
                         oident=reg_offset,
                         ins_addr=node.addr,
                     )
+                    self._engine_ail._current_vvar_id += 1
 
                 case "stack":
                     _, stack_offset, stack_size = udef
@@ -144,12 +139,13 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                     )
                     phi_dst = VirtualVariable(
                         self._ail_manager.next_atom(),
-                        self._engine_ail.next_vvar_id(),
+                        self._engine_ail._current_vvar_id,
                         stack_size * self.project.arch.byte_width,
                         VirtualVariableCategory.STACK,
                         oident=stack_offset,
                         ins_addr=node.addr,
                     )
+                    self._engine_ail._current_vvar_id += 1
                 case _:
                     raise NotImplementedError
 
@@ -182,9 +178,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
             else self.out_states[(node_.addr, node_.idx)]
         )
-        if reg_offset in out_state.registers and reg_size in out_state.registers[reg_offset]:
+        if reg_offset in out_state.registers:
             # we found a perfect hit
-            existing_var = out_state.registers[reg_offset][reg_size]
+            existing_var = out_state.registers[reg_offset]
             if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
@@ -192,24 +188,6 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             vvar.idx = self._ail_manager.next_atom()
             return True, vvar
 
-        # try to see if any register writes overlap with the requested one
-        # note that we only support full overlaps for now...
-        for off in out_state.registers:
-            if reg_offset + reg_size <= off or (
-                out_state.registers[off] and reg_offset > off + max(out_state.registers[off])
-            ):
-                continue
-            for sz in sorted(out_state.registers[off], reverse=True):
-                if reg_offset >= off and reg_offset + reg_size <= off + sz:
-                    existing_var = out_state.registers[off][sz]
-                    if existing_var is None:
-                        # the vvar is not set.
-                        return True, None
-
-                    # return the base vvar
-                    base_vvar = existing_var.copy()
-                    base_vvar.idx = self._ail_manager.next_atom()
-                    return True, base_vvar
         return False, None
 
     def _stack_predicate(self, node_: Block, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
@@ -218,8 +196,8 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             if is_head_controlled_loop_block(node_)
             else self.out_states[(node_.addr, node_.idx)]
         )
-        if stack_offset in out_state.stackvars and stackvar_size in out_state.stackvars[stack_offset]:
-            existing_var = out_state.stackvars[stack_offset][stackvar_size]
+        if stack_offset in out_state.stackvars:
+            existing_var = out_state.stackvars[stack_offset]
             if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
@@ -254,7 +232,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
     def _initial_abstract_state(self, node) -> RewritingState:
         state = RewritingState(
-            CodeLocation(node.addr, stmt_idx=0, ins_addr=node.addr, block_idx=node.idx),
+            AILCodeLocation(node.addr, node.idx, 0, node.addr),
             self.project.arch,
             self._function,
             node,
@@ -264,11 +242,13 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             if func_arg.parameter_category == VirtualVariableCategory.REGISTER:
                 reg_offset, reg_size = func_arg.parameter_reg_offset, func_arg.size
                 assert reg_offset is not None and reg_size is not None
-                state.registers[reg_offset][reg_size] = func_arg
+                for suboff in range(reg_offset, reg_offset + func_arg.size):
+                    state.registers[suboff] = func_arg
             elif func_arg.parameter_category == VirtualVariableCategory.STACK:
-                parameter_stack_offset: int = func_arg.oident[1]  # type: ignore
+                parameter_stack_offset = func_arg.parameter_stack_offset
                 assert parameter_stack_offset is not None and func_arg.size is not None
-                state.stackvars[parameter_stack_offset][func_arg.size] = func_arg
+                for suboff in range(parameter_stack_offset, parameter_stack_offset + func_arg.size):
+                    state.stackvars[suboff] = func_arg
         return state
 
     def _run_on_node(self, node, state: RewritingState):
@@ -294,7 +274,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
         old_state = state
         state = old_state.copy()
-        state.loc = CodeLocation(block.addr, stmt_idx=0, ins_addr=block.addr, block_idx=block.idx)
+        state.loc = AILCodeLocation(block.addr, block.idx, 0, block.addr)
         state.original_block = node
 
         engine.process(
@@ -424,7 +404,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                 self.out_blocks[node_key] = node
 
     @staticmethod
-    def _follow_one_path_backward(graph: networkx.DiGraph, src, predicate: Callable) -> Any:
+    def _follow_one_path_backward(
+        graph: networkx.DiGraph[T], src: T, predicate: Callable[[T], tuple[bool, U]]
+    ) -> U | None:
         visited = set()
         return_value = None
         the_node = src

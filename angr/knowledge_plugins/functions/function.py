@@ -4,11 +4,11 @@ import os
 import logging
 import itertools
 from collections import defaultdict, UserDict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 import contextlib
 import json
 from functools import wraps
-from typing import TYPE_CHECKING
+from typing import overload, TYPE_CHECKING
 
 import networkx
 import pydemumble
@@ -19,10 +19,11 @@ import claripy
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
+from angr.knowledge_plugins.xrefs.xref import XRef
 from angr.serializable import Serializable
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.procedures import SIM_LIBRARIES
-from angr.procedures.definitions import SimSyscallLibrary
+from angr.procedures.definitions import SimLibrary, SimSyscallLibrary
 from angr.protos import function_pb2
 from angr.calling_conventions import DEFAULT_CC, default_cc
 from angr.sim_type import SimTypeFunction, parse_defns
@@ -324,7 +325,7 @@ class Function(Serializable):
         self.mark_dirty()
 
     @property
-    def project(self):
+    def project(self) -> Project | None:
         if self._project is None and self._function_manager is not None:
             # try to set it from function manager
             self._project = self._function_manager._kb._project
@@ -493,7 +494,7 @@ class Function(Serializable):
         return self._cyclomatic_complexity
 
     @property
-    def xrefs(self):
+    def xrefs(self) -> Iterator[XRef]:
         """
         An iterator of all xrefs of the current function.
 
@@ -625,17 +626,20 @@ class Function(Serializable):
             return
 
         for x in self.xrefs:
-            if isinstance(x.dst, int):
-                try:
-                    md = cfg.memory_data[x.dst]
-                except KeyError:
-                    continue
-                if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                    continue
-                if len(md.content) < minimum_length:
-                    continue
+            if x.dst is None:
+                continue
+            try:
+                md = cfg.memory_data[x.dst]
+            except KeyError:
+                continue
+            if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
+                continue
+            if md.content is None:
+                continue
+            if len(md.content) < minimum_length:
+                continue
 
-                yield md.addr, md.content
+            yield md.addr, md.content
 
     @property
     def local_runtime_values(self):
@@ -818,6 +822,7 @@ class Function(Serializable):
         """
         :return: the function's binary offset (i.e., non-rebased address)
         """
+        assert self.binary is not None
         return self.addr - self.binary.mapped_base
 
     @property
@@ -825,6 +830,7 @@ class Function(Serializable):
         """
         :return: the function's Symbol, if any
         """
+        assert self.binary is not None
         return self.binary.loader.find_symbol(self.addr)
 
     @property
@@ -835,6 +841,7 @@ class Function(Serializable):
         if self.project is None:
             l.error("Cannot generate pseudocode because the function is not associated with any angr project.")
             return None
+        assert self._function_manager is not None
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text if dec.codegen else None
 
@@ -1310,7 +1317,7 @@ class Function(Serializable):
         return None
 
     @property
-    def graph(self):
+    def graph(self) -> networkx.DiGraph[CodeNode]:
         """
         Get a local transition graph. A local transition graph is a transition graph that only contains nodes that
         belong to the current function. All edges, except for the edges going out from the current function or coming
@@ -1341,7 +1348,7 @@ class Function(Serializable):
 
         return g
 
-    def graph_ex(self, exception_edges=True):
+    def graph_ex(self, exception_edges=True) -> networkx.DiGraph[CodeNode]:
         """
         Get a local transition graph with a custom configuration. A local transition graph is a transition graph that
         only contains nodes that belong to the current function. This method allows user to exclude certain types of
@@ -1547,6 +1554,7 @@ class Function(Serializable):
 
         :param reg_offset:          The offset of the register to register.
         """
+        assert self._function_manager is not None
         if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
@@ -1724,6 +1732,8 @@ class Function(Serializable):
                                     self.prototype or self.calling_convention will be kept untouched.
         """
 
+        libraries: set[SimLibrary]
+
         if not ignore_binary_name:
             # determine the library name
             if not self.is_plt:
@@ -1740,7 +1750,7 @@ class Function(Serializable):
                 node = next(iter(edges))[1]
                 if len(edges) == 1 and isinstance(node, (FuncNode, HookNode, SyscallNode)):
                     target = node.addr
-                    if self._function_manager.contains_addr(target):
+                    if self._function_manager is not None and self._function_manager.contains_addr(target):
                         target_func = self._function_manager.get_by_addr(target)
                         binary_name = target_func.binary_name
 
@@ -1797,7 +1807,7 @@ class Function(Serializable):
                         "without .project.arch."
                     )
                     return False
-                self.prototype = proto.with_arch(self.project.arch)
+                self.prototype = proto.with_arch(self.project.arch) if proto is not None else proto
                 self.prototype_libname = library.name
                 self.returning = library.is_returning(name)
 
@@ -1934,7 +1944,7 @@ class Function(Serializable):
         must_disambiguate_by_addr = self.binary is not self.project.loader.main_object and self.binary_name is None
 
         # If there are multiple functions with the same name in the same object, disambiguate by address
-        if not must_disambiguate_by_addr:
+        if not must_disambiguate_by_addr and self._function_manager is not None:
             for func in self._function_manager.get_by_name(self.name):
                 if func is not self and func.binary is self.binary:
                     must_disambiguate_by_addr = True
@@ -1956,9 +1966,8 @@ class Function(Serializable):
         if len(func_def.keys()) > 1:
             raise Exception(f"Too many definitions: {list(func_def.keys())} ")
 
-        name: str
-        ty: SimTypeFunction
         name, ty = func_def.popitem()
+        assert isinstance(ty, SimTypeFunction)
         self.name = name
         self.prototype = ty.with_arch(self.project.arch)
         # setup the calling convention
@@ -1984,12 +1993,18 @@ class Function(Serializable):
         if self._function_manager is None:
             return set()
 
-        called = set()
+        seen: set[int] = set()
+        called: set[Function] = set()
 
         def _find_called(function_address):
-            successors = set(self._function_manager.callgraph.successors(function_address)) - called
-            for s in successors:
-                called.add(s)
+            assert self._function_manager is not None
+            for s in self._function_manager.callgraph.successors(function_address):
+                if s in seen:
+                    continue
+                seen.add(s)
+                func = self._function_manager.function(s)
+                assert func is not None
+                called.add(func)
                 _find_called(s)
 
         _find_called(self.addr)

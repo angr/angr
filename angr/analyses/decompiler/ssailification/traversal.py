@@ -1,5 +1,7 @@
 from __future__ import annotations
 import logging
+from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 import angr.ailment as ailment
 
@@ -8,6 +10,10 @@ from angr.analyses.forward_analysis import FunctionGraphVisitor
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal_engine import SimEngineSSATraversal
 from .traversal_state import TraversalState
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.functions.function import Function
+
 
 l = logging.getLogger(__name__)
 
@@ -27,6 +33,7 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         stackvars: bool,
         tmps: bool,
         func_args: set[ailment.Expr.VirtualVariable],
+        functions: Callable[[int | str], Function | None] | None,
     ):
         self.project = project
         self._stackvars = stackvars
@@ -45,14 +52,14 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
             bp_as_gpr=bp_as_gpr,
             stackvars=self._stackvars,
             use_tmps=self._tmps,
+            functions=functions,
         )
 
-        self._visited_blocks: set[tuple[int, int]] = set()
+        self._visited_blocks: set[ailment.Address] = set()
 
         self._analyze()
 
-        self.def_to_loc = self._engine_ail.def_to_loc
-        self.loc_to_defs = self._engine_ail.loc_to_defs
+        self.def_info = self._engine_ail.def_info
 
     #
     # Main analysis routines
@@ -66,18 +73,22 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         # update it with function arguments
         if self._func_args:
             for func_arg in self._func_args:
-                if func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.REGISTER:
-                    reg_offset = func_arg.oident[1]
+                if func_arg.parameter_category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                    reg_offset = func_arg.parameter_reg_offset
+                    assert reg_offset is not None
                     reg_size = func_arg.size
-                    state.live_registers.add(reg_offset)
+                    state.live_registers[reg_offset].update(())
                     # get the full register if needed
                     basereg_offset, basereg_size = get_reg_offset_base_and_size(
                         reg_offset, self.project.arch, size=reg_size
                     )
                     if basereg_size != reg_size or basereg_offset != reg_offset:
-                        state.live_registers.add(basereg_offset)
-                elif func_arg.oident[0] == ailment.Expr.VirtualVariableCategory.STACK:
-                    state.live_stackvars.add((func_arg.oident[1], func_arg.size))
+                        state.live_registers[basereg_offset].update(())
+                elif func_arg.parameter_category == ailment.Expr.VirtualVariableCategory.STACK:
+                    offset = func_arg.parameter_stack_offset
+                    assert offset is not None
+                    state.live_stackvars[offset].update(())
+                    state.stackvar_unify(offset, func_arg.size)
         return state
 
     def _merge_states(self, node: ailment.Block, *states: TraversalState) -> tuple[TraversalState, bool]:
@@ -110,8 +121,6 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
             # we visit each block exactly once
             return False, state
 
-        engine: SimEngineSSATraversal
-
         state = state.copy()
         engine.process(state, block=block)
 
@@ -122,4 +131,4 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         pass
 
     def _post_analysis(self):
-        pass
+        self._engine_ail.finalize()

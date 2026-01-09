@@ -1,12 +1,10 @@
 from __future__ import annotations
-from collections import defaultdict
-from collections.abc import MutableMapping
 
 from angr.ailment.statement import Statement
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.block import Block
 
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 
 
 class RewritingState:
@@ -16,35 +14,33 @@ class RewritingState:
 
     def __init__(
         self,
-        loc: CodeLocation,
+        loc: AILCodeLocation,
         arch,
         func,
         original_block: Block,
-        registers: MutableMapping[int, dict[int, VirtualVariable | None]] | None = None,
-        stackvars: MutableMapping[int, dict[int, VirtualVariable]] | None = None,
+        registers: dict[int, VirtualVariable] | None = None,
+        stackvars: dict[int, VirtualVariable] | None = None,
     ):
         self.loc = loc
         self.arch = arch
         self.func = func
 
-        self.registers: MutableMapping[int, dict[int, VirtualVariable | None]] = (
-            registers if registers is not None else defaultdict(dict)
-        )
-        self.stackvars: MutableMapping[int, dict[int, VirtualVariable]] = (
-            stackvars if stackvars is not None else defaultdict(dict)
-        )
+        self.registers = registers or {}
+        self.stackvars = stackvars or {}
         self.tmps: dict[int, VirtualVariable] = {}
         self.original_block = original_block
         self.out_block = None
 
     def copy(self) -> RewritingState:
-        copy_regs = defaultdict(dict)
-        for k, vdict in self.registers.items():
-            copy_regs[k] = vdict.copy()
+        # copy_regs = defaultdict(dict)
+        # for k, vdict in self.registers.items():
+        #     copy_regs[k] = vdict.copy()
 
-        copy_stackvars = defaultdict(dict)
-        for k, vdict in self.stackvars.items():
-            copy_stackvars[k] = vdict.copy()
+        copy_regs = dict(self.registers)
+        copy_stackvars = dict(self.stackvars)
+        # copy_stackvars = defaultdict(dict)
+        # for k, vdict in self.stackvars.items():
+        #     copy_stackvars[k] = vdict.copy()
 
         return RewritingState(
             self.loc,

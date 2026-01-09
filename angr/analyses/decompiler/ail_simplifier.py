@@ -176,7 +176,6 @@ class AILSimplifier(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
-        secondary_stackvars: set[int] | None = None,
     ):
         self.func = func
         self.func_graph = func_graph if func_graph is not None else func.graph
@@ -200,7 +199,6 @@ class AILSimplifier(Analysis):
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
-        self._secondary_stackvars: set[int] = secondary_stackvars if secondary_stackvars is not None else set()
 
         self._calls_to_remove: set[AILCodeLocation] = set()
         self._assignments_to_remove: set[AILCodeLocation] = set()
@@ -1737,9 +1735,6 @@ class AILSimplifier(Analysis):
                             if rd.is_phi_vvar_id(vvar_id):
                                 # we always remove unused phi variables
                                 pass
-                            elif vvar_id in self._secondary_stackvars:
-                                # secondary stack variables are potentially removable
-                                pass
                             elif (def_codeloc.block_addr, def_codeloc.block_idx) in retpoints:
                                 # slack variable assignments in endpoint blocks are potentially removable.
                                 # note that this is a hack! we should rely on more reliable stack variable
@@ -2003,10 +1998,7 @@ class AILSimplifier(Analysis):
             if bail:
                 continue
 
-            if all(
-                varid in phi_and_dirty_vvar_ids or rd.varid_to_vvar[varid].was_reg or varid in self._secondary_stackvars
-                for varid in scc
-            ):
+            if all(varid in phi_and_dirty_vvar_ids or rd.varid_to_vvar[varid].was_reg for varid in scc):
                 cyclic_dependent_phi_varids |= set(scc)
 
         return cyclic_dependent_phi_varids

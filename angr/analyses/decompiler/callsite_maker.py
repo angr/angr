@@ -329,7 +329,7 @@ class CallSiteMaker(Analysis):
             **call_stmt.tags,
         )
         if isinstance(last_stmt, Stmt.Assignment):
-            if new_stmt.bits is None:
+            if not new_stmt.bits:
                 new_stmt.bits = last_stmt.src.bits
             new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_stmt, **last_stmt.tags)
 

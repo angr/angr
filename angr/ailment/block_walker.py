@@ -34,6 +34,8 @@ from .expression import (
     VirtualVariable,
     Phi,
     Atom,
+    Extract,
+    Insert,
 )
 
 ExprType = TypeVar("ExprType")
@@ -75,6 +77,8 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             MultiStatementExpression: self._handle_MultiStatementExpression,
             VirtualVariable: self._handle_VirtualVariable,
             Phi: self._handle_Phi,
+            Extract: self._handle_Extract,
+            Insert: self._handle_Insert,
         }
 
         self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
@@ -294,6 +298,21 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Extract(
+        self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Insert(
+        self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> ExprType:
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
     """
@@ -435,6 +454,15 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
     ):
         for idx, operand in enumerate(expr.operands):
             self._handle_expr(idx, operand, stmt_idx, stmt, block)
+
+    def _handle_Extract(self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+
+    def _handle_Insert(self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
 
 class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
@@ -853,4 +881,32 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             expr_.expr = new_expr
             expr_.stmts = new_statements
             return expr_
+        return expr
+
+    def _handle_Extract(
+        self, expr_idx: int, expr: Extract, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+
+        if new_base is not expr.base or new_offset is not expr.offset:
+            result = expr.copy()
+            result.base = new_base
+            result.offset = new_offset
+            return result
+        return expr
+
+    def _handle_Insert(
+        self, expr_idx: int, expr: Insert, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Expression:
+        new_base = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        new_offset = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        new_value = self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+
+        if new_base is not expr.base or new_offset is not expr.offset or new_value is not expr.value:
+            result = expr.copy()
+            result.base = new_base
+            result.offset = new_offset
+            result.value = new_value
+            return result
         return expr

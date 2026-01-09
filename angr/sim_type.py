@@ -901,7 +901,7 @@ class SimTypePointer(SimTypeReg):
     _ident = "ptr"
 
     def __init__(
-        self, pts_to, label=None, offset=0, qualifier: Iterable | None = None, disposition: PointerDisposition | int = PointerDisposition.UNKNOWN
+        self, pts_to: SimType, label=None, offset=0, qualifier: Iterable | None = None, disposition: PointerDisposition | int = PointerDisposition.UNKNOWN
     ):
         """
         :param label:   The type label.
@@ -3746,7 +3746,7 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def parse_signature(defn, predefined_types=None, arch=None):
+def parse_signature(defn, predefined_types=None, arch=None) -> SimTypeFunction:
     """
     Parse a single function prototype and return its type
     """
@@ -3757,14 +3757,14 @@ def parse_signature(defn, predefined_types=None, arch=None):
         raise ValueError("No declarations found") from e
 
 
-def parse_defns(defn, predefined_types=None, arch=None):
+def parse_defns(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
     return parse_file(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, predefined_types=None, arch=None):
+def parse_types(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
@@ -3779,7 +3779,7 @@ def parse_file(
     predefined_types: dict[Any, SimType] | None = None,
     arch=None,
     side_effect_types: dict[Any, SimType] | None = None,
-):
+) -> tuple[dict[str, SimType], dict[str, SimType]]:
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.

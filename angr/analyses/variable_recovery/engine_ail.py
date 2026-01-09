@@ -571,6 +571,18 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(expr.bits), typevar=tv, type_constraints=type_constraints)
 
+    # FIXME fix these two
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract):
+        self._expr(expr.base)
+        self._expr(expr.offset)
+        return self._top(expr.bits)
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        self._expr(expr.base)
+        self._expr(expr.offset)
+        self._expr(expr.value)
+        return self._top(expr.bits)
+
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands
         r0, r1 = self._expr_pair(arg0, arg1)

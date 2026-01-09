@@ -764,6 +764,7 @@ class ConditionProcessor:
             bool_var = self.claripy_ast_from_ail_condition(
                 last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
             )
+            assert isinstance(bool_var, claripy.ast.Bool)
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
             return claripy.Not(bool_var)
@@ -906,15 +907,47 @@ class ConditionProcessor:
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
             if condition.variable is not None:
-                var = claripy.BVS(
-                    f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
-                    condition.bits,
-                    explicit_name=True,
-                )
+                if condition.bits == 1:
+                    var = claripy.BoolS(
+                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        explicit_name=True,
+                    )
+                else:
+                    var = claripy.BVS(
+                        f"ailexpr_{condition!r}-{condition.variable.ident}-{ins_addr:x}",
+                        condition.bits,
+                        explicit_name=True,
+                    )
             else:
-                var = claripy.BVS(
-                    f"ailexpr_{condition!r}-{condition.idx}-{ins_addr:x}", condition.bits, explicit_name=True
-                )
+                if condition.bits == 1:
+                    var = claripy.BoolS(f"ailexpr_{condition!r}-{condition.idx}-{ins_addr:x}", explicit_name=True)
+                else:
+                    var = claripy.BVS(
+                        f"ailexpr_{condition!r}-{condition.idx}-{ins_addr:x}", condition.bits, explicit_name=True
+                    )
+            self._condition_mapping[var.args[0]] = condition
+            return var
+        if isinstance(condition, ailment.expression.Extract):
+            var_ = self.claripy_ast_from_ail_condition(condition.base, ins_addr=ins_addr)
+            offset_expr = (
+                self.claripy_ast_from_ail_condition(condition.offset, ins_addr=ins_addr).args[0]
+                if not isinstance(condition.offset, ailment.expression.Const)
+                else condition.offset.value
+            )
+            var = claripy.BVS(f"ailexpr_Extract({offset_expr}, {hash(var_)})", condition.bits, explicit_name=True)
+            self._condition_mapping[var.args[0]] = condition
+            return var
+        if isinstance(condition, ailment.expression.Insert):
+            var_ = self.claripy_ast_from_ail_condition(condition.base, ins_addr=ins_addr)
+            value = self.claripy_ast_from_ail_condition(condition.value, ins_addr=ins_addr)
+            offset_expr = (
+                self.claripy_ast_from_ail_condition(condition.offset, ins_addr=ins_addr).args[0]
+                if not isinstance(condition.offset, ailment.expression.Const)
+                else condition.offset.value
+            )
+            var = claripy.BVS(
+                f"ailexpr_Insert({offset_expr}, {hash(value)}, {hash(var_)})", condition.bits, explicit_name=True
+            )
             self._condition_mapping[var.args[0]] = condition
             return var
         if isinstance(condition, ailment.Expr.Convert):

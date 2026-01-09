@@ -14,7 +14,7 @@ import archinfo
 
 from angr.errors import AngrMissingTypeError
 from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
-from angr.calling_conventions import DEFAULT_CC, CC_NAMES
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
@@ -147,7 +147,7 @@ class SimLibrary:
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
         self.prototypes_json: dict[str, Any] = {}
-        self.default_ccs = {}
+        self.default_ccs: dict[str, type[SimCC]] = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
