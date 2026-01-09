@@ -26,7 +26,6 @@ from .state_plugins import BP_AFTER, BP_BEFORE, NO_OVERRIDE
 from .sim_type import parse_signature, parse_type
 
 if TYPE_CHECKING:
-    import archinfo
     from angr.sim_state import SimState
 
 l = logging.getLogger(name=__name__)
@@ -119,9 +118,9 @@ class SimProcedure:
 
     def __init__(
         self,
-        project=None,
-        cc=None,
-        prototype=None,
+        project: angr.Project | None = None,
+        cc: angr.SimCC | None = None,
+        prototype: str | SimTypeFunction | None = None,
         symbolic_return=None,
         returns=None,
         is_syscall=False,
@@ -133,13 +132,13 @@ class SimProcedure:
         **kwargs,
     ):
         # WE'LL FIGURE IT OUT
-        self.project: angr.Project = project
-        self.arch: archinfo.arch.Arch = project.arch if project is not None else None
+        self.project = project
+        self.arch = project.arch if project is not None else None
         self.addr = None
-        self.cc: angr.SimCC = cc
-        if type(prototype) is str:
+        self.cc = cc
+        if isinstance(prototype, str):
             prototype = parse_signature(prototype)
-        self.prototype: angr.sim_type.SimTypeFunction = prototype
+        self.prototype = prototype
         self.canonical = self
 
         self.kwargs = kwargs
@@ -217,12 +216,14 @@ class SimProcedure:
             self.project = state.project
         if self.cc is None:
             if self.arch.name in DEFAULT_CC:
-                self.cc = default_cc(
+                cc_cls = default_cc(
                     self.arch.name,
                     platform=(
                         self.project.simos.name if self.project is not None and self.project.simos is not None else None
                     ),
-                )(self.arch)
+                )
+                assert cc_cls is not None
+                self.cc = cc_cls(self.arch)
             else:
                 raise SimProcedureError(
                     f"There is no default calling convention for architecture {self.arch.name}."

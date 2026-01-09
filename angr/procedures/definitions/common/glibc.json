@@ -1932,7 +1932,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"memcmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['A1', 'A2', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disposition': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['A1', 'A2', 'SIZE']}"
 		},
 		"memcpy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'q': ['restrict'], 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'q': ['restrict'], 'disposition': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"

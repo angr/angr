@@ -18,6 +18,8 @@ from angr.ailment.statement import (
 from angr.ailment.expression import (
     Atom,
     Expression,
+    Extract,
+    Insert,
     VirtualVariable,
     Load,
     BinaryOp,
@@ -364,6 +366,23 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 expr.iffalse if new_iffalse is None else new_iffalse,
                 **expr.tags,
             )
+        return None
+
+    def _handle_expr_Extract(self, expr):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+
+        if base is not expr.base or offset is not expr.offset:
+            return Extract(expr.idx, expr.bits, base, offset, **expr.tags)
+        return None
+
+    def _handle_expr_Insert(self, expr):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+        value = self._expr(expr.value) or expr.value
+
+        if base is not expr.base or offset is not expr.offset or value is not expr.value:
+            return Insert(expr.idx, base, offset, value, **expr.tags)
         return None
 
     def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:
