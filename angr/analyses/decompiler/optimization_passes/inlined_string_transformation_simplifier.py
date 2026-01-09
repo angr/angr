@@ -241,6 +241,25 @@ class InlinedStringTransformationAILEngine(
             return claripy.BVV(expr.value, expr.bits)
         return None
 
+    def _handle_expr_Extract(self, expr):
+        v = self._expr(expr.base)
+        off = self._expr(expr.offset)
+        if off is None or not off.concrete or v is None:
+            return None
+        return v[len(v) - 1 - off.concrete_value * 8 : len(v) - off.concrete_value * 8 - expr.bits]
+
+    def _handle_expr_Insert(self, expr):
+        v = self._expr(expr.value)
+        off = self._expr(expr.offset)
+        base = self._expr(expr.base)
+        if off is None or not off.concrete or v is None or base is None:
+            return None
+        return claripy.Concat(
+            base[len(base) - 1 : len(base) - off.concrete_value * 8],
+            v,
+            base[len(base) - off.concrete_value * 8 - len(v) : 0],
+        )
+
     def _handle_expr_Load(self, expr):
         addr_and_type = self._process_address(expr.addr)
         if addr_and_type is not None:

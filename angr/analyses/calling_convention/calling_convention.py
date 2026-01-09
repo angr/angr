@@ -2,6 +2,7 @@
 from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
+from collections.abc import Mapping
 import logging
 
 import networkx
@@ -23,11 +24,13 @@ from angr.calling_conventions import (
 )
 from angr.errors import SimTranslationError
 from angr.sim_type import (
+    PointerDisposition,
     SimTypeCppFunction,
     SimTypeInt,
     SimTypeFunction,
     SimType,
     SimTypeLongLong,
+    SimTypePointer,
     SimTypeShort,
     SimTypeChar,
     SimTypeBottom,
@@ -48,6 +51,7 @@ from angr import SIM_PROCEDURES
 from angr.analyses import Analysis, register_analysis, ReachingDefinitionsAnalysis
 from angr.analyses.reaching_definitions import get_all_definitions
 from .utils import is_sane_register_variable
+from .fact_collector import KIND_REG, KIND_STACKVAL, FactCollector
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -111,6 +115,8 @@ class CallingConventionAnalysis(Analysis):
         input_args: list[SimRegArg | SimStackArg] | None = None,
         retval_size: int | None = None,
         collect_facts: bool = False,
+        collect_facts_arg_uses: bool = False,
+        collect_facts_arg_passthru: bool = False,
     ):
         if func is not None and not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -125,6 +131,8 @@ class CallingConventionAnalysis(Analysis):
         self._input_args = input_args
         self._retval_size = retval_size
         self._collect_facts = collect_facts
+        self._collect_facts_arg_uses = collect_facts_arg_uses
+        self._collect_facts_arg_passthru = collect_facts_arg_passthru
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?
@@ -252,9 +260,15 @@ class CallingConventionAnalysis(Analysis):
 
         # we gotta analyze the function properly
         if self._collect_facts and self._input_args is None and self._retval_size is None:
-            facts = self.project.analyses.FunctionFactCollector(self._function, kb=self.kb)
+            facts = self.project.analyses[FactCollector].prep(kb=self.kb)(
+                self._function,
+                track_arg_uses=self._collect_facts_arg_uses,
+                track_arg_passthru=self._collect_facts_arg_passthru,
+            )
             self._input_args = facts.input_args
             self._retval_size = facts.retval_size
+            self._callsites = facts.callsites
+            self._pointer_arg_derefs = facts.pointer_arg_derefs
 
         r = self._analyze_function()
         if r is None:
@@ -456,12 +470,24 @@ class CallingConventionAnalysis(Analysis):
         if fixed_args is not None:
             args = args[:fixed_args]
 
+        # generate an index for arg uses
+        arg_uses: defaultdict[tuple[int, int], list[tuple[Function | None, int]]] = defaultdict(list)
+        for target, cargs in self._callsites.values():
+            for idx, carg in enumerate(cargs):
+                if carg is not None and carg[0] in (KIND_STACKVAL, KIND_REG) and carg[2] == 0:
+                    arg_uses[(carg[0], carg[1])].append((target, idx))
+        for carg, use in self._pointer_arg_derefs.items():
+            if carg is not None and carg[0] in (KIND_STACKVAL, KIND_REG):
+                arg_uses[(carg[0], carg[1])].append((None, use))
+
         # guess the type of the return value -- it's going to be a wild guess...
         ret_type = self._guess_retval_type(cc, retval_size)
         if self._function.name == "main" and self.project.arch.bits == 64 and isinstance(ret_type, SimTypeLongLong):
             # hack - main must return an int even in 64-bit binaries
             ret_type = SimTypeInt()
-        prototype = SimTypeFunction([self._guess_arg_type(arg, cc) for arg in args], ret_type, variadic=is_variadic)
+        prototype = SimTypeFunction(
+            [self._guess_arg_type(arg, cc, arg_uses) for arg in args], ret_type, variadic=is_variadic
+        )
 
         return cc, prototype
 
@@ -979,17 +1005,61 @@ class CallingConventionAnalysis(Analysis):
 
         return reg_args + int_args + fp_args + stack_args
 
-    def _guess_arg_type(self, arg: SimFunctionArgument, cc: SimCC | None = None) -> SimType:
+    def _guess_arg_type(
+        self,
+        arg: SimFunctionArgument,
+        cc: SimCC | None = None,
+        arg_uses: Mapping[tuple[int, int], list[tuple[Function | None, int]]] | None = None,
+    ) -> SimType:
         if cc is not None and cc.FP_ARG_REGS and isinstance(arg, SimRegArg) and arg.reg_name in cc.FP_ARG_REGS:
             if arg.size == 4:
                 return SimTypeFloat()
             if arg.size == 8:
                 return SimTypeDouble()
 
-        if arg.size == 4:
-            return SimTypeInt()
+        if cc is not None and arg.size == cc.arch.bytes:
+            if isinstance(arg, SimRegArg):
+                key = (KIND_REG, cc.arch.registers[arg.reg_name][0])
+            elif isinstance(arg, SimStackArg):
+                key = (KIND_STACKVAL, arg.stack_offset)
+            else:
+                key = (-1, -1)
+            proposed_ptr_ty = set()
+            proposed_disposition = 0
+            for func, use in (arg_uses or {}).get(key, ()):
+                if func is None:
+                    proposed_disposition |= use
+                elif func.prototype is not None:
+                    passed_ty = func.prototype.args[use]
+                    if isinstance(passed_ty, SimTypePointer):
+                        proposed_ptr_ty.add(passed_ty.pts_to)
+                        match passed_ty.disposition:
+                            case PointerDisposition.OUT | PointerDisposition.OUTMAYBE:
+                                proposed_disposition |= 2
+                            case PointerDisposition.IN:
+                                proposed_disposition |= 1
+                            case PointerDisposition.IN_OUT | PointerDisposition.IN_OUTMAYBE:
+                                proposed_disposition |= 3
+
+            if proposed_ptr_ty or proposed_disposition:
+                ptr_ty = SimTypeBottom() if len(proposed_ptr_ty) != 1 else next(iter(proposed_ptr_ty))
+                disposition = (
+                    PointerDisposition.UNKNOWN
+                    if proposed_disposition == 0
+                    else (
+                        PointerDisposition.IN
+                        if proposed_disposition == 1
+                        else (
+                            PointerDisposition.OUTMAYBE if proposed_disposition == 2 else PointerDisposition.IN_OUTMAYBE
+                        )
+                    )
+                )
+                return SimTypePointer(ptr_ty, disposition=disposition)
+
         if arg.size == 8:
             return SimTypeLongLong()
+        if arg.size == 4:
+            return SimTypeInt()
         if arg.size == 2:
             return SimTypeShort()
         if arg.size == 1:
@@ -1057,30 +1127,14 @@ class CallingConventionAnalysis(Analysis):
         return False
 
     def is_va_start_amd64(self, func: Function) -> tuple[bool, int | None]:
-        # TODO: Use a better pattern matching approach
-        if len(func.block_addrs_set) < 3:
-            return False, None
+        # TODO: test this approach more widely
+        # this will definitely not work on functions with more than 5 fixed args
         if func.startpoint is None:
             return False, None
 
         head = func.startpoint
-        out_edges = list(func.transition_graph.out_edges(head, data=True))
-        if len(out_edges) != 2:
-            return False, None
-        succ0, succ1 = out_edges[0][1], out_edges[1][1]
-        if func.transition_graph.has_edge(succ0, succ1):
-            mid = succ0
-        elif func.transition_graph.has_edge(succ1, succ0):
-            mid = succ1
-        else:
-            return False, None
 
         # compare instructions
-        for insn in self.project.factory.block(mid.addr, size=mid.size).capstone.insns:
-            if insn.mnemonic != "movaps":
-                return False, None
-
-        spilled_regs = []
         allowed_spilled_regs = [
             capstone.x86.X86_REG_RDI,
             capstone.x86.X86_REG_RSI,
@@ -1089,25 +1143,46 @@ class CallingConventionAnalysis(Analysis):
             capstone.x86.X86_REG_R8,
             capstone.x86.X86_REG_R9,
         ]
-        for insn in reversed(self.project.factory.block(head.addr, size=head.size).capstone.insns[:-2]):
-            if (
+        stores: list[tuple[int, int, int, int]] = []
+        for i, insn in enumerate(self.project.factory.block(head.addr, size=head.size).capstone.insns):
+            if not (
                 insn.mnemonic == "mov"
                 and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                and insn.operands[0].mem.base in (capstone.x86.X86_REG_RSP, capstone.x86.X86_REG_RBP)
+                and insn.operands[0].mem.index == 0
                 and insn.operands[1].type == capstone.x86.X86_OP_REG
+                and insn.operands[1].reg in allowed_spilled_regs
             ):
-                spilled_regs.append(insn.operands[1].reg)
-            else:
-                break
+                continue
+            idx = allowed_spilled_regs.index(insn.operands[1].reg)
+            base, disp = insn.operands[0].mem.base, insn.operands[0].mem.disp
+            if stores and stores[-1] != (i - 1, idx - 1, base, disp - 8):
+                return False, None
+            stores.append((i, idx, base, disp))
 
-        if not set(spilled_regs).issubset(set(allowed_spilled_regs)):
+        if not stores:
             return False, None
 
-        i = next(
-            (i for i, reg in enumerate(allowed_spilled_regs) if reg in spilled_regs),
-            len(allowed_spilled_regs),
-        )
+        base = stores[0][2]
+        disp_min = stores[0][3]
+        disp_max = stores[-1][3]
+        num_fixed = stores[0][1]
+        zero_disp = stores[0][3] - 8 * num_fixed
 
-        return True, i
+        for blk in func.blocks:
+            for insn in blk.capstone.insns:
+                for opidx, op in enumerate(insn.operands):
+                    if op.type == capstone.x86.X86_OP_MEM and op.mem.base == base:
+                        if op.mem.disp == zero_disp and not (insn.mnemonic == "lea" and opidx == 1):
+                            # referencing the zero_disp in a non-lea way
+                            return False, None
+                        if disp_min <= op.mem.disp <= disp_max and not (
+                            blk.addr == func.addr and insn.mnemonic == "mov" and opidx == 0
+                        ):
+                            # referencing the spills outside of writing them in the first block
+                            return False, None
+
+        return True, num_fixed
 
 
 register_analysis(CallingConventionAnalysis, "CallingConvention")
