@@ -570,6 +570,43 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
+            # Emit struct definitions for types used by externs
+            extern_types = []
+            defined_struct_names = set(name_to_structtypes.keys()) if self.codegen.show_local_types else set()
+            for v in self.codegen.cexterns:
+                if v.variable not in self.variables_in_use or v.type is None:
+                    continue
+                ty = unpack_typeref(v.type)
+                # Unwrap all pointer/array
+                while isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                    if isinstance(ty, SimTypePointer):
+                        ty = unpack_typeref(ty.pts_to)
+                    else:
+                        ty = unpack_typeref(ty.elem_type)
+                if isinstance(ty, SimStruct) and ty not in extern_types:
+                    extern_types.append(ty)
+
+            for ty in extern_types:
+                if ty.name in defined_struct_names:
+                    continue
+                defined_struct_names.add(ty.name)
+                for field in ty.fields.values():
+                    field = unpack_typeref(field)
+                    while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                        if isinstance(field, SimTypePointer):
+                            field = unpack_typeref(field.pts_to)
+                        else:
+                            field = unpack_typeref(field.elem_type)
+                    if isinstance(field, SimStruct) and field not in extern_types:
+                        if field.name and not field.fields and field.name in defined_struct_names:
+                            continue
+                        if field.name:
+                            defined_struct_names.add(field.name)
+                        extern_types.append(field)
+
+                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+
+            # Emit extern declarations
             for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
                 if v.variable not in self.variables_in_use:
                     continue
