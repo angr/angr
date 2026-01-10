@@ -586,10 +586,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 if isinstance(ty, SimStruct) and ty not in extern_types:
                     extern_types.append(ty)
 
+            # Discover all nested structs
             for ty in extern_types:
-                if ty.name in defined_struct_names:
-                    continue
-                defined_struct_names.add(ty.name)
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
@@ -600,10 +598,13 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     if isinstance(field, SimStruct) and field not in extern_types:
                         if field.name and not field.fields and field.name in defined_struct_names:
                             continue
-                        if field.name:
-                            defined_struct_names.add(field.name)
                         extern_types.append(field)
 
+            # Emit in reverse order: nested structs first
+            for ty in reversed(extern_types):
+                if ty.name in defined_struct_names:
+                    continue
+                defined_struct_names.add(ty.name)
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
             # Emit extern declarations
