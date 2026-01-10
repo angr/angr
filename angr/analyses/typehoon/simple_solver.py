@@ -909,8 +909,7 @@ class SimpleSolver:
             base = t.type_var
             level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
             return base, level
-        else:
-            return t, 0
+        return t, 0
 
     @staticmethod
     def _same_base_different_indirection(
