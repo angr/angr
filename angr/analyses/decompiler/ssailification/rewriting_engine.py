@@ -873,7 +873,7 @@ class SimEngineSSARewriting(
         vvar = self._get_full_reg_vvar(
             reg_expr.reg_offset,
             reg_expr.size,
-            ins_addr=reg_expr.ins_addr,
+            ins_addr=reg_expr.tags["ins_addr"],
         )
         # extract
         if reg_expr.reg_offset == vvar.oident:

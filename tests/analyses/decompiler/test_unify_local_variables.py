@@ -29,7 +29,7 @@ class TestUnifyLocalVariables(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
         func = cfg.functions[0x503FC0]
         assert func is not None
-        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 

@@ -745,11 +745,11 @@ class ConditionProcessor:
             if isinstance(last_stmt.target, ailment.Expr.Const):
                 return claripy.true()
             # indirect jump
-            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.ins_addr)
+            target_ast = self.claripy_ast_from_ail_condition(last_stmt.target, ins_addr=last_stmt.tags["ins_addr"])
             return target_ast == dst_block.addr
         if type(last_stmt) is ailment.Stmt.ConditionalJump:
             bool_var = self.claripy_ast_from_ail_condition(
-                last_stmt.condition, must_bool=True, ins_addr=last_stmt.ins_addr
+                last_stmt.condition, must_bool=True, ins_addr=last_stmt.tags["ins_addr"]
             )
             if isinstance(last_stmt.true_target, ailment.Expr.Const) and last_stmt.true_target.value == dst_block.addr:
                 return bool_var
@@ -786,12 +786,11 @@ class ConditionProcessor:
             return cond
         if memo is None:
             memo = {}
-        if cond._hash in memo:
-            return memo[cond._hash]
+        if cond.hash() in memo:
+            return memo[cond.hash()]
         r = self.convert_claripy_bool_ast_core(cond, memo)
-        optimized_r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
-        r = r if optimized_r is None else optimized_r
-        memo[cond._hash] = r
+        r = peephole_optimize_expr(r, self._peephole_expr_optimizations)
+        memo[cond.hash()] = r
         return r
 
     def convert_claripy_bool_ast_core(self, cond, memo):

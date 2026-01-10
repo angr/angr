@@ -257,14 +257,14 @@ class Store(Statement):
         )
 
     def replace(self, old_expr, new_expr):
-        if self.addr.likes(old_expr):
+        if self.addr == old_expr:
             r_addr = True
             replaced_addr = new_expr
         else:
             r_addr, replaced_addr = self.addr.replace(old_expr, new_expr)
 
         if isinstance(self.data, Expression):
-            if self.data.likes(old_expr):
+            if self.data == old_expr:
                 r_data = True
                 replaced_data = new_expr
             else:
@@ -941,17 +941,11 @@ class Label(Statement):
     A dummy statement that indicates a label with a name.
     """
 
-    __slots__ = (
-        "block_idx",
-        "ins_addr",
-        "name",
-    )
+    __slots__ = ("name",)
 
-    def __init__(self, idx: int | None, name: str, ins_addr: int, block_idx: int | None = None, **kwargs):
+    def __init__(self, idx: int | None, name: str, **kwargs):
         super().__init__(idx, **kwargs)
         self.name = name
-        self.ins_addr = ins_addr
-        self.block_idx = block_idx
 
     def likes(self, other: Label):
         return isinstance(other, Label)
@@ -966,8 +960,6 @@ class Label(Statement):
             (
                 Label,
                 self.name,
-                self.ins_addr,
-                self.block_idx,
             )
         )
 
@@ -978,4 +970,4 @@ class Label(Statement):
         return f"{self.name}:"
 
     def copy(self) -> Label:
-        return Label(self.idx, self.name, self.ins_addr, self.block_idx, **self.tags)
+        return Label(self.idx, self.name, **self.tags)

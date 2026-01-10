@@ -5,7 +5,7 @@ import logging
 
 import networkx
 
-from angr.ailment import Block, AILBlockWalkerBase
+from angr.ailment import Block, AILBlockViewer
 from angr.ailment.statement import ConditionalJump, Label, Assignment, Jump
 from angr.ailment.expression import VirtualVariable, Expression, BinaryOp, Const, Load
 
@@ -97,7 +97,7 @@ class Case:
         )
 
 
-class StableVarExprHasher(AILBlockWalkerBase):
+class StableVarExprHasher(AILBlockViewer):
     """
     Obtain a stable hash of an AIL expression with respect to all variables and all operations applied on variables.
     """
@@ -328,7 +328,10 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
 
                 # create a fake switch-case head node
                 switch_stmt = IncompleteSwitchCaseHeadStatement(
-                    original_head.statements[-1].idx, expr, case_addrs, ins_addr=original_head.statements[-1].ins_addr
+                    original_head.statements[-1].idx,
+                    expr,
+                    case_addrs,
+                    ins_addr=original_head.statements[-1].tags["ins_addr"],
                 )
                 new_head = original_head.copy()
                 # replace the last instruction of the head node with switch_node

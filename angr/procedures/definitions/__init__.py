@@ -1028,6 +1028,8 @@ COMMON_LIBRARIES = {
     "linux_loader",
     # Windows
     "msvcr",
+    # Mach O
+    "macho_libsystem",
 }
 
 

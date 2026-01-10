@@ -25,7 +25,7 @@ class TestCCallRewriting(unittest.TestCase):
         func = cfg.functions[0x401030]
         assert func is not None
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
 
         assert "PEB * sub_401030()" in dec.codegen.text

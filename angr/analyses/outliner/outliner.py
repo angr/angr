@@ -5,14 +5,13 @@ from typing import TypeVar
 
 import networkx
 
-from angr.ailment import Block
+from angr.ailment import Block, Address
 from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ssa import is_phi_assignment
 from angr.analyses import Analysis, AnalysesHub
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
-from angr.code_location import ExternalCodeLocation
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
 
@@ -20,11 +19,6 @@ from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominan
 _l = logging.getLogger(__name__)
 
 T = TypeVar("T")
-
-
-def unwrap(x: T | None) -> T:
-    assert x is not None
-    return x
 
 
 class Outliner(Analysis):
@@ -37,9 +31,9 @@ class Outliner(Analysis):
         self,
         func,
         ail_graph: networkx.DiGraph[Block],
-        src_loc: tuple[int, int | None],
-        func_entry_loc: tuple[int, int | None] | None = None,
-        frontier: set[tuple[int, int | None]] | None = None,
+        src_loc: Address,
+        func_entry_loc: Address | None = None,
+        frontier: set[Address] | None = None,
         vvar_id_start: int = 0xBEEF,
         block_addr_start: int = 0xAABB_0000,
         min_step: int = 1,
@@ -97,7 +91,7 @@ class Outliner(Analysis):
 
         to_kill = defaultdict(set)
         for phi_var_id, src_var_ids in srda.phivarid_to_varids.items():
-            if all(isinstance(srda.all_vvar_definitions[src_varid], ExternalCodeLocation) for src_varid in src_var_ids):
+            if all(srda.all_vvar_definitions[src_varid].is_extern for src_varid in src_var_ids):
                 # remove the phi assignment
                 phi_def_loc = srda.all_vvar_definitions[phi_var_id]
                 assert phi_def_loc.block_addr is not None
@@ -120,13 +114,11 @@ class Outliner(Analysis):
         # find undefined vvars
         undef_vvars = []
         for vvar_id, defloc in srda.all_vvar_definitions.items():
-            if isinstance(defloc, ExternalCodeLocation):
+            if defloc.is_extern:
                 # remove undefined vvars that are only ever used in phi assignments
                 use_locs = srda.all_vvar_uses[vvar_id]
                 use_stmts = [
-                    blocks[unwrap(loc.block_addr), loc.block_idx].statements[unwrap(loc.stmt_idx)]
-                    for _, loc in use_locs
-                    if not isinstance(loc, ExternalCodeLocation)
+                    blocks[loc.addr, loc.block_idx].statements[loc.stmt_idx] for _, loc in use_locs if not loc.is_extern
                 ]
                 if not all(is_phi_assignment(stmt) for stmt in use_stmts):
                     undef_vvars.append(vvar_id)
@@ -216,7 +208,7 @@ class Outliner(Analysis):
                 new_ret_exprs = [*ret_exprs[:-1], Const(None, None, frontier_node.addr, self.project.arch.bits)]
             else:
                 new_ret_exprs = ret_exprs
-            ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.ins_addr for stmt in ret_node.statements))
+            ret_stmt = Return(None, new_ret_exprs, ins_addr=max(stmt.tags["ins_addr"] for stmt in ret_node.statements))
 
             ret_node_succs = list(subgraph.successors(ret_node))
             if len(ret_node_succs) == 0:

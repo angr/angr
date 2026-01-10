@@ -54,9 +54,17 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if self.frame.passed_args is not None:
             clinic = self.lift_addr(state.addr)
             assert clinic.arg_vvars is not None
-            if len(clinic.arg_vvars) != len(self.frame.passed_args):
-                raise errors.AngrRuntimeError("Call statement and lifted function disagree on number of arguments")
+            expected = len(clinic.arg_vvars)
+            got = len(self.frame.passed_args)
+            if got < expected:
+                raise errors.AngrRuntimeError(
+                    f"Function entry missing args: expected={expected} got={got} at {state.addr}"
+                )
+            if got > expected:
+                log.debug("Function entry extra args: expected=%d got=%d at %s", expected, got, state.addr)
             for idx, value in enumerate(self.frame.passed_args):
+                if idx >= len(clinic.arg_vvars):
+                    break
                 vvar, _ = clinic.arg_vvars[idx]
                 self._do_assign(vvar, value, auto_narrow=True)
             self.frame.passed_args = None
@@ -194,6 +202,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     def _expr_bool(self, expr) -> claripy.ast.Bool:
         result = self._expr(expr)
+        if isinstance(result, claripy.ast.BV) and len(result) == 1:
+            result = result != 0
         assert isinstance(result, claripy.ast.Bool)
         return result
 
@@ -213,6 +223,8 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return result
 
     def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
+        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
+
         if angr.options.CALLLESS in self.state.options:
             if is_expr:
                 # ????? if doing ret emulation and this is an expr (no lvalue expression)
@@ -228,7 +240,6 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                     ),
                 )
             return ()
-        arguments = tuple(self._expr_bits(e) for e in (call.args or []))
         target_addr = self._expr_bv(call.target)
         assert target_addr.concrete
         if self.ret_idx < len(self.frame.passed_rets):
@@ -371,7 +382,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         results = self._do_call(stmt)
         ret_expr = stmt.ret_expr or stmt.fp_ret_expr
         ret_exprs = [] if ret_expr is None else [ret_expr]
-        if len(ret_exprs) != len(results):
+        if len(results) < len(ret_exprs):
             raise errors.AngrRuntimeError(
                 f"Call statement expects {len(ret_exprs)} return value(s) but called function provided {len(results)}"
             )
@@ -433,13 +444,35 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         return self.tmps[expr.tmp_idx]
 
     def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType:
-        assert self.state.history.parent is not None
-        last_addr = self.state.history.parent.recent_bbl_addrs[-1]
+        parent = self.state.history.parent
+        if parent is None or not parent.recent_bbl_addrs:
+            return self._top(expr.bits)
+
+        last_addr = parent.recent_bbl_addrs[-1]
+
+        # If we're resuming execution inside the same block (e.g., after a call/return),
+        # the immediate "previous block" in history may be the current block itself.
+        # Phi semantics are based on the *CFG predecessor at block entry*.
+        # Walk backwards until we find a different block address.
+        if last_addr == self.state.addr:
+            cur_hist = parent.parent
+            while cur_hist is not None:
+                if cur_hist.recent_bbl_addrs:
+                    cand = cur_hist.recent_bbl_addrs[-1]
+                    if cand != self.state.addr:
+                        last_addr = cand
+                        break
+                cur_hist = cur_hist.parent
+
         for src, vvar in expr.src_and_vvars:
-            if src == last_addr:
-                assert vvar is not None
-                return self._handle_expr_VirtualVariable(vvar)
-        raise errors.AngrRuntimeError("None of the predecessors in a phi node are my predecessor!")
+            if src != last_addr:
+                continue
+            if vvar is None:
+                break
+            return self._handle_expr_VirtualVariable(vvar)
+
+        log.info("Cannot resolve Phi predecessor %s in %s at %s. Returning top.", last_addr, expr, self.state.addr)
+        return self._top(expr.bits)
 
     def _handle_expr_Convert(self, expr: ailment.expression.Convert) -> DataType:
         child = self._expr(expr.operand)
@@ -511,7 +544,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         if handler is None:
             return self._top(expr.bits)
         args = tuple(self._expr_bits(arg) for arg in expr.operands)
-        return handler(*args)
+        return handler(self.state, *args)
 
     def _handle_expr_MultiStatementExpression(self, expr: ailment.expression.MultiStatementExpression) -> DataType:
         for stmt in expr.stmts:
@@ -551,6 +584,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 memory_cls = self.state.globals["ail_var_memory_cls"]  # type: ignore
                 newval = memory_cls(memory_id=region_name)
                 assert isinstance(newval, MemoryMixin)
+                newval.set_state(self.state)
                 if curval is not None:
                     newval.store(0, curval, endness=self.state.arch.memory_endness)
                 newptr = claripy.BVS(region_name, expr.bits)

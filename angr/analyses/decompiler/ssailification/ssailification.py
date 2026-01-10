@@ -1,10 +1,11 @@
 from __future__ import annotations
 import logging
-from typing import Any
+from typing import Any, Literal
 from collections import defaultdict
 from itertools import count
 from bisect import bisect_left
 
+from angr.ailment import Address
 from angr.ailment.expression import (
     Expression,
     Register,
@@ -17,7 +18,7 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Statement, Store
 
 from angr.knowledge_plugins.functions import Function
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 from angr.analyses import Analysis, register_analysis
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal import TraversalAnalysis
@@ -112,8 +113,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
     def _calculate_virtual_variables(
         self,
         ail_graph,
-        def_to_loc: list[tuple[Expression | Statement, CodeLocation]],
-        loc_to_defs: dict[CodeLocation, Any],
+        def_to_loc: list[tuple[Expression | Statement, AILCodeLocation]],
+        loc_to_defs: dict[AILCodeLocation, Any],
     ):
         """
         Calculate the mapping from defs to virtual variables as well as where to insert phi nodes.
@@ -150,8 +151,12 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         # compute phi node locations for each unified definition
         # compute udef_to_blockkeys
-        udef_to_defs = defaultdict(set)
-        udef_to_blockkeys = defaultdict(set)
+        udef_to_defs: defaultdict[
+            tuple[Literal["stack"] | Literal["reg"], int, int | None], set[Expression | Statement]
+        ] = defaultdict(set)
+        udef_to_blockkeys: defaultdict[tuple[Literal["stack"] | Literal["reg"], int, int | None], set[Address]] = (
+            defaultdict(set)
+        )
         for def_, loc in def_to_loc:
             if isinstance(def_, Register):
                 base_off, base_size = get_reg_offset_base_and_size(def_.reg_offset, self.project.arch, size=def_.size)

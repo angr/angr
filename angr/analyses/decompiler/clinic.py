@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import VirtualVariable
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -47,6 +47,7 @@ from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.typehoon import Typehoon
+from .ail_simplifier import AILSimplifier
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
 from .return_maker import ReturnMaker
@@ -58,6 +59,7 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
+from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
@@ -113,7 +115,8 @@ class ClinicStage(enum.IntEnum):
     MAKE_CALLSITES = 11
     POST_CALLSITES = 12
     RECOVER_VARIABLES = 13
-    COLLECT_EXTERNS = 14
+    SEMANTIC_VARIABLE_NAMING = 14
+    COLLECT_EXTERNS = 15
 
 
 class Clinic(Analysis):
@@ -162,6 +165,7 @@ class Clinic(Analysis):
         notes: dict[str, DecompilationNote] | None = None,
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        semvar_naming: bool = True,
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -214,6 +218,10 @@ class Clinic(Analysis):
         self.notes = notes if notes is not None else {}
         self.static_vvars = static_vvars if static_vvars is not None else {}
         self.static_buffers = static_buffers if static_buffers is not None else {}
+        self._semvar_naming = semvar_naming
+
+        if not semvar_naming and ClinicStage.SEMANTIC_VARIABLE_NAMING not in self._skip_stages:
+            self._skip_stages += (ClinicStage.SEMANTIC_VARIABLE_NAMING,)
 
         #
         # intermediate variables used during decompilation
@@ -580,6 +588,7 @@ class Clinic(Analysis):
             ClinicStage.MAKE_CALLSITES: self._stage_make_function_callsites,
             ClinicStage.POST_CALLSITES: self._stage_post_callsite_simplifications,
             ClinicStage.RECOVER_VARIABLES: self._stage_recover_variables,
+            ClinicStage.SEMANTIC_VARIABLE_NAMING: self._stage_semantic_variable_naming,
             ClinicStage.COLLECT_EXTERNS: self._stage_collect_externs,
         }
 
@@ -838,6 +847,36 @@ class Clinic(Analysis):
 
         self.variable_kb = variable_kb
 
+    def _stage_semantic_variable_naming(self) -> None:
+        """
+        Apply semantic-based variable naming.
+
+        This stage analyzes the AIL graph for semantic patterns and renames variables accordingly.
+        """
+
+        if self.variable_kb is None:
+            l.debug("variable_kb is None, skipping semantic variable naming")
+            return
+
+        self._update_progress(91.0, text="Applying semantic variable naming")
+
+        # Get the variable manager for this function
+        var_manager = self.variable_kb.variables[self.function.addr]
+
+        # Find the entry node
+        entry_node: ailment.Block | None = None
+        for node in self._ail_graph:
+            if (node.addr, node.idx) == self.entry_node_addr:
+                entry_node = node
+                break
+
+        assert entry_node is not None
+
+        # Run all semantic naming patterns via the orchestrator
+        orchestrator = SemanticNamingOrchestrator(self._ail_graph, var_manager, self.kb.functions, entry_node)
+        var_name_mapping = orchestrator.analyze()
+        l.debug("Semantic naming renamed %d variables", len(var_name_mapping))
+
     def _stage_collect_externs(self) -> None:
         self.externs = self._collect_externs(self._ail_graph, self.variable_kb)
 
@@ -1022,8 +1061,10 @@ class Clinic(Analysis):
                 cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
-                    target_func.prototype = cc.prototype
-                    target_func.prototype_libname = cc.prototype_libname
+                    # Only set prototype if not already defined (preserve user-defined prototypes)
+                    if target_func.prototype is None:
+                        target_func.prototype = cc.prototype
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 3: the callee is a PLT function
@@ -1031,8 +1072,10 @@ class Clinic(Analysis):
                 cc = self.project.analyses.CallingConvention(target_func, fail_fast=self._fail_fast)  # type: ignore
                 if cc.cc is not None and cc.prototype is not None:
                     target_func.calling_convention = cc.cc
-                    target_func.prototype = cc.prototype
-                    target_func.prototype_libname = cc.prototype_libname
+                    # Only set prototype if not already defined (preserve user-defined prototypes)
+                    if target_func.prototype is None:
+                        target_func.prototype = cc.prototype
+                        target_func.prototype_libname = cc.prototype_libname
                     continue
 
             # case 4: fall back to call site analysis
@@ -1605,9 +1648,10 @@ class Clinic(Analysis):
         :return:    None
         """
 
-        simp = self.project.analyses.AILSimplifier(
-            self.function,
+        simp = self.project.analyses[AILSimplifier].prep(
             fail_fast=self._fail_fast,
+        )(
+            self.function,
             func_graph=ail_graph,
             remove_dead_memdefs=remove_dead_memdefs,
             unify_variables=unify_variables,
@@ -2213,17 +2257,17 @@ class Clinic(Analysis):
                 if (
                     offset == 0 or (isinstance(offset, ailment.Expr.Const) and offset.value == 0)
                 ) and "reference_variable" in base_addr.tags:
-                    expr.variable = base_addr.reference_variable
-                    expr.variable_offset = base_addr.reference_variable_offset
+                    expr.variable = base_addr.tags["reference_variable"]
+                    expr.variable_offset = base_addr.tags["reference_variable_offset"]
 
                 if base_addr is None and offset is None:
                     # this is a local variable
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.addr)
-                    if "reference_variable" in expr.addr.tags and expr.addr.reference_variable is not None:
+                    if "reference_variable" in expr.addr.tags and expr.addr.tags["reference_variable"] is not None:
                         # copy over the variable to this expr since the variable on a constant is supposed to be a
                         # reference variable.
-                        expr.variable = expr.addr.reference_variable
-                        expr.variable_offset = expr.addr.reference_variable_offset
+                        expr.variable = expr.addr.tags["reference_variable"]
+                        expr.variable_offset = expr.addr.tags["reference_variable_offset"]
             else:
                 if len(variables) > 1:
                     l.error(
@@ -2282,9 +2326,13 @@ class Clinic(Analysis):
 
         elif isinstance(expr, ailment.Expr.Const) and expr.is_int:
             # custom string?
-            if hasattr(expr, "custom_string") and expr.custom_string is True:
+            if expr.tags.get("custom_string", False):
                 s = self.kb.custom_strings[expr.value]
-                ty = expr.type if hasattr(expr, "type") else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                ty = (
+                    expr.tags["type"]
+                    if "type" in expr.tags
+                    else SimTypePointer(SimTypeChar()).with_arch(self.project.arch)
+                )
                 expr.tags["reference_values"] = {
                     ty: s,
                 }
@@ -2391,7 +2439,10 @@ class Clinic(Analysis):
         """
 
         for block in list(ail_graph):
-            if len(block.statements) > 1 and block.statements[0].ins_addr == block.statements[-1].ins_addr:
+            if (
+                len(block.statements) > 1
+                and block.statements[0].tags["ins_addr"] == block.statements[-1].tags["ins_addr"]
+            ):
                 preds = list(ail_graph.predecessors(block))
                 if len(preds) > 1 and block not in preds:
                     has_ccall = any(
@@ -2451,7 +2502,7 @@ class Clinic(Analysis):
                             None,
                             self.project.arch.registers["rax"][0],
                             64,
-                            ins_addr=call_stmt.ins_addr,
+                            ins_addr=call_stmt.tags["ins_addr"],
                         )
                         block.statements[-1] = call_stmt
 
@@ -2468,14 +2519,14 @@ class Clinic(Analysis):
             for stmt in block.statements:
                 if isinstance(stmt, ailment.Stmt.CAS):
                     # we do not rewrite ITE statements that are caused by CAS statements
-                    cas_ins_addrs.add(stmt.ins_addr)
+                    cas_ins_addrs.add(stmt.tags["ins_addr"])
                 elif (
                     isinstance(stmt, ailment.Stmt.Assignment)
                     and isinstance(stmt.src, ailment.Expr.ITE)
-                    and stmt.ins_addr not in ite_ins_addrs
-                    and stmt.ins_addr not in cas_ins_addrs
+                    and stmt.tags["ins_addr"] not in ite_ins_addrs
+                    and stmt.tags["ins_addr"] not in cas_ins_addrs
                 ):
-                    ite_ins_addrs.append(stmt.ins_addr)
+                    ite_ins_addrs.append(stmt.tags["ins_addr"])
 
             if ite_ins_addrs:
                 block_addr = block.addr
@@ -2587,9 +2638,9 @@ class Clinic(Analysis):
         # last check: if the first instruction of the end block has Sar, then we bail (due to the peephole optimization
         # SarToSignedDiv)
         for stmt in end_block_ail.statements:
-            if stmt.ins_addr > end_block_ail.addr:
+            if stmt.tags["ins_addr"] > end_block_ail.addr:
                 break
-            if (
+            if (  # pylint:disable=no-member
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op == "Sar"
@@ -2720,7 +2771,7 @@ class Clinic(Analysis):
                 intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
                 if comparison_stmt is not None:
                     cmp_rpos = len(intended_head_block.instruction_addrs) - intended_head_block.instruction_addrs.index(
-                        comparison_stmt.ins_addr
+                        comparison_stmt.tags["ins_addr"]
                     )
                 else:
                     cmp_rpos = min(len(intended_head_block.instruction_addrs), 2)
@@ -2796,7 +2847,7 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and stmt.ins_addr == last_stmt_0.ins_addr
+                and stmt.tags["ins_addr"] == last_stmt_0.tags["ins_addr"]
             ),
             None,
         )
@@ -2807,7 +2858,7 @@ class Clinic(Analysis):
                 if isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.src, ailment.Expr.BinaryOp)
                 and stmt.src.op in ailment.Expr.BinaryOp.COMPARISON_NEGATION
-                and stmt.ins_addr == last_stmt_1.ins_addr
+                and stmt.tags["ins_addr"] == last_stmt_1.tags["ins_addr"]
             ),
             None,
         )
@@ -3011,7 +3062,7 @@ class Clinic(Analysis):
                                             last_stmt.idx,
                                             last_stmt.true_target,
                                             target_idx=last_stmt.true_target.idx,
-                                            ins_addr=last_stmt.ins_addr,
+                                            ins_addr=last_stmt.tags["ins_addr"],
                                         )
                                         pred.statements[-1] = last_stmt
                                 first_cond_jump = first_conditional_jump(pred)
@@ -3057,13 +3108,13 @@ class Clinic(Analysis):
     def _insert_block_labels(ail_graph):
         for node in ail_graph.nodes:
             node: ailment.Block
-            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+            lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
             node.statements.insert(0, lbl)
 
     @staticmethod
     def _collect_externs(ail_graph, variable_kb):
         global_vars = variable_kb.variables.global_manager.get_variables()
-        walker = ailment.AILBlockWalker()
+        walker = ailment.AILBlockRewriter()
         variables = set()
 
         def handle_expr(
@@ -3073,20 +3124,18 @@ class Clinic(Analysis):
             stmt: ailment.statement.Statement | None,
             block: ailment.Block | None,
         ):
-            if expr is None:
-                return None
             for v in [
                 getattr(expr, "variable", None),
                 expr.tags.get("reference_variable", None) if hasattr(expr, "tags") else None,
             ]:
                 if v and v in global_vars:
                     variables.add(v)
-            return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
         def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
             if stmt.variable and stmt.variable in global_vars:
                 variables.add(stmt.variable)
-            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
         walker._handle_expr = handle_expr
@@ -3096,90 +3145,99 @@ class Clinic(Analysis):
     @staticmethod
     def _collect_data_refs(ail_graph) -> dict[int, list[DataRefDesc]]:
         # pylint:disable=unused-argument
-        walker = ailment.AILBlockWalker()
+        walker = ailment.AILBlockRewriter()
         data_refs: dict[int, list[DataRefDesc]] = defaultdict(list)
 
         def handle_Const(
             expr_idx: int,
             expr: ailment.expression.Const,
             stmt_idx: int,
-            stmt: ailment.statement.Statement,
-            block: ailment.Block,
+            stmt: ailment.statement.Statement | None,
+            block: ailment.Block | None,
         ):
-            if isinstance(expr.value, int) and hasattr(expr, "ins_addr"):
+            assert block is not None
+            if isinstance(expr.value, int) and "ins_addr" in expr.tags:
                 data_refs[block.addr].append(
-                    DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown)
+                    DataRefDesc(expr.value, 1, block.addr, stmt_idx, expr.tags["ins_addr"], MemoryDataSort.Unknown)
                 )
-            if hasattr(expr, "deref_src_addr"):
+            if "deref_src_addr" in expr.tags:
                 data_refs[block.addr].append(
                     DataRefDesc(
-                        expr.deref_src_addr, expr.size, block.addr, stmt_idx, expr.ins_addr, MemoryDataSort.Unknown
+                        expr.tags["deref_src_addr"],
+                        expr.size,
+                        block.addr,
+                        stmt_idx,
+                        expr.tags["ins_addr"],
+                        MemoryDataSort.Unknown,
                     )
                 )
+            return expr
 
         def handle_Load(
             expr_idx: int,
             expr: ailment.expression.Load,
             stmt_idx: int,
-            stmt: ailment.statement.Statement,
-            block: ailment.Block,
+            stmt: ailment.statement.Statement | None,
+            block: ailment.Block | None,
         ):
+            assert block is not None
             if isinstance(expr.addr, ailment.expression.Const):
                 addr = expr.addr
-                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                if isinstance(addr.value, int) and "ins_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
                             addr.value,
                             expr.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                if hasattr(addr, "deref_src_addr"):
+                if "deref_src_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
-                            addr.deref_src_addr,
+                            addr.tags["deref_src_addr"],
                             expr.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if expr.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return None
+                return expr
 
-            return ailment.AILBlockWalker._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Load(walker, expr_idx, expr, stmt_idx, stmt, block)
 
-        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block):
+        def handle_Store(stmt_idx: int, stmt: ailment.statement.Store, block: ailment.Block | None):
+            assert block is not None
             if isinstance(stmt.addr, ailment.expression.Const):
                 addr = stmt.addr
-                if isinstance(addr.value, int) and hasattr(addr, "ins_addr"):
+                if isinstance(addr.value, int) and "ins_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
                             addr.value,
                             stmt.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                if hasattr(addr, "deref_src_addr"):
+                if "deref_src_addr" in addr.tags:
                     data_refs[block.addr].append(
                         DataRefDesc(
-                            addr.deref_src_addr,
+                            addr.tags["deref_src_addr"],
                             stmt.size,
                             block.addr,
                             stmt_idx,
-                            addr.ins_addr,
+                            addr.tags["ins_addr"],
                             MemoryDataSort.Integer if stmt.size == 4 else MemoryDataSort.Unknown,
                         )
                     )
-                return None
+                return stmt
 
-            return ailment.AILBlockWalker._handle_Store(walker, stmt_idx, stmt, block)
+            return ailment.AILBlockRewriter._handle_Store(walker, stmt_idx, stmt, block)
 
         walker.stmt_handlers[ailment.statement.Store] = handle_Store
         walker.expr_handlers[ailment.expression.Load] = handle_Load
@@ -3473,7 +3531,11 @@ class Clinic(Analysis):
         def _handle_Call_stmt_or_expr(call_: ailment.Stmt.Call):
             assert self.arg_vvars is not None
 
-            if isinstance(call_.target, ailment.Expr.Const) and call_.is_prototype_guessed and call_.args is not None:
+            if (
+                isinstance(call_.target, ailment.Expr.Const)
+                and call_.tags.get("is_prototype_guessed", True)
+                and call_.args is not None
+            ):
                 # derive the actual prototype
                 arg_types = []
                 for arg_expr in call_.args:
@@ -3526,13 +3588,13 @@ class Clinic(Analysis):
             expr_idx: int,
             expr: ailment.Stmt.Call,
             stmt_idx: int,
-            stmt: ailment.Stmt.Statement,
+            stmt: ailment.Stmt.Statement | None,
             block: ailment.Block | None,
         ):
             _handle_Call_stmt_or_expr(expr)
 
         def _visit_ail_node(node: ailment.Block):
-            w = AILBlockWalkerBase()
+            w = AILBlockViewer()
             w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
             w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
             w.walk(node)

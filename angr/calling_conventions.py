@@ -16,6 +16,7 @@ import angr
 from .errors import AngrTypeError
 from .sim_type import (
     NamedTypeMixin,
+    SimCppClass,
     SimType,
     SimTypeChar,
     SimTypePointer,
@@ -36,6 +37,8 @@ from .sim_type import (
     SimTypeReference,
     SimTypeRef,
     SimTypeBool,
+    SimTypeEnum,
+    SimTypeBitfield,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -714,7 +717,7 @@ class SimCC:
 
     ArgSession = ArgSession  # import this from global scope so SimCC subclasses can subclass it if they like
 
-    def arg_session(self, ret_ty: SimType | None):
+    def arg_session(self, ret_ty: SimType | None) -> ArgSession:
         """
         Return an arg session.
 
@@ -786,7 +789,7 @@ class SimCC:
         """
         return self.RETURN_ADDR
 
-    def next_arg(self, session: ArgSession, arg_type: SimType):
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
@@ -1677,17 +1680,19 @@ class SimCCSystemVAMD64(SimCC):
         # :P
         return isinstance(self.return_val(ty), SimReferenceArgument)
 
-    def _classify(self, ty, chunksize=None):
+    def _classify(self, ty: SimType, chunksize=None) -> list[str]:
         if chunksize is None:
             chunksize = self.arch.bytes
         # treat BOT as INTEGER
-        nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
+        nchunks = 1 if ty.size is None else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeFloat,)):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
-        if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom)):
+        if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
+            raise TypeError("Cannot lay out an opaque class")
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
-            # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
+            # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
             if ty.size > 512:
                 return ["MEMORY"] * nchunks
@@ -1697,6 +1702,7 @@ class SimCCSystemVAMD64(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
@@ -1866,6 +1872,7 @@ class SimCCARM(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size is not None
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
@@ -2040,10 +2047,19 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
         return state.regs.x8
 
 
-class SimCCRISCV64LinuxSyscall(SimCCSyscall):
-    # TODO: Make sure all the information is correct
+class SimCCRISCV64(SimCC):
     ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
-    FP_ARG_REGS = []  # TODO: ???
+    FP_ARG_REGS = ["fa0", "fa1", "fa2", "fa3", "fa4", "fa5", "fa6", "fa7"]
+    STACKARG_SP_BUFF = 0xA0
+    RETURN_VAL = SimRegArg("a0", 8)
+    RETURN_ADDR = SimRegArg("x1", 8)
+    ARCH = archinfo.ArchRISCV64
+
+
+class SimCCRISCV64LinuxSyscall(SimCCSyscall):
+    # reference: https://elixir.bootlin.com/linux/v6.13/source/arch/riscv/kernel/traps.c#L318
+    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5"]
+    FP_ARG_REGS = []
     RETURN_VAL = SimRegArg("a0", 8)
     RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
     ARCH = archinfo.ArchRISCV64
@@ -2055,7 +2071,7 @@ class SimCCRISCV64LinuxSyscall(SimCCSyscall):
 
     @staticmethod
     def syscall_num(state):
-        return state.regs.a0
+        return state.regs.a7
 
 
 class SimCCO32(SimCC):
@@ -2136,6 +2152,7 @@ class SimCCO32(SimCC):
             result = ["NO_CLASS"] * nchunks
             for offset, subty_list in flattened.items():
                 for subty in subty_list:
+                    assert subty.size is not None
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize
@@ -2426,6 +2443,7 @@ DEFAULT_CC: dict[str, dict[str, type[SimCC]]] = {
     "AVR8": {"Linux": SimCCUnknown},
     "MSP": {"Linux": SimCCUnknown},
     "S390X": {"Linux": SimCCS390X},
+    "RISCV64": {"Linux": SimCCRISCV64},
 }
 
 

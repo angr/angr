@@ -3,7 +3,7 @@ import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
 from angr.ailment.expression import Const, VirtualVariable, Load
-from angr.ailment.block_walker import AILBlockWalkerBase, AILBlockWalker
+from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
 from angr.ailment.statement import Call
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
@@ -51,7 +51,7 @@ class Offset:
 #
 
 
-class VVarRewritingVisitor(AILBlockWalker):
+class VVarRewritingVisitor(AILBlockRewriter):
     """
     The visitor that rewrites vvars and their reads.
     """
@@ -195,7 +195,7 @@ class VVarRewritingVisitor(AILBlockWalker):
         return None
 
 
-class VVarAliasVisitor(AILBlockWalkerBase):
+class VVarAliasVisitor(AILBlockViewer):
     """
     The visitor that discovers const assignments and aliases of existing static vvars.
     """
@@ -235,8 +235,8 @@ class VVarAliasVisitor(AILBlockWalkerBase):
             # got a new memcpy call that we can handle
             dst, src, size = stmt.args
             if dst.varid not in self._static_vvars:
-                if getattr(src, "custom_string", False) is True:
-                    ident = f"static_buf_{stmt.ins_addr}"
+                if src.tags.get("custom_string", False):
+                    ident = f"static_buf_{stmt.tags['ins_addr']}"
                     buf = self.kb.custom_strings[src.value_int]
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
                 else:

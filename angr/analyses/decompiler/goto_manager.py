@@ -59,7 +59,7 @@ class GotoManager:
             if goto.src_addr == block.addr:
                 gotos_found.add(goto)
             else:
-                block_addrs = {stmt.ins_addr for stmt in block.statements if "ins_addr" in stmt.tags}
+                block_addrs = {stmt.tags["ins_addr"] for stmt in block.statements if "ins_addr" in stmt.tags}
                 if goto.src_ins_addr in block_addrs:
                     gotos_found.add(goto)
 
@@ -70,7 +70,7 @@ class GotoManager:
         for goto in src_gotos:
             if goto.dst_addr == dst.addr:
                 return True
-            block_addrs = {stmt.ins_addr for stmt in dst.statements if "ins_addr" in stmt.tags}
+            block_addrs = {stmt.tags["ins_addr"] for stmt in dst.statements if "ins_addr" in stmt.tags}
             if goto.dst_addr in block_addrs:
                 return True
 

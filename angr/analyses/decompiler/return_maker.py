@@ -1,8 +1,7 @@
 from __future__ import annotations
 import logging
 
-import angr.ailment as ailment
-
+from angr import ailment
 from angr.utils.types import dereference_simtype_by_lib
 from angr.sim_type import SimTypeBottom
 from angr.calling_conventions import SimRegArg
@@ -21,7 +20,6 @@ class ReturnMaker(AILGraphWalker):
         self.ail_manager = ail_manager
         self.arch = arch
         self.function = function
-        self._new_block = None
 
         self.walk()
 
@@ -54,25 +52,21 @@ class ReturnMaker(AILGraphWalker):
                         reg[0],
                         ret_val.size * self.arch.byte_width,
                         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
-                        ins_addr=stmt.ins_addr,
+                        ins_addr=stmt.tags["ins_addr"],
                     )
                 )
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
-            new_statements = block.statements[::]
-            new_statements[stmt_idx] = new_stmt
-            self._new_block = block.copy(statements=new_statements)
+            return new_stmt
+        return stmt
 
     def _handler(self, block):
-        walker = ailment.AILBlockWalker()
         # we don't need to handle any statement besides Returns
-        walker.stmt_handlers.clear()
-        walker.expr_handlers.clear()
-        walker.stmt_handlers[ailment.Stmt.Return] = self._handle_Return
+        walker = ailment.AILBlockRewriter(
+            update_block=False, expr_handlers={}, stmt_handlers={ailment.statement.Return: self._handle_Return}
+        )
 
-        self._new_block = None
-        walker.walk(block)
-
-        if self._new_block is not None:
-            return self._new_block
-        return None
+        result = walker.walk(block)
+        if result is block:
+            return None
+        return result

@@ -196,6 +196,15 @@ c  lw      $t9, -0x7ee0($gp)
         assert isinstance(ins0op0.values[2], str)
         assert ins0.render()[0] == "tbh     [pc,r3,lsl#1]"
 
+    def test_pcode(self):
+        proj = angr.load_shellcode(b"\xaa\x6c\x2d\x61\x82\x80\xef\xd0\x5f\xae", "RISCV", load_address=0x373E)
+        block = proj.factory.block(0x373E)
+        pcode = block.pcode
+        assert pcode.addr == 0x373E
+        assert len(pcode.insns) == 3
+        assert len(pcode.insns) == 3
+        assert pcode.insns[-1].mnemonic == "ret"
+
 
 if __name__ == "__main__":
     main()

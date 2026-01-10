@@ -269,7 +269,13 @@ class AddressConcretizationMixin(MemoryMixin):
                 self.state.solver.eval(addr), True, addr, condition, size, read_value=None, **kwargs
             )
 
-        if self.state.solver.symbolic(addr) and options.AVOID_MULTIVALUED_READS in self.state.options:
+        if options.AVOID_MULTIVALUED_READS in self.state.options:
+            return self._default_value(addr, size, name="symbolic_read_unconstrained", **kwargs)
+
+        if (
+            not addr.variables.intersection(self.state.solver._solver.variables)
+            and options.CONSERVATIVE_READ_STRATEGY in self.state.options
+        ):
             return self._default_value(addr, size, name="symbolic_read_unconstrained", **kwargs)
 
         try:

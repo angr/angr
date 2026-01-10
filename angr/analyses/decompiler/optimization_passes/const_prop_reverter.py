@@ -6,7 +6,7 @@ import itertools
 import networkx
 import claripy
 from angr.ailment import Const
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
 from angr.ailment.expression import Convert, Register, Expression, Load
 
@@ -19,9 +19,9 @@ from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 _l = logging.getLogger(__name__)
 
 
-class PairAILBlockWalker:
+class PairAILBlockRewriter:
     """
-    This AILBlockWalker will walk two blocks at a time and call a handler for each pair of statements that are
+    This AILBlockRewriter will walk two blocks at a time and call a handler for each pair of statements that are
     instances of the same type. This is useful for comparing two statements for similarity across blocks.
     """
 
@@ -49,7 +49,7 @@ class PairAILBlockWalker:
         # 2. record the stmt parts in the walked_objs dict with the overwritten handler
         #
         # CallExpressions are a special case that require a handler in expressions, since they are statements.
-        walker = AILBlockWalkerBase()
+        walker = AILBlockViewer()
         _default_stmt_handlers = {
             Assignment: walker._handle_Assignment,
             Call: walker._handle_Call,
@@ -172,7 +172,7 @@ class ConstPropOptReverter(OptimizationPass):
         if self.out_graph is None:
             return
 
-        walker = PairAILBlockWalker(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
+        walker = PairAILBlockRewriter(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
         walker.walk()
         if self._call_pair_targets:
             self._analyze_call_pair_targets()

@@ -68,7 +68,7 @@ class WinStackCanarySimplifier(OptimizationPass):
         # where is the stack canary stored?
         if not isinstance(canary_init_stmt, ailment.Stmt.Store):
             return
-        store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.ins_addr)
+        store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.tags["ins_addr"])
         if store_offset is None:
             _l.debug(
                 "Unsupported canary storing location %s. Expects a StackBaseOffset or (bp - Const).",
@@ -336,7 +336,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     op0, op1 = stmt.src.operands
                     if (
                         isinstance(op0, ailment.Expr.Load)
-                        and self._get_bp_offset(op0.addr, stmt.ins_addr) == canary_value_stack_offset
+                        and self._get_bp_offset(op0.addr, stmt.tags["ins_addr"]) == canary_value_stack_offset
                     ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                         # found it
                         return idx
@@ -353,7 +353,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                 and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                 and isinstance(stmt.src, ailment.Expr.Load)
-                and self._get_bp_offset(stmt.src.addr, stmt.ins_addr) == canary_value_stack_offset
+                and self._get_bp_offset(stmt.src.addr, stmt.tags["ins_addr"]) == canary_value_stack_offset
             ):
                 load_stmt_idx = idx
                 canary_reg_dst_offset = stmt.dst.reg_offset
@@ -372,7 +372,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
                     and stmt.src.operands[0].was_reg
                     and stmt.src.operands[0].reg_offset == canary_reg_dst_offset
-                    and self._get_bp_offset(stmt.src.operands[1], stmt.ins_addr) is not None
+                    and self._get_bp_offset(stmt.src.operands[1], stmt.tags["ins_addr"]) is not None
                 )
             ):
                 return idx

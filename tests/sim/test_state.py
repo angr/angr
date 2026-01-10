@@ -123,7 +123,7 @@ class TestState(unittest.TestCase):
         # Aligned memory merging
         a = SimState(arch="AMD64", mode="static")
 
-        addr = claripy.ValueSet(32, "global", 0, 8)
+        addr = claripy.VS(32, "global", 0, 8)
         a.memory.store(addr, claripy.BVV(42, 32))
         # Clear a_locs, so further writes will not try to merge with value 42
         a.memory._regions["global"]._alocs = {}

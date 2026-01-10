@@ -8,7 +8,7 @@ from angr.ailment.statement import Statement
 from angr.ailment.expression import Expression, BinaryOp
 
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 if TYPE_CHECKING:
@@ -30,8 +30,9 @@ class OuterWalker(SequenceWalker):
     def _handle_Condition(self, node: ConditionNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
-                hasattr(node.condition, "ins_addr")
-                and node.condition.ins_addr == desc.ins_addr
+                node.condition is not None
+                and "ins_addr" in node.condition.tags
+                and node.condition.tags["ins_addr"] == desc.ins_addr
                 and node.condition.op == desc.op
             ):
                 node.condition = self._swap_expr_op(new_op, node.condition)
@@ -40,8 +41,9 @@ class OuterWalker(SequenceWalker):
     def _handle_Loop(self, node: LoopNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
-                hasattr(node.condition, "ins_addr")
-                and node.condition.ins_addr == desc.ins_addr
+                node.condition is not None
+                and "ins_addr" in node.condition.tags
+                and node.condition.tags["ins_addr"] == desc.ins_addr
                 and node.condition.op == desc.op
             ):
                 node.condition = self._swap_expr_op(new_op, node.condition)
@@ -50,8 +52,9 @@ class OuterWalker(SequenceWalker):
     def _handle_ConditionalBreak(self, node: ConditionalBreakNode, **kwargs):
         for desc, new_op in self.desc.items():
             if (
-                hasattr(node.condition, "ins_addr")
-                and node.condition.ins_addr == desc.ins_addr
+                node.condition is not None
+                and "ins_addr" in node.condition.tags
+                and node.condition.tags["ins_addr"] == desc.ins_addr
                 and node.condition.op == desc.op
             ):
                 node.condition = self._swap_expr_op(new_op, node.condition)
@@ -65,7 +68,7 @@ class OuterWalker(SequenceWalker):
         )
 
 
-class ExpressionReplacer(AILBlockWalker):
+class ExpressionReplacer(AILBlockRewriter):
     """
     Replace expressions.
     """

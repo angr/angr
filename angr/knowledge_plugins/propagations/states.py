@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from archinfo import Arch
 
 
-class CallExprFinder(ailment.AILBlockWalker):
+class CallExprFinder(ailment.AILBlockRewriter):
     """
     Walks an AIL expression to find if it contains a call expression anywhere.
     """

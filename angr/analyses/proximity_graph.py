@@ -4,9 +4,8 @@ import logging
 
 import networkx
 
-import angr.ailment as ailment
-from angr.ailment import AILBlockWalker
-
+from angr import ailment
+from angr.ailment.block_walker import AILBlockViewer
 from angr.codenode import BlockNode
 from angr.sim_variable import SimMemoryVariable
 from angr.knowledge_plugins.functions import Function
@@ -272,7 +271,7 @@ class ProximityGraphAnalysis(Analysis):
         self, func: Function, graph: networkx.DiGraph, func_proxi_node: FunctionProxiNode | None = None
     ) -> list[FunctionProxiNode]:
         to_expand: list[FunctionProxiNode] = []
-        found_blocks: dict[BlockNode:BaseProxiNode] = {}
+        found_blocks: dict[BlockNode, BaseProxiNode] = {}
 
         # function calls
         for n_ in func.nodes:
@@ -359,7 +358,7 @@ class ProximityGraphAnalysis(Analysis):
         ):  # pylint:disable=unused-argument
             if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
                 func_node = self.kb.functions[stmt.target.value]
-                ref_at = {stmt.ins_addr}
+                ref_at = {stmt.tags["ins_addr"]}
 
                 # extract arguments
                 args = []
@@ -393,7 +392,7 @@ class ProximityGraphAnalysis(Analysis):
         subgraph = self.graph != graph
 
         # Keep all default handlers, but overwrite necessary ones:
-        bw = AILBlockWalker()
+        bw = AILBlockViewer()
         bw.stmt_handlers[ailment.Stmt.Call] = _handle_Call
         bw.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
 

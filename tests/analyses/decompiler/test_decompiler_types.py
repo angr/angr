@@ -8,6 +8,7 @@ import unittest
 import re
 
 import angr
+from angr.sim_type import SimTypeArray, SimTypeChar, SimTypeInt
 
 from tests.common import bin_location, WORKER, print_decompilation_result
 
@@ -66,6 +67,70 @@ class TestDecompilerTypes(unittest.TestCase):
         assert f"{guid_varname}.Data3 = " in dec.codegen.text
         for i in range(8):
             assert f"{guid_varname}.Data4[{i}] = " in dec.codegen.text
+
+    def test_clinic_callee_type_rewrite_should_skip_plt_functions(self):
+        bin_path = os.path.join(test_location, "x86_64", "1after909")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        strcmp_plt = cfg.functions.function(name="strcmp", plt=True)
+        assert strcmp_plt is not None
+        assert strcmp_plt.prototype is not None
+        assert strcmp_plt.is_prototype_guessed is False
+        old_proto = strcmp_plt.prototype.copy()
+
+        func = cfg.functions["verify_password"]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert strcmp_plt.prototype is not None
+        assert strcmp_plt.is_prototype_guessed is False
+        assert old_proto == strcmp_plt.prototype
+
+    def test_variable_type_zero_array_size(self):
+        bin_path = os.path.join(test_location, "x86_64", "1after909")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFGFast(show_progressbar=not WORKER, fail_fast=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        func = cfg.functions["verify_password"]
+        assert func is not None
+        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # take the stack variable v2; it should be a char array of size 64
+        assert dec._variable_kb is not None
+        varman = dec._variable_kb.variables.get_function_manager(func.addr)
+        var2 = next(iter(varman.find_variables_by_stack_offset(-0x58)))
+        assert var2 is not None
+        var2 = varman.unified_variable(var2)
+        assert var2 is not None
+        ty = varman.get_variable_type(var2)
+        assert isinstance(ty, SimTypeArray) and isinstance(ty.elem_type, SimTypeChar) and ty.length == 64
+
+        # set it to an array of size 0
+        varman.set_variable_type(var2, SimTypeArray(SimTypeChar(), 0).with_arch(proj.arch), mark_manual=True)
+
+        # decompile again; should not crash!
+        new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(new_dec)
+        assert f"char {var2.name}[0];" in new_dec.codegen.text
+
+        # set it to an integer
+        varman.set_variable_type(var2, SimTypeInt().with_arch(proj.arch), mark_manual=True)
+
+        # decompile again; should not crash!
+        new_dec = proj.analyses.Decompiler(func, variable_kb=dec._variable_kb, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(new_dec)
+        assert f"int {var2.name};" in new_dec.codegen.text
 
 
 if __name__ == "__main__":
