@@ -739,6 +739,13 @@ class SimpleSolver:
                     constraint.sub_type, PRIMITIVE_TYPES
                 ):
                     continue
+                # Don't unify type variables that have the same base but different indirection levels.
+                if (
+                    isinstance(constraint.sub_type, TypeVariable)
+                    and isinstance(constraint.super_type, TypeVariable)
+                    and self._same_base_different_indirection(constraint.sub_type, constraint.super_type)
+                ):
+                    continue
                 self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
 
         out_graph = networkx.MultiDiGraph()  # there can be multiple edges between two nodes, each edge is associated
@@ -880,6 +887,52 @@ class SimpleSolver:
                 # a cycle exists
                 ref_node = RecursiveRefNode(visited[succ].typevar)
                 sketch.add_edge(curr_node, ref_node, label)
+
+    @staticmethod
+    def _get_base_and_indirection_level(
+        t: TypeVariable | DerivedTypeVariable,
+    ) -> tuple[TypeVariable, int]:
+        """
+        Get the base type variable and indirection level.
+
+        Indirection level is the number of Load/Store operations in the labels.
+        AddN/SubN (pointer arithmetic) does NOT increase indirection level.
+
+        Examples:
+            tv                      -> (tv, 0)
+            tv.+1                   -> (tv, 0)   # pointer arithmetic, same level
+            tv.store                -> (tv, 1)   # through pointer
+            tv.store.<32 bits>@0    -> (tv, 1)   # field access at level 1
+            tv.load.store.field     -> (tv, 2)   # two dereferences
+        """
+        if isinstance(t, DerivedTypeVariable):
+            base = t.type_var
+            level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
+            return base, level
+        else:
+            return t, 0
+
+    @staticmethod
+    def _same_base_different_indirection(
+        t1: TypeVariable | DerivedTypeVariable,
+        t2: TypeVariable | DerivedTypeVariable,
+    ) -> bool:
+        """
+        Check if two type variables have the same base but different indirection levels.
+
+        This is used to prevent unifying a pointer with what it points to.
+
+        Examples that return True (should NOT unify):
+            tv, tv.store.field           -> same base (tv), levels 0 vs 1
+            tv.+1, tv.store.field        -> same base (tv), levels 0 vs 1
+
+        Examples that return False (OK to unify):
+            tv1, tv2                     -> different bases
+            tv.store.f1, tv.store.f2     -> same base, same level (1)
+        """
+        base1, level1 = SimpleSolver._get_base_and_indirection_level(t1)
+        base2, level2 = SimpleSolver._get_base_and_indirection_level(t2)
+        return base1 == base2 and level1 != level2
 
     @staticmethod
     def _unify(
