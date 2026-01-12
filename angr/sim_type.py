@@ -1344,7 +1344,7 @@ class SimTypeFunction(SimType):
         if memo is None:
             memo = {}
         d = super().to_json(fields=fields, memo=memo)
-        if d["variadic"] is False:
+        if "variadic" in d and d["variadic"] is False:
             d.pop("variadic")
         return d
 
