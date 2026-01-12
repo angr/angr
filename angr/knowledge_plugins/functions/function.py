@@ -988,7 +988,16 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     @dirty_func
-    def _call_to(self, from_node, to_func: FuncNode, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
+    def _call_to(
+        self,
+        from_node,
+        to_func: FuncNode,
+        ret_node,
+        stmt_idx=None,
+        ins_addr=None,
+        return_to_outside=False,
+        syscall: bool = False,
+    ):
         """
         Registers an edge between the caller basic block and callee function.
 
@@ -1006,13 +1015,12 @@ class Function(Serializable):
 
         from_node = self._register_node(True, from_node)
 
-        if to_func.is_syscall:
-            self.transition_graph.add_edge(from_node, to_func, type="syscall", stmt_idx=stmt_idx, ins_addr=ins_addr)
-        else:
-            self.transition_graph.add_edge(from_node, to_func, type="call", stmt_idx=stmt_idx, ins_addr=ins_addr)
-            if ret_node is not None:
-                ret_node = self._register_node(return_to_outside is False, ret_node)
-                self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
+        self.transition_graph.add_edge(
+            from_node, to_func, type="syscall" if syscall else "call", stmt_idx=stmt_idx, ins_addr=ins_addr
+        )
+        if ret_node is not None and not syscall:
+            ret_node = self._register_node(return_to_outside is False, ret_node)
+            self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
         self._local_transition_graph = None
 
@@ -1647,10 +1655,10 @@ class Function(Serializable):
                 if len(edges) == 0:
                     return False
                 node = next(iter(edges))[1]
-                if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
+                if len(edges) == 1 and isinstance(node, (FuncNode, HookNode, SyscallNode)):
                     target = node.addr
-                    if target in self._function_manager:
-                        target_func = self._function_manager[target]
+                    if self._function_manager.contains_addr(target):
+                        target_func = self._function_manager.get_by_addr(target)
                         binary_name = target_func.binary_name
 
             # cannot determine the binary name. since we are forced to respect binary name, we give up in this case.

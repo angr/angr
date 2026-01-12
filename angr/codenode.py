@@ -129,12 +129,11 @@ class FuncNode(CodeNode):
     Represents a function callee in a function graph.
     """
 
-    __slots__ = ("func_name", "is_syscall")
+    __slots__ = ("func_name",)
 
-    def __init__(self, addr: K, is_syscall: bool | None = False, func_name: str | None = None, **kwargs):
+    def __init__(self, addr: K, func_name: str | None = None, **kwargs):
         super().__init__(addr, 0, **kwargs)
         self.func_name = func_name  # only used when addr is -1 (unknown address)
-        self.is_syscall = is_syscall
 
     @property
     def is_addr_known(self) -> bool:
@@ -153,11 +152,10 @@ class FuncNode(CodeNode):
             isinstance(other, FuncNode)
             and super().__eq__(other)
             and (self.is_addr_known or (not self.is_addr_known and self.func_name == other.func_name))
-            and self.is_syscall == other.is_syscall
         )
 
     def __getstate__(self):
-        return self.addr, self.func_name, self.is_syscall
+        return self.addr, self.func_name
 
     def __setstate__(self, state):
         self.__init__(*state)

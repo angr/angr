@@ -339,7 +339,7 @@ class FunctionParser:
                         dst_addr,
                     )
                 else:
-                    if isinstance(dst, FuncNode):
+                    if isinstance(dst, (FuncNode, HookNode)):
                         obj._call_to(
                             src,
                             dst,
@@ -347,6 +347,7 @@ class FunctionParser:
                             stmt_idx=stmt_idx,
                             ins_addr=ins_addr,
                             return_to_outside=fake_ret_edge is None,
+                            syscall=edge_type == "syscall",
                         )
                     if fake_ret_edge is not None:
                         fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge

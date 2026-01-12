@@ -864,10 +864,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         func._add_call_site(from_node.addr, to_addr, retn_node.addr if retn_node else None)
 
         if to_addr is not None:
-            self.function(addr=to_addr, create=True)
+            self.function(addr=to_addr, create=True, syscall=syscall)
             dest_func_node = FuncNode(to_addr)
-            if syscall in (True, False):
-                dest_func_node.is_syscall = syscall
             func._call_to(
                 from_node,
                 dest_func_node,
@@ -875,6 +873,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                 stmt_idx=stmt_idx,
                 ins_addr=ins_addr,
                 return_to_outside=return_to_outside,
+                syscall=syscall,
             )
 
         if return_to_outside:
