@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 
 import os
+import struct
 from unittest import TestCase, main
 
 import archinfo
@@ -17,9 +19,10 @@ from angr.calling_conventions import (
     SimTypeFunction,
     SimRegArg,
     SimCCMicrosoftAMD64,
+    SimCCRISCV64,
 )
 from angr.sim_type import parse_file, SimStructValue
-from angr import Project, load_shellcode
+from angr import Project, load_shellcode, types
 
 from .common import bin_location
 
@@ -61,7 +64,7 @@ class TestCallingConvention(TestCase):
         cc.arg_locs(proto)
 
     def test_struct_ffi(self):
-        with open(os.path.join(test_location, "../tests_src/test_structs.c")) as fp:
+        with open(os.path.join(test_location, "../tests_src/test_structs.c"), encoding="utf-8") as fp:
             decls = parse_file(fp.read())
 
         p = Project(os.path.join(test_location, "x86_64/test_structs.o"), auto_load_libs=False)
@@ -114,9 +117,6 @@ class TestCallingConvention(TestCase):
         assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
 
     def test_riscv64_args_actual_values(self):
-        from angr.calling_conventions import SimCCRISCV64
-        from angr import types
-
         bin_path = os.path.join(test_location, "riscv64", "sim_args_riscv64.so")
         src_location = os.path.join(bin_location, "tests_src")
 
@@ -127,7 +127,7 @@ class TestCallingConvention(TestCase):
         cc = SimCCRISCV64(proj.arch)
 
         c_decl = os.path.join(src_location, "arch", "riscv", "sim_args_riscv64.c")
-        with open(c_decl) as f:
+        with open(c_decl, encoding="utf-8") as f:
             raw_content = f.read()
         defns, _ = types.parse_file(raw_content)
         proto = defns["complex_func"].with_arch(proj.arch)
@@ -158,10 +158,6 @@ class TestCallingConvention(TestCase):
         assert fa3_val == 12.0
 
     def test_riscv64_args_flatten_actual_values(self):
-        from angr.calling_conventions import SimCCRISCV64
-        from angr import types
-        import struct
-
         bin_path = os.path.join(test_location, "riscv64", "sim_args_flatten_riscv64.so")
         src_location = os.path.join(bin_location, "tests_src")
 
@@ -173,7 +169,7 @@ class TestCallingConvention(TestCase):
         cc = SimCCRISCV64(proj.arch)
 
         c_decl = os.path.join(src_location, "arch", "riscv", "sim_args_flatten_riscv64.c")
-        with open(c_decl) as f:
+        with open(c_decl, encoding="utf-8") as f:
             raw_content = f.read()
         defns, _ = types.parse_file(raw_content)
         proto = defns["complex_func"].with_arch(proj.arch)

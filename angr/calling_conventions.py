@@ -2068,7 +2068,8 @@ class SimCCRISCV64(SimCC):
         classification = self._classify(arg_type)
 
         if "REFERENCE" in classification:
-            slot_count = (arg_type.size + self.arch.bits - 1) // self.arch.bits
+            arg_size = arg_type.size if arg_type.size is not None else 0
+            slot_count = (arg_size + self.arch.bits - 1) // self.arch.bits
             referenced_locs = [SimStackArg(i * 8, 8) for i in range(slot_count)]
             main_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
             try:
@@ -2092,7 +2093,8 @@ class SimCCRISCV64(SimCC):
                         reg = next(session.fp_iter) if cls == "FLOAT" else next(session.int_iter)
 
                         is_field_fp = isinstance(field_ty, (SimTypeFloat, SimTypeDouble))
-                        locs_dict[name] = reg.refine(size=field_ty.size // 8, arch=self.arch, is_fp=is_field_fp)
+                        field_size_bits = field_ty.size if field_ty.size is not None else 0
+                        locs_dict[name] = reg.refine(size=field_size_bits // 8, arch=self.arch, is_fp=is_field_fp)
                     return SimStructArg(arg_type, locs_dict)
                 # The type of aN, a(N+1), ...
                 # struct {double a, float b, int c} => {a1, a2}
@@ -2100,7 +2102,8 @@ class SimCCRISCV64(SimCC):
 
                 # upper
                 bytes_per_reg = self.arch.bytes
-                arg_bytes = (arg_type.size + self.arch.byte_width - 1) // self.arch.byte_width
+                arg_size_bits = arg_type.size if arg_type.size is not None else 0
+                arg_bytes = (arg_size_bits + self.arch.byte_width - 1) // self.arch.byte_width
                 n_slots_needed = (arg_bytes + bytes_per_reg - 1) // bytes_per_reg
 
                 if len(raw_locs) > n_slots_needed:
@@ -2161,7 +2164,15 @@ class SimCCRISCV64(SimCC):
             subresult = self._flatten(ty.elem_type)
             if subresult is None:
                 return None
+
+            if ty.elem_type.size is None:
+                return None
+
             stride = ty.elem_type.size // self.arch.byte_width
+
+            if ty.length is None:
+                return None
+
             for idx in range(ty.length):
                 for suboffset, subty_list in subresult.items():
                     result[idx * stride + suboffset] += subty_list
