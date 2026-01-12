@@ -211,9 +211,9 @@ class SimType:
 
         kwargs = {}
         for field in cls._args:
-            if field not in d:
-                continue
             field_key = "q" if field == "qualifier" else field
+            if field_key not in d:
+                continue
             value = d[field_key]
             if isinstance(value, dict):
                 if "_t" in value:
