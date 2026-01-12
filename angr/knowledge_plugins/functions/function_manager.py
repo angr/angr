@@ -21,6 +21,7 @@ from cachetools import LRUCache
 from angr.errors import SimEngineError
 from angr.codenode import FuncNode, HookNode
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.utils.smart_cache import SmartLRUCache
 from .function import Function
 from .soot_function import SootFunction
 
@@ -207,7 +208,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._list = SortedList()  # a sorted list of all keys (cached + spilled)
         self.irange = self._list.irange
 
-        self._meta_func_cache: LRUCache[K, Function] = LRUCache(maxsize=cache_limit)
+        self._meta_func_cache: LRUCache[K, Function] = SmartLRUCache(
+            maxsize=cache_limit, evict=self._meta_func_cache_evicted
+        )
         self._funcsdb = None
         self._db_batch_size: int = 100
         self._eviction_enabled: bool = True
@@ -373,6 +376,13 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     def values(self):
         return SortedValuesView(self)
 
+    @staticmethod
+    def _meta_func_cache_evicted(addr: K, func: Function) -> None:  # pylint: disable=unused-argument
+        """
+        Callback when a meta-only function is evicted from the meta function cache.
+        """
+        func.evicted = True
+
     #
     # Properties
     #
@@ -480,6 +490,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
             # Get the function
             func = super().__getitem__(lru_addr)
+            func.evicted = True
             if func.dirty:
                 funcs_to_evict.append(func)
 

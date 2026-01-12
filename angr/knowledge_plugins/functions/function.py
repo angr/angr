@@ -117,6 +117,7 @@ class Function(Serializable):
         "addr",
         "binary_name",
         "bp_on_stack",
+        "evicted",
         "from_signature",
         "is_alignment",
         "is_default_name",
@@ -229,6 +230,7 @@ class Function(Serializable):
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
         self._dirty: bool = True
         self.meta_only: bool = False
+        self.evicted: bool = False
 
         #
         # Initialize unspecified properties
