@@ -237,7 +237,7 @@ class FunctionParser:
                         obj._callout_sites.add(block)
                         obj._add_endpoint(block, "call")
                     case primitives_pb2.EndpointType.RETURN:
-                        obj.add_retout_site(block)
+                        obj._add_return_site(block)
                     case primitives_pb2.EndpointType.TRANSITION:
                         obj.add_jumpout_site(block)
                     case _:
@@ -377,7 +377,7 @@ class FunctionParser:
                     obj._callout_sites.add(block)
                     obj._add_endpoint(block, "call")
                 case primitives_pb2.EndpointType.RETURN:
-                    obj.add_retout_site(block)
+                    obj._add_return_site(block)
                 case primitives_pb2.EndpointType.TRANSITION:
                     obj.add_jumpout_site(block)
                 case _:
