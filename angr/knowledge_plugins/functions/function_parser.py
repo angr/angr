@@ -358,6 +358,13 @@ class FunctionParser:
                             confirmed=fakeret_data.get("confirmed"),
                             to_outside=fakeret_data.get("outside", None),
                         )
+            elif edge_type == "return":
+                obj._return_from_call(
+                    src,
+                    dst,
+                    to_outside=outside,
+                    confirm_fakeret=False,
+                )
             elif edge_type == "fake_return":
                 pass
 
