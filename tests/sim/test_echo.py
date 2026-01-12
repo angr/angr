@@ -23,7 +23,6 @@ class TestEcho(unittest.TestCase):
             mode="symbolic_approximating",
             args=["echo", "haha"],
             add_options={angr.options.STRICT_PAGE_ACCESS},
-            auto_load_libs=True,
         )
         pg = p.factory.simulation_manager(s)
         pg.run(until=lambda lpg: len(lpg.active) != 1)
