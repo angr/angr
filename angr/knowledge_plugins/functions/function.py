@@ -102,6 +102,10 @@ class Function(Serializable):
         "_endpoints",
         "_function_manager",
         "_info",
+        "_is_alignment",
+        "_is_plt",
+        "_is_simprocedure",
+        "_is_syscall",
         "_jumpout_sites",
         "_local_block_addrs",
         "_local_blocks",
@@ -118,12 +122,8 @@ class Function(Serializable):
         "bp_on_stack",
         "evicted",
         "from_signature",
-        "is_alignment",
         "is_default_name",
-        "is_plt",
         "is_prototype_guessed",
-        "is_simprocedure",
-        "is_syscall",
         "meta_only",
         "normalized",
         "previous_names",
@@ -188,9 +188,9 @@ class Function(Serializable):
         # startpoint can be None if the corresponding CFGNode is a syscall node
         self.startpoint = None
         self._function_manager = function_manager
-        self.is_syscall = None
-        self.is_simprocedure = False
-        self.is_alignment = alignment
+        self._is_syscall = None
+        self._is_simprocedure = False
+        self._is_alignment = alignment
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
@@ -236,7 +236,7 @@ class Function(Serializable):
         #
 
         if syscall is not None:
-            self.is_syscall = syscall
+            self._is_syscall = syscall
         else:
             if self.project is None:
                 raise ValueError(
@@ -244,11 +244,11 @@ class Function(Serializable):
                 )
 
             # Determine whether this function is a syscall or not
-            self.is_syscall = self.project.simos.is_syscall_addr(addr)
+            self._is_syscall = self.project.simos.is_syscall_addr(addr)
 
         # Determine whether this function is a SimProcedure
         if is_simprocedure is not None:
-            self.is_simprocedure = is_simprocedure
+            self._is_simprocedure = is_simprocedure
         else:
             if self.project is None:
                 raise ValueError(
@@ -257,15 +257,15 @@ class Function(Serializable):
                 )
 
             if self.is_syscall or self.project.is_hooked(addr):
-                self.is_simprocedure = True
+                self._is_simprocedure = True
 
         # Determine if this function is a PLT entry
         if is_plt is not None:
-            self.is_plt = is_plt
+            self._is_plt = is_plt
         else:
             if self._function_manager is not None:
                 # use the faster cached version
-                self.is_plt = self._function_manager.is_plt_cached(addr)
+                self._is_plt = self._function_manager.is_plt_cached(addr)
             else:
                 # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may
                 # also be updated (to True) during CFG recovery.
@@ -273,7 +273,7 @@ class Function(Serializable):
                     raise ValueError(
                         "'is_plt' must be specified if you do not specify a function manager for this new function."
                     )
-                self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
+                self._is_plt = self.project.loader.find_plt_stub_name(addr) is not None
 
         # Determine the name of this function
         if name is None:
@@ -381,6 +381,50 @@ class Function(Serializable):
         self._info = info
         # update the owner
         self._info._func = self
+
+    @property
+    def is_plt(self) -> bool:
+        return self._is_plt
+
+    @is_plt.setter
+    def is_plt(self, v: bool):
+        if self._is_plt == v:
+            return
+        self._is_plt = v
+        self.mark_dirty()
+
+    @property
+    def is_simprocedure(self) -> bool:
+        return self._is_simprocedure
+
+    @is_simprocedure.setter
+    def is_simprocedure(self, v: bool):
+        if self._is_simprocedure == v:
+            return
+        self._is_simprocedure = v
+        self.mark_dirty()
+
+    @property
+    def is_syscall(self) -> bool:
+        return self._is_syscall
+
+    @is_syscall.setter
+    def is_syscall(self, v: bool):
+        if self._is_syscall == v:
+            return
+        self._is_syscall = v
+        self.mark_dirty()
+
+    @property
+    def is_alignment(self) -> bool:
+        return self._is_alignment
+
+    @is_alignment.setter
+    def is_alignment(self, v: bool):
+        if self._is_alignment == v:
+            return
+        self._is_alignment = v
+        self.mark_dirty()
 
     @property
     def blocks(self):
