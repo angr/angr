@@ -343,9 +343,17 @@ class CFGNode(Serializable):
 
     def to_codenode(self):
         if self.is_syscall:
-            return SyscallNode(self.addr, self.size, self.simprocedure_name)
+            if self._cfg_model is not None and self._cfg_model.project is not None:
+                hooker = self._cfg_model.project.hooked_by(self.addr)
+            else:
+                hooker = None
+            return SyscallNode(self.addr, self.size, hooker)
         if self.is_simprocedure:
-            return HookNode(self.addr, self.size, self.simprocedure_name)
+            if self._cfg_model is not None and self._cfg_model.project is not None:
+                hooker = self._cfg_model.project.hooked_by(self.addr)
+            else:
+                hooker = None
+            return HookNode(self.addr, self.size, hooker)
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
     @property

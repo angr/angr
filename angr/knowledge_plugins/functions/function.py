@@ -18,7 +18,7 @@ from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
+from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
 from angr.serializable import Serializable
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.procedures import SIM_LIBRARIES
@@ -32,7 +32,6 @@ from angr.utils.library import get_cpp_function_name_and_metadata
 from .function_parser import FunctionParser
 
 if TYPE_CHECKING:
-    from angr.codenode import FuncNode
     from angr.knowledge_plugins.functions.function_manager import FunctionManager
 
 l = logging.getLogger(name=__name__)
@@ -1046,11 +1045,14 @@ class Function(Serializable):
         self._local_transition_graph = None
 
     @dirty_func
-    def _return_from_call(self, from_func: FuncNode, to_node, to_outside=False):
+    def _return_from_call(
+        self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True
+    ):
         self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
-        for _, _, data in self.transition_graph.in_edges(to_node, data=True):
-            if "type" in data and data["type"] == "fake_return":
-                data["confirmed"] = True
+        if confirm_fakeret:
+            for _, _, data in self.transition_graph.in_edges(to_node, data=True):
+                if "type" in data and data["type"] == "fake_return":
+                    data["confirmed"] = True
 
         self._local_transition_graph = None
 

@@ -342,7 +342,7 @@ class CFGFastSoot(CFGFast):
         if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get("length", 0)
-            return HookNode(addr, size, type(hooker))
+            return HookNode(addr, size, hooker)
 
         soot_block = cfg_node.soot_block if cfg_node is not None else self.project.factory.block(addr).soot
 

@@ -449,7 +449,7 @@ class CFGBase(Analysis):
         if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get("length", 0)
-            return HookNode(addr, size, type(hooker))
+            return HookNode(addr, size, hooker)
 
         if cfg_node is not None:
             return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
@@ -1055,7 +1055,7 @@ class CFGBase(Analysis):
             known_successors = [
                 n
                 for n in goout_site_successors
-                if not (isinstance(n, HookNode) and n.sim_procedure == UnresolvableJumpTarget)
+                if not (isinstance(n, HookNode) and n.sim_procedure.__class__ == UnresolvableJumpTarget)
             ]
 
             if not known_successors:
