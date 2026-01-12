@@ -1091,12 +1091,20 @@ class TestCfgfastDataReferences(unittest.TestCase):
         # They should not be separate functions
         not_separate_functions = [
             # copy_reg
-            0x4033F4, 0x403355, 0x402F5F,
+            0x4033F4,
+            0x403355,
+            0x402F5F,
             # copy_internal
-            0x406285, 0x4048B9, 0x40497C, 0x404A57, 0x404C9A, 0x404DC4,
+            0x406285,
+            0x4048B9,
+            0x40497C,
+            0x404A57,
+            0x404C9A,
+            0x404DC4,
         ]
         for addr in not_separate_functions:
             assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
+
 
 if __name__ == "__main__":
     unittest.main()
