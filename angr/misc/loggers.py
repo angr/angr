@@ -19,6 +19,7 @@ class Loggers:
         "default_level",
         "handler",
         "profiling_enabled",
+        "_null_handler",
     )
 
     def __init__(self, default_level=logging.WARNING):
@@ -26,6 +27,7 @@ class Loggers:
         self._loggers = {}
         self.load_all_loggers()
         self.profiling_enabled = False
+        self._null_handler = logging.NullHandler()
 
         self.handler = logging.StreamHandler()
         self.handler.setFormatter(CuteFormatter(ansi_color_enabled))
@@ -59,6 +61,7 @@ class Loggers:
         """
         Enable angr's default logger
         """
+        logging.root.removeHandler(self._null_handler)
         logging.root.addHandler(self.handler)
 
     def disable_root_logger(self):
@@ -66,6 +69,7 @@ class Loggers:
         Disable angr's default logger
         """
         logging.root.removeHandler(self.handler)
+        logging.root.addHandler(self._null_handler)
 
     @staticmethod
     def setall(level):

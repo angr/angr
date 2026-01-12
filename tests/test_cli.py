@@ -21,10 +21,15 @@ from .common import bin_location
 test_location = os.path.join(bin_location, "tests")
 
 
-def run_cli(*args):
+def run_cli(*args, capture_stderr=False):
     with mock.patch("sys.argv", [sys.executable, *args]), mock.patch("sys.stdout", new=io.StringIO()) as fake_out:
-        main()
-        return fake_out.getvalue()
+        if capture_stderr:
+            with mock.patch("sys.stderr", new=io.StringIO()) as fake_err:
+                main()
+                return fake_out.getvalue(), fake_err.getvalue()
+        else:
+            main()
+            return fake_out.getvalue()
 
 
 class TestCommandLineInterface(unittest.TestCase):
@@ -118,6 +123,16 @@ class TestCommandLineInterface(unittest.TestCase):
 
         # it should maintain that no ANSI color codes are present
         assert no_colors_output == expected_output
+
+    def test_quiet_flag_suppresses_logging(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        # With --quiet, logging output should be suppressed
+        # We use a valid binary which generates some warnings during analysis
+        _, stderr_with_quiet = run_cli(bin_path, "--quiet", "decompile", "--no-colors", capture_stderr=True)
+
+        # The quiet flag should suppress all logging output to stderr
+        assert stderr_with_quiet == ""
 
 
 if __name__ == "__main__":

@@ -123,6 +123,13 @@ def main():
         type=lambda x: int(x, 0),
         default=None,
     )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        help="Suppress all logging output (errors, warnings, info messages).",
+        action="store_true",
+        default=False,
+    )
     subparsers = parser.add_subparsers(metavar="command", required=True)
 
     decompile_cmd_parser = subparsers.add_parser("decompile", aliases=["dec"], help=decompile.__doc__)
@@ -175,6 +182,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.quiet:
+        angr.loggers.disable_root_logger()
+
     args.func(args)
 
 
