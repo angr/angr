@@ -1081,8 +1081,8 @@ class TestCfgfastDataReferences(unittest.TestCase):
                 main = proj.kb.functions["main"]
                 write = proj.kb.functions["write"]
                 read = proj.kb.functions["read"]
-                assert len(set(main.transition_graph.predecessors(FuncNode(write.addr, is_syscall=True)))) == 3
-                assert len(set(main.transition_graph.predecessors(FuncNode(read.addr, is_syscall=True)))) == 1
+                assert len(set(main.transition_graph.predecessors(FuncNode(write.addr)))) == 3
+                assert len(set(main.transition_graph.predecessors(FuncNode(read.addr)))) == 1
 
 
 if __name__ == "__main__":
