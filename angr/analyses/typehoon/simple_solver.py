@@ -739,11 +739,10 @@ class SimpleSolver:
                     constraint.sub_type, PRIMITIVE_TYPES
                 ):
                     continue
-                # Don't unify type variables that have the same base but different indirection levels.
                 if (
                     isinstance(constraint.sub_type, TypeVariable)
                     and isinstance(constraint.super_type, TypeVariable)
-                    and self._same_base_different_indirection(constraint.sub_type, constraint.super_type)
+                    and self._should_skip_unification(constraint.sub_type, constraint.super_type)
                 ):
                     continue
                 self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
@@ -912,26 +911,34 @@ class SimpleSolver:
         return t, 0
 
     @staticmethod
-    def _same_base_different_indirection(
-        t1: TypeVariable | DerivedTypeVariable,
-        t2: TypeVariable | DerivedTypeVariable,
+    def _should_skip_unification(
+        sub_type: TypeVariable | DerivedTypeVariable,
+        super_type: TypeVariable | DerivedTypeVariable,
     ) -> bool:
         """
-        Check if two type variables have the same base but different indirection levels.
+        Check if unification should be skipped for a constraint sub_type <: super_type.
 
-        This is used to prevent unifying a pointer with what it points to.
+        Returns True to skip unification, False to proceed with unification.
 
-        Examples that return True (should NOT unify):
-            tv, tv.store.field           -> same base (tv), levels 0 vs 1
-            tv.+1, tv.store.field        -> same base (tv), levels 0 vs 1
+        We skip unification when both type variables have the same base but different
+        indirection levels, AND the base (lower level) is on the left side of <:.
 
-        Examples that return False (OK to unify):
-            tv1, tv2                     -> different bases
-            tv.store.f1, tv.store.f2     -> same base, same level (1)
+        do not unify (returns True):
+            tv <: tv.store.field         -> base <: derived
+
+        Unify (returns False):
+            tv1 <: tv2                   -> different bases
+            tv.store.f1 <: tv.store.f2   -> same base, same level
+            tv.store.field <: tv         -> derived <: base (self-referential struct)
         """
-        base1, level1 = SimpleSolver._get_base_and_indirection_level(t1)
-        base2, level2 = SimpleSolver._get_base_and_indirection_level(t2)
-        return base1 == base2 and level1 != level2
+        base_sub, level_sub = SimpleSolver._get_base_and_indirection_level(sub_type)
+        base_super, level_super = SimpleSolver._get_base_and_indirection_level(super_type)
+
+        if base_sub != base_super or level_sub == level_super:
+            return False
+
+        # Same base, different levels: only skip unification when base is on left (sub_type)
+        return level_sub < level_super
 
     @staticmethod
     def _unify(
