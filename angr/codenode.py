@@ -1,9 +1,12 @@
 from __future__ import annotations
-from typing import TypeVar
+from typing import TypeVar, TYPE_CHECKING
 import logging
 import weakref
 
 from archinfo.arch_soot import SootMethodDescriptor
+
+if TYPE_CHECKING:
+    from . import SimProcedure
 
 l = logging.getLogger(name=__name__)
 
@@ -170,7 +173,7 @@ class HookNode(CodeNode):
 
     is_hook = True
 
-    def __init__(self, addr, size, sim_procedure, **kwargs):
+    def __init__(self, addr, size, sim_procedure: SimProcedure, **kwargs):
         """
         :param type sim_procedure: the the sim_procedure class
         """
@@ -181,10 +184,14 @@ class HookNode(CodeNode):
         return f"<HookNode {self.sim_procedure!r} at {repr_addr(self.addr)} (size {self.size})>"
 
     def __hash__(self):
-        return hash((self.addr, self.size, self.sim_procedure))
+        return hash((self.addr, self.size, self.sim_procedure.__class__))
 
     def __eq__(self, other):
-        return super().__eq__(other) and self.sim_procedure == other.sim_procedure
+        return (
+            super().__eq__(other)
+            and self.sim_procedure.__class__ == other.sim_procedure.__class__
+            and self.sim_procedure.display_name == other.sim_procedure.display_name
+        )
 
     def __getstate__(self):
         return self.addr, self.size, self.sim_procedure
