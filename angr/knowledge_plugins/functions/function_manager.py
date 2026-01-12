@@ -22,6 +22,7 @@ from angr.errors import SimEngineError
 from angr.codenode import FuncNode, HookNode
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.utils.smart_cache import SmartLRUCache
+from angr.protos import function_pb2
 from .function import Function
 from .soot_function import SootFunction
 
@@ -129,12 +130,6 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
     def copy(self) -> FunctionDict[K]:
         return FunctionDict(self._backref, self, key_types=self._key_types)
 
-    def __setitem__(self, addr: K, value: Function):
-        """
-        Override SortedDict.__setitem__ because it uses __contains__, which may be overwritten by SpillingFunctionDict.
-        """
-        super().__setitem__(addr, value)
-
     def __getitem__(self, addr: K) -> Function:
         try:
             return super().__getitem__(addr)
@@ -143,10 +138,7 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
                 raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
             return self._getitem_create_new_function(addr)
 
-    def __delitem__(self, key: K) -> None:
-        super().__delitem__(key)
-
-    def get(self, addr: K, default=_missing, /, meta_only: bool = False):
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # pylint: disable=unused-argument
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -581,10 +573,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 if value is None:
                     return None
 
-                # Deserialize protobuf
-                from angr.protos import function_pb2
-
-                cmsg = function_pb2.Function()
+                cmsg = function_pb2.Function()  # pylint:disable=no-member
                 cmsg.ParseFromString(value)
 
                 # Reconstruct function
@@ -759,8 +748,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         limit = self._kb._project.get_function_cache_limit()
         if limit is None:
             return limit
-        if limit < 100:
-            limit = 100
+        limit = max(limit, 100)
         return min(max_limit, limit)
 
     def _generate_callmap_sif(self, filepath):
