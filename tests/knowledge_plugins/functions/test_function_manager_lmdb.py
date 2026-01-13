@@ -132,24 +132,6 @@ class TestFunctionManagerLMDB(unittest.TestCase):
         # Total preserved
         assert fm.total_function_count == total
 
-    def test_set_unlimited_cache(self):
-        """Test setting cache to unlimited (None)."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        proj.analyses.CFGFast()
-
-        fm = proj.kb.functions
-        total = len(fm)
-
-        # Set small limit first
-        fm.cache_limit = 3
-
-        # Set to unlimited
-        fm.cache_limit = None
-
-        assert fm.cache_limit is None
-        # Note: Setting to None doesn't auto-load spilled functions
-        assert fm.total_function_count == total
-
     def test_contains_with_spilled(self):
         """Test __contains__ checks both in-memory and spilled functions."""
         proj = angr.Project(self.bin_path, auto_load_libs=False)

@@ -34,6 +34,12 @@ class MockFunctionManager:
     def noop(self, *args, **kwargs):
         pass
 
+    def contains_addr(self, addr):
+        return addr in self._function_map
+
+    def get_by_addr(self, addr):
+        return self._function_map[addr]
+
     set_function_returning = noop
 
 

@@ -396,7 +396,7 @@ class FactCollector(Analysis):
         retval_sizes = []
         for endpoint in self.function.endpoints:
             traversed = set()
-            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
                 if isinstance(node, BlockNode) and node in traversed:
@@ -509,7 +509,7 @@ class FactCollector(Analysis):
         }
         for endpoint in self.function.endpoints:
             traversed = set()
-            queue: list[tuple[int, BlockNode | HookNode | FuncNode]] = [(0, endpoint)]
+            queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
                 traversed.add(node)
