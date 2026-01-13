@@ -708,14 +708,14 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._binname_cache: None | SortedDict[int, tuple[int, str | None]] = None
 
         # non-returning functions cache
-        self._non_returning_func_addrs: set[int] = set()
-        self._unknown_returning_func_addrs: set[int] = set()
+        self._non_returning_func_addrs: set[K] = set()
+        self._unknown_returning_func_addrs: set[K] = set()
         # function number of blocks cache
-        self._func_block_counts: dict[int, int] = {}
+        self._func_block_counts: dict[K, int] = {}
         # function name cache
-        self._func_name_to_addrs: defaultdict[str, set[int]] = defaultdict(set)
+        self._func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
         # historical function name cache
-        self._old_func_name_to_addrs: defaultdict[str, set[int]] = defaultdict(set)
+        self._old_func_name_to_addrs: defaultdict[str, set[K]] = defaultdict(set)
 
     def __setstate__(self, state):
         self.function_address_types = state["function_address_types"]
