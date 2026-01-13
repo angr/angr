@@ -860,13 +860,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         #
         self._pending_jobs = None  # type:ignore
         self._traced_addresses = None  # type:ignore
-        self._function_returns = None
+        self._function_returns: defaultdict[int, set] = None  # type:ignore
         self._function_exits = None  # type:ignore
         self._gp_value: int | None = None
         self._ro_region_cdata_cache: list | None = None
         self._job_ctr = 0
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
-        self._decoding_assumption_relations = None
+        self._decoding_assumption_relations: networkx.DiGraph = None  # type:ignore
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -1873,7 +1873,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             }
 
             for caller_addr in callers:
-                f = self.functions.function(caller_addr)
+                if not self.functions.contains_addr(caller_addr):
+                    continue
+                f = self.functions.get_by_addr(caller_addr)
                 all_edges = f.transition_graph.edges(data=True)
 
                 callsites_to_functions = defaultdict(list)  # callsites to functions mapping
@@ -1907,7 +1909,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 f.mark_nonreturning_calls_endpoints()
 
         for func_addr in sorted(self.functions.unknown_returning_func_addrs()):
-            f = self.functions.function(func_addr)
+            f = self.functions.get_by_addr(func_addr)
             # Scan all functions, and make sure .returning for all functions are either True or False
             if f.returning is None:
                 f.returning = len(f.endpoints) > 0  # pylint:disable=len-as-condition
@@ -2443,6 +2445,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             for i, stmt in enumerate(irsb.statements):
                 if isinstance(stmt, pyvex.IRStmt.Exit):
                     branch_ins_addr = last_ins_addr if self.project.arch.branch_delay_slot else ins_addr
+                    assert branch_ins_addr is not None
                     if self._is_branch_vex_artifact_only(irsb, branch_ins_addr, stmt):
                         continue
                     successors.append((i, branch_ins_addr, stmt.dst, stmt.jumpkind))
@@ -3740,7 +3743,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                     if new_b_size > 0:
                         # there are still some parts left in node b - we don't want to lose it
-                        dummy_job = CFGJob(new_b_addr, a.function_address, None)
+                        dummy_job = CFGJob(new_b_addr, a.function_address, "Ijk_Boring", job_type=CFGJobType.NORMAL)
                         self._scan_block(dummy_job)
 
                     continue

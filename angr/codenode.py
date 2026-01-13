@@ -27,7 +27,7 @@ class CodeNode:
     __slots__ = ["_graph", "_hash", "addr", "size", "thumb"]
 
     def __init__(self, addr: K, size: int, graph=None, thumb=False):
-        self.addr: K = addr
+        self.addr = addr
         self.size: int = size
         self.thumb = thumb
         self._graph = weakref.proxy(graph) if graph is not None else None
@@ -72,10 +72,10 @@ class CodeNode:
             raise ValueError("Cannot calculate predecessors for graphless node")
         return list(self._graph.predecessors(self))
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple:
         return self.addr, self.size
 
-    def __setstate__(self, dat):
+    def __setstate__(self, dat: tuple):
         self.__init__(*dat)
 
     is_hook = None
@@ -97,10 +97,10 @@ class BlockNode(CodeNode):
     def __repr__(self):
         return f"<BlockNode at {repr_addr(self.addr)} (size {self.size})>"
 
-    def __getstate__(self):
-        return (self.addr, self.size, self.bytestr, self.thumb)
+    def __getstate__(self) -> tuple:
+        return self.addr, self.size, self.bytestr, self.thumb
 
-    def __setstate__(self, dat):
+    def __setstate__(self, dat: tuple):
         self.__init__(*dat[:-1], thumb=dat[-1])
 
 
@@ -120,10 +120,10 @@ class SootBlockNode(BlockNode):
     def __repr__(self):
         return f"<SootBlockNode at {repr_addr(self.addr)} ({self.size} statements)>"
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple:
         return self.addr, self.size, self.stmts
 
-    def __setstate__(self, data):
+    def __setstate__(self, data: tuple):
         self.__init__(*data)
 
 
@@ -157,10 +157,10 @@ class FuncNode(CodeNode):
             and (self.is_addr_known or (not self.is_addr_known and self.func_name == other.func_name))
         )
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple:
         return self.addr, self.func_name
 
-    def __setstate__(self, state):
+    def __setstate__(self, state: tuple):
         self.__init__(*state)
 
 
@@ -173,7 +173,7 @@ class HookNode(CodeNode):
 
     is_hook = True
 
-    def __init__(self, addr, size, sim_procedure: SimProcedure, **kwargs):
+    def __init__(self, addr, size, sim_procedure: SimProcedure | None, **kwargs):
         """
         :param type sim_procedure: the the sim_procedure class
         """
@@ -186,17 +186,25 @@ class HookNode(CodeNode):
     def __hash__(self):
         return hash((self.addr, self.size, self.sim_procedure.__class__))
 
-    def __eq__(self, other):
+    def __eq__(self, other: CodeNode):
         return (
-            super().__eq__(other)
-            and self.sim_procedure.__class__ == other.sim_procedure.__class__
-            and self.sim_procedure.display_name == other.sim_procedure.display_name
+            isinstance(other, HookNode)
+            and super().__eq__(other)
+            and (
+                (self.sim_procedure is None and other.sim_procedure is None)
+                or (
+                    self.sim_procedure is not None
+                    and other.sim_procedure is not None
+                    and self.sim_procedure.__class__ == other.sim_procedure.__class__
+                    and self.sim_procedure.display_name == other.sim_procedure.display_name
+                )
+            )
         )
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple:
         return self.addr, self.size, self.sim_procedure
 
-    def __setstate__(self, dat):
+    def __setstate__(self, dat: tuple):
         self.__init__(*dat)
 
 

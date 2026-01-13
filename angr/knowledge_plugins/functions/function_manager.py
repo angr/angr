@@ -17,6 +17,7 @@ import networkx
 from archinfo.arch_soot import SootMethodDescriptor
 import cle
 from cachetools import LRUCache
+from sortedcontainers import SortedKeysView, SortedItemsView, SortedValuesView
 
 from angr.errors import SimEngineError
 from angr.codenode import FuncNode, HookNode
@@ -36,8 +37,12 @@ if TYPE_CHECKING:
     class SortedDict(Generic[K, T], dict[K, T]):
         def irange(self, *args, **kwargs) -> Iterator[K]: ...
 
+    class SortedList(Generic[K], list[K]):
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+        def add(self, value: K) -> None: ...
+
 else:
-    from sortedcontainers import SortedDict, SortedList, SortedKeysView, SortedItemsView, SortedValuesView
+    from sortedcontainers import SortedDict, SortedList
 
 QUERY_PATTERN = re.compile(r"^(::(.+?))?::(.+)$")
 ADDR_PATTERN = re.compile(r"^(0x[\dA-Fa-f]+)|(\d+)$")
@@ -134,11 +139,18 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
         try:
             return super().__getitem__(addr)
         except KeyError as ex:
-            if isinstance(addr, bool) or not isinstance(addr, self._key_types):
+            if not isinstance(addr, self._key_types):
                 raise TypeError(f"FunctionDict only supports {self._key_types} as key type") from ex
             return self._getitem_create_new_function(addr)
 
-    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # pylint: disable=unused-argument
+    @overload
+    def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
+    @overload
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    @overload
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type:ignore #pylint:disable=unused-argument
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -187,14 +199,14 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         rtdb: RuntimeDb,
         /,
         key_types: type = int,
-        cache_limit: int | None = None,
+        cache_limit: int = 1000,
         **kwargs,
     ):
         UserDict.__init__(self, **kwargs)
         FunctionDictBase.__init__(self, backref, key_types=key_types)
 
-        self._cache_limit: int | None = cache_limit
-        self.rtdb = rtdb
+        self._cache_limit: int = cache_limit
+        self.rtdb: RuntimeDb = rtdb
         self._lru_order: OrderedDict[K, None] = OrderedDict()
         self._spilled_keys: set[K] = set()
         self._list = SortedList()  # a sorted list of all keys (cached + spilled)
@@ -224,7 +236,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 pass
 
         # not found in memory
-        if isinstance(addr, bool) or not isinstance(addr, self._key_types):
+        if not isinstance(addr, self._key_types):
             raise TypeError(f"SpillingFunctionDict only supports {self._key_types} as key type")
 
         # Try to load from LMDB if it's spilled
@@ -258,7 +270,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._cache_limit = state["cache_limit"]
         self._db_batch_size = state["db_batch_size"]
         self.data = {}
-        self.rtdb = None
+        self.rtdb = None  # type:ignore
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
         self._list = SortedList()
@@ -294,8 +306,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         new_dict._eviction_enabled = False
         # iterate over in-memory functions and copy them
         for address in self.cached_keys:
-            function = SortedDict.__getitem__(self, address)
-            SortedDict.__setitem__(new_dict, address, function.copy())
+            function = super().__getitem__(address)
+            super(SpillingFunctionDict, new_dict).__setitem__(address, function.copy())
             new_dict._lru_order[address] = None
 
         # Copy any remaining spilled addresses and their LMDB data
@@ -336,7 +348,14 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # Iterate over all function addresses (cached + spilled)
         return self._list.__iter__()
 
-    def get(self, addr, default=_missing, /, meta_only: bool = False):
+    @overload
+    def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
+    @overload
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    @overload
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+
+    def get(self, addr, default=_missing, /, meta_only: bool = False):  # type:ignore
         # First check in-memory
         if self.is_cached(addr):
             try:
@@ -380,23 +399,23 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     #
 
     @property
-    def cached_keys(self) -> Generator[None, None, K]:
+    def cached_keys(self) -> Generator[K]:
         yield from self._list
 
     @property
-    def cache_limit(self) -> int | None:
+    def cache_limit(self) -> int:
         """
         Get the maximum number of functions to keep in memory.
         """
         return self._cache_limit
 
     @cache_limit.setter
-    def cache_limit(self, value: int | None) -> None:
+    def cache_limit(self, value: int) -> None:
         """
         Set the maximum number of functions to keep in memory.
         """
         self._cache_limit = value
-        if value is not None and self.cached_count > value + self._db_batch_size:
+        if self.cached_count > value + self._db_batch_size:
             self._evict_lru()
 
     @property
@@ -573,7 +592,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 if value is None:
                     return None
 
-                cmsg = function_pb2.Function()  # pylint:disable=no-member
+                cmsg = function_pb2.Function()  # type:ignore  # pylint:disable=no-member
                 cmsg.ParseFromString(value)
 
                 # Reconstruct function
@@ -824,7 +843,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         from_node,
         to_addr,
         retn_node=None,
-        syscall=None,
+        syscall: bool = False,
         stmt_idx=None,
         ins_addr=None,
         return_to_outside: bool = False,
@@ -1021,11 +1040,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
         yield from self._function_map
 
-    def items(self, /, meta_only: bool = False):
+    def items(self, /, meta_only: bool = False) -> Generator[tuple[K, Function]]:  # type: ignore
         for addr in self._function_map:
             yield addr, self._function_map.get(addr, meta_only=meta_only)
 
-    def values(self, /, meta_only: bool = False):
+    def values(self, /, meta_only: bool = False) -> Generator[Function]:  # type: ignore
         for addr in self._function_map:
             yield self._function_map.get(addr, meta_only=meta_only)
 
@@ -1316,7 +1335,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         return None
 
     @cache_limit.setter
-    def cache_limit(self, value: int | None) -> None:
+    def cache_limit(self, value: int) -> None:
         """
         Set the maximum number of functions to keep in memory.
         If the new limit is lower than the current number of cached functions, excess functions will be evicted to
@@ -1324,7 +1343,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         """
         if isinstance(self._function_map, SpillingFunctionDict):
             self._function_map.cache_limit = value
-        elif value is not None:
+        else:
             # Need to convert FunctionDict to SpillingFunctionDict
             old_map = self._function_map
             new_map = SpillingFunctionDict(

@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, overload
 
 from collections.abc import Callable
 import logging
@@ -54,6 +54,9 @@ from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_res
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
+
+    AddressType = int | SootAddressDescriptor
+    MethodType = int | SootMethodDescriptor
 
 
 l = logging.getLogger(name=__name__)
@@ -1975,7 +1978,9 @@ class CFGBase(Analysis):
 
         return set(functions_to_remove.keys())
 
-    def _process_irrational_function_starts(self, functions, predetermined_function_addrs, blockaddr_to_funcaddr):
+    def _process_irrational_function_starts(
+        self, functions, predetermined_function_addrs, blockaddr_to_funcaddr: dict[AddressType, MethodType]
+    ):
         """
         Functions that are identified via function prologues can be starting after the actual beginning of the function.
         For example, the following function (with an incorrect start) might exist after a CFG recovery:
@@ -2181,7 +2186,25 @@ class CFGBase(Analysis):
 
         return functions_to_remove
 
-    def _addr_to_funcaddr(self, addr: int, blockaddr_to_funcaddr: dict, known_functions: FunctionManager) -> int:
+    @overload
+    def _addr_to_funcaddr(
+        self,
+        addr: int,
+        blockaddr_to_funcaddr: dict[int, int],
+        known_functions: FunctionManager,
+    ) -> int: ...
+
+    @overload
+    def _addr_to_funcaddr(
+        self,
+        addr: SootAddressDescriptor,
+        blockaddr_to_funcaddr: dict[SootAddressDescriptor, SootMethodDescriptor],
+        known_functions: FunctionManager,
+    ) -> SootMethodDescriptor: ...
+
+    def _addr_to_funcaddr(
+        self, addr: AddressType, blockaddr_to_funcaddr: dict[AddressType, MethodType], known_functions: FunctionManager
+    ) -> MethodType:
         """
         Convert a block address to its function address, and store the mapping in the blockaddr_to_funcaddr dict. If
         this is the first time encountering the block, we load or create the function for the function manager of the
@@ -2207,8 +2230,8 @@ class CFGBase(Analysis):
 
             self.kb.functions._add_node(addr, node, syscall=is_syscall)
             f = self.kb.functions.function(addr=addr)
-            f_addr = f.addr
             assert f is not None
+            f_addr = f.addr
 
             # copy over existing metadata
             function_is_returning = False
@@ -2397,7 +2420,7 @@ class CFGBase(Analysis):
         src: CFGNode,
         dst: CFGNode,
         data: dict,
-        blockaddr_to_funcaddr: dict[int, int],
+        blockaddr_to_funcaddr: dict[AddressType, MethodType],
         known_functions: FunctionManager,
         all_edges: list | None,
     ) -> None:
@@ -2524,6 +2547,7 @@ class CFGBase(Analysis):
 
             if blockaddr_to_funcaddr.get(dst_addr) == dst_addr or (
                 self._detect_tail_calls
+                and all_edges is not None
                 and self._is_tail_call_optimization(
                     g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
                 )
@@ -2608,6 +2632,7 @@ class CFGBase(Analysis):
             called_function = None
             called_function_addr = None
             # Try to find the call that this fakeret goes with
+            assert all_edges is not None
             for _, d, e in all_edges:
                 if e["jumpkind"] == "Ijk_Call" and d.addr in blockaddr_to_funcaddr:
                     called_function_addr = d.addr

@@ -441,6 +441,7 @@ class Clinic(Analysis):
         # update the source block ID of all phi variables
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
+                assert isinstance(stmt.src, ailment.Expr.Phi)
                 new_src_and_vvars: list[tuple[tuple[int, int | None], VirtualVariable | None]] = [
                     ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
                 ]

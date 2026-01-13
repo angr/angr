@@ -69,7 +69,7 @@ class FunctionInfo(UserDict):
         self._func._dirty = True
         super().__delitem__(key)
 
-    def copy(self, owner: Function) -> FunctionInfo:
+    def copy(self, owner: Function) -> FunctionInfo:  # type:ignore[reportIncompatibleMethodOverride]
         new_info = FunctionInfo(owner)
         new_info.data = self.data.copy()
         return new_info
@@ -188,7 +188,7 @@ class Function(Serializable):
         # startpoint can be None if the corresponding CFGNode is a syscall node
         self.startpoint = None
         self._function_manager = function_manager
-        self._is_syscall = None
+        self._is_syscall = False
         self._is_simprocedure = False
         self._is_alignment = alignment
 
@@ -313,7 +313,8 @@ class Function(Serializable):
             return
         self.previous_names.append(self._name)
         self._name = v
-        self._function_manager._kb.labels[self.addr] = v
+        if self._function_manager is not None:
+            self._function_manager._kb.labels[self.addr] = v
         self.mark_dirty()
 
     @property
@@ -361,7 +362,7 @@ class Function(Serializable):
         return self._prototype_libname
 
     @prototype_libname.setter
-    def prototype_libname(self, libname: str):
+    def prototype_libname(self, libname: str | None):
         if self._prototype_libname == libname:
             return
         self._prototype_libname = libname
@@ -471,6 +472,7 @@ class Function(Serializable):
 
         :return: angr.knowledge_plugins.xrefs.xref.XRef instances.
         """
+        assert self._function_manager is not None
         for block in self.blocks:
             yield from self._function_manager._kb.xrefs.get_xrefs_by_ins_addr_region(
                 block.addr, block.addr + block.size
@@ -532,6 +534,7 @@ class Function(Serializable):
 
     @property
     def has_unresolved_jumps(self):
+        assert self._function_manager is not None
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
@@ -541,6 +544,7 @@ class Function(Serializable):
 
     @property
     def has_unresolved_calls(self):
+        assert self._function_manager is not None
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
@@ -565,7 +569,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return function_pb2.Function()  # pylint:disable=no-member
+        return function_pb2.Function()  # type:ignore  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         return FunctionParser.serialize(self)
@@ -588,19 +592,23 @@ class Function(Serializable):
                                 is the location of the string in memory.
         """
 
+        assert self._function_manager is not None
         cfg = self._function_manager._kb.cfgs.get_most_accurate()
+        if cfg is None:
+            return
 
         for x in self.xrefs:
-            try:
-                md = cfg.memory_data[x.dst]
-            except KeyError:
-                continue
-            if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                continue
-            if len(md.content) < minimum_length:
-                continue
+            if isinstance(x.dst, int):
+                try:
+                    md = cfg.memory_data[x.dst]
+                except KeyError:
+                    continue
+                if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
+                    continue
+                if len(md.content) < minimum_length:
+                    continue
 
-            yield (md.addr, md.content)
+                yield md.addr, md.content
 
     @property
     def local_runtime_values(self):
@@ -1226,6 +1234,8 @@ class Function(Serializable):
 
         :return: None
         """
+
+        assert self._function_manager is not None
 
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and data["type"] == "call":
@@ -1944,6 +1954,9 @@ class Function(Serializable):
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """
+        if self._function_manager is None:
+            return set()
+
         called = set()
 
         def _find_called(function_address):
@@ -1953,7 +1966,7 @@ class Function(Serializable):
                 _find_called(s)
 
         _find_called(self.addr)
-        return {self._function_manager.function(a) for a in called}
+        return {self._function_manager.get_by_addr(a) for a in called if self._function_manager.contains_addr(a)}
 
     def holes(self, min_size: int = 8) -> int:
         """
@@ -1983,16 +1996,16 @@ class Function(Serializable):
         func._call_sites = self._call_sites.copy()
         func._project = self._project
         func.previous_names = list(self.previous_names)
-        func.is_plt = self.is_plt
-        func.is_simprocedure = self.is_simprocedure
+        func._is_plt = self.is_plt
+        func._is_simprocedure = self.is_simprocedure
         func.binary_name = self.binary_name
         func.bp_on_stack = self.bp_on_stack
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
-        func.calling_convention = self.calling_convention
+        func._calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
-        func.is_alignment = self.is_alignment
+        func._is_alignment = self.is_alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
