@@ -15,6 +15,8 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
 
+RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
+
 
 l = logging.getLogger(__name__)
 
@@ -41,31 +43,37 @@ class RuntimeDb(KnowledgeBasePlugin):
 
         # Only generate the path once
         if self._lmdb_path is None:
-            # get the base directory of the project binary
             main_binary_path = self._kb._project.loader.main_object.binary
+            basename = os.path.basename(main_binary_path) if isinstance(main_binary_path, str) else "angr_proj"
+
             basedir = None
-            db_filename = None
-            if isinstance(main_binary_path, str):
+            if RTDB_BASEDIR is not None:
+                basedir = RTDB_BASEDIR
+                if not os.access(basedir, os.W_OK):
+                    l.error("The directory %s is not writable. Falling back.", basedir)
+                    basedir = None
+
+            if basedir is None and isinstance(main_binary_path, str):
+                # get the base directory of the project binary
                 basedir = os.path.dirname(os.path.abspath(main_binary_path))
                 basename = os.path.basename(main_binary_path)
-                db_filename = basename + "_angr_rtdb"
-
                 # is the location writable?
                 if not os.access(basedir, os.W_OK):
                     l.error("The directory %s is not writable. Falling back to temporary directory.", basedir)
                     basedir = None
-                else:
-                    # find a unique rtdb name
-                    while True:
-                        db_path = os.path.join(basedir, db_filename)
-                        if not os.path.exists(db_path):
-                            break
-                        db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
 
-            if db_filename is None:
-                db_filename = f"angr_rtdb_{uuid.uuid4().hex}"
             if basedir is None:
                 basedir = tempfile.gettempdir()
+                if not os.access(basedir, os.W_OK):
+                    raise OSError("No writable directory found for RTDB storage.")
+
+            db_filename = basename + "_angr_rtdb"
+            # find a unique rtdb name
+            while True:
+                db_path = os.path.join(basedir, db_filename)
+                if not os.path.exists(db_path):
+                    break
+                db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
 
             self._lmdb_path = os.path.join(basedir, db_filename)
 
@@ -96,6 +104,9 @@ class RuntimeDb(KnowledgeBasePlugin):
         """
         Increase the LMDB map size.
         """
+        if self._lmdb_env is None:
+            return
+
         delta = min(self._lmdb_mapsize, 1024 * 1024 * 256)
         l.debug("Increasing LMDB map size by %d bytes", delta)
         self._lmdb_mapsize += delta
