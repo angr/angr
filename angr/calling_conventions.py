@@ -2615,9 +2615,9 @@ CC_NAMES = {}
 cls_queue = [SimCC]
 while cls_queue:
     cls_ = cls_queue.pop()
-    if not cls_.__subclasses__():
+    if cls_ is not SimCC and cls_.__name__ not in CC_NAMES:
         CC_NAMES[cls_.__name__] = cls_
-    else:
+    if cls_.__subclasses__():
         cls_queue.extend(cls_.__subclasses__())
 
 

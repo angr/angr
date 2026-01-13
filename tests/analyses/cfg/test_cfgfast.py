@@ -10,6 +10,7 @@ import unittest
 
 import archinfo
 import angr
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
@@ -1080,8 +1081,8 @@ class TestCfgfastDataReferences(unittest.TestCase):
                 main = proj.kb.functions["main"]
                 write = proj.kb.functions["write"]
                 read = proj.kb.functions["read"]
-                assert len(set(main.transition_graph.predecessors(write))) == 3
-                assert len(set(main.transition_graph.predecessors(read))) == 1
+                assert len(set(main.transition_graph.predecessors(FuncNode(write.addr)))) == 3
+                assert len(set(main.transition_graph.predecessors(FuncNode(read.addr)))) == 1
 
 
 if __name__ == "__main__":

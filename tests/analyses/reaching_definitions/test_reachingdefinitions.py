@@ -13,6 +13,7 @@ import claripy
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.codenode import FuncNode
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
@@ -243,7 +244,7 @@ class TestReachingDefinitions(TestCase):
         main_func = cfg.functions["main"]
         strlen_func = cfg.functions["strlen"]
 
-        strlen_edges = main_func.transition_graph.in_edges(strlen_func)
+        strlen_edges = main_func.transition_graph.in_edges(FuncNode(strlen_func.addr))
 
         # Only one call site for strlen in the `all` binary
         strlen_call_site = next(

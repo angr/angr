@@ -26,7 +26,7 @@ class TestAPIObfFinder(TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
 
-        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        proj.analyses.CompleteCallingConventions()
 
         # it will update kb.obfuscations
         finder = proj.analyses.APIObfuscationFinder()
@@ -59,7 +59,7 @@ class TestAPIObfFinder(TestCase):
 
         proj = angr.Project(bin_path, auto_load_libs=False)
         proj.analyses.CFG(normalize=True)
-        proj.analyses.CompleteCallingConventions(recover_variables=True)
+        proj.analyses.CompleteCallingConventions()
 
         # Ensure variable not resolved yet (via symbols)
         assert not proj.kb.variables["global"].get_global_variables(func_ptr_addr)

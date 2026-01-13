@@ -3,10 +3,12 @@ from __future__ import annotations
 import os
 import logging
 import itertools
-from collections import defaultdict
+from collections import defaultdict, UserDict
 from collections.abc import Iterable
 import contextlib
-from typing import overload, TYPE_CHECKING
+import json
+from functools import wraps
+from typing import TYPE_CHECKING
 
 import networkx
 import pydemumble
@@ -16,7 +18,7 @@ from archinfo.arch_arm import get_real_address_if_arm
 import claripy
 
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode
+from angr.codenode import CodeNode, BlockNode, HookNode, SyscallNode, FuncNode
 from angr.serializable import Serializable
 from angr.errors import AngrValueError, SimEngineError, SimMemoryError
 from angr.procedures import SIM_LIBRARIES
@@ -35,9 +37,60 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 
+def dirty_func(func):
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self._dirty = True
+        return func(self, *args, **kwargs)
+
+    return wrapper
+
+
+class FunctionInfo(UserDict):
+    """
+    A dictionary that updates the .dirty field of the Function object when modified.
+    """
+
+    def __init__(self, func: Function):
+        super().__init__()
+        self._func = func
+
+    def __setitem__(self, key, value):
+        if not isinstance(value, (str, int, float, bool, list, dict)):
+            raise TypeError(
+                "FunctionInfo only supports JSON-serializable values (str, int, float, bool, list, and dict)."
+            )
+        if not isinstance(key, str):
+            raise TypeError("FunctionInfo only supports str keys.")
+        self._func._dirty = True
+        super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        self._func._dirty = True
+        super().__delitem__(key)
+
+    def copy(self, owner: Function) -> FunctionInfo:  # type:ignore[reportIncompatibleMethodOverride]
+        new_info = FunctionInfo(owner)
+        new_info.data = self.data.copy()
+        return new_info
+
+    def to_json(self) -> str:
+        return json.dumps(self.data)
+
+    @classmethod
+    def from_json(cls, json_str: str, owner: Function) -> FunctionInfo:
+        info = cls(owner)
+        info.data = json.loads(json_str)
+        return info
+
+
 class Function(Serializable):
     """
     A representation of a function and various information about it.
+
+    :ivar meta_only:            Whether this function only contains meta-information and in read-only mode.
+    :ivar _dirty:                Whether this function has been modified since last serialization.
+    :ivar evicted:              Whether this function has been evicted from FunctionManager to external storage.
     """
 
     __slots__ = (
@@ -46,36 +99,38 @@ class Function(Serializable):
         "_argument_stack_variables",
         "_block_sizes",
         "_call_sites",
+        "_calling_convention",
         "_callout_sites",
         "_cyclomatic_complexity",
+        "_dirty",
         "_endpoints",
         "_function_manager",
+        "_info",
+        "_is_alignment",
+        "_is_plt",
+        "_is_simprocedure",
+        "_is_syscall",
         "_jumpout_sites",
         "_local_block_addrs",
         "_local_blocks",
         "_local_transition_graph",
         "_name",
         "_project",
+        "_prototype",
+        "_prototype_libname",
         "_ret_sites",
         "_retout_sites",
         "_returning",
         "addr",
-        "addr",
         "binary_name",
         "bp_on_stack",
-        "calling_convention",
+        "evicted",
         "from_signature",
-        "info",
-        "is_alignment",
         "is_default_name",
-        "is_plt",
         "is_prototype_guessed",
-        "is_simprocedure",
-        "is_syscall",
+        "meta_only",
         "normalized",
         "previous_names",
-        "prototype",
-        "prototype_libname",
         "ran_cca",
         "retaddr_on_stack",
         "sp_delta",
@@ -137,19 +192,19 @@ class Function(Serializable):
         # startpoint can be None if the corresponding CFGNode is a syscall node
         self.startpoint = None
         self._function_manager = function_manager
-        self.is_syscall = None
-        self.is_simprocedure = False
-        self.is_alignment = alignment
+        self._is_syscall = False
+        self._is_simprocedure = False
+        self._is_alignment = alignment
 
         # These properties are set by VariableManager
         self.bp_on_stack = False
         self.retaddr_on_stack = False
         self.sp_delta = 0
         # Calling convention
-        self.calling_convention = calling_convention
+        self._calling_convention = calling_convention
         # Function prototype
-        self.prototype = prototype
-        self.prototype_libname = prototype_libname
+        self._prototype = prototype
+        self._prototype_libname = prototype_libname
         self.is_prototype_guessed = is_prototype_guessed
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
@@ -161,7 +216,7 @@ class Function(Serializable):
         self._local_blocks = {}  # a dict of all blocks inside the function
         self._local_block_addrs = set()  # a set of addresses of all blocks inside the function
 
-        self.info = {}  # storing special information, like $gp values for MIPS32
+        self._info = FunctionInfo(self)  # storing special information, like $gp values for MIPS32
         self.tags = ()  # store function tags. can be set manually by performing CodeTagging analysis.
 
         # Initialize _cyclomatic_complexity to None
@@ -176,13 +231,16 @@ class Function(Serializable):
         self._project: Project | None = None  # will be initialized upon the first access to self.project
 
         self.ran_cca = False  # this is set by CompleteCallingConventions to avoid reprocessing failed functions
+        self._dirty: bool = True
+        self.meta_only: bool = False
+        self.evicted: bool = False
 
         #
         # Initialize unspecified properties
         #
 
         if syscall is not None:
-            self.is_syscall = syscall
+            self._is_syscall = syscall
         else:
             if self.project is None:
                 raise ValueError(
@@ -190,11 +248,11 @@ class Function(Serializable):
                 )
 
             # Determine whether this function is a syscall or not
-            self.is_syscall = self.project.simos.is_syscall_addr(addr)
+            self._is_syscall = self.project.simos.is_syscall_addr(addr)
 
         # Determine whether this function is a SimProcedure
         if is_simprocedure is not None:
-            self.is_simprocedure = is_simprocedure
+            self._is_simprocedure = is_simprocedure
         else:
             if self.project is None:
                 raise ValueError(
@@ -203,15 +261,15 @@ class Function(Serializable):
                 )
 
             if self.is_syscall or self.project.is_hooked(addr):
-                self.is_simprocedure = True
+                self._is_simprocedure = True
 
         # Determine if this function is a PLT entry
         if is_plt is not None:
-            self.is_plt = is_plt
+            self._is_plt = is_plt
         else:
             if self._function_manager is not None:
                 # use the faster cached version
-                self.is_plt = self._function_manager.is_plt_cached(addr)
+                self._is_plt = self._function_manager.is_plt_cached(addr)
             else:
                 # Whether this function is a PLT entry or not is primarily relying on the PLT detection in CLE; it may
                 # also be updated (to True) during CFG recovery.
@@ -219,7 +277,7 @@ class Function(Serializable):
                     raise ValueError(
                         "'is_plt' must be specified if you do not specify a function manager for this new function."
                     )
-                self.is_plt = self.project.loader.find_plt_stub_name(addr) is not None
+                self._is_plt = self.project.loader.find_plt_stub_name(addr) is not None
 
         # Determine the name of this function
         if name is None:
@@ -238,14 +296,14 @@ class Function(Serializable):
 
         # Determine returning status for SimProcedures and Syscalls
         if returning is not None:
-            self._returning = returning
+            self.returning = returning
         else:
             if self.project is None:
                 raise ValueError(
                     "'returning' must be specified if you do not specify a function manager for this new function."
                 )
 
-            self._returning = self._get_initial_returning()
+            self.returning = self._get_initial_returning()
 
         self._init_prototype_and_calling_convention()
 
@@ -255,9 +313,13 @@ class Function(Serializable):
 
     @name.setter
     def name(self, v):
+        if v == self._name:
+            return
         self.previous_names.append(self._name)
         self._name = v
-        self._function_manager._kb.labels[self.addr] = v
+        if self._function_manager is not None:
+            self._function_manager._kb.labels[self.addr] = v
+        self.mark_dirty()
 
     @property
     def project(self):
@@ -272,7 +334,102 @@ class Function(Serializable):
 
     @returning.setter
     def returning(self, v):
+        if self._returning == v:
+            return
         self._returning = v
+        self.mark_dirty()
+
+        # update the cache
+        if self._function_manager is not None:
+            self._function_manager.set_function_returning(self.addr, v)
+
+    @property
+    def calling_convention(self):
+        return self._calling_convention
+
+    @calling_convention.setter
+    @dirty_func
+    def calling_convention(self, cc: SimCC):
+        self._calling_convention = cc
+
+    @property
+    def prototype(self):
+        return self._prototype
+
+    @prototype.setter
+    @dirty_func
+    def prototype(self, proto: SimTypeFunction):
+        self._prototype = proto
+
+    @property
+    def prototype_libname(self):
+        return self._prototype_libname
+
+    @prototype_libname.setter
+    def prototype_libname(self, libname: str | None):
+        if self._prototype_libname == libname:
+            return
+        self._prototype_libname = libname
+        self.mark_dirty()
+
+    @property
+    def info(self) -> FunctionInfo:
+        return self._info
+
+    @info.setter
+    @dirty_func
+    def info(self, info: FunctionInfo | dict):
+        if not isinstance(info, FunctionInfo):
+            o = FunctionInfo(self)
+            o.update(info)
+            info = o
+        self._info = info
+        # update the owner
+        self._info._func = self
+
+    @property
+    def is_plt(self) -> bool:
+        return self._is_plt
+
+    @is_plt.setter
+    def is_plt(self, v: bool):
+        if self._is_plt == v:
+            return
+        self._is_plt = v
+        self.mark_dirty()
+
+    @property
+    def is_simprocedure(self) -> bool:
+        return self._is_simprocedure
+
+    @is_simprocedure.setter
+    def is_simprocedure(self, v: bool):
+        if self._is_simprocedure == v:
+            return
+        self._is_simprocedure = v
+        self.mark_dirty()
+
+    @property
+    def is_syscall(self) -> bool:
+        return self._is_syscall
+
+    @is_syscall.setter
+    def is_syscall(self, v: bool):
+        if self._is_syscall == v:
+            return
+        self._is_syscall = v
+        self.mark_dirty()
+
+    @property
+    def is_alignment(self) -> bool:
+        return self._is_alignment
+
+    @is_alignment.setter
+    def is_alignment(self, v: bool):
+        if self._is_alignment == v:
+            return
+        self._is_alignment = v
+        self.mark_dirty()
 
     @property
     def blocks(self):
@@ -319,6 +476,7 @@ class Function(Serializable):
 
         :return: angr.knowledge_plugins.xrefs.xref.XRef instances.
         """
+        assert self._function_manager is not None
         for block in self.blocks:
             yield from self._function_manager._kb.xrefs.get_xrefs_by_ins_addr_region(
                 block.addr, block.addr + block.size
@@ -380,6 +538,7 @@ class Function(Serializable):
 
     @property
     def has_unresolved_jumps(self):
+        assert self._function_manager is not None
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
@@ -389,6 +548,7 @@ class Function(Serializable):
 
     @property
     def has_unresolved_calls(self):
+        assert self._function_manager is not None
         for addr in self.block_addrs:
             if addr in self._function_manager._kb.unresolved_indirect_jumps:
                 b = self._function_manager._kb._project.factory.block(addr)
@@ -413,7 +573,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return function_pb2.Function()  # pylint:disable=no-member
+        return function_pb2.Function()  # type:ignore  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         return FunctionParser.serialize(self)
@@ -436,19 +596,23 @@ class Function(Serializable):
                                 is the location of the string in memory.
         """
 
+        assert self._function_manager is not None
         cfg = self._function_manager._kb.cfgs.get_most_accurate()
+        if cfg is None:
+            return
 
         for x in self.xrefs:
-            try:
-                md = cfg.memory_data[x.dst]
-            except KeyError:
-                continue
-            if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
-                continue
-            if len(md.content) < minimum_length:
-                continue
+            if isinstance(x.dst, int):
+                try:
+                    md = cfg.memory_data[x.dst]
+                except KeyError:
+                    continue
+                if md.sort not in {MemoryDataSort.String, MemoryDataSort.UnicodeString}:
+                    continue
+                if len(md.content) < minimum_length:
+                    continue
 
-            yield (md.addr, md.content)
+                yield md.addr, md.content
 
     @property
     def local_runtime_values(self):
@@ -651,6 +815,14 @@ class Function(Serializable):
         dec = self.project.analyses.Decompiler(self, cfg=self._function_manager._kb.cfgs.get_most_accurate())
         return dec.codegen.text if dec.codegen else None
 
+    @property
+    def dirty(self) -> bool:
+        return self._dirty
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    @dirty_func
     def add_jumpout_site(self, node: CodeNode):
         """
         Add a custom jumpout site.
@@ -663,6 +835,7 @@ class Function(Serializable):
         self._jumpout_sites.add(node)
         self._add_endpoint(node, "transition")
 
+    @dirty_func
     def add_retout_site(self, node: CodeNode):
         """
         Add a custom retout site.
@@ -767,6 +940,7 @@ class Function(Serializable):
         # Cannot determine
         return None
 
+    @dirty_func
     def _init_prototype_and_calling_convention(self) -> None:
         """
         Initialize prototype and calling convention from a SimProcedure, if available.
@@ -795,6 +969,7 @@ class Function(Serializable):
                     cc = cc_cls(arch)
         self.calling_convention = cc
 
+    @dirty_func
     def _clear_transition_graph(self):
         self._block_sizes = {}
         self._addr_to_block_node = {}
@@ -811,6 +986,7 @@ class Function(Serializable):
         self._endpoints = defaultdict(set)
         self._call_sites = {}
 
+    @dirty_func
     def _confirm_fakeret(self, src, dst):
         if src not in self.transition_graph or dst not in self.transition_graph[src]:
             raise AngrValueError(f"FakeRet edge ({src}, {dst}) is not in transition graph.")
@@ -826,6 +1002,7 @@ class Function(Serializable):
 
         self.transition_graph[src][dst]["confirmed"] = True
 
+    @dirty_func
     def _transit_to(
         self, from_node: CodeNode, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False
     ):
@@ -865,14 +1042,23 @@ class Function(Serializable):
         # clear the cache
         self._local_transition_graph = None
 
-    def _call_to(self, from_node, to_func, ret_node, stmt_idx=None, ins_addr=None, return_to_outside=False):
+    @dirty_func
+    def _call_to(
+        self,
+        from_node,
+        to_func: FuncNode,
+        ret_node,
+        stmt_idx=None,
+        ins_addr=None,
+        return_to_outside=False,
+        syscall: bool = False,
+    ):
         """
         Registers an edge between the caller basic block and callee function.
 
         :param from_addr:   The basic block that control flow leaves during the transition.
         :type  from_addr:   angr.knowledge.CodeNode
-        :param to_func:     The function that we are calling
-        :type  to_func:     Function
+        :param to_func:     The function that we are calling, represented as a FuncNode.
         :param ret_node     The basic block that control flow should return to after the
                             function call.
         :type  to_func:     angr.knowledge.CodeNode or None
@@ -884,16 +1070,16 @@ class Function(Serializable):
 
         from_node = self._register_node(True, from_node)
 
-        if to_func.is_syscall:
-            self.transition_graph.add_edge(from_node, to_func, type="syscall", stmt_idx=stmt_idx, ins_addr=ins_addr)
-        else:
-            self.transition_graph.add_edge(from_node, to_func, type="call", stmt_idx=stmt_idx, ins_addr=ins_addr)
-            if ret_node is not None:
-                ret_node = self._register_node(return_to_outside is False, ret_node)
-                self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
+        self.transition_graph.add_edge(
+            from_node, to_func, type="syscall" if syscall else "call", stmt_idx=stmt_idx, ins_addr=ins_addr
+        )
+        if ret_node is not None and not syscall:
+            ret_node = self._register_node(return_to_outside is False, ret_node)
+            self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
         from_node = self._register_node(True, from_node)
         if confirmed:
@@ -908,46 +1094,46 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _remove_fakeret(self, from_node, to_node):
         self.transition_graph.remove_edge(from_node, to_node)
 
         self._local_transition_graph = None
 
-    def _return_from_call(self, from_func, to_node, to_outside=False):
-        self.transition_graph.add_edge(from_func, to_node, type="return", to_outside=to_outside)
-        for _, _, data in self.transition_graph.in_edges(to_node, data=True):
-            if "type" in data and data["type"] == "fake_return":
-                data["confirmed"] = True
+    @dirty_func
+    def _return_from_call(
+        self, from_func: FuncNode | HookNode, to_node, to_outside=False, confirm_fakeret: bool = True
+    ):
+        self.transition_graph.add_edge(from_func, to_node, type="return", outside=to_outside)
+        if confirm_fakeret:
+            for _, _, data in self.transition_graph.in_edges(to_node, data=True):
+                if "type" in data and data["type"] == "fake_return":
+                    data["confirmed"] = True
 
         self._local_transition_graph = None
 
+    @dirty_func
     def _update_local_blocks(self, node: CodeNode):
         if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
             self._local_blocks[node.addr] = node
             self._local_block_addrs.add(node.addr)
+            if self._function_manager is not None:
+                self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
 
+    @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
-    @overload
-    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode: ...
-
-    @overload
-    def _register_node(self, is_local: bool, node: Function) -> Function: ...
-
-    def _register_node(self, is_local: bool, node: CodeNode | Function) -> CodeNode | Function:
+    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode:
         # if the node already exists and is the same, we reuse the existing node
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
 
+        self.mark_dirty()
         if node.addr not in self and node not in self.transition_graph:
             # only add each node to the graph once
             self.transition_graph.add_node(node)
-
-        if not isinstance(node, CodeNode):
-            # function and other things bail here
-            return node
 
         # this is either a new node or a different node at the same address
         node.set_graph(self.transition_graph)
@@ -965,6 +1151,7 @@ class Function(Serializable):
             #    assert node == self._addr_to_block_node[node.addr]
         return node
 
+    @dirty_func
     def _add_return_site(self, return_site: CodeNode):
         """
         Registers a basic block as a site for control flow to return from this function.
@@ -978,6 +1165,7 @@ class Function(Serializable):
         # after returning
         self._add_endpoint(return_site, "return")
 
+    @dirty_func
     def _add_call_site(self, call_site_addr, call_target_addr, retn_addr):
         """
         Registers a basic block as calling a function and returning somewhere.
@@ -988,6 +1176,7 @@ class Function(Serializable):
         """
         self._call_sites[call_site_addr] = (call_target_addr, retn_addr)
 
+    @dirty_func
     def _add_endpoint(self, endpoint_node, sort):
         """
         Registers an endpoint with a type of `sort`. The type can be one of the following:
@@ -1050,17 +1239,20 @@ class Function(Serializable):
         :return: None
         """
 
+        assert self._function_manager is not None
+
         for src, dst, data in self.transition_graph.edges(data=True):
             if "type" in data and data["type"] == "call":
                 func_addr = dst.addr
-                if func_addr in self._function_manager:
-                    function = self._function_manager[func_addr]
-                    if function.returning is False:
-                        # the target function does not return
-                        the_node = self.get_node(src.addr)
-                        if the_node is not None:
-                            self._callout_sites.add(the_node)
-                            self._add_endpoint(the_node, "call")
+                if self._function_manager.contains_addr(func_addr) and self._function_manager.is_func_nonreturning(
+                    func_addr
+                ):
+                    # the target function does not return
+                    the_node = self.get_node(src.addr)
+                    if the_node is not None:
+                        self._callout_sites.add(the_node)
+                        self._add_endpoint(the_node, "call")
+                        self.mark_dirty()
 
     def get_call_sites(self) -> Iterable[int]:
         """
@@ -1325,6 +1517,7 @@ class Function(Serializable):
         networkx.draw(tmp_graph, pos, node_size=1200)
         pyplot.savefig(filename)
 
+    @dirty_func
     def _add_argument_register(self, reg_offset):
         """
         Registers a register offset as being used as an argument to the function.
@@ -1334,6 +1527,7 @@ class Function(Serializable):
         if reg_offset in self._function_manager._arg_registers and reg_offset not in self._argument_registers:
             self._argument_registers.append(reg_offset)
 
+    @dirty_func
     def _add_argument_stack_variable(self, stack_var_offset):
         if stack_var_offset not in self._argument_stack_variables:
             self._argument_stack_variables.append(stack_var_offset)
@@ -1355,6 +1549,7 @@ class Function(Serializable):
         assert self.project is not None
         return self.project.factory.callable(self.addr)
 
+    @dirty_func
     def normalize(self):
         """
         Make sure all basic blocks in the transition graph of this function do not overlap. You will end up with a CFG
@@ -1520,10 +1715,10 @@ class Function(Serializable):
                 if len(edges) == 0:
                     return False
                 node = next(iter(edges))[1]
-                if len(edges) == 1 and (type(node) is HookNode or type(node) is SyscallNode):
+                if len(edges) == 1 and isinstance(node, (FuncNode, HookNode, SyscallNode)):
                     target = node.addr
-                    if target in self._function_manager:
-                        target_func = self._function_manager[target]
+                    if self._function_manager.contains_addr(target):
+                        target_func = self._function_manager.get_by_addr(target)
                         binary_name = target_func.binary_name
 
             # cannot determine the binary name. since we are forced to respect binary name, we give up in this case.
@@ -1763,6 +1958,9 @@ class Function(Serializable):
         """
         :return: The set of all functions that can be reached from the function represented by self.
         """
+        if self._function_manager is None:
+            return set()
+
         called = set()
 
         def _find_called(function_address):
@@ -1772,7 +1970,7 @@ class Function(Serializable):
                 _find_called(s)
 
         _find_called(self.addr)
-        return {self._function_manager.function(a) for a in called}
+        return {self._function_manager.get_by_addr(a) for a in called if self._function_manager.contains_addr(a)}
 
     def holes(self, min_size: int = 8) -> int:
         """
@@ -1802,23 +2000,24 @@ class Function(Serializable):
         func._call_sites = self._call_sites.copy()
         func._project = self._project
         func.previous_names = list(self.previous_names)
-        func.is_plt = self.is_plt
-        func.is_simprocedure = self.is_simprocedure
+        func._is_plt = self.is_plt
+        func._is_simprocedure = self.is_simprocedure
         func.binary_name = self.binary_name
         func.bp_on_stack = self.bp_on_stack
         func.retaddr_on_stack = self.retaddr_on_stack
         func.sp_delta = self.sp_delta
-        func.calling_convention = self.calling_convention
+        func._calling_convention = self.calling_convention
         func.prototype = self.prototype
         func._returning = self._returning
-        func.is_alignment = self.is_alignment
+        func._is_alignment = self.is_alignment
         func.startpoint = self.startpoint
         func._addr_to_block_node = self._addr_to_block_node.copy()
         func._block_sizes = self._block_sizes.copy()
         func._local_blocks = self._local_blocks.copy()
         func._local_block_addrs = self._local_block_addrs.copy()
-        func.info = self.info.copy()
+        func._info = self.info.copy(func)
         func.tags = self.tags
+        func._dirty = self._dirty
 
         return func
 

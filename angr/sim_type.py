@@ -1344,7 +1344,7 @@ class SimTypeFunction(SimType):
         if memo is None:
             memo = {}
         d = super().to_json(fields=fields, memo=memo)
-        if d["variadic"] is False:
+        if "variadic" in d and d["variadic"] is False:
             d.pop("variadic")
         return d
 
@@ -1672,8 +1672,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         if self.name in memo:
             return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, SimStruct)
-
+        memo[self.name] = SimTypeRef(self.name, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
@@ -2324,6 +2323,7 @@ class SimCppClass(SimStruct):
         "pack",
         "align",
         "size",
+        "anonymous",
     )
     _ident = "cppclass"
 
@@ -2338,8 +2338,9 @@ class SimCppClass(SimStruct):
         pack: bool = False,
         align=None,
         size: int | None = None,
+        anonymous: bool = False,
     ):
-        super().__init__(members or {}, name=name, pack=pack, align=align)
+        super().__init__(members or {}, name=name, pack=pack, align=align, anonymous=anonymous)
         self.unique_name = unique_name
         # these are actually addresses in the binary
         self.function_members = function_members
@@ -2366,6 +2367,24 @@ class SimCppClass(SimStruct):
 
     def __repr__(self):
         return f"class {self.name}" if not self.name.startswith("class") else self.name
+
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        if self.name in memo:
+            return memo[self.name].to_json(fields=fields, memo=memo)
+        memo[self.name] = SimTypeRef(self.name, SimCppClass)
+        d = super().to_json(fields=fields, memo=memo)
+        if "pack" in d and d["pack"] is False:
+            d.pop("pack")
+        if "align" in d and d["align"] is None:
+            d.pop("align")
+        if "anonymous" in d and d["anonymous"] is False:
+            d.pop("anonymous")
+        if "q" in d and not d["q"]:
+            d.pop("q")
+        return d
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}

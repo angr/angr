@@ -17,6 +17,12 @@ class KnowledgeBasePlugin:
     def copy(self):
         raise NotImplementedError
 
+    def set_kb(self, kb: KnowledgeBase):
+        """
+        Invoked after __setstate__() is called.
+        """
+        self._kb = kb
+
     @staticmethod
     def register_default(name, cls):
         if name in default_plugins:

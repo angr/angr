@@ -43,18 +43,18 @@ class SootFunction(Function):
         self._call_sites = {}
         self.addr = addr
         self._function_manager = function_manager
-        self.is_syscall = syscall
+        self._is_syscall = syscall
 
         self._project = project = self._function_manager._kb._project
 
-        self.is_plt = False
-        self.is_simprocedure = False
+        self._is_plt = False
+        self._is_simprocedure = False
 
         if project.is_hooked(addr):
-            self.is_simprocedure = True
+            self._is_simprocedure = True
 
         binary_name = None
-        if self.is_simprocedure:
+        if self._is_simprocedure:
             hooker = project.hooked_by(addr)
             if hooker is not None:
                 binary_name = hooker.library_name
@@ -83,7 +83,7 @@ class SootFunction(Function):
         # Whether this function returns or not. `None` means it's not determined yet
         self._returning = None
 
-        self.is_alignment = None
+        self._is_alignment = None
 
         # Determine returning status for SimProcedures and Syscalls
         hooker = None

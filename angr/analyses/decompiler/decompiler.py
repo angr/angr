@@ -86,6 +86,13 @@ class Decompiler(Analysis):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
+        if self.func.evicted:
+            l.warning(
+                "The Function instance %r has been evicted. Pass in a non-evicted Function instance or the "
+                "function address instead to avoid unexpected decompilation output caused by using out-dated "
+                "data.",
+                func,
+            )
 
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
