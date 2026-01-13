@@ -300,6 +300,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._funcsdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
+        self._db_load_lock = threading.Lock()
+        self._db_store_lock = threading.Lock()
 
         for k, v in state["items"].items():
             self[k] = v
