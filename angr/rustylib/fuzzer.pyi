@@ -103,18 +103,16 @@ class Fuzzer:
         Initialize the fuzzer with the given parameters.
         """
 
-    def corpus(self) -> InMemoryCorpus | OnDiskCorpus:
-        ...
-
-    def solutions(self) -> InMemoryCorpus | OnDiskCorpus:
-        ...
-
+    def corpus(self) -> InMemoryCorpus | OnDiskCorpus: ...
+    def solutions(self) -> InMemoryCorpus | OnDiskCorpus: ...
     def run_once(self, progress_callback: Callable[[ClientStats, str, int], None] | None = None) -> int:
         """
         Run the fuzzer for one iteration.
         """
 
-    def run(self, progress_callback: Callable[[ClientStats, str, int], None] | None = None, iterations: int | None = None) -> None:
+    def run(
+        self, progress_callback: Callable[[ClientStats, str, int], None] | None = None, iterations: int | None = None
+    ) -> None:
         """
         Run the fuzzer in a loop or for a set number of iterations.
         """

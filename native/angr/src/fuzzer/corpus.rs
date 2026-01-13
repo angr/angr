@@ -1,8 +1,8 @@
 use std::{cell::RefCell, path::PathBuf};
 
 use libafl::{
-    corpus::{Corpus, CorpusId, InMemoryCorpus, OnDiskCorpus, Testcase},
     Error,
+    corpus::{Corpus, CorpusId, InMemoryCorpus, OnDiskCorpus, Testcase},
     inputs::BytesInput,
 };
 use pyo3::{
@@ -350,9 +350,8 @@ impl TryFrom<&PyInMemoryCorpus> for DynCorpus<BytesInput> {
     type Error = PyErr;
 
     fn try_from(value: &PyInMemoryCorpus) -> Result<Self, Self::Error> {
-        let inner: InMemoryCorpus<BytesInput> =
-            InMemoryCorpus::<BytesInput>::try_from(value)
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+        let inner: InMemoryCorpus<BytesInput> = InMemoryCorpus::<BytesInput>::try_from(value)
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(DynCorpus::InMem(inner))
     }
 }
@@ -376,7 +375,9 @@ impl DynCorpus<BytesInput> {
                 Ok(obj.into_bound(py).into_any().unbind())
             }
             DynCorpus::OnDisk(inner) => {
-                let py_ondisk = PyOnDiskCorpus { inner: inner.clone() };
+                let py_ondisk = PyOnDiskCorpus {
+                    inner: inner.clone(),
+                };
                 let obj = Py::new(py, py_ondisk)?; // Py<PyOnDiskCorpus>
                 Ok(obj.into_bound(py).into_any().unbind())
             }

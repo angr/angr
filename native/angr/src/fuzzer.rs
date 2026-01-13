@@ -20,9 +20,13 @@ use libafl_bolts::{
     tuples::{tuple_list, tuple_list_type},
 };
 use pyo3::exceptions::PyRuntimeError;
-use pyo3::{exceptions::PyTypeError, prelude::*, Py};
+use pyo3::{Py, exceptions::PyTypeError, prelude::*};
 
-use crate::fuzzer::{corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus}, executor::PyExecutorInner, monitor::CallbackMonitor};
+use crate::fuzzer::{
+    corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus},
+    executor::PyExecutorInner,
+    monitor::CallbackMonitor,
+};
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
 // alias are used to match the generic type names used in LibAFL.
