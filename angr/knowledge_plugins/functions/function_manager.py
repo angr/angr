@@ -1125,11 +1125,15 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
     def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function]:
         if not check_previous_names:
             addrs = self._func_name_to_addrs.get(name, set())
-            for addr in sorted(addrs):
+            if all(isinstance(a, int) for a in addrs):
+                addrs = sorted(addrs)
+            for addr in addrs:
                 yield self._function_map.get(addr)
         else:
             addrs = self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
-            for addr in sorted(addrs):
+            if all(isinstance(a, int) for a in addrs):
+                addrs = sorted(addrs)
+            for addr in addrs:
                 yield self._function_map.get(addr)
 
     def get_addrs_by_name(self, name: str, check_previous_names: bool = False) -> set[int]:
