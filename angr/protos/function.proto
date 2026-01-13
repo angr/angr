@@ -34,4 +34,5 @@ message Function {
     repeated Block  external_blocks = 24; // Referenced blocks outside this function
     bool            is_default_name = 25; // Whether the function name is a default name (e.g., sub_123456) or not
     bool            ran_cca = 26;  // Whether calling convention analysis has been performed on this function
+    repeated string previous_names = 27; // Previous names of this function
 }

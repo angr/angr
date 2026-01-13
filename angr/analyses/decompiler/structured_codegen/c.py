@@ -1368,9 +1368,12 @@ class CFunctionCall(CStatement, CExpression):
 
         # FIXME: Handle name mangle
         if callee is not None:
-            for func in self.codegen.kb.functions.get_by_name(callee.name):
-                if func.addr != callee.addr and (caller.binary is not callee.binary or func.binary is callee.binary):
-                    return True
+            func_addrs = self.codegen.kb.functions.get_addrs_by_name(callee.name)
+            for func_addr in func_addrs:
+                if func_addr != callee.addr:
+                    func = self.codegen.kb.functions.get_by_addr(func_addr, meta_only=True)
+                    if caller.binary is not callee.binary or func.binary is callee.binary:
+                        return True
 
         return False
 

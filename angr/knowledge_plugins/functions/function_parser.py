@@ -81,6 +81,7 @@ class FunctionParser:
         obj.is_prototype_guessed = function.is_prototype_guessed
         obj.info = function.info.to_json().encode("utf-8") if function.info else b""
         obj.ran_cca = function.ran_cca
+        obj.previous_names.extend(function.previous_names)
 
         for endpoint_type, endpoint_nodes in function.endpoints_with_type.items():
             for node in endpoint_nodes:
@@ -210,6 +211,7 @@ class FunctionParser:
         obj.info = json.loads(cmsg.info.decode("utf-8")) if cmsg.info else {}
         obj.is_default_name = cmsg.is_default_name
         obj.ran_cca = cmsg.ran_cca
+        obj.previous_names = cmsg.previous_names
 
         # signature matched?
         if cmsg.matched_from == function_pb2.Function.UNMATCHED:

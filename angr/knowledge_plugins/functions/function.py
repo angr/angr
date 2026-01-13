@@ -315,10 +315,12 @@ class Function(Serializable):
     def name(self, v):
         if v == self._name:
             return
-        self.previous_names.append(self._name)
-        self._name = v
+        if self._name not in self.previous_names:
+            self.previous_names.append(self._name)
         if self._function_manager is not None:
+            self._function_manager.function_name_changed(self.addr, self._name, v)
             self._function_manager._kb.labels[self.addr] = v
+        self._name = v
         self.mark_dirty()
 
     @property

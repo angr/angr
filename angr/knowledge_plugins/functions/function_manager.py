@@ -10,6 +10,7 @@ import re
 import weakref
 import bisect
 import os
+from collections import defaultdict
 
 import lmdb
 import networkx
@@ -709,8 +710,12 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         # non-returning functions cache
         self._non_returning_func_addrs: set[int] = set()
         self._unknown_returning_func_addrs: set[int] = set()
-        # function # blocks cache
+        # function number of blocks cache
         self._func_block_counts: dict[int, int] = {}
+        # function name cache
+        self._func_name_to_addrs: defaultdict[str, set[int]] = defaultdict(set)
+        # historical function name cache
+        self._old_func_name_to_addrs: defaultdict[str, set[int]] = defaultdict(set)
 
     def __setstate__(self, state):
         self.function_address_types = state["function_address_types"]
@@ -718,14 +723,29 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._function_map = state["_function_map"]
         self.callgraph = state["callgraph"]
 
-        self._function_map._backref = weakref.proxy(self)
-        for func in self._function_map.values():
-            func._function_manager = self
-
         # Reinitialize cache state
         self._rplt_cache_ranges = None
         self._rplt_cache = None
         self._binname_cache = None
+        self._non_returning_func_addrs = set()
+        self._unknown_returning_func_addrs = set()
+        self._func_block_counts = {}
+        self._func_name_to_addrs = defaultdict(set)
+        self._old_func_name_to_addrs = defaultdict(set)
+        self.function_addrs_set = set()
+
+        self._function_map._backref = weakref.proxy(self)
+        for func in self._function_map.values():
+            func._function_manager = self
+            if func.returning is None:
+                self._unknown_returning_func_addrs.add(func.addr)
+            elif func.returning is False:
+                self._non_returning_func_addrs.add(func.addr)
+            self._func_block_counts[func.addr] = len(func.block_addrs_set)
+            self._func_name_to_addrs[func.name].add(func.addr)
+            for old_name in func.previous_names:
+                self._old_func_name_to_addrs[old_name].add(func.addr)
+            self.function_addrs_set.add(func.addr)
 
     def set_kb(self, kb: KnowledgeBase):
         super().set_kb(kb)
@@ -748,11 +768,20 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
         fm = FunctionManager(self._kb, cache_limit=cache_limit)
         for k, v in self._function_map.items():
+            # Note that we use shallow copy of Function instances and do not update Function._function_manager to point
+            # to fm.
             fm._function_map[k] = v
         fm._function_map._backref = weakref.proxy(fm)
         fm.callgraph = networkx.MultiDiGraph(self.callgraph)
         fm._arg_registers = self._arg_registers.copy()
         fm.function_addrs_set = self.function_addrs_set.copy()
+
+        # cache
+        fm._non_returning_func_addrs = self._non_returning_func_addrs.copy()
+        fm._unknown_returning_func_addrs = self._unknown_returning_func_addrs.copy()
+        fm._func_block_counts = self._func_block_counts.copy()
+        fm._func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._func_name_to_addrs.items()})
+        fm._old_func_name_to_addrs = defaultdict(set, {k: v.copy() for k, v in self._old_func_name_to_addrs.items()})
 
         return fm
 
@@ -775,6 +804,8 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         self._non_returning_func_addrs = set()
         self._unknown_returning_func_addrs = set()
         self._func_block_counts = {}
+        self._func_name_to_addrs = defaultdict(set)
+        self._old_func_name_to_addrs = defaultdict(set)
 
     def get_default_cache_limit(self, max_limit: int = 5000) -> int | None:
         """
@@ -848,6 +879,22 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             self._binname_cache[obj.min_addr] = obj.max_addr, binary_basename
             base_addr = obj.min_addr
         return self._binname_cache[base_addr][1] if self._binname_cache is not None else None
+
+    def function_name_changed(self, addr: K, old_name: str | None, new_name: str) -> None:
+        """
+        Notify the FunctionManager that a function's name has changed.
+
+        :param addr:        Address of the function.
+        :param old_name:    Old name of the function, or None if there is no old name.
+        :param new_name:    New name of the function.
+        """
+        if old_name is not None:
+            if old_name in self._func_name_to_addrs:
+                self._func_name_to_addrs[old_name].discard(addr)
+                if not self._func_name_to_addrs[old_name]:
+                    del self._func_name_to_addrs[old_name]
+            self._old_func_name_to_addrs[old_name].add(addr)
+        self._func_name_to_addrs[new_name].add(addr)
 
     def _add_node(self, function_addr, node, syscall=None, size=None):
         if isinstance(node, self.address_types):
@@ -1037,7 +1084,7 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
     def __delitem__(self, k):
         if isinstance(k, self.function_address_types):
-            # Delegate to _function_map (SpillingFunctionDict handles spilled addrs)
+            func_meta = self._function_map.get(k, None, meta_only=True)
             if k in self._function_map:
                 del self._function_map[k]
             if k in self.callgraph:
@@ -1046,6 +1093,10 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
             self._non_returning_func_addrs.discard(k)
             self._unknown_returning_func_addrs.discard(k)
             self._func_block_counts.pop(k, None)
+            self._func_name_to_addrs.pop(k, None)
+            if func_meta is not None:
+                for old_name in func_meta.previous_names:
+                    self._old_func_name_to_addrs.get(old_name, set()).discard(k)
         else:
             raise ValueError(
                 f"FunctionManager.__delitem__ only accepts the following address types: "
@@ -1072,12 +1123,23 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
         return self._function_map.get(addr, meta_only=meta_only)
 
     def get_by_name(self, name: str, check_previous_names: bool = False) -> Generator[Function]:
-        # For SpillingFunctionDict, we need to iterate over all addresses
-        # and load spilled functions as needed
-        for addr in self._function_map:
-            func = self._function_map.get(addr)
-            if func.name == name or (check_previous_names and name in func.previous_names):
-                yield func
+        if not check_previous_names:
+            addrs = self._func_name_to_addrs.get(name, set())
+            if all(isinstance(a, int) for a in addrs):
+                addrs = sorted(addrs)
+            for addr in addrs:
+                yield self._function_map.get(addr)
+        else:
+            addrs = self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
+            if all(isinstance(a, int) for a in addrs):
+                addrs = sorted(addrs)
+            for addr in addrs:
+                yield self._function_map.get(addr)
+
+    def get_addrs_by_name(self, name: str, check_previous_names: bool = False) -> set[int]:
+        if not check_previous_names:
+            return self._func_name_to_addrs.get(name, set()).copy()
+        return self._old_func_name_to_addrs.get(name, set()) | self._func_name_to_addrs.get(name, set())
 
     def _function_added(self, func: Function):
         """
@@ -1098,6 +1160,9 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
 
         # make sure all functions exist in the call graph
         self.callgraph.add_node(func.addr)
+
+        # trigger function_name_changed to update function name caches
+        self.function_name_changed(func.addr, None, func.name)
 
     def contains_addr(self, addr):
         """
