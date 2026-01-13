@@ -1492,7 +1492,7 @@ class SimCCSyscall(SimCC):
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)
         with contextlib.suppress(AttributeError):
-            expr = expr.ast # type: ignore
+            expr = expr.ast  # type: ignore
         nbits = self.ERROR_REG.size * state.arch.byte_width
         if self.SYSCALL_ERRNO_START is None:
             raise ValueError(f"SYSCALL_ERRNO_START is not defined for {self}")
@@ -1604,7 +1604,7 @@ class SimCCSystemVAMD64(SimCC):
                     regfile_offset = arch.registers[ex_arg.reg_name][0]
                 while regfile_offset not in arch.register_names:
                     regfile_offset -= 1
-                ex_arg.reg_name = arch.register_names[regfile_offset] # type: ignore
+                ex_arg.reg_name = arch.register_names[regfile_offset]  # type: ignore
                 ex_arg.reg_offset = 0
 
             if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
@@ -2003,7 +2003,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
         return False
 
     @staticmethod
-    def syscall_num(state): # type: ignore
+    def syscall_num(state):  # type: ignore
         if ((state.regs.ip_at_syscall & 1) == 1).is_true():
             insn = state.mem[state.regs.ip_at_syscall - 3].short.resolved
             is_svc = ((insn & 0xFF00) == 0xDF00).is_true()
