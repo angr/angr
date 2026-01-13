@@ -8,7 +8,7 @@ from collections.abc import Iterable, Iterator
 import contextlib
 import json
 from functools import wraps
-from typing import overload, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import networkx
 import pydemumble
