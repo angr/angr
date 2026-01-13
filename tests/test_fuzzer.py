@@ -17,7 +17,10 @@ def test_fuzzer():
 
     def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
-        state.project.factory.cc().return_addr.set_value(state, 0xDEADBEEF)
+        assert state.project is not None
+        cc = state.project.factory.cc()
+        assert cc.return_addr is not None
+        cc.return_addr.set_value(state, 0xDEADBEEF)
         state.posix.stdin.write(0, "usernameN")
         state.posix.stdin.write(0, input)
         print("Done")
@@ -54,7 +57,10 @@ def test_fuzzer_ondisk(tmp_path):
 
     def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
-        state.project.factory.cc().return_addr.set_value(state, 0xDEADBEEF)
+        assert state.project is not None
+        cc = state.project.factory.cc()
+        assert cc.return_addr is not None
+        cc.return_addr.set_value(state, 0xDEADBEEF)
         state.posix.stdin.write(0, "usernameN")
         state.posix.stdin.write(0, input)
         print("Done")
@@ -91,7 +97,10 @@ def test_fuzzer_mixed_inmem_corpus_ondisk_solutions(tmp_path):
 
     def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
-        state.project.factory.cc().return_addr.set_value(state, 0xDEADBEEF)
+        assert state.project is not None
+        cc = state.project.factory.cc()
+        assert cc.return_addr is not None
+        cc.return_addr.set_value(state, 0xDEADBEEF)
         state.posix.stdin.write(0, "usernameN")
         state.posix.stdin.write(0, input)
         print("Done")
@@ -123,7 +132,10 @@ def test_fuzzer_mixed_ondisk_corpus_inmem_solutions(tmp_path):
 
     def apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
         print("Apply function called with input:", input, flush=True)
-        state.project.factory.cc().return_addr.set_value(state, 0xDEADBEEF)
+        assert state.project is not None
+        cc = state.project.factory.cc()
+        assert cc.return_addr is not None
+        cc.return_addr.set_value(state, 0xDEADBEEF)
         state.posix.stdin.write(0, "usernameN")
         state.posix.stdin.write(0, input)
         print("Done")
