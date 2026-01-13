@@ -11,6 +11,7 @@ from collections import defaultdict
 import lmdb
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.errors import AngrRuntimeDbError
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -41,44 +42,90 @@ class RuntimeDb(KnowledgeBasePlugin):
         if self._lmdb_env is not None:
             return
 
-        # Only generate the path once
-        if self._lmdb_path is None:
-            main_binary_path = self._kb._project.loader.main_object.binary
-            basename = os.path.basename(main_binary_path) if isinstance(main_binary_path, str) else "angr_proj"
+        if self._lmdb_path is not None:
+            # may fail and raise exceptions
+            self._lmdb_env = self._attempt_creating_lmdb(self._lmdb_path)
+        else:
+            r = self._init_lmdb_attempt_multipele_locations()
+            if r is None:
+                raise AngrRuntimeDbError("Failed to initialize the LMDB environment.")
+            self._lmdb_path, self._lmdb_env = r
 
-            basedir = None
-            if RTDB_BASEDIR is not None:
-                basedir = RTDB_BASEDIR
-                if not os.access(basedir, os.W_OK):
-                    l.error("The directory %s is not writable. Falling back.", basedir)
-                    basedir = None
-
-            if basedir is None and isinstance(main_binary_path, str):
-                # get the base directory of the project binary
-                basedir = os.path.dirname(os.path.abspath(main_binary_path))
-                basename = os.path.basename(main_binary_path)
-                # is the location writable?
-                if not os.access(basedir, os.W_OK):
-                    l.error("The directory %s is not writable. Falling back to temporary directory.", basedir)
-                    basedir = None
-
-            if basedir is None:
-                basedir = tempfile.gettempdir()
-                if not os.access(basedir, os.W_OK):
-                    raise OSError("No writable directory found for RTDB storage.")
-
-            db_filename = basename + "_angr_rtdb"
-            # find a unique rtdb name
-            while True:
-                db_path = os.path.join(basedir, db_filename)
-                if not os.path.exists(db_path):
-                    break
-                db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
-
-            self._lmdb_path = os.path.join(basedir, db_filename)
-
-        self._lmdb_env = lmdb.open(self._lmdb_path, map_size=self._lmdb_mapsize, max_dbs=10)
         l.debug("Initialized LRU cache LMDB at %s", self._lmdb_path)
+
+    def _init_lmdb_attempt_multipele_locations(self) -> tuple[str, lmdb.Environment] | None:
+        if self._lmdb_env is not None:
+            return None
+
+        main_binary_path = self._kb._project.loader.main_object.binary
+        basename = os.path.basename(main_binary_path) if isinstance(main_binary_path, str) else "angr_proj"
+
+        basedir = None
+        if RTDB_BASEDIR is not None:
+            basedir = RTDB_BASEDIR
+            if not os.access(basedir, os.W_OK):
+                l.error("The directory %s is not writable. Falling back.", basedir)
+                basedir = None
+            else:
+                db_filename = self._get_unique_db_filename(basedir, basename)
+                lmdb_path = os.path.join(basedir, db_filename)
+                lmdb_env = self._attempt_creating_lmdb(lmdb_path)
+                if lmdb_env is not None:
+                    return lmdb_path, lmdb_env
+                basedir = None
+                db_filename = None
+
+        if basedir is None and isinstance(main_binary_path, str):
+            # get the base directory of the project binary
+            basedir = os.path.dirname(os.path.abspath(main_binary_path))
+            # is the location writable?
+            if not os.access(basedir, os.W_OK):
+                l.error("The directory %s is not writable. Falling back to temporary directory.", basedir)
+                basedir = None
+            else:
+                db_filename = self._get_unique_db_filename(basedir, basename)
+                lmdb_path = os.path.join(basedir, db_filename)
+                lmdb_env = self._attempt_creating_lmdb(lmdb_path)
+                if lmdb_env is not None:
+                    return lmdb_path, lmdb_env
+                basedir = None
+                db_filename = None
+
+        if basedir is None:
+            basedir = tempfile.gettempdir()
+            if not os.access(basedir, os.W_OK):
+                raise OSError("No writable directory found for RTDB storage.")
+            db_filename = self._get_unique_db_filename(basedir, basename)
+            lmdb_path = os.path.join(basedir, db_filename)
+            lmdb_env = self._attempt_creating_lmdb(lmdb_path)
+            if lmdb_env is not None:
+                return lmdb_path, lmdb_env
+            raise OSError("No writable directory found for RTDB storage.")
+
+        return None
+
+    def _attempt_creating_lmdb(self, lmdb_path: str):
+        """
+        Attempt to create the LMDB environment.
+        """
+        if self._lmdb_env is not None:
+            return None
+
+        try:
+            return lmdb.open(lmdb_path, map_size=self._lmdb_mapsize, max_dbs=10)
+        except (PermissionError, OSError):
+            return None
+
+    @staticmethod
+    def _get_unique_db_filename(basedir: str, basename: str) -> str:
+        # find a unique rtdb name
+        db_filename = basename + "_angr_rtdb"
+        while True:
+            db_path = os.path.join(basedir, db_filename)
+            if not os.path.exists(db_path):
+                break
+            db_filename = basename + f"_angr_rtdb_{uuid.uuid4().hex}"
+        return db_filename
 
     def _cleanup_lmdb(self):
         """
