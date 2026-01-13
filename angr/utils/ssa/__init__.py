@@ -8,6 +8,7 @@ import networkx
 import archinfo
 from angr.ailment import Expression, Block, Address
 from angr.ailment.expression import (
+    Insert,
     VirtualVariable,
     Const,
     Phi,
@@ -396,6 +397,9 @@ def has_load_expr_in_between_stmts(
 
 def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
+        if isinstance(def_stmt, Assignment):
+            # do not create huge insert chains
+            return not isinstance(def_stmt.src, Insert)
         return True
     if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
         if (

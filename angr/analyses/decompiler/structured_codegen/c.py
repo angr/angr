@@ -734,7 +734,7 @@ class CExpression(CConstruct):
         self.collapsed = collapsed
 
     @property
-    def type(self):
+    def type(self) -> SimType:
         raise NotImplementedError(f"Class {type(self)} does not implement type().")
 
     def set_type(self, v):
@@ -1642,7 +1642,7 @@ class CStructField(CExpression):
         "struct_type",
     )
 
-    def __init__(self, struct_type: SimStruct, offset, field, **kwargs):
+    def __init__(self, struct_type: SimStruct, offset: int, field: str, **kwargs):
         super().__init__(**kwargs)
 
         self.struct_type = struct_type
@@ -2686,6 +2686,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.UnaryOp: self._handle_Expr_UnaryOp,
             Expr.BinaryOp: self._handle_Expr_BinaryOp,
             Expr.Convert: self._handle_Expr_Convert,
+            Expr.Extract: self._handle_Expr_Extract,
+            Expr.Insert: self._handle_Expr_Insert,
             Expr.StackBaseOffset: self._handle_Expr_StackBaseOffset,
             Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
@@ -3322,6 +3324,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         type_: SimType | None = None,
         ref: bool = False,
     ):
+        assert self.ailexpr2cnode is not None
         if (node, is_expr) in self.ailexpr2cnode:
             return self.ailexpr2cnode[(node, is_expr)]
 
@@ -3517,10 +3520,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         csrc = self._handle(stmt.src, lvalue=False)
         cdst = None
 
-        src_type = csrc.type
-        dst_type = src_type
+        dst_type = csrc.type
         if "tags" in stmt.tags:
-            src_type = stmt.tags["type"].get("src")
             dst_type = stmt.tags["type"].get("dst")
 
         if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
@@ -3536,11 +3537,27 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
             if stmt.dst.variable is not None:
                 if "struct_member_info" in stmt.dst.tags:
+                    # TODO is this obsoleted by Insert?
                     offset, var, _ = stmt.dst.tags["struct_member_info"]
                     cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
                 else:
                     cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
                     offset = stmt.dst.variable_offset or 0
+
+                    if (
+                        isinstance(stmt.src, Expr.Insert)
+                        and isinstance(stmt.src.base, Expr.VirtualVariable)
+                        and stmt.src.base.oident == stmt.dst.oident
+                        and isinstance(stmt.src.offset, Expr.Const)
+                        and isinstance(stmt.src.offset.value, int)
+                        and isinstance(cvar.type, SimStruct)
+                    ):
+                        field = next((name for name, off in cvar.type.offsets.items() if off == offset), None)
+                        if field is not None:
+                            offset = stmt.src.offset.value
+                            csrc = self._handle(stmt.src.value)
+                            dst_type = cvar.type.fields[field]
+
                 assert type(offset) is int  # I refuse to deal with the alternative
 
                 cdst = self._access_constant_offset(
@@ -3961,6 +3978,51 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             child = CTypeCast(None, child_ty, child, codegen=self)
 
         return CTypeCast(None, dst_type.with_arch(self.project.arch), child, tags=expr.tags, codegen=self)
+
+    def _handle_Expr_Extract(self, expr: Expr.Extract, **kwargs):
+        child = self._handle(expr.base)
+        target_type = self.default_simtype_from_bits(expr.bits, False)
+        offset = (
+            expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
+        )
+        if isinstance(child.type, SimStruct) and offset is not None:
+            field = next((name for name, off in child.type.offsets.items() if off == offset), None)
+            if field is not None and offset in child.type.fields and expr.bits == child.type.fields[field].size:
+                return CVariableField(child, CStructField(child.type, offset, field, codegen=self), codegen=self)
+        if isinstance(child.type, SimTypeInt) and offset == 0:  # TODO not big-endian safe
+            return CTypeCast(child.type, target_type, child, codegen=self)
+
+        voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
+        return CUnaryOp(
+            "Dereference",
+            CTypeCast(
+                voidp,
+                SimTypePointer(target_type).with_arch(self.project.arch),
+                CBinaryOp(
+                    "Add",
+                    CTypeCast(
+                        SimTypePointer(child.type).with_arch(self.project.arch),
+                        voidp,
+                        CUnaryOp("Reference", child, codegen=self),
+                        codegen=self,
+                    ),
+                    CConstant(offset, SimTypeInt(), codegen=self),
+                    codegen=self,
+                ),
+                codegen=self,
+            ),
+            codegen=self,
+        )
+
+    def _handle_Expr_Insert(self, expr: Expr.Insert, **kwargs):
+        # should never really be used - should be handled by Assignment
+        return CFunctionCall(
+            "_INSERT",
+            None,
+            [self._handle(expr.base), self._handle(expr.offset), self._handle(expr.value)],
+            is_expr=True,
+            codegen=self,
+        )
 
     def _handle_Expr_VEXCCallExpression(self, expr: Expr.VEXCCallExpression, **kwargs):
         operands = [self._handle(arg) for arg in expr.operands]

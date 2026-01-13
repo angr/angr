@@ -133,6 +133,8 @@ class CallingConventionAnalysis(Analysis):
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
         self._collect_facts_arg_passthru = collect_facts_arg_passthru
+        self._callsites = {}
+        self._pointer_arg_derefs = {}
 
         if self._retval_size is not None and self._input_args is None:
             # retval size will be ignored if input_args is not specified - user error?

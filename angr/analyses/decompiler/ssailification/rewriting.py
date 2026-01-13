@@ -1,4 +1,5 @@
 from __future__ import annotations
+from itertools import chain
 from typing import TYPE_CHECKING, Any, TypeVar
 from collections.abc import MutableMapping
 from collections.abc import Callable
@@ -45,6 +46,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         ail_manager,
         func_args: set[VirtualVariable],
         def_to_udef: MutableMapping[Def, UDef],
+        extern_defs: set[UDef],
         vvar_id_start: int = 0,
     ):
         self.project = project
@@ -60,6 +62,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._rewrite_tmps = rewrite_tmps
         self._ail_manager = ail_manager
         self._func_args = func_args
+        self._extern_defs = extern_defs
         self._engine_ail = SimEngineSSARewriting(
             self.project,
             rewrite_tmps=self._rewrite_tmps,
@@ -237,18 +240,37 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             self._function,
             node,
         )
+        more_args = []
+        for kind, offset, size in sorted(self._extern_defs):
+            varid = self._engine_ail._current_vvar_id
+            self._engine_ail._current_vvar_id += 1
+            category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
+            vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+            more_args.append(vvar)
+
         # update state with function arguments
-        for func_arg in self._func_args:
-            if func_arg.parameter_category == VirtualVariableCategory.REGISTER:
+        for func_arg in chain(more_args, self._func_args):
+            if func_arg.category == VirtualVariableCategory.REGISTER:
+                reg_offset, reg_size = func_arg.reg_offset, func_arg.size
+                assert reg_offset is not None and reg_size is not None
+                for suboff in range(reg_offset, reg_offset + func_arg.size):
+                    state.registers[suboff] = func_arg
+            elif func_arg.category == VirtualVariableCategory.STACK:
+                stack_offset = func_arg.stack_offset
+                assert stack_offset is not None and func_arg.size is not None
+                for suboff in range(stack_offset, stack_offset + func_arg.size):
+                    state.stackvars[suboff] = func_arg
+            elif func_arg.parameter_category == VirtualVariableCategory.REGISTER:
                 reg_offset, reg_size = func_arg.parameter_reg_offset, func_arg.size
                 assert reg_offset is not None and reg_size is not None
                 for suboff in range(reg_offset, reg_offset + func_arg.size):
                     state.registers[suboff] = func_arg
             elif func_arg.parameter_category == VirtualVariableCategory.STACK:
-                parameter_stack_offset = func_arg.parameter_stack_offset
-                assert parameter_stack_offset is not None and func_arg.size is not None
-                for suboff in range(parameter_stack_offset, parameter_stack_offset + func_arg.size):
+                stack_offset = func_arg.parameter_stack_offset
+                assert stack_offset is not None and func_arg.size is not None
+                for suboff in range(stack_offset, stack_offset + func_arg.size):
                     state.stackvars[suboff] = func_arg
+
         return state
 
     def _run_on_node(self, node, state: RewritingState):

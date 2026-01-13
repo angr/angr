@@ -4,30 +4,30 @@ from typing import TYPE_CHECKING
 from collections.abc import Callable
 
 import angr.ailment as ailment
-
-from angr.analyses import ForwardAnalysis
-from angr.analyses.forward_analysis import FunctionGraphVisitor
+from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal_engine import SimEngineSSATraversal
 from .traversal_state import TraversalState
 
 if TYPE_CHECKING:
+    import networkx
     from angr.knowledge_plugins.functions.function import Function
+    from angr.project import Project
 
 
 l = logging.getLogger(__name__)
 
 
-class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, tuple[int, int], object]):
+class TraversalAnalysis:
     """
     TraversalAnalysis traverses the AIL graph and collects definitions.
     """
 
     def __init__(
         self,
-        project,
-        func,
-        ail_graph,
+        project: Project,
+        func: Function,
+        ail_graph: networkx.DiGraph[ailment.Block],
         sp_tracker,
         bp_as_gpr: bool,
         stackvars: bool,
@@ -39,12 +39,10 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         self._stackvars = stackvars
         self._tmps = tmps
         self._function = func
-        self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
+        self._ail_graph = ail_graph
         self._func_args = func_args
+        self._pending_states: dict[ailment.Block, TraversalState | None] = {}
 
-        ForwardAnalysis.__init__(
-            self, order_jobs=True, allow_merging=True, allow_widening=False, graph_visitor=self._graph_visitor
-        )
         self._engine_ail = SimEngineSSATraversal(
             self.project,
             self.project.simos,
@@ -55,20 +53,20 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
             functions=functions,
         )
 
-        self._visited_blocks: set[ailment.Address] = set()
-
         self._analyze()
 
         self.def_info = self._engine_ail.def_info
 
     #
     # Main analysis routines
-    #
 
-    def _pre_analysis(self):
-        pass
+    def _analyze(self):
+        entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
+        assert entry_block is not None
+        traverse_in_order(self._ail_graph, entry_block, self._run_on_node)
+        self._engine_ail.finalize()
 
-    def _initial_abstract_state(self, node: ailment.Block) -> TraversalState:
+    def _initial_abstract_state(self) -> TraversalState:
         state = TraversalState(self.project.arch, self._function)
         # update it with function arguments
         if self._func_args:
@@ -91,17 +89,7 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
                     state.stackvar_unify(offset, func_arg.size)
         return state
 
-    def _merge_states(self, node: ailment.Block, *states: TraversalState) -> tuple[TraversalState, bool]:
-        merged_state = TraversalState(
-            self.project.arch,
-            self._function,
-            live_registers=states[0].live_registers.copy(),
-            live_stackvars=states[0].live_stackvars.copy(),
-        )
-        merge_occurred = merged_state.merge(*states[1:])
-        return merged_state, not merge_occurred
-
-    def _run_on_node(self, node, state: TraversalState):
+    def _run_on_node(self, node: ailment.Block):
         """
 
         :param node:    The current node.
@@ -109,26 +97,17 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         :return:        A tuple: (any changes occur, successor state)
         """
 
-        if isinstance(node, ailment.Block):
-            block = node
-            block_key = (node.addr, node.idx)
-            engine = self._engine_ail
-        else:
-            l.warning("Unsupported node type %s.", node.__class__)
-            return False, state
+        state = self._pending_states.get(node, None)
+        if state is None:
+            state = self._initial_abstract_state()
+        self._pending_states[node] = None
+        self._engine_ail.process(state, block=node)
 
-        if block_key in self._visited_blocks:
-            # we visit each block exactly once
-            return False, state
-
-        state = state.copy()
-        engine.process(state, block=block)
-
-        self._visited_blocks.add(block_key)
-        return True, state
-
-    def _intra_analysis(self):
-        pass
-
-    def _post_analysis(self):
-        self._engine_ail.finalize()
+        succ_count = len(self._ail_graph.succ[node])
+        for i, succ in enumerate(self._ail_graph.succ[node]):
+            if succ not in self._pending_states:
+                self._pending_states[succ] = state.copy() if i != succ_count - 1 else state
+            else:
+                existing = self._pending_states[succ]
+                if existing is not None:
+                    existing.merge(state)

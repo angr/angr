@@ -108,10 +108,10 @@ class ClinicStage(enum.IntEnum):
     MAKE_ARGUMENT_LIST = 3
     TRACK_STACK_POINTERS = 4
     CONSTANT_PROPAGATION = 5
-    PRE_SSA_LEVEL0_FIXUPS = 6
-    SSA_LEVEL0_TRANSFORMATION = 7
-    MAKE_CALLSITES = 8
-    POST_CALLSITES = 9
+    MAKE_CALLSITES = 6
+    POST_CALLSITES = 7
+    PRE_SSA_LEVEL0_FIXUPS = 8
+    SSA_LEVEL0_TRANSFORMATION = 9
     PRE_SSA_LEVEL1_SIMPLIFICATIONS = 10
     SSA_LEVEL1_TRANSFORMATION = 11
     POST_SSA_LEVEL1_SIMPLIFICATIONS = 12
@@ -338,8 +338,9 @@ class Clinic(Analysis):
 
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
-    #     if self._ail_graph is not None and 'Call' not in str([n for n in self._ail_graph if n.addr == self.function.addr][0].statements[-1]):
-    #         breakpoint()
+    #     for block in self._ail_graph or []:
+    #         if block.addr == 0x401cf2:
+    #             assert any(stmt.tags.get('ins_addr', None) == 0x401d11 or 'stack_base-64' in str(stmt) for stmt in block.statements)
     #     return super()._update_progress(*args, **kwargs)
 
     def _decompilation_graph_recovery(self):
@@ -1880,14 +1881,14 @@ class Clinic(Analysis):
         Simplify all function call statements.
         """
 
-        # Computing reaching definitions
-        rd = self.project.analyses.SReachingDefinitions(
-            subject=self.function,
-            func_graph=ail_graph,
-            func_args=func_args,
-            fail_fast=self._fail_fast,
-            use_callee_saved_regs_at_return=not self._register_save_areas_removed,
-        )
+        # # Computing reaching definitions
+        # rd = self.project.analyses.SReachingDefinitions(
+        #     subject=self.function,
+        #     func_graph=ail_graph,
+        #     func_args=func_args,
+        #     fail_fast=self._fail_fast,
+        #     use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+        # )
 
         stack_arg_offsets = set()
         removed_vvar_ids = set()
@@ -1898,7 +1899,7 @@ class Clinic(Analysis):
                 fail_fast=self._fail_fast,
             )(
                 block,
-                reaching_definitions=rd,
+                # reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
             )
@@ -2319,6 +2320,9 @@ class Clinic(Analysis):
 
         elif type(expr) in {ailment.Expr.Convert, ailment.Expr.Reinterpret}:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
+
+        elif type(expr) is ailment.Expr.Extract or type(expr) is ailment.Expr.Insert:
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
 
         elif type(expr) is ailment.Expr.ITE:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)

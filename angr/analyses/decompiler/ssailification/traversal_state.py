@@ -24,6 +24,7 @@ class TraversalState:
         func,
         live_registers: MutableMapping[int, Value] | None = None,
         live_stackvars: MutableMapping[int, Value] | None = None,
+        register_blackout: set[int] | None = None,
         live_vvars: MutableMapping[int, Value] | None = None,
         stackvar_bases: MutableMapping[int, tuple[int, int]] | None = None,
         stackvar_defs: MutableMapping[int, set[Def]] | None = None,
@@ -32,6 +33,7 @@ class TraversalState:
         self.arch = arch
         self.func = func
 
+        self.register_blackout = set(register_blackout or ())
         self.live_registers = defaultdict(set, {} if live_registers is None else live_registers)
         self.live_stackvars = defaultdict(set, {} if live_stackvars is None else live_stackvars)
         self.live_vvars = defaultdict(set, {} if live_vvars is None else live_vvars)
@@ -45,33 +47,28 @@ class TraversalState:
         self.stackvar_defs = defaultdict(set, set() if stackvar_defs is None else stackvar_defs)
 
     def stackvar_unify(self, offset: int, size: int) -> tuple[int, int, set[int]]:
-        if (uhoh := self.stackvar_bases.get(offset, None)) == (offset, size):
-            return (offset, size, set())
-        if uhoh is None:
-            full_offset, full_size = offset, size
-        else:
-            cur_offset, cur_size = uhoh
-            if cur_offset <= offset and cur_offset + cur_size >= offset + size:
-                return (cur_offset, cur_size, set())
-            full_offset = min(cur_offset, offset)
-            full_size = max(cur_offset + cur_size, offset + size) - full_offset
+        seen = (offset, offset + size)
+        queue = [(offset, offset + size)]
+        popped: set[int] = set()
+        while queue:
+            offset, eoffset = queue.pop()
+            for suboffset in range(offset, eoffset):
+                noffset, nsize = self.stackvar_bases.get(suboffset, (suboffset, 0))
+                neoffset = noffset + nsize
+                if noffset < seen[0]:
+                    queue.append((noffset, seen[0]))
+                    seen = (noffset, seen[1])
+                if neoffset > seen[1]:
+                    queue.append((seen[1], neoffset))
+                    seen = (seen[0], neoffset)
+                if nsize != 0:
+                    popped.add(noffset)
 
-        final_cell = full_offset + full_size - 1
-        uhoh = self.stackvar_bases.get(final_cell, None)
-        if uhoh is not None:
-            full_size = max(full_size, uhoh[0] + uhoh[1] - full_offset)
+        final_offset, final_size = (seen[0], seen[1] - seen[0])
+        for suboffset in range(*seen):
+            self.stackvar_bases[suboffset] = (final_offset, final_size)
 
-        popped = self.stackvar_poprange(full_offset, full_size)
-        for suboff in range(offset, offset + size):
-            self.stackvar_bases[suboff] = (full_offset, full_size)
-        return (full_offset, full_size, popped)
-
-    def stackvar_poprange(self, offset: int, size: int) -> set[int]:
-        popped = set()
-        for suboff in range(offset, offset + size):
-            if (a := self.stackvar_bases.pop(suboff, None)) is not None:
-                popped.add(a[0])
-        return popped
+        return (final_offset, final_size, popped)
 
     def copy(self) -> TraversalState:
         return TraversalState(
@@ -80,6 +77,7 @@ class TraversalState:
             # these get copied
             live_registers=self.live_registers,
             live_stackvars=self.live_stackvars,
+            register_blackout=self.register_blackout,
             live_vvars=self.live_vvars,
             pending_ptr_defines_nonlocal_live=self.pending_ptr_defines_nonlocal_live,
             stackvar_bases=dict(self.stackvar_bases),
@@ -96,6 +94,7 @@ class TraversalState:
         all_stackvars = self.live_stackvars
         all_vvars = self.live_vvars
         ppdnl = self.pending_ptr_defines_nonlocal_live
+        blackout = self.register_blackout
 
         for o in others:
             for k, v in o.live_registers.items():
@@ -107,10 +106,17 @@ class TraversalState:
             for k, v in o.live_vvars.items():
                 merge_occurred |= bool(v.difference(all_vvars[k]))
                 all_vvars[k].update(v)
-            for k, s in set(o.stackvar_bases.values()):
-                merge_occurred |= (k, s) != self.stackvar_unify(k, s)
+            for k0, (k1, s1) in o.stackvar_bases.items():
+                k2, s2 = self.stackvar_bases.get(k0, (k0, 0))
+                k3 = min(k1, k2)
+                s3 = max(k1 + s1, k2 + s2) - k3
+                if (k2, s2) != (k3, s3):
+                    merge_occurred = True
+                    self.stackvar_bases[k0] = (k3, s3)
             merge_occurred |= bool(o.pending_ptr_defines_nonlocal_live.difference(ppdnl))
             ppdnl.update(o.pending_ptr_defines_nonlocal_live)
+            merge_occurred |= bool(o.register_blackout.difference(blackout))
+            blackout.update(o.register_blackout)
 
         # self.live_registers = all_regs
         # self.live_stackvars = all_stackvars

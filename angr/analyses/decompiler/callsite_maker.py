@@ -236,18 +236,26 @@ class CallSiteMaker(Analysis):
         # remove the statement that stores the return address
         if self.project.arch.call_pushes_ret:
             # check if the last statement is storing the return address onto the top of the stack
-            if len(new_stmts) >= 1:
-                the_stmt = new_stmts[-1]
-                if (
-                    isinstance(the_stmt, Stmt.Assignment)
-                    and isinstance(the_stmt.dst, Expr.VirtualVariable)
-                    and the_stmt.dst.was_stack
-                    and isinstance(the_stmt.src, Expr.Const)
-                    and the_stmt.src.value == self.block.addr + self.block.original_size
-                ):
+            for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
+                stmt_idx = len(new_stmts) - 1 - stmt_idx_r
+                if isinstance(the_stmt, Stmt.Call):
+                    break
+                if isinstance(the_stmt, Stmt.Assignment):
+                    if not (isinstance(the_stmt.dst, Expr.VirtualVariable) and the_stmt.dst.was_stack):
+                        continue
+                    src = the_stmt.src
+                    varid = the_stmt.dst.varid
+                elif isinstance(the_stmt, Stmt.Store):
+                    src = the_stmt.data
+                    varid = None
+                else:
+                    continue
+                if isinstance(src, Expr.Const) and src.value == self.block.addr + self.block.original_size:
                     # yes it is!
-                    self.removed_vvar_ids.add(the_stmt.dst.varid)
-                    new_stmts = new_stmts[:-1]
+                    if varid is not None:
+                        self.removed_vvar_ids.add(varid)
+                    new_stmts = new_stmts[:stmt_idx] + new_stmts[stmt_idx + 1 :]
+                    break
         else:
             # if there is an lr register...
             lr_offset = None
@@ -256,15 +264,27 @@ class CallSiteMaker(Analysis):
             elif self.project.arch.name in {"MIPS32", "MIPS64"}:
                 lr_offset = self.project.arch.registers["ra"][0]
             # remove the assignment to the lr register
-            if lr_offset is not None and len(new_stmts) >= 1:
-                the_stmt = new_stmts[-1]
-                if (
-                    isinstance(the_stmt, Stmt.Assignment)
-                    and isinstance(the_stmt.dst, Expr.Register)
-                    and the_stmt.dst.reg_offset == lr_offset
-                ):
+            if lr_offset is not None:
+                for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
+                    stmt_idx = len(new_stmts) - 1 - stmt_idx_r
+                    if isinstance(the_stmt, Stmt.Call):
+                        break
+                    if not isinstance(the_stmt, Stmt.Assignment):
+                        continue
+                    if isinstance(the_stmt.dst, Expr.Register) and the_stmt.dst.reg_offset == lr_offset:
+                        varid = None
+                    elif (
+                        isinstance(the_stmt.dst, Expr.VirtualVariable)
+                        and the_stmt.dst.was_reg
+                        and the_stmt.dst.reg_offset == lr_offset
+                    ):
+                        varid = the_stmt.dst.varid
+                    else:
+                        continue
                     # found it
-                    new_stmts = new_stmts[:-1]
+                    new_stmts = new_stmts[:stmt_idx] + new_stmts[stmt_idx + 1 :]
+                    if varid is not None:
+                        self.removed_vvar_ids.add(varid)
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
@@ -382,7 +402,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc) -> tuple[Any, Any]:
+    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc: SimStackArg) -> tuple[Any, Any]:
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size
@@ -391,7 +411,9 @@ class CallSiteMaker(Analysis):
             # adjust the offset
             offset -= self.project.arch.bytes
 
-        sp_base = self._stack_pointer_tracker.offset_before(call_stmt.tags["ins_addr"], self.project.arch.sp_offset)
+        call_addr = call_stmt.tags.get("ins_addr", None)
+        assert call_addr is not None
+        sp_base = self._stack_pointer_tracker.offset_before(call_addr, self.project.arch.sp_offset)
         if sp_base is not None:
             sp_offset = sp_base + offset
             if sp_offset >= (1 << (self.project.arch.bits - 1)):
@@ -417,16 +439,16 @@ class CallSiteMaker(Analysis):
                             vvar.bits,
                             vvar.category,
                             oident=vvar.oident,
-                            ins_addr=call_stmt.tags["ins_addr"],
+                            ins_addr=call_addr,
                         )
-                    if v.size > size:
+                    if v.bits // self.project.arch.byte_width > size:
                         v = Expr.Convert(
                             self._atom_idx(),
                             v.bits,
                             size * self.project.arch.byte_width,
                             False,
                             v,
-                            ins_addr=call_stmt.tags["ins_addr"],
+                            ins_addr=call_addr,
                         )
                     return None, v
 

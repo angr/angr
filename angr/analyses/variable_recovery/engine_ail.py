@@ -484,6 +484,30 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(expr.to_bits), typevar=typevar)
 
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract):
+        r = self._expr(expr.base)
+        self._expr(expr.offset)
+        typevar = None
+        if r.typevar is not None:
+            if isinstance(r.typevar, typevars.DerivedTypeVariable) and isinstance(
+                r.typevar.one_label, typevars.ConvertTo
+            ):
+                # there is already a conversion - overwrite it
+                if not isinstance(r.typevar.type_var, typeconsts.TypeConstant):
+                    typevar = typevars.new_dtv(r.typevar.type_var, label=typevars.ConvertTo(expr.bits))
+            else:
+                if not isinstance(r.typevar, typeconsts.TypeConstant):
+                    typevar = typevars.new_dtv(r.typevar, label=typevars.ConvertTo(expr.bits))
+
+        return RichR(self.state.top(expr.bits), typevar=typevar)
+
+    # FIXME fix these one
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        self._expr(expr.base)
+        self._expr(expr.offset)
+        self._expr(expr.value)
+        return self._top(expr.bits)
+
     def _handle_expr_Reinterpret(self, expr: ailment.Expr.Reinterpret):
         r = self._expr(expr.operand)
         typevar = None
@@ -570,18 +594,6 @@ class SimEngineVRAIL(
             type_constraints.add(typevars.Subtype(tv, r1.typevar))
 
         return RichR(self.state.top(expr.bits), typevar=tv, type_constraints=type_constraints)
-
-    # FIXME fix these two
-    def _handle_expr_Extract(self, expr: ailment.expression.Extract):
-        self._expr(expr.base)
-        self._expr(expr.offset)
-        return self._top(expr.bits)
-
-    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
-        self._expr(expr.base)
-        self._expr(expr.offset)
-        self._expr(expr.value)
-        return self._top(expr.bits)
 
     def _handle_binop_Add(self, expr):
         arg0, arg1 = expr.operands

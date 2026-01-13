@@ -901,7 +901,12 @@ class SimTypePointer(SimTypeReg):
     _ident = "ptr"
 
     def __init__(
-        self, pts_to: SimType, label=None, offset=0, qualifier: Iterable | None = None, disposition: PointerDisposition | int = PointerDisposition.UNKNOWN
+        self,
+        pts_to: SimType,
+        label=None,
+        offset=0,
+        qualifier: Iterable[str] | None = None,
+        disposition: PointerDisposition | int = PointerDisposition.UNKNOWN,
     ):
         """
         :param label:   The type label.
@@ -965,7 +970,9 @@ class SimTypePointer(SimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label, self.offset, self.disposition)
+        out = SimTypePointer(
+            self.pts_to.with_arch(arch), self.label, self.offset, qualifier=self.qualifier, disposition=self.disposition
+        )
         out._arch = arch
         return out
 

@@ -6,10 +6,8 @@ from enum import Enum, IntEnum
 from abc import ABC, abstractmethod
 from typing_extensions import Self
 
-try:
-    import claripy
-except ImportError:
-    claripy = None
+import archinfo
+import claripy
 
 from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
@@ -208,8 +206,9 @@ class Register(Atom):
         return str(self)
 
     def __str__(self):
-        if hasattr(self, "reg_name"):
-            return f"{self.reg_name}<{self.bits // 8}>"
+        reg_name = self.tags.get("reg_name", None)
+        if reg_name is not None:
+            return f"{reg_name}<{self.bits // 8}>"
         if self.variable is None:
             return f"reg_{self.reg_offset}<{self.bits // 8}>"
         return f"{self.variable.name!s}"
@@ -1063,7 +1062,7 @@ class Load(Expression):
         if super().has_atom(atom, identity=identity):
             return True
 
-        if claripy is not None and isinstance(self.addr, (int, claripy.ast.Base)):
+        if isinstance(self.addr, (int, claripy.ast.Base)):
             return False
         return self.addr.has_atom(atom, identity=identity)
 
@@ -1638,6 +1637,33 @@ class Extract(Expression):
         self.base = base
         self.offset = offset
 
+    def is_lsb_extract(self, arch: archinfo.Arch) -> bool:
+        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+            return False
+        if arch.register_endness == arch.memory_endness or (
+            isinstance(self.base, VirtualVariable)
+            and (
+                self.base.was_reg
+                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
+            )
+        ):
+            endness = arch.register_endness
+        elif isinstance(self.base, VirtualVariable) and (
+            self.base.was_stack
+            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
+        ):
+            endness = arch.memory_endness
+        elif isinstance(self.base, Register):
+            endness = arch.register_endness
+        elif isinstance(self.base, Load):
+            endness = arch.memory_endness
+        else:
+            return False
+
+        if endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * arch.byte_width + self.bits == self.base.bits
+
     def copy(self) -> Extract:
         return Extract(self.idx, self.bits, self.base, self.offset, **self.tags)
 
@@ -1665,8 +1691,15 @@ class Extract(Expression):
         return stable_hash((self.bits, self.base, self.offset))
 
     def replace(self, old_expr, new_expr):
-        base_replaced, new_base = self.base.replace(old_expr, new_expr)
-        offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
 
         if base_replaced or offset_replaced:
             return True, Extract(self.idx, self.bits, new_base, new_offset, **self.tags)
@@ -1679,10 +1712,38 @@ class Insert(Expression):
     def __init__(self, idx: int | None, base: Expression, offset: Expression, value: Expression, **kwargs):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
+        assert value.bits <= base.bits
         self.bits = base.bits
         self.base = base
         self.offset = offset
         self.value = value
+
+    def is_lsb_overwrite(self, arch: archinfo.Arch) -> bool:
+        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+            return False
+        if arch.register_endness == arch.memory_endness or (
+            isinstance(self.base, VirtualVariable)
+            and (
+                self.base.was_reg
+                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
+            )
+        ):
+            endness = arch.register_endness
+        elif isinstance(self.base, VirtualVariable) and (
+            self.base.was_stack
+            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
+        ):
+            endness = arch.memory_endness
+        elif isinstance(self.base, Register):
+            endness = arch.register_endness
+        elif isinstance(self.base, Load):
+            endness = arch.memory_endness
+        else:
+            return False
+
+        if endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * arch.byte_width + self.value.bits == self.bits
 
     def copy(self) -> Insert:
         return Insert(self.idx, self.base, self.offset, self.value, **self.tags)
@@ -1711,9 +1772,20 @@ class Insert(Expression):
         return stable_hash((self.bits, self.base, self.offset, self.value))
 
     def replace(self, old_expr, new_expr):
-        base_replaced, new_base = self.base.replace(old_expr, new_expr)
-        offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
-        value_replaced, new_value = self.value.replace(old_expr, new_expr)
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+
+        if self.value == old_expr:
+            value_replaced, new_value = True, new_expr
+        else:
+            value_replaced, new_value = self.value.replace(old_expr, new_expr)
 
         if base_replaced or offset_replaced or value_replaced:
             return True, Insert(self.idx, new_base, new_offset, new_value, **self.tags)

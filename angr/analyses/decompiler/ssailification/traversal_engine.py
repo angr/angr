@@ -116,7 +116,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
             self.pending_ptr_defines_nonlocal.pop(base_offset, None)
 
-        pending_loc, pending_def = self.state.pending_ptr_defines.pop(base_offset, (None, None))
+        _, pending_def = self.state.pending_ptr_defines.pop(base_offset, (None, None))
 
         for popped_offset in popped:
             for def2 in self.state.stackvar_defs.pop(popped_offset, ()):
@@ -127,7 +127,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if full_offset not in self.state.live_stackvars:
             assert pending_def is not None  # SKETCHY
             # if this assert trips maybe consider gating all the redef stuff on the cond?
-            self.perform_def("stack", pending_def, full_offset, full_size, offset - full_offset, pending_loc)
+            # maybe also consider making def nullable in case of externs
+            self.perform_def(
+                "stack", pending_def, full_offset, full_size, offset - full_offset, AILCodeLocation.make_extern(0)
+            )
             self.state.stackvar_defs[full_offset] = {pending_def}
 
         return self.state.live_stackvars[offset]
@@ -143,8 +146,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if base_offset in self.pending_ptr_defines_nonlocal:
             self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
 
-        self.state.stackvar_poprange(offset, offset + size)
         self.state.live_stackvars[offset] = value
+
+        for suboff in range(offset, offset + size):
+            self.state.stackvar_bases[suboff] = (offset, size)
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:
@@ -155,7 +160,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
         if base_off not in self.state.live_registers:
-            self.perform_def("reg", def_, base_off, base_size, offset - base_off)
+            self.perform_def(
+                "reg",
+                def_,
+                base_off,
+                base_size,
+                offset - base_off,
+                AILCodeLocation.make_extern(0) if base_off not in self.state.register_blackout else None,
+            )
 
         return self.state.live_registers[offset]
 
@@ -227,13 +239,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             assert cc is not None
             cc = cc(self.arch)
 
-        for reg_name in cc.CALLER_SAVED_REGS:
-            reg_offset = self.arch.registers[reg_name][0]
-            base_off = get_reg_offset_base(reg_offset, self.arch)
-            self.state.live_registers.pop(base_off, None)
-        for reg in cc.arch.vex_cc_regs or []:
-            self.state.live_registers.pop(reg.vex_offset, None)
-
         if expr.prototype is not None:
             proto = expr.prototype
         elif target is not None and target.prototype is not None:
@@ -270,6 +275,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             self.stackvar_set(stackref, extra, size, set())
                         else:
                             self.stackvar_get(stackref, extra, size)
+
+        for reg_name in cc.CALLER_SAVED_REGS:
+            reg_offset = self.arch.registers[reg_name][0]
+            base_off = get_reg_offset_base(reg_offset, self.arch)
+            self.state.live_registers.pop(base_off, None)
+            self.state.register_blackout.add(base_off)
+        for reg in cc.arch.vex_cc_regs or []:
+            self.state.live_registers.pop(reg.vex_offset, None)
+            self.state.register_blackout.add(reg.vex_offset)
 
         return set()
 
@@ -317,6 +331,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # to call this a new def
             if expr.offset not in self.state.stackvar_bases:
                 self.stackvar_get(expr.offset, 0, 1)
+                self.state.pending_ptr_defines[expr.offset] = (self._acodeloc(), expr)
 
         return {(expr.offset, 0)}
 
