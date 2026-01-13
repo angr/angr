@@ -87,6 +87,10 @@ class FunctionInfo(UserDict):
 class Function(Serializable):
     """
     A representation of a function and various information about it.
+
+    :ivar meta_only:            Whether this function only contains meta-information and in read-only mode.
+    :ivar _dirty:                Whether this function has been modified since last serialization.
+    :ivar evicted:              Whether this function has been evicted from FunctionManager to external storage.
     """
 
     __slots__ = (

@@ -189,8 +189,24 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     These meta-only Function objects are read-only and may become stale if the full Function is later loaded and
     updated. Therefore, please be extremely cautious when using these meta-only Function objects.
 
+    SpillingFunctionDict._load_from_lmdb() does not support reentry. If a function being loaded from LMDB triggers
+    another load from LMDB, the inner load will raise a RuntimeError.
+
+    A Function instance becomes "dirty" (Function.dirty) if it has been modified since being loaded from LMDB. Dirty
+    functions are always saved back to LMDB when evicted, while clean functions are skipped during eviction.
+
+    A Function instance becomes "evicted" (Function.evicted) and stale if it has been spilled to LMDB. An evicted
+    Function instance may not reflect the most recent state of the function, and any changes to an evicted Function
+    instance will not be saved to LMDB. Therefore, if SpillingFunctionDict is in use, it is advised not to hold a
+    Function instance for too long before using it.
+
     :ivar cache_limit:          The maximum number of functions to keep in memory.
+    :ivar rtdb:                 A reference to the RuntimeDb knowledge base plugin.
+    :ivar _lru_order:           An OrderedDict tracking the eviction order of cached functions.
+    :ivar _spilled_keys:        A set of function addresses that have been spilled to LMDB.
     :ivar _db_batch_size:       The number of functions that are evicted in a single batch.
+    :ivar _meta_func_cache:     An LRU cache for meta-only Function objects.
+    :ivar _eviction_enabled:    A flag indicating whether eviction is currently enabled or not.
     """
 
     def __init__(
@@ -200,6 +216,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         /,
         key_types: type = int,
         cache_limit: int = 1000,
+        db_batch_size: int = 100,
         **kwargs,
     ):
         UserDict.__init__(self, **kwargs)
@@ -216,10 +233,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             maxsize=cache_limit, evict=self._meta_func_cache_evicted
         )
         self._funcsdb = None
-        self._db_batch_size: int = 100
+        self._db_batch_size: int = max(cache_limit - 1, db_batch_size)
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
-        self._currently_loading: set[K] = set()
 
     def __del__(self):
         self._cleanup_lmdb()
@@ -240,7 +256,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             raise TypeError(f"SpillingFunctionDict only supports {self._key_types} as key type")
 
         # Try to load from LMDB if it's spilled
-        if addr in self._spilled_keys and not self._loading_from_lmdb:
+        if addr in self._spilled_keys:
+            if self._loading_from_lmdb:
+                raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
             func = self._load_from_lmdb(addr)
             if func is not None:
                 return func
@@ -280,7 +298,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._funcsdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
-        self._currently_loading = set()
 
         for k, v in state["items"].items():
             self[k] = v
@@ -293,9 +310,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         }
 
     def copy(self) -> SpillingFunctionDict[K]:
-        # Load all spilled functions for copying
-        self._load_all_spilled()
-
         new_dict = SpillingFunctionDict(
             self._backref,
             self.rtdb,
@@ -369,10 +383,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if addr in self._spilled_keys:
             if meta_only and addr in self._meta_func_cache:
                 return self._meta_func_cache[addr]
-            if not self._loading_from_lmdb:
-                func = self._load_from_lmdb(addr, meta_only=meta_only)
-                if func is not None:
-                    return func
+            if self._loading_from_lmdb:
+                raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
+            func = self._load_from_lmdb(addr, meta_only=meta_only)
+            if func is not None:
+                return func
 
         if default is _missing:
             raise KeyError(addr)
@@ -576,11 +591,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if self._funcsdb is None:
             return None
 
-        # Prevent recursive loading
-        if addr in self._currently_loading:
-            return None
-
-        self._currently_loading.add(addr)
         old_loading_state = self._loading_from_lmdb
         self._loading_from_lmdb = True
 
@@ -615,7 +625,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             # l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
             return func
         finally:
-            self._currently_loading.discard(addr)
             self._loading_from_lmdb = old_loading_state
 
             # After loading is complete (and we're back to not loading), evict if needed
@@ -627,7 +636,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             ):
                 self._evict_lru()
 
-    def _load_all_spilled(self) -> None:
+    def load_all_spilled(self) -> None:
         """
         Load all spilled functions back into memory (disables eviction temporarily).
         """
@@ -638,6 +647,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         old_eviction_state = self._eviction_enabled
         self._eviction_enabled = False
 
+        if self._loading_from_lmdb:
+            raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
+
         try:
             # Make a copy of spilled_addrs since _load_from_lmdb modifies it
             addrs_to_load = list(self._spilled_keys)
@@ -645,6 +657,14 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 self._load_from_lmdb(addr)
         finally:
             self._eviction_enabled = old_eviction_state
+
+    def evict_all_cached(self) -> None:
+        """
+        Evict all cached functions to LMDB.
+        """
+        if self.cached_count == 0:
+            return
+        self._evict_n(self.cached_count)
 
 
 class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K, Function]):
