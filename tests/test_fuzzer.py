@@ -8,6 +8,9 @@ from angr.rustylib.fuzzer import Fuzzer, InMemoryCorpus, OnDiskCorpus
 from tests.common import bin_location
 
 
+# pylint: disable=missing-class-docstring,no-self-use
+
+
 class TestFuzzer:
     def test_fuzzer(self):
         project = angr.Project(
