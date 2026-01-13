@@ -53,7 +53,7 @@ class Block:
             block_str = f"{indent_str}## Block {self.addr:x}.{self.idx}\n"
         stmts_str = "\n".join(
             [
-                (f"{indent_str}{i:02d} | {getattr(stmt, 'ins_addr', 0):#x} | {stmt}")
+                f"{indent_str}{i:02d} | {stmt.tags.get('ins_addr', 0):#x} | {stmt}"
                 for i, stmt in enumerate(self.statements)
             ]
         )
