@@ -67,6 +67,7 @@ dev = [
     "black>=25.1.0",
     "coverage>=7.10.7",
     "gcovr>=8.4",
+    "pyright>=1.1.408",
     "pytest>=8.3.5",
     "pytest-cov>=7.0.0",
     "pytest-durations>=1.4.0",
