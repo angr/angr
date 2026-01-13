@@ -9,7 +9,7 @@ import logging
 
 import networkx
 
-from angr.ailment import AILBlockRewriter, AILBlockViewer
+from angr.ailment import AILBlockRewriter, AILBlockViewer, Address
 from angr.ailment.block import Block
 from angr.ailment.statement import (
     Statement,
@@ -22,6 +22,8 @@ from angr.ailment.statement import (
     Return,
 )
 from angr.ailment.expression import (
+    Extract,
+    Insert,
     Register,
     Convert,
     Load,
@@ -202,7 +204,7 @@ class AILSimplifier(Analysis):
 
         self._calls_to_remove: set[AILCodeLocation] = set()
         self._assignments_to_remove: set[AILCodeLocation] = set()
-        self.blocks = {}  # Mapping nodes to simplified blocks
+        self.blocks: dict[Block, Block] = {}  # Mapping nodes to simplified blocks
 
         self.simplified: bool = False
         self._simplify()
@@ -513,6 +515,14 @@ class AILSimplifier(Analysis):
             ):
                 effective_size = def_stmt.src.from_bits // self.project.arch.byte_width
                 vvar_effective_sizes[def_.atom.varid] = effective_size
+            elif (
+                isinstance(def_stmt, Assignment)
+                and isinstance(def_stmt.src, Insert)
+                and isinstance(def_stmt.src.offset, Const)
+                and def_stmt.src.offset.value == 0  # big endian?
+            ):
+                effective_size = def_stmt.src.value.bits // self.project.arch.byte_width
+                vvar_effective_sizes[def_.atom.varid] = effective_size
 
         # update effective sizes for phi vvars
         changed = True
@@ -578,7 +588,11 @@ class AILSimplifier(Analysis):
         return repeat, narrowables
 
     def _narrowing_needed(
-        self, def_: Definition, rd: SRDAModel, addr_and_idx_to_block, effective_sizes: dict[int, int]
+        self,
+        def_: Definition[atoms.VirtualVariable, AILCodeLocation],
+        rd: SRDAModel,
+        addr_and_idx_to_block: dict[Address, Block],
+        effective_sizes: dict[int, int],
     ) -> ExprNarrowingInfo:
 
         def_size = def_.size
@@ -627,7 +641,9 @@ class AILSimplifier(Analysis):
                 return ExprNarrowingInfo(False)
 
             all_used_sizes.add(expr_size)
-            if not isinstance(stmt, Call):
+            if not isinstance(stmt, Call) and (
+                used_by_exprs is None or any(isinstance(e, Call) for e in used_by_exprs[1])
+            ):
                 noncall_used_sizes.add(expr_size)
             used_by_loc[loc].append((atom, used_by_exprs))
 
@@ -681,7 +697,7 @@ class AILSimplifier(Analysis):
     def _exprs_from_used_by_exprs(used_by_exprs) -> set[Expression]:
         use_type, expr_tuple = used_by_exprs
         match use_type:
-            case "expr" | "mask" | "convert":
+            case "expr" | "mask" | "convert" | "extract":
                 return {expr_tuple[1]} if len(expr_tuple) == 2 else {expr_tuple[0]}
             case "phi-src-expr":
                 return {expr_tuple[0]}
@@ -722,7 +738,7 @@ class AILSimplifier(Analysis):
                     # missing a block for whatever reason
                     return None
 
-                block: Block = self.blocks.get(old_block, old_block)
+                block = self.blocks.get(old_block, old_block)
                 if loc.stmt_idx >= len(block.statements):
                     # missing a statement for whatever reason
                     return None
@@ -777,6 +793,14 @@ class AILSimplifier(Analysis):
                 # the expression is right-shifted, which means higher bits might be used.
                 return None, None
             return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
+        if (
+            isinstance(first_op, Extract)
+            and first_op.bits >= self.project.arch.byte_width
+            and isinstance(first_op.offset, Const)
+            and first_op.offset.value == 0
+        ):
+            # How to make this correct on big-endian?
+            return first_op.bits // self.project.arch.byte_width, ("extract", (first_op,))
         if isinstance(first_op, BinaryOp):
             second_op = None
             if len(ops) >= 2:
@@ -785,7 +809,9 @@ class AILSimplifier(Analysis):
                 first_op.op == "And"
                 and isinstance(first_op.operands[1], Const)
                 and (
-                    second_op is None or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                    second_op is None
+                    or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
+                    or isinstance(second_op, Call)
                 )
             ):
                 mask = first_op.operands[1].value
@@ -806,6 +832,9 @@ class AILSimplifier(Analysis):
                     "binop-convert",
                     (expr, first_op, second_op),
                 )
+
+            if isinstance(first_op, Call):
+                return (expr.bits // self.project.arch.byte_width, ("call", (first_op,)))
 
         if expr is None:
             return None, None

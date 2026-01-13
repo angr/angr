@@ -203,9 +203,9 @@ class SimEngineSSARewriting(
         new_data = self._expr(stmt.data)
         if stmt.guard is None and isinstance(stmt.addr, StackBaseOffset):
             # vvar assignment
-            vvar = self._expr_to_vvar(stmt.addr)
+            vvar = self._expr_to_vvar(stmt.addr, False)
             assert isinstance(stmt.addr.offset, int)
-            return self._vvar_update(vvar, vvar.stack_offset - stmt.addr.offset, new_data or stmt.data, stmt)
+            return self._vvar_update(vvar, stmt.addr.offset - vvar.stack_offset, new_data or stmt.data, stmt)
 
         # fall back to Store
         new_addr = self._expr(stmt.addr)
@@ -302,7 +302,7 @@ class SimEngineSSARewriting(
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
-        vvar = self._expr_to_vvar(expr)
+        vvar = self._expr_to_vvar(expr, True)
         return self._vvar_extract(vvar, expr.size, vvar.reg_offset - expr.reg_offset, expr)
 
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
@@ -323,7 +323,7 @@ class SimEngineSSARewriting(
     def _handle_expr_Load(self, expr: Load) -> Expression | None:
         if isinstance(expr.addr, StackBaseOffset):
             # vvar assignment
-            vvar = self._expr_to_vvar(expr.addr)
+            vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
             return self._vvar_extract(vvar, expr.size, vvar.stack_offset - expr.addr.offset, expr)
 
@@ -493,7 +493,7 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
-        vvar = self._expr_to_vvar(expr)
+        vvar = self._expr_to_vvar(expr, True)
         refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
         if expr in self.def_to_udef:
             refers.tags["extra_def"] = True
@@ -546,7 +546,7 @@ class SimEngineSSARewriting(
         """
         Return a new virtual variable for the given defined register.
         """
-        vvar = self._expr_to_vvar(expr)
+        vvar = self._expr_to_vvar(expr, False)
         return self._vvar_update(vvar, vvar.reg_offset - expr.reg_offset, value, orig_tags)
 
     def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
@@ -560,7 +560,7 @@ class SimEngineSSARewriting(
     # Utils
     #
 
-    def _expr_to_vvar(self, expr: Def) -> VirtualVariable:
+    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool) -> VirtualVariable:
         # is this a use, not a def?
         if (udef := self.def_to_udef.get(expr, None)) is None:
             # in case of emergency, raise keyerror
@@ -585,12 +585,13 @@ class SimEngineSSARewriting(
         else:
             raise TypeError(expr)
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **expr.tags)
-        if kind == "stack":
-            for suboff in range(offset, offset + size):
-                self.state.stackvars[suboff] = vvar
-        elif kind == "reg":
-            for suboff in range(offset, offset + size):
-                self.state.registers[suboff] = vvar
+        if def_is_implicit:
+            if kind == "stack":
+                for suboff in range(offset, offset + size):
+                    self.state.stackvars[suboff] = vvar
+            elif kind == "reg":
+                for suboff in range(offset, offset + size):
+                    self.state.registers[suboff] = vvar
         return vvar
 
     def _vvar_extract(
@@ -603,7 +604,8 @@ class SimEngineSSARewriting(
     def _vvar_update(
         self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
     ) -> Assignment:
-        if value.size == vvar.size:
+        assert offset >= 0
+        if value.bits == vvar.bits:
             combined = value
         else:
             if vvar.category == VirtualVariableCategory.STACK:
