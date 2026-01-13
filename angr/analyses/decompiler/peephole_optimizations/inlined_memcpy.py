@@ -33,6 +33,7 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
                 isinstance(stmt.src.addr, UnaryOp)
                 and stmt.src.addr.op == "Reference"
                 and isinstance(stmt.src.addr.operand, VirtualVariable)
+                and stmt.src.addr.operand.was_stack
             ):
                 should_replace = True
                 src_offset = stmt.src.addr.operand.stack_offset
