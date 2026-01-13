@@ -34,6 +34,7 @@ from .remove_redundant_shifts_around_comparators import RemoveRedundantShiftsAro
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .basepointeroffset_add_n import BasePointerOffsetAddN
 from .basepointeroffset_and_mask import BasePointerOffsetAndMask
+from .remove_const_insert import RemoveConstInsert
 from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_cascading_conversions import RemoveCascadingConversions
 from .conv_shl_shr import ConvShlShr
@@ -85,6 +86,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     OneSubBool,
     BoolExprXor1,
     BitwiseOrToLogicalOr,
+    RemoveConstInsert,
     RemoveRedundantBitmasks,
     RemoveRedundantDerefs,
     RemoveRedundantNots,

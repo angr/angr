@@ -104,6 +104,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._ail_manager,
             self._func_args,
             self._def_to_udef,
+            self._extern_defs,
             vvar_id_start=vvar_id_start,
         )
         self.out_graph = rewriter.out_graph
@@ -121,15 +122,20 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         udef_to_defs: defaultdict[UDef, set[Def]] = defaultdict(set)
         udef_to_blockkeys: defaultdict[UDef, set[Address]] = defaultdict(set)
         blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
-        blockkey_to_defs: defaultdict[Address, set[Def]] = defaultdict(set)
+        # blockkey_to_defs: defaultdict[Address, set[Def]] = defaultdict(set)
         def_to_udef: dict[Def, UDef] = {}
+        extern_defs: set[UDef] = set()
         for def_, (kind, loc, offset, size, _) in traversal.def_info.items():
             udef = (kind, offset, size)
-            blockkey = (loc.addr, loc.block_idx)
             udef_to_defs[udef].add(def_)
-            udef_to_blockkeys[udef].add(blockkey)
-            blockkey_to_defs[blockkey].add(def_)
-            def_to_udef[def_] = udef
+            # blockkey_to_defs[blockkey].add(def_)
+            if loc.is_extern:
+                extern_defs.add(udef)
+                udef_to_blockkeys[udef].add((-1, None))
+            else:
+                blockkey = (loc.addr, loc.block_idx)
+                def_to_udef[def_] = udef
+                udef_to_blockkeys[udef].add(blockkey)
 
         # Computer the dominance frontier for each node in the graph
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
@@ -140,7 +146,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         udef_to_phiid = defaultdict(set)
         phiid_to_loc = {}
         for udef, block_keys in udef_to_blockkeys.items():
-            blocks = {blockkey_to_block[block_key] for block_key in block_keys}
+            blocks = {self._entry if block_key[0] == -1 else blockkey_to_block[block_key] for block_key in block_keys}
             frontier_plus = calculate_iterated_dominace_frontier_set(frontiers, blocks)
             for block in frontier_plus:
                 phi_id = next(phi_id_ctr)
@@ -150,6 +156,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
         self._def_to_udef = def_to_udef
+        self._extern_defs = extern_defs
 
 
 register_analysis(Ssailification, "Ssailification")

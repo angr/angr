@@ -123,7 +123,7 @@ class PeepholeOptimizationExprBase:
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
 
-    def optimize(self, expr, stmt_idx: int | None = None, block=None, **kwargs):
+    def optimize(self, expr, *, stmt_idx: int | None = None, block=None, **kwargs) -> Expression | None:
         raise NotImplementedError("_optimize() is not implemented.")
 
     #

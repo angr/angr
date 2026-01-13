@@ -36,10 +36,7 @@ DISPOSITIONS: dict[tuple[str, int], PointerDisposition] = {
     ("readlinkat", 1): PointerDisposition.IN,
     ("readlinkat", 2): PointerDisposition.OUT,
     ("stat", 0): PointerDisposition.IN,
-    (
-        "stat",
-        1,
-    ): PointerDisposition.OUT,
+    ("stat", 1): PointerDisposition.OUT,
     ("lstat", 0): PointerDisposition.IN,
     ("lstat", 1): PointerDisposition.OUT,
     ("fstat", 1): PointerDisposition.OUT,
