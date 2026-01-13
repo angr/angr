@@ -10,6 +10,7 @@ import re
 import weakref
 import bisect
 import os
+import threading
 from collections import defaultdict
 
 import lmdb
@@ -237,6 +238,8 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._db_batch_size: int = max(cache_limit - 1, db_batch_size)
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
+        self._db_load_lock = threading.Lock()
+        self._db_store_lock = threading.Lock()
 
     def __del__(self):
         self._cleanup_lmdb()
@@ -258,8 +261,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         # Try to load from LMDB if it's spilled
         if addr in self._spilled_keys:
-            if self._loading_from_lmdb:
-                raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
             func = self._load_from_lmdb(addr)
             if func is not None:
                 return func
@@ -384,8 +385,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if addr in self._spilled_keys:
             if meta_only and addr in self._meta_func_cache:
                 return self._meta_func_cache[addr]
-            if self._loading_from_lmdb:
-                raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
             func = self._load_from_lmdb(addr, meta_only=meta_only)
             if func is not None:
                 return func
@@ -474,12 +473,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._spilled_keys.discard(addr)
 
         # Check if we need to evict (but not during loading)
-        if (
-            self._eviction_enabled
-            and not self._loading_from_lmdb
-            and self._cache_limit is not None
-            and self.cached_count > self._cache_limit
-        ):
+        if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
             self._evict_lru()
 
     def _evict_lru(self) -> bool:
@@ -488,12 +482,13 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
 
         :return: True if at least one function was successfully evicted, False otherwise.
         """
-        evicted_any = False
-        while self.cached_count > self._cache_limit:
-            if self._evict_n(min(self._db_batch_size, self.cached_count)) == 0:
-                break
-            evicted_any = True
-        return evicted_any
+        with self._db_store_lock:
+            evicted_any = False
+            while self.cached_count > self._cache_limit:
+                if self._evict_n(min(self._db_batch_size, self.cached_count)) == 0:
+                    break
+                evicted_any = True
+            return evicted_any
 
     def _evict_n(self, n: int) -> int:
         """
@@ -592,7 +587,13 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         if self._funcsdb is None:
             return None
 
-        old_loading_state = self._loading_from_lmdb
+        with self._db_load_lock:
+            return self._load_from_lmdb_core(addr, meta_only=meta_only)
+
+    def _load_from_lmdb_core(self, addr: K, meta_only: bool = False) -> Function | None:
+        if self._loading_from_lmdb:
+            raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
+
         self._loading_from_lmdb = True
 
         try:
@@ -626,15 +627,10 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             # l.debug("Loaded function %s from LMDB", hex(addr) if isinstance(addr, int) else addr)
             return func
         finally:
-            self._loading_from_lmdb = old_loading_state
+            self._loading_from_lmdb = False
 
             # After loading is complete (and we're back to not loading), evict if needed
-            if (
-                not self._loading_from_lmdb
-                and self._eviction_enabled
-                and self._cache_limit is not None
-                and self.cached_count > self._cache_limit
-            ):
+            if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
                 self._evict_lru()
 
     def load_all_spilled(self) -> None:
@@ -647,9 +643,6 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         # Temporarily disable eviction
         old_eviction_state = self._eviction_enabled
         self._eviction_enabled = False
-
-        if self._loading_from_lmdb:
-            raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
         try:
             # Make a copy of spilled_addrs since _load_from_lmdb modifies it
