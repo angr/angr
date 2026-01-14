@@ -292,14 +292,16 @@ class TestTypehoon(unittest.TestCase):
         cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
         assert isinstance(cexterns[displayplayer_addr], SimTypeInt)
 
-        # Test joyxmove and mousex from G_DoLoadLevel
+        # Test joyxmove, mousex, and gametic from G_DoLoadLevel
         func = cfg.kb.functions["G_DoLoadLevel"]
         dec = proj.analyses.Decompiler(func, cfg=cfg.model)
         joyxmove_addr = proj.loader.find_symbol("joyxmove").rebased_addr
         mousex_addr = proj.loader.find_symbol("mousex").rebased_addr
+        gametic_addr = proj.loader.find_symbol("gametic").rebased_addr
         cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
         assert isinstance(cexterns[joyxmove_addr], SimTypeInt)
         assert isinstance(cexterns[mousex_addr], SimTypeInt)
+        assert isinstance(cexterns[gametic_addr], SimTypeInt)
 
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")

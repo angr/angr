@@ -613,7 +613,7 @@ class Decompiler(Analysis):
                 global_variables.set_variable(
                     "global",
                     symbol.rebased_addr,
-                    SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
+                    SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident),
                 )
 
     def reflow_variable_types(self, cache: DecompilationCache):
