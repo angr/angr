@@ -1,5 +1,7 @@
 from typing_extensions import override
 
+from . import fuzzer, icicle
+
 class Segment:
     """
     A memory block
@@ -166,3 +168,5 @@ class SegmentList:
 
         :returns: A copy of the SegmentList instance.
         """
+
+__all__ = ["Segment", "SegmentList", "fuzzer", "icicle"]
