@@ -920,25 +920,38 @@ class SimpleSolver:
 
         Returns True to skip unification, False to proceed with unification.
 
-        We skip unification when both type variables have the same base but different
-        indirection levels, AND the base (lower level) is on the left side of <:.
+        We skip unification in two cases:
 
-        do not unify (returns True):
-            tv <: tv.store.field         -> base <: derived
+        1. Same base, different indirection levels:
+            tv <: tv.store.field         -> skip (preserve self-referential)
 
-        Unify (returns False):
-            tv1 <: tv2                   -> different bases
+        2. Different bases, TypeVariable unified with Store-derived (no Load):
+            tvA <: tvB.store.field       -> skip if tvB has Store but no Load
+            This prevents false struct creation when assigning between global variables.
+            e.g., `*(&c) = b` should not make `c` a struct pointer.
+
+        Do not skip (returns False):
+            tv1 <: tv2                   -> different bases, no Store
             tv.store.f1 <: tv.store.f2   -> same base, same level
             tv.store.field <: tv         -> derived <: base (self-referential struct)
+            tvA <: tvB.load.store.field  -> has Load (pointer dereference)
         """
         base_sub, level_sub = SimpleSolver._get_base_and_indirection_level(sub_type)
         base_super, level_super = SimpleSolver._get_base_and_indirection_level(super_type)
 
-        if base_sub != base_super or level_sub == level_super:
-            return False
+        # Case 1: Same base, different levels
+        if base_sub == base_super and level_sub != level_super:
+            return level_sub < level_super
 
-        # Same base, different levels: only skip unification when base is on left (sub_type)
-        return level_sub < level_super
+        # Case 2: Different bases
+        if base_sub != base_super:
+            if isinstance(sub_type, TypeVariable) and isinstance(super_type, DerivedTypeVariable):
+                has_store = any(isinstance(lbl, Store) for lbl in super_type.labels)
+                has_load = any(isinstance(lbl, Load) for lbl in super_type.labels)
+                if has_store and not has_load:
+                    return True
+
+        return False
 
     @staticmethod
     def _unify(
