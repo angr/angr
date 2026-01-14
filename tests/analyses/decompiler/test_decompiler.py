@@ -3123,10 +3123,10 @@ class TestDecompiler(unittest.TestCase):
         #     v3 = &compare_occurs;
         #     v4 = 48;
         #     qsort();
-        # Expected:
-        #     if (*((long long *)&number_of_occurs))
-        #         qsort(*((long long *)&occurs_table), *((long long *)&number_of_occurs), 48, compare_occurs);
-        assert re.search(r"if\(.+?\).+qsort\(.*\);.*return", text) is not None
+        # Expected (global variable types inferred from symbol table, no cast needed):
+        #     if (number_of_occurs)
+        #         qsort(occurs_table, number_of_occurs, 48, compare_occurs);
+        assert re.search(r"if\(.+?\).*qsort\(.*\);.*return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
