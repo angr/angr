@@ -589,7 +589,6 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
 
-
     @cca_mode("fast,variables")
     def test_void_tail_call(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "g_game.o")
@@ -602,15 +601,15 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         func_reborn = cfg.kb.functions["G_PlayerReborn"]
         assert func_reborn.prototype is not None
-        assert isinstance(func_reborn.prototype.returnty, SimTypeBottom), (
-            f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
-        )
+        assert isinstance(
+            func_reborn.prototype.returnty, SimTypeBottom
+        ), f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
 
         func_init = cfg.kb.functions["G_InitPlayer"]
         assert func_init.prototype is not None
-        assert isinstance(func_init.prototype.returnty, SimTypeBottom), (
-            f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
-        )
+        assert isinstance(
+            func_init.prototype.returnty, SimTypeBottom
+        ), f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
 
 
 if __name__ == "__main__":
