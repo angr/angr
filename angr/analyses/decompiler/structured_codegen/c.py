@@ -1317,7 +1317,7 @@ class CFunctionCall(CStatement, CExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
-        prettify_thiscall: bool = True,
+        prettify_thiscall: bool = False,
         tags=None,
         codegen=None,
         **kwargs,
