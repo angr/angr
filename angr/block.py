@@ -422,6 +422,16 @@ class Block(Serializable):
         return self._vex_nostmt
 
     @property
+    def ail(self):
+        """
+        Convert the VEX IR to an AIL block.
+        """
+        from . import ailment
+
+        manager = ailment.Manager(arch=self.arch)
+        return ailment.IRSBConverter.convert(self.vex, manager)
+
+    @property
     def _using_pcode_engine(self) -> bool:
         return (pcode is not None) and isinstance(self._vex_engine, pcode.HeavyPcodeMixin)
 
