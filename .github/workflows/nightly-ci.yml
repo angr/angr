@@ -10,6 +10,10 @@ on:
       - ".github/workflows/nightly-ci.yml"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   ci:
     uses: angr/ci-settings/.github/workflows/angr-ci.yml@master
