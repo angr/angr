@@ -465,6 +465,14 @@ class FactCollector(Analysis):
                                 retval_size = returnty_size // self.project.arch.byte_width
                             retval_sizes.append(retval_size)
                             continue
+                        elif (
+                            func_succ.prototype is not None
+                            and func_succ.prototype.returnty is not None
+                            and isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                        ):
+                            # callee is void - don't scan VEX for return values since the call
+                            # just clobbers rax without returning anything meaningful
+                            continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
 
