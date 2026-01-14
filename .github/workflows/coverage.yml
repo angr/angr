@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   SKIP_SLOW_TESTS: 1
   RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code"
