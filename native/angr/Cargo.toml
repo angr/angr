@@ -20,3 +20,6 @@ rangemap = "1.7.1"
 send_wrapper = "0.6.0"
 serde = { version = "1.0.219", features = ["derive"] }
 target-lexicon = "0.12.16"
+
+[dev-dependencies]
+tempfile = "3.24.0"

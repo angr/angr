@@ -1,4 +1,4 @@
-use std::{cell::RefCell, path::PathBuf};
+use std::cell::RefCell;
 
 use libafl::{
     Error,
@@ -92,8 +92,7 @@ impl PyInMemoryCorpus {
     fn to_bytes_list(&self) -> PyResult<Vec<Vec<u8>>> {
         let deserialized = InMemoryCorpus::<BytesInput>::try_from(&self.inner)?;
         let mut result = Vec::new();
-        for i in 0..deserialized.count() {
-            let corpus_id = CorpusId::from(i);
+        for corpus_id in deserialized.ids() {
             if let Ok(testcase_ref) = deserialized.get(corpus_id) {
                 let testcase = testcase_ref.borrow();
                 if let Some(input) = testcase.input() {
@@ -176,25 +175,29 @@ impl PyOnDiskCorpus {
 
     fn to_bytes_list(&self) -> PyResult<Vec<Vec<u8>>> {
         let mut result = Vec::new();
-        for i in 0..self.inner.count() {
-            let corpus_id = CorpusId::from(i);
-            if let Ok(testcase_ref) = self.inner.get(corpus_id) {
-                let testcase = testcase_ref.borrow();
-                if let Some(input) = testcase.input() {
-                    result.push(input.as_ref().to_vec());
-                }
-            }
+        for corpus_id in self.inner.ids() {
+            result.push(
+                self.inner
+                    .cloned_input_for_id(corpus_id)
+                    .map_err(|e| {
+                        PyRuntimeError::new_err(format!(
+                            "Failed to load input for corpus id {corpus_id}: {e}"
+                        ))
+                    })?
+                    .as_ref()
+                    .to_vec(),
+            );
         }
         Ok(result)
     }
 
-    fn __getstate__(&self) -> PyResult<PathBuf> {
-        Ok(self.inner.dir_path().to_path_buf())
+    fn __getstate__(&self) -> PyResult<Vec<u8>> {
+        postcard::to_stdvec(&self.inner).map_err(|e| PyRuntimeError::new_err(e.to_string()))
     }
 
-    fn __setstate__(&mut self, state: PathBuf) -> PyResult<()> {
-        self.inner = OnDiskCorpus::new(state.to_str().unwrap())
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    fn __setstate__(&mut self, state: Vec<u8>) -> PyResult<()> {
+        self.inner =
+            postcard::from_bytes(&state).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
         Ok(())
     }
 }
@@ -382,5 +385,48 @@ impl DynCorpus<BytesInput> {
                 Ok(obj.into_bound(py).into_any().unbind())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_inmem_corpus_serialization() {
+        let corpus =
+            PyInMemoryCorpus::from_list(vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]]).unwrap();
+
+        let serialied_state = corpus.__getstate__().unwrap();
+        let mut deserialized_corpus = PyInMemoryCorpus::py_new().unwrap();
+        deserialized_corpus.__setstate__(serialied_state).unwrap();
+
+        let bytes_list = deserialized_corpus.to_bytes_list().unwrap();
+        assert_eq!(bytes_list.len(), 3);
+        assert_eq!(bytes_list[0], vec![1, 2, 3]);
+        assert_eq!(bytes_list[1], vec![4, 5, 6]);
+        assert_eq!(bytes_list[2], vec![7, 8, 9]);
+    }
+
+    #[test]
+    fn test_ondisk_corpus_serialization() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let mut corpus = PyOnDiskCorpus::py_new(tempdir.path().to_string_lossy().into()).unwrap();
+        corpus.add(vec![1, 2, 3]).unwrap();
+        corpus.add(vec![4, 5, 6]).unwrap();
+        corpus.add(vec![7, 8, 9]).unwrap();
+
+        let serialied_state = corpus.__getstate__().unwrap();
+        let tempdir2 = tempfile::tempdir().unwrap();
+        let mut deserialized_corpus =
+            PyOnDiskCorpus::py_new(tempdir2.path().to_string_lossy().into()).unwrap();
+        deserialized_corpus.__setstate__(serialied_state).unwrap();
+
+        let bytes_list = deserialized_corpus.to_bytes_list().unwrap();
+
+        assert_eq!(bytes_list.len(), 3);
+        assert_eq!(bytes_list[0], vec![1, 2, 3]);
+        assert_eq!(bytes_list[1], vec![4, 5, 6]);
+        assert_eq!(bytes_list[2], vec![7, 8, 9]);
     }
 }
