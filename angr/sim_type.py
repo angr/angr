@@ -4159,6 +4159,18 @@ CPP_DECL_TYPES = (
 )
 
 
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type) -> int | str | None:
+    v = val.format()
+    if to_type is int:
+        try:
+            return int(v)
+        except ValueError:
+            return None
+    if to_type is str:
+        return v
+    raise TypeError(f"Unsupported to_type {to_type}")
+
+
 def _cpp_decl_to_type(
     decl: CPP_DECL_TYPES, extra_types: MutableMapping[str, SimType], opaque_classes: bool = True
 ) -> (
@@ -4265,7 +4277,10 @@ def _cpp_decl_to_type(
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
-        return SimTypeArray(subt, length=decl.size)
+        size: int | None = (
+            _cpp_value_to_value(decl.size, int) if isinstance(decl.size, cxxheaderparser.types.Value) else decl.size
+        )
+        return SimTypeArray(subt, length=size)
 
     if isinstance(decl, cxxheaderparser.types.MoveReference):
         subt = _cpp_decl_to_type(decl.moveref_to, extra_types, opaque_classes=opaque_classes)
