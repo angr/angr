@@ -223,7 +223,6 @@ class SimEngineVRBase(
                     global_var_addr,
                     var_size,
                     ident=variable_manager.next_variable_ident("global"),
-                    name=sym.name if sym else None,
                 )
                 variable_manager.set_variable("global", global_var_addr, variable)
                 l.debug("Identified a new global variable %s at %#x.", variable, self.ins_addr)
