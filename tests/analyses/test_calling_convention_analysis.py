@@ -332,13 +332,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
 
             for func in ["target", "direct", "plt"]:
-                # expected prototype: (int) -> long long
-                # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
                 proto = proj.kb.functions[func].prototype
                 assert proto is not None
                 assert len(proto.args) == 1
                 assert isinstance(proto.args[0], SimTypeInt)
-                assert isinstance(proto.returnty, SimTypeLongLong)
+                assert isinstance(proto.returnty, SimTypeInt)
 
     def test_ls_gcc_O0_timespec_cmp(self):
         binary_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
