@@ -339,8 +339,9 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr == 0x401cf2:
-    #             assert any(stmt.tags.get('ins_addr', None) == 0x401d11 or 'stack_base-64' in str(stmt) for stmt in block.statements)
+    #         if block.addr == 0x40B4CF:
+    #             block.pp()
+    #             print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
 
     def _decompilation_graph_recovery(self):
@@ -694,6 +695,12 @@ class Clinic(Analysis):
             stage=OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION,
         )
 
+        # Make call-sites again so we may identify variadic function arguments
+        self._update_progress(50.0, text="Making callsites")
+        _, self._stackarg_offsets, self._removed_vvar_ids = self._make_callsites(
+            self._ail_graph, self.func_args, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
+        )
+
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")
         self._simplify_function(
@@ -723,12 +730,11 @@ class Clinic(Analysis):
         )
 
     def _stage_make_function_callsites(self) -> None:
-        assert self.func_args is not None
-
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")
+        # do not provide func_args here since we haven't done any ssa yet
         _, self._stackarg_offsets, self._removed_vvar_ids = self._make_callsites(
-            self._ail_graph, self.func_args, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
+            self._ail_graph, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
         )
 
     def _stage_post_ssa_level1_simplifications(self) -> None:
@@ -1873,7 +1879,7 @@ class Clinic(Analysis):
     def _make_callsites(
         self,
         ail_graph,
-        func_args: set[ailment.Expr.VirtualVariable],
+        func_args: set[ailment.Expr.VirtualVariable] | None = None,
         stack_pointer_tracker=None,
         preserve_vvar_ids: set[int] | None = None,
     ):
@@ -1881,14 +1887,17 @@ class Clinic(Analysis):
         Simplify all function call statements.
         """
 
-        # # Computing reaching definitions
-        # rd = self.project.analyses.SReachingDefinitions(
-        #     subject=self.function,
-        #     func_graph=ail_graph,
-        #     func_args=func_args,
-        #     fail_fast=self._fail_fast,
-        #     use_callee_saved_regs_at_return=not self._register_save_areas_removed,
-        # )
+        # Computing reaching definitions
+        if func_args is not None:
+            rd = self.project.analyses.SReachingDefinitions(
+                subject=self.function,
+                func_graph=ail_graph,
+                func_args=func_args,
+                fail_fast=self._fail_fast,
+                use_callee_saved_regs_at_return=not self._register_save_areas_removed,
+            )
+        else:
+            rd = None
 
         stack_arg_offsets = set()
         removed_vvar_ids = set()
@@ -1899,7 +1908,7 @@ class Clinic(Analysis):
                 fail_fast=self._fail_fast,
             )(
                 block,
-                # reaching_definitions=rd,
+                reaching_definitions=rd,
                 stack_pointer_tracker=stack_pointer_tracker,
                 ail_manager=self._ail_manager,
             )

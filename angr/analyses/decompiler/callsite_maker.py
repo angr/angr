@@ -69,6 +69,12 @@ class CallSiteMaker(Analysis):
             call_stmt = last_stmt
         elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Stmt.Call:
             call_stmt = last_stmt.src
+        elif (
+            isinstance(last_stmt, Stmt.Assignment)
+            and isinstance(last_stmt.src, Expr.Convert)
+            and isinstance(last_stmt.src.operand, Stmt.Call)
+        ):
+            call_stmt = last_stmt.src.operand
         else:
             self.result_block = self.block
             return
@@ -84,6 +90,11 @@ class CallSiteMaker(Analysis):
         stack_arg_locs: list[SimStackArg] = []
         stackarg_sp_diff = 0
 
+        target = self._get_call_target(call_stmt)
+        if target is not None and target in self.kb.functions:
+            # function-specific logic when the calling target is known
+            func = self.kb.functions[target]
+
         # priority:
         # 0. manually-specified call-site prototype
         # 1. function-specific prototype
@@ -98,15 +109,11 @@ class CallSiteMaker(Analysis):
                 prototype = self.kb.callsite_prototypes.get_prototype(self.block.addr)
 
         # function-specific prototype
-        if cc is None or prototype is None:
-            target = self._get_call_target(call_stmt)
-            if target is not None and target in self.kb.functions:
-                # function-specific logic when the calling target is known
-                func = self.kb.functions[target]
-                if func.prototype is None:
-                    func.find_declaration()
-                cc = func.calling_convention
-                prototype = func.prototype
+        if (cc is None or prototype is None) and func is not None:
+            if func.prototype is None:
+                func.find_declaration()
+            cc = func.calling_convention
+            prototype = func.prototype
 
         # automatically recovered call-site prototype
         if (cc is None or prototype is None) and has_callsite_prototype:
@@ -146,7 +153,10 @@ class CallSiteMaker(Analysis):
 
         if arg_locs is not None and cc is not None:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
-            for arg_loc in expanded_arg_locs:
+            for arg_idx, arg_loc in enumerate(expanded_arg_locs):
+                if call_stmt.args is not None and arg_idx < len(call_stmt.args):
+                    args.append(call_stmt.args[arg_idx])
+                    continue
                 if isinstance(arg_loc, SimReferenceArgument):
                     if not isinstance(arg_loc.ptr_loc, (SimRegArg, SimStackArg)):
                         raise NotImplementedError("Why would a calling convention produce this?")
@@ -337,6 +347,8 @@ class CallSiteMaker(Analysis):
                 ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
+        tags = call_stmt.tags.copy()
+        tags.pop("arg_vvars", None)
         new_stmt = Stmt.Call(
             call_stmt.idx,
             call_stmt.target,
@@ -346,7 +358,7 @@ class CallSiteMaker(Analysis):
             ret_expr=ret_expr,
             fp_ret_expr=fp_ret_expr,
             arg_vvars=arg_vvars,
-            **call_stmt.tags,
+            **tags,
         )
         if isinstance(last_stmt, Stmt.Assignment):
             if not new_stmt.bits:
@@ -530,9 +542,10 @@ class CallSiteMaker(Analysis):
         arg_locs = cc.arg_locs(SimCC.guess_prototype([0] * min_arg_count, proto))
 
         for fmt_arg_idx in potential_fmt_args:
+            value = None
+
             arg_loc = arg_locs[fmt_arg_idx]
 
-            value = None
             if isinstance(arg_loc, SimRegArg):
                 value_and_def = self._resolve_register_argument(arg_loc)
                 if value_and_def is not None:
@@ -543,8 +556,10 @@ class CallSiteMaker(Analysis):
             else:
                 # Unexpected type of argument
                 l.warning("Unexpected type of argument type %s.", arg_loc.__class__)
-                return None
+                continue
 
+            if not isinstance(value, Const) and call_stmt.args is not None and len(call_stmt.args) > fmt_arg_idx:
+                value = call_stmt.args[fmt_arg_idx]
             if isinstance(value, Const) and isinstance(value.value, int):
                 value = value.value
             if isinstance(value, int):
