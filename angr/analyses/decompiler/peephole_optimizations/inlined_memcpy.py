@@ -72,7 +72,7 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
                     StackBaseOffset(None, self.project.arch.bits, src_offset),
                     Const(None, None, store_size, self.project.arch.bits),
                 ],
-                prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy"),
+                prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
                 **stmt.tags,
             )
 
