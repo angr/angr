@@ -547,7 +547,7 @@ class SimEngineSSARewriting(
         Return a new virtual variable for the given defined register.
         """
         vvar = self._expr_to_vvar(expr, False)
-        return self._vvar_update(vvar, vvar.reg_offset - expr.reg_offset, value, orig_tags)
+        return self._vvar_update(vvar, expr.reg_offset - vvar.reg_offset, value, orig_tags)
 
     def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
         if not self.rewrite_tmps:
