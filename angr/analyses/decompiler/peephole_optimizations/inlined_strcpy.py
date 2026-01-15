@@ -74,7 +74,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                         Const(None, None, len(s), self.project.arch.bits),
                     ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                     **stmt.tags,
                 )
 
@@ -128,7 +128,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                             **stmt.tags,
                         )
 
