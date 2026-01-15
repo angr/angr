@@ -59,6 +59,7 @@ from .a_mul_const_sub_a import AMulConstSubA
 from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .rewrite_conv_mul import RewriteConvMul
+from .evaluate_const_conversions import EvaluateConstConversions
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
@@ -120,6 +121,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
     RewriteConvMul,
+    EvaluateConstConversions,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [
