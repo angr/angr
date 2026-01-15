@@ -257,7 +257,7 @@ class FactCollector(Analysis):
         # as read from, until max_depth is reached
 
         end_states = self._analyze_startpoint()
-        self._analyze_endpoints_for_retval_size()
+        self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
 
@@ -376,7 +376,7 @@ class FactCollector(Analysis):
             offset = self.project.arch.registers[reg_name][0]
             state.register_written(offset, self.project.arch.registers[reg_name][1])
 
-    def _analyze_endpoints_for_retval_size(self):
+    def _analyze_endpoints_for_retval_size(self, end_states):
         """
         Analyze all endpoints to determine the return value size.
         """
@@ -505,6 +505,24 @@ class FactCollector(Analysis):
                             continue
                         if edge_type in {"transition", "fake_return"}:
                             queue.append((depth + 1, pred))
+
+        # ARM/AArch64: R0/X0 used for both arg0 and return
+        if not retval_sizes:
+            first_arg_offset = None
+            if cc.ARG_REGS:
+                arg0_name = cc.ARG_REGS[0]
+                if arg0_name in self.project.arch.registers:
+                    first_arg_offset = self.project.arch.registers[arg0_name][0]
+
+            if first_arg_offset is not None and first_arg_offset == retreg_offset:
+                is_written = False
+                for state in end_states:
+                    if retreg_offset in state.reg_writes:
+                        is_written = True
+                        break
+
+                if not is_written:
+                    retval_sizes.append(self.project.arch.bytes)
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
 
