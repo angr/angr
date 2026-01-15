@@ -467,12 +467,30 @@ class FactCollector(Analysis):
                             continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
+
+                # collect tmps so we can trace back through RdTmp
+                tmp_definitions = {}
+                for stmt in block.vex.statements:
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                        tmp_definitions[stmt.tmp] = stmt.data
+
                 # scan the block statements backwards to find writes to the return value register
                 retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
+
+                        # check if this 64-bit write is actually a sign/zero-extended 32-bit value.
+                        if size == 8 and self.project.arch.bits == 64:
+                            expr = stmt.data
+
+                            if isinstance(expr, pyvex.IRExpr.RdTmp):
+                                expr = tmp_definitions.get(expr.tmp, expr)
+
+                            if isinstance(expr, pyvex.IRExpr.Unop) and expr.op in {"Iop_32Sto64", "Iop_32Uto64"}:
+                                size = 4
+
                         if stmt.offset == retreg_offset:
                             retval_size = max(size, 1)
 
