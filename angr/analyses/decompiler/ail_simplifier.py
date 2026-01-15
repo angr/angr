@@ -40,6 +40,7 @@ from angr.ailment.expression import (
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_phi_assignment, HasExprWalker, is_expr_used_as_reg_base_value
 from angr.utils.ssa import (
     has_call_in_between_stmts,
@@ -160,8 +161,8 @@ class AILSimplifier(Analysis):
 
     def __init__(
         self,
-        func,
-        func_graph=None,
+        func: Function,
+        func_graph: networkx.DiGraph[Block],
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
@@ -180,7 +181,7 @@ class AILSimplifier(Analysis):
         avoid_vvar_ids: set[int] | None = None,
     ):
         self.func = func
-        self.func_graph = func_graph if func_graph is not None else func.graph
+        self.func_graph = func_graph
         self._reaching_definitions: SRDAModel | None = None
         self._propagator: SPropagatorAnalysis | None = None
 
@@ -491,7 +492,7 @@ class AILSimplifier(Analysis):
 
         return narrowed
 
-    def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block) -> dict[int, int]:
+    def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block: dict[Address, Block]) -> dict[int, int]:
         vvar_effective_sizes: dict[int, int] = {}
 
         # determine effective sizes for non-phi vvars
@@ -800,7 +801,7 @@ class AILSimplifier(Analysis):
 
             # only replace loads if there are stack arguments in this block
             replace_loads: bool = insn_addrs_using_stack_args is not None and bool(
-                {stmt.tags["ins_addr"] for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
+                {stmt.tags.get("ins_addr", None) for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
             )
 
             # remove virtual variables in the avoid list
@@ -1384,6 +1385,7 @@ class AILSimplifier(Analysis):
                     the_block, u.stmt_idx, stmt, used_expr, replace_with_copy
                 )
                 if r:
+                    assert new_block is not None
                     self.blocks[old_block] = new_block
                     updated_locs.add(u)
                 else:
@@ -1602,6 +1604,7 @@ class AILSimplifier(Analysis):
                 replaced, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, src, dst)
 
                 if replaced:
+                    assert new_block is not None
                     self.blocks[old_block] = new_block
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
@@ -1703,7 +1706,7 @@ class AILSimplifier(Analysis):
         stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = self._removed_vvar_ids.copy()
         dead_vvar_codelocs: set[AILCodeLocation] = set()
-        blocks: dict[tuple[int, int | None], Block] = {
+        blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
         }
 
@@ -1714,7 +1717,7 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
-        retpoints: set[tuple[int, int]] = {
+        retpoints: set[Address] = {
             (node.addr, node.idx)
             for node in self.func_graph
             if node.statements and isinstance(node.statements[-1], Return) and self.func_graph.out_degree[node] == 0

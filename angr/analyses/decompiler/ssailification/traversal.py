@@ -62,8 +62,10 @@ class TraversalAnalysis:
 
     def _analyze(self):
         entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
-        assert entry_block is not None
-        traverse_in_order(self._ail_graph, entry_block, self._run_on_node)
+        entry_blocks = {n for n in self._ail_graph if not self._ail_graph.pred[n]}
+        if entry_block is not None:
+            entry_blocks.add(entry_block)
+        traverse_in_order(self._ail_graph, sorted(entry_blocks), self._run_on_node)
         self._engine_ail.finalize()
 
     def _initial_abstract_state(self) -> TraversalState:

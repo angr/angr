@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
+from collections.abc import Sequence
 
 if TYPE_CHECKING:
     from typing import Any
@@ -22,7 +23,7 @@ class AILGraphWalker:
         graph: networkx.DiGraph[ailment.Block],
         handler: Callable[[ailment.Block], ailment.Block | None],
         replace_nodes: bool = False,
-        strict_order_start: ailment.Block | None = None,
+        strict_order_start: Sequence[ailment.Block] = (),
     ):
         self.graph = graph
         self.handler = handler
@@ -41,7 +42,7 @@ class AILGraphWalker:
                 self._edits[node] = r
 
     def walk(self):
-        if self._strict_order_start is None:
+        if not self._strict_order_start:
             for node in self.graph.nodes():
                 self._handle(node)
         else:
@@ -73,10 +74,12 @@ class AILGraphWalker:
 
 
 def traverse_in_order(
-    ail_graph: networkx.DiGraph[ailment.Block], entry_block: ailment.Block, visitor: Callable[[ailment.Block], Any]
+    ail_graph: networkx.DiGraph[ailment.Block],
+    entry_blocks: Sequence[ailment.Block],
+    visitor: Callable[[ailment.Block], Any],
 ):
-    seen = {entry_block}
-    pending = [entry_block]
+    seen = set(entry_blocks)
+    pending = list(entry_blocks)
     last_pending = set(pending)
     forcing = set()
 

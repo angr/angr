@@ -110,7 +110,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         offset = base_offset + min(extra_offset, 0)
-        size = max(base_offset, 0) + base_size
+        size = max(extra_offset, 0) + base_size
         full_offset, full_size, popped = self.state.stackvar_unify(offset, size)
 
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
