@@ -587,6 +587,44 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
 
+    def _check_return_type_comprehensive(self, funcs, func_name, expected_type_cls):
+        func = funcs[func_name]
+        ret_type = func.prototype.returnty
+        is_match = ret_type == expected_type_cls()
+        self.assertTrue(is_match)
+
+    def test_return_typecheck(self):
+        for arch in ["x86_64", "riscv64", "aarch64"]:
+            binary_path = os.path.join(
+                test_location, arch, f"test_return_type_{arch}.elf"
+            )
+            proj = angr.Project(binary_path, auto_load_libs=False)
+            cfg = proj.analyses.CFG(normalize=True)
+            proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg)
+            funcs = proj.kb.functions
+
+            self._check_return_type_comprehensive(funcs, "ret_add_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_sub_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_mul_int", SimTypeInt)
+
+            if arch == "riscv64":
+                self._check_return_type_comprehensive(funcs, "ret_or_int", SimTypeLongLong)
+                self._check_return_type_comprehensive(funcs, "ret_xor_int", SimTypeLongLong)
+            else:
+                self._check_return_type_comprehensive(funcs, "ret_or_int", SimTypeInt)
+                self._check_return_type_comprehensive(funcs, "ret_xor_int", SimTypeInt)
+
+            if arch == "aarch64":
+                self._check_return_type_comprehensive(funcs, "ret_cast_int", SimTypeLongLong)
+            else:
+                self._check_return_type_comprehensive(funcs, "ret_cast_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_add_long", SimTypeLongLong)
+            self._check_return_type_comprehensive(funcs, "ret_or_long", SimTypeLongLong)
+
+            if "ret_ptr" in funcs and funcs["ret_ptr"].prototype:
+                ret_size = funcs["ret_ptr"].prototype.returnty.size
+                self.assertEqual(ret_size, 64)
+
 
 if __name__ == "__main__":
     # logging.getLogger("angr.analyses.variable_recovery.variable_recovery_fast").setLevel(logging.DEBUG)
