@@ -282,6 +282,17 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Prettify C++/Rust method calls",
+        "Prettify method calls in C++ and Rust code by using (1) class constructors and destructors, (2) the '->' or "
+        "'.' operator, and (3) shorter method names where applicable.",
+        bool,
+        "codegen",
+        "prettify_thiscall",
+        category="Display",
+        default_value=False,
+        clears_cache=True,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,

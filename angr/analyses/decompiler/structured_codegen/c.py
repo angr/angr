@@ -1300,7 +1300,6 @@ class CFunctionCall(CStatement, CExpression):
         "callee_func",
         "callee_target",
         "is_expr",
-        "prettify_thiscall",
         "ret_expr",
         "returning",
         "show_demangled_name",
@@ -1317,7 +1316,6 @@ class CFunctionCall(CStatement, CExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
-        prettify_thiscall: bool = False,
         tags=None,
         codegen=None,
         **kwargs,
@@ -1333,7 +1331,12 @@ class CFunctionCall(CStatement, CExpression):
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
-        self.prettify_thiscall = prettify_thiscall
+
+    @property
+    def prettify_thiscall(self) -> bool:
+        if self.codegen is None:
+            return False
+        return self.codegen.prettify_thiscall
 
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
@@ -2603,6 +2606,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         notes=None,
         display_notes: bool = True,
         max_str_len: int | None = None,
+        prettify_thiscall: bool = False,
     ):
         super().__init__(
             flavor=flavor,
@@ -2692,6 +2696,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cexterns: set[CVariable] | None = None
         self.display_notes = display_notes
         self.max_str_len = max_str_len
+        self.prettify_thiscall = prettify_thiscall
 
         self._analyze()
 

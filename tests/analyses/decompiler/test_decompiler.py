@@ -5007,6 +5007,8 @@ class TestDecompiler(unittest.TestCase):
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions()
         func = proj.kb.functions[0x4025F0]
+        decompiler_options = decompiler_options or []
+        decompiler_options += [("prettify_thiscall", True)]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
@@ -5122,6 +5124,8 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         func = proj.kb.functions[0x469200]
+        decompiler_options = decompiler_options or []
+        decompiler_options += [("prettify_thiscall", True)]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
