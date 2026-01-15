@@ -99,8 +99,11 @@ def _op_with_unified_size(op, conv: Callable, operand0, operand1, ins_addr: int)
     return op(conv(operand0, nobool=True, ins_addr=ins_addr), conv(operand1, nobool=True, ins_addr=ins_addr))
 
 
-def _dummy_bvs(condition, condition_mapping, name_suffix=""):
-    var = claripy.BVS(f"ailexpr_{condition!r}{name_suffix}", condition.bits, explicit_name=True)
+def _dummy_bvs(condition, condition_mapping, name_suffix="", must_bool=False):
+    if must_bool:
+        var = claripy.BoolS(f"ailexpr_{condition!r}{name_suffix}", explicit_name=True)
+    else:
+        var = claripy.BVS(f"ailexpr_{condition!r}{name_suffix}", condition.bits, explicit_name=True)
     condition_mapping[var.args[0]] = condition
     return var
 
@@ -901,9 +904,14 @@ class ConditionProcessor:
             condition,
             (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
         ):
-            return _dummy_bvs(condition, self._condition_mapping)
+            return _dummy_bvs(condition, self._condition_mapping, must_bool=must_bool)
         if isinstance(condition, ailment.Stmt.Call):
-            return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
+            return _dummy_bvs(
+                condition,
+                self._condition_mapping,
+                name_suffix=hex(condition.tags.get("ins_addr", 0)),
+                must_bool=must_bool,
+            )
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?
             if condition.variable is not None:
