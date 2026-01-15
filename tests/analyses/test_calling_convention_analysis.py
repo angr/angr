@@ -595,9 +595,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def test_return_typecheck(self):
         for arch in ["x86_64", "riscv64", "aarch64"]:
-            binary_path = os.path.join(
-                test_location, arch, f"test_return_type_{arch}.elf"
-            )
+            binary_path = os.path.join(test_location, arch, f"test_return_type_{arch}.elf")
             proj = angr.Project(binary_path, auto_load_libs=False)
             cfg = proj.analyses.CFG(normalize=True)
             proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg)

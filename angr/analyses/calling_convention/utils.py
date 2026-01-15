@@ -55,9 +55,9 @@ def is_sane_register_variable(
 
     if arch_name == "X86":
         return 8 <= reg_offset < 24 or 160 <= reg_offset < 288  # eax, ebx, ecx, edx  # xmm0-xmm7
-    
+
     if arch_name == "RISCV64":
-        return 96 <= reg_offset < 160 # a0-a7
+        return 96 <= reg_offset < 160  # a0-a7
 
     l.critical("Unsupported architecture %s.", arch.name)
     return True
