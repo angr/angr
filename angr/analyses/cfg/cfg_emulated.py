@@ -1689,7 +1689,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                         current_function = self.kb.functions.function(current_function_addr)
                         if current_function is not None:
                             call_site_addr = self._block_id_addr(pe.src_block_id)
-                            current_function._call_sites[call_site_addr] = (func.addr, None)
+                            current_function_call_sites = current_function._call_sites[call_site_addr]
+                            current_function_call_sites[:] = [
+                                (call_target, retn_addr)
+                                for (call_target, retn_addr) in current_function_call_sites
+                                if call_target != func.addr
+                            ]
+                            current_function_call_sites.append((func.addr, None))
                         else:
                             l.warning(
                                 "An expected function at %#x is not found. Please report it to Fish.",
@@ -2277,31 +2283,31 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             all_return_edges = [(u, v) for (u, v, data) in graph.edges(data=True) if data["type"] == "return"]
             for return_from_call_edge in all_return_edges:
                 callsite_block_addr, return_to_addr = return_from_call_edge
-                call_func_addr = func.get_call_target(callsite_block_addr)
-                if call_func_addr is None:
+                call_func_addrs = func.get_call_target(callsite_block_addr)
+                if call_func_addrs is None:
                     continue
+                for call_func_addr in call_func_addrs:
+                    call_func = self.kb.functions.function(call_func_addr)
+                    if call_func is None:
+                        # Weird...
+                        continue
 
-                call_func = self.kb.functions.function(call_func_addr)
-                if call_func is None:
-                    # Weird...
-                    continue
+                    if call_func.returning is False:
+                        # Remove that edge!
+                        graph.remove_edge(call_func_addr, return_to_addr)
+                        # Remove the edge in CFG
+                        nodes = self.model.get_all_nodes(callsite_block_addr)
+                        for n in nodes:
+                            successors = self.model.get_successors_and_jumpkind(n, excluding_fakeret=False)
+                            for successor, jumpkind in successors:
+                                if jumpkind == "Ijk_FakeRet" and successor.addr == return_to_addr:
+                                    self.remove_edge(n, successor)
 
-                if call_func.returning is False:
-                    # Remove that edge!
-                    graph.remove_edge(call_func_addr, return_to_addr)
-                    # Remove the edge in CFG
-                    nodes = self.model.get_all_nodes(callsite_block_addr)
-                    for n in nodes:
-                        successors = self.model.get_successors_and_jumpkind(n, excluding_fakeret=False)
-                        for successor, jumpkind in successors:
-                            if jumpkind == "Ijk_FakeRet" and successor.addr == return_to_addr:
-                                self.remove_edge(n, successor)
-
-                                # Remove all dangling nodes
-                                # wcc = list(networkx.weakly_connected_components(graph))
-                                # for nodes in wcc:
-                                #    if func.startpoint not in nodes:
-                                #        graph.remove_nodes_from(nodes)
+                                    # Remove all dangling nodes
+                                    # wcc = list(networkx.weakly_connected_components(graph))
+                                    # for nodes in wcc:
+                                    #    if func.startpoint not in nodes:
+                                    #        graph.remove_nodes_from(nodes)
 
     # Private methods - resolving indirect jumps
 
