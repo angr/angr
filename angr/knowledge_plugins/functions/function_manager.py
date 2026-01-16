@@ -1329,7 +1329,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                     else:
                         inedges = func.transition_graph.in_edges(node, data=True)
                         for _, _, data in inedges:
-                            if data.get("type") == "transition" and data.get("outside") is True:
+                            if (
+                                data.get("type") == "transition"
+                                and data.get("outside") is True
+                                and self.contains_addr(node.addr)
+                            ):
                                 self.callgraph.add_edge(func.addr, node.addr)
 
     #
