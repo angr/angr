@@ -2,7 +2,7 @@ from __future__ import annotations
 from angr.ailment.expression import Const, Load
 
 from angr import SIM_LIBRARIES
-from angr.ailment.statement import Call
+from angr.ailment.expression import CallExpr
 from angr.calling_conventions import default_cc
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
 from angr.analyses.decompiler.peephole_optimizations import EXPR_OPTS
@@ -57,9 +57,9 @@ class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Simplify Type 3 API obfuscation references"
-    expr_classes = (Call,)
+    expr_classes = (CallExpr,)
 
-    def optimize(self, expr: Call, **kwargs):
+    def optimize(self, expr: CallExpr, **kwargs):
         funcbits = self.kb.obfuscations.type3_deobfuscated_apis.get(expr.tags["ins_addr"], None)
         if funcbits is None:
             return None

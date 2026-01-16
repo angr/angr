@@ -167,7 +167,7 @@ class WinStackCanarySimplifier(OptimizationPass):
         if (
             first_block.statements
             and first_block.original_size > 0
-            and isinstance(first_block.statements[-1], ailment.statement.Call)
+            and isinstance(first_block.statements[-1], ailment.statement.CallStmt)
             and isinstance(first_block.statements[-1].target, ailment.expression.Const)
         ):
             # check if the target is alloca_probe
@@ -422,7 +422,7 @@ class WinStackCanarySimplifier(OptimizationPass):
     def _find_stmt_calling_security_check_cookie(self, node):
         assert self._security_cookie_addr is not None
         for idx, stmt in enumerate(node.statements):
-            if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+            if isinstance(stmt, ailment.Stmt.CallStmt) and isinstance(stmt.target, ailment.Expr.Const):
                 const_target = stmt.target.value
                 if self.kb.functions.contains_addr(const_target):
                     func = self.kb.functions.get_by_addr(const_target)

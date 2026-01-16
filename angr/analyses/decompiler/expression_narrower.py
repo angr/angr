@@ -4,8 +4,8 @@ from collections import defaultdict
 import logging
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker
-from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.statement import Assignment, CallStmt
+from angr.ailment.expression import Atom, CallExpr, VirtualVariable, Convert, BinaryOp, Phi
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
@@ -88,7 +88,9 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+    def _handle_CallExpr(
+        self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ):
         r = False
         if expr.args:
             for i, arg in enumerate(expr.args):
@@ -253,9 +255,8 @@ class ExpressionNarrower(AILBlockRewriter):
             )
         return expr
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
-        new_stmt = super()._handle_Call(stmt_idx, stmt, block)
-        assert isinstance(new_stmt, Call)
+    def _handle_CallStmt(self, stmt_idx: int, stmt: CallStmt, block: Block | None) -> CallStmt:
+        new_stmt = super()._handle_CallStmt(stmt_idx, stmt, block)
         changed = new_stmt is not stmt
 
         if (

@@ -163,7 +163,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 preds = list(self._graph.predecessors(ret_blocks[0]))
                 if len(preds) == 1:
                     pred = preds[0]
-                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.Call):
+                    if pred.statements and isinstance(pred.statements[-1], ailment.Stmt.CallStmt):
                         last_stmt = pred.statements[-1]
                         if isinstance(last_stmt.target, ailment.Expr.Const):
                             callee_addr = last_stmt.target.value

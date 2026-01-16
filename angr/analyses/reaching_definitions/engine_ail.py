@@ -199,7 +199,7 @@ class SimEngineRDAIL(
         ip = Register(cast(RegisterOffset, self.arch.ip_offset), self.arch.bytes)
         self.state.kill_definitions(ip)
 
-    def _handle_stmt_Call(self, stmt: ailment.Stmt.Call):
+    def _handle_stmt_Call(self, stmt: ailment.Stmt.CallStmt):
         data = self._handle_Call_base(stmt, is_expr=False)
         src = data.ret_values
         if src is None:
@@ -235,7 +235,9 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
 
-    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False) -> FunctionCallData:
+    def _handle_Call_base(
+        self, stmt: ailment.Stmt.CallStmt | ailment.expression.CallExpr, is_expr: bool = False
+    ) -> FunctionCallData:
         if isinstance(stmt.target, ailment.Expr.Expression):
             target = self._expr(stmt.target)  # pylint:disable=unused-variable
             func_name = None

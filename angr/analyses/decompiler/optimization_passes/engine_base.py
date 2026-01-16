@@ -136,7 +136,7 @@ class SimplifierAILEngine(
                 new_arg = self._expr(arg)
                 new_args.append(new_arg)
 
-        return ailment.statement.Call(
+        return ailment.statement.CallStmt(
             stmt.idx,
             target,
             calling_convention=stmt.calling_convention,

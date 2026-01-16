@@ -356,7 +356,7 @@ class ProximityGraphAnalysis(Analysis):
             return []
 
         def _handle_Call(
-            stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None  # pylint:disable=unused-argument
+            stmt_idx: int, stmt: ailment.Stmt.CallStmt, block: ailment.Block | None  # pylint:disable=unused-argument
         ):  # pylint:disable=unused-argument
             if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
                 func_node = FuncNode(stmt.target.value_int)
@@ -383,7 +383,7 @@ class ProximityGraphAnalysis(Analysis):
         # This should have the same functionality as the previous handler
         def _handle_CallExpr(
             expr_idx: int,
-            expr: ailment.Stmt.Call,
+            expr: ailment.expression.CallExpr,
             stmt_idx: int,  # pylint:disable=unused-argument
             stmt: ailment.Stmt.Statement,  # pylint:disable=unused-argument
             block: ailment.Block | None,
@@ -395,8 +395,8 @@ class ProximityGraphAnalysis(Analysis):
 
         # Keep all default handlers, but overwrite necessary ones:
         bw = AILBlockViewer()
-        bw.stmt_handlers[ailment.Stmt.Call] = _handle_Call
-        bw.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
+        bw.stmt_handlers[ailment.Stmt.CallStmt] = _handle_Call
+        bw.expr_handlers[ailment.expression.CallExpr] = _handle_CallExpr
 
         # Custom Graph walker, go through AIL edges
         for ail_edge in ail_graph.edges:

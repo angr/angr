@@ -242,7 +242,7 @@ class TestAILExec(unittest.TestCase):
         ref = ailment.expression.UnaryOp(idx=0, op="Reference", operand=vvar, bits=p.arch.bits)
 
         call_tgt = ailment.expression.Const(None, None, 0xDEADBEEF, p.arch.bits)
-        call = ailment.statement.Call(idx=0, target=call_tgt, args=[ref])
+        call = ailment.statement.CallStmt(idx=0, target=call_tgt, args=[ref])
         call.tags["ins_addr"] = 0x400000
 
         jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, p.arch.bits))
@@ -280,7 +280,7 @@ class TestAILExec(unittest.TestCase):
         state.callstack.passed_rets = ((claripy.BVV(0x1234, 32),),)
 
         # A Call statement with no return assignment (unused return value).
-        call_stmt = ailment.statement.Call(
+        call_stmt = ailment.statement.CallStmt(
             idx=0,
             target=ailment.expression.Const(None, None, 0x5000, 32),
             args=[],

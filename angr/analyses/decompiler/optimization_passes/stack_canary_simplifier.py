@@ -291,7 +291,7 @@ class StackCanarySimplifier(OptimizationPass):
 
     def _calls_stack_chk_fail(self, node):
         for stmt in node.statements:
-            if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+            if isinstance(stmt, ailment.Stmt.CallStmt) and isinstance(stmt.target, ailment.Expr.Const):
                 const_target = stmt.target.value
                 if const_target in self.kb.functions:
                     func = self.kb.functions.function(addr=const_target)

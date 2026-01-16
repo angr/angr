@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
+from angr.ailment.statement import Statement, CallStmt, ConditionalJump, Assignment, Jump
 from angr.ailment.expression import ITE, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
@@ -158,7 +158,7 @@ class ITERegionConverter(OptimizationPass):
 
     @staticmethod
     def _has_qualified_phi_assignments(
-        block: Block, block0: Block, stmt0: Assignment | Call, block1: Block, stmt1: Assignment | Call
+        block: Block, block0: Block, stmt0: Assignment | CallStmt, block1: Block, stmt1: Assignment | CallStmt
     ):
         vvar0 = stmt0.dst if isinstance(stmt0, Assignment) else stmt0.ret_expr
         vvar1 = stmt1.dst if isinstance(stmt1, Assignment) else stmt1.ret_expr
@@ -188,8 +188,8 @@ class ITERegionConverter(OptimizationPass):
         self,
         region_head,
         region_tail,
-        true_stmt: Assignment | Call,
-        false_stmt: Assignment | Call,
+        true_stmt: Assignment | CallStmt,
+        false_stmt: Assignment | CallStmt,
     ):
         if region_head not in self._graph or region_tail not in self._graph:
             return False
@@ -333,5 +333,5 @@ class ITERegionConverter(OptimizationPass):
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
         return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
-            isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable)
+            isinstance(stmt, CallStmt) and isinstance(stmt.ret_expr, VirtualVariable)
         )

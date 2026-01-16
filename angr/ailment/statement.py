@@ -505,17 +505,16 @@ class ConditionalJump(Statement):
         )
 
 
-class Call(Expression, Statement):
+class CallStmt(Statement):
     """
-    Call is both an expression and a statement.
+    Call as a statement.
 
-    When used as a statement, it will set ret_expr, fp_ret_expr, or both if both of them should hold return values.
-    When used as an expression, both ret_expr and fp_ret_expr should be None (and should be ignored). The size of the
-    call expression is stored in the bits attribute.
+    It will set ret_expr, fp_ret_expr, or both if both of them should hold return values.
     """
 
     __slots__ = (
         "args",
+        "bits",
         "calling_convention",
         "fp_ret_expr",
         "prototype",
@@ -535,7 +534,7 @@ class Call(Expression, Statement):
         bits: int | None = None,
         **kwargs,
     ):
-        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
+        super().__init__(idx, **kwargs)
 
         self.target = target
         self.calling_convention = calling_convention
@@ -552,9 +551,21 @@ class Call(Expression, Statement):
         else:
             self.bits = 0  # uhhhhhhhhhhhhhhhhhhh
 
+    def __eq__(self, other):
+        return (
+            type(other) is CallStmt
+            and self.idx == other.idx
+            and self.target == other.target
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and self.args == other.args
+            and self.ret_expr == other.ret_expr
+            and self.fp_ret_expr == other.fp_ret_expr
+        )
+
     def likes(self, other):
         return (
-            type(other) is Call
+            type(other) is CallStmt
             and is_none_or_likeable(self.target, other.target)
             and self.calling_convention == other.calling_convention
             and self.prototype == other.prototype
@@ -565,7 +576,7 @@ class Call(Expression, Statement):
 
     def matches(self, other):
         return (
-            type(other) is Call
+            type(other) is CallStmt
             and is_none_or_matchable(self.target, other.target)
             and self.calling_convention == other.calling_convention
             and self.prototype == other.prototype
@@ -577,10 +588,10 @@ class Call(Expression, Statement):
     __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
-        return stable_hash((Call, self.idx, self.target))
+        return stable_hash((CallStmt, self.idx, self.target))
 
     def __repr__(self):
-        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+        return f"CallStmt (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
 
     def __str__(self):
         cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
@@ -658,7 +669,7 @@ class Call(Expression, Statement):
             new_fp_ret_expr = replaced_fp_ret
 
         if r:
-            return True, Call(
+            return True, CallStmt(
                 self.idx,
                 replaced_target,
                 calling_convention=self.calling_convention,
@@ -672,7 +683,7 @@ class Call(Expression, Statement):
         return False, self
 
     def copy(self):
-        return Call(
+        return CallStmt(
             self.idx,
             self.target,
             calling_convention=self.calling_convention,
