@@ -295,6 +295,7 @@ class CallSiteMaker(Analysis):
                     new_stmts = new_stmts[:stmt_idx] + new_stmts[stmt_idx + 1 :]
                     if varid is not None:
                         self.removed_vvar_ids.add(varid)
+                    break
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.

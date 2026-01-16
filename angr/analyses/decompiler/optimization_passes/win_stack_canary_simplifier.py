@@ -293,6 +293,7 @@ class WinStackCanarySimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
                 and stmt.dst.reg_offset == self.project.arch.registers["rcx"][0]
                 and isinstance(stmt.src, ailment.Expr.Load)
                 and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)

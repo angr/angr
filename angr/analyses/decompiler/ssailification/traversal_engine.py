@@ -63,7 +63,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.use_tmps = use_tmps
         self.functions = functions
         self.def_info: dict[Def, tuple[Kind, AILCodeLocation, int, int, int]] = {}
-        self.pending_ptr_defines_nonlocal: dict[int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]]]] = {}
+        self.pending_ptr_defines_nonlocal: dict[
+            int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
+        ] = {}
 
     def _is_top(self, expr):
         return not expr
@@ -75,12 +77,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # see comment in StackBaseOffset handler
         for k, (v1, v2) in self.state.pending_ptr_defines.items():
             if k not in self.pending_ptr_defines_nonlocal:
-                self.pending_ptr_defines_nonlocal[k] = (v1, v2, set())
+                self.pending_ptr_defines_nonlocal[k] = (v1, v2, set(), k not in self.state.live_stackvars)
                 self.state.pending_ptr_defines_nonlocal_live.add(k)
         self.state.pending_ptr_defines.clear()  # just in case
 
     def finalize(self):
-        for stack_offset, (loc, def_, suggestions) in self.pending_ptr_defines_nonlocal.items():
+        for stack_offset, (loc, def_, suggestions, required) in self.pending_ptr_defines_nonlocal.items():
+            if not required:
+                continue
             full_offset, full_endoffset = stack_offset, stack_offset + 1
             for suggested_offset, suggested_size in suggestions:
                 suggested_endoffset = suggested_offset + suggested_size
