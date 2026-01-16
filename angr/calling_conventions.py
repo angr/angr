@@ -777,10 +777,11 @@ class SimCC:
 
         if self.RETURN_VAL is None or isinstance(ty, SimTypeBottom):
             return None
-        if ty.size > self.RETURN_VAL.size * self.arch.byte_width:
+        ty_size = ty.size if ty.size is not None else self.RETURN_VAL.size * self.arch.byte_width
+        if ty_size > self.RETURN_VAL.size * self.arch.byte_width:
             assert self.OVERFLOW_RETURN_VAL is not None
             return SimComboArg([self.RETURN_VAL, self.OVERFLOW_RETURN_VAL])
-        return self.RETURN_VAL.refine(size=ty.size // self.arch.byte_width, arch=self.arch, is_fp=False)
+        return self.RETURN_VAL.refine(size=ty_size // self.arch.byte_width, arch=self.arch, is_fp=False)
 
     @property
     def return_addr(self):
