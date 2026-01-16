@@ -9,13 +9,12 @@ from angr.ailment.manager import Manager
 
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier
 from angr.sim_type import (
+    SimType,
     SimTypeBottom,
     SimTypePointer,
     SimTypeChar,
-    SimTypeInt,
     SimTypeFloat,
     SimTypeFunction,
-    SimTypeLongLong,
 )
 from angr.calling_conventions import (
     SimReferenceArgument,
@@ -75,6 +74,18 @@ class CallSiteMaker(Analysis):
             and isinstance(last_stmt.src.operand, Stmt.Call)
         ):
             call_stmt = last_stmt.src.operand
+        elif (
+            isinstance(last_stmt, Stmt.Assignment)
+            and isinstance(last_stmt.src, Expr.Insert)
+            and isinstance(last_stmt.src.value, Stmt.Call)
+        ):
+            call_stmt = last_stmt.src.value
+        elif (
+            isinstance(last_stmt, Stmt.Assignment)
+            and isinstance(last_stmt.src, Expr.Extract)
+            and isinstance(last_stmt.src.base, Stmt.Call)
+        ):
+            call_stmt = last_stmt.src.base
         else:
             self.result_block = self.block
             return
@@ -144,11 +155,7 @@ class CallSiteMaker(Analysis):
                     variadic_args = self._determine_variadic_arguments(func, cc, call_stmt)
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
-                        callsite_args = list(callsite_ty.args)
-                        base_type = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
-                        for _ in range(variadic_args):
-                            callsite_args.append(base_type().with_arch(self.project.arch))
-                        callsite_ty.args = tuple(callsite_args)
+                        callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
                         arg_locs = cc.arg_locs(callsite_ty)
 
         if arg_locs is not None and cc is not None:
@@ -368,8 +375,7 @@ class CallSiteMaker(Analysis):
 
         new_stmts.append(new_stmt)
 
-        new_block = self.block.copy()
-        new_block.statements = new_stmts
+        new_block = self.block.copy(statements=new_stmts)
 
         self.result_block = new_block
 
@@ -513,16 +519,16 @@ class CallSiteMaker(Analysis):
 
         return s
 
-    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_stmt) -> int | None:
+    def _determine_variadic_arguments(self, func: Function, cc: SimCC, call_stmt) -> list[SimType]:
         if "printf" in func.name or "scanf" in func.name:
             return self._determine_variadic_arguments_for_format_strings(func, cc, call_stmt)
-        return None
+        return []
 
-    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> int | None:
+    def _determine_variadic_arguments_for_format_strings(self, func, cc: SimCC, call_stmt) -> list[SimType]:
         proto = func.prototype
         if proto is None:
             # TODO: Support cases where prototypes are not available
-            return None
+            return []
 
         #
         # get the format string
@@ -536,7 +542,7 @@ class CallSiteMaker(Analysis):
                 potential_fmt_args.append(idx)
 
         if not potential_fmt_args:
-            return None
+            return []
 
         fmt_str = None
         min_arg_count = max(potential_fmt_args) + 1
@@ -569,7 +575,7 @@ class CallSiteMaker(Analysis):
                     break
 
         if not fmt_str:
-            return None
+            return []
 
         #
         # parse the format string
@@ -581,8 +587,8 @@ class CallSiteMaker(Analysis):
 
         specifiers = [component for component in components if isinstance(component, FormatSpecifier)]
         if not specifiers:
-            return None
-        return len(specifiers)
+            return []
+        return [spec.ty for spec in specifiers]
 
     def _expand_arglocs(
         self, arg_locs: list[SimFunctionArgument]
