@@ -64,13 +64,22 @@ class Block:
         block_str += stmts_str + "\n"
         return block_str
 
-    def pp(self) -> None:
-        print(self.dbg_repr())
-
     def __str__(self):
         if self.idx is None:
             return f"<AILBlock {self.addr:#x}>"
         return f"<AILBlock {self.addr:#x}.{self.idx}>"
+
+    def pp(self, show_ins_addr: bool = True, **kwargs) -> None:
+        """
+        Pretty-print the AIL block with optional syntax highlighting.
+
+        :param show_ins_addr: Show instruction addresses for each statement.
+        :param kwargs: Additional arguments (reserved for future use).
+        """
+        from ..utils.formatting import ansi_color_enabled
+        from .pretty_printer import AILPrettyPrinter
+
+        AILPrettyPrinter().format_block(self, show_ins_addr=show_ins_addr, color=ansi_color_enabled)
 
     def __eq__(self, other):
         return (
