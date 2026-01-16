@@ -339,9 +339,9 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr == 0x40B4CF:
-    #             block.pp()
-    #             print(kwargs)
+    #         if block.addr == 0x400a6f:
+    #             if ' t2 = ' not in block.dbg_repr():
+    #                 breakpoint()
     #     return super()._update_progress(*args, **kwargs)
 
     def _decompilation_graph_recovery(self):
