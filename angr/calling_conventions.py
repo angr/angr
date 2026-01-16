@@ -1495,8 +1495,10 @@ class SimCCSyscall(SimCC):
         if type(expr) is int:
             expr = claripy.BVV(expr, state.arch.bits)
         with contextlib.suppress(AttributeError):
-            expr = expr.ast
+            expr = expr.ast  # type: ignore
         nbits = self.ERROR_REG.size * state.arch.byte_width
+        if self.SYSCALL_ERRNO_START is None:
+            raise ValueError(f"SYSCALL_ERRNO_START is not defined for {self}")
         error_cond = claripy.UGE(expr, self.SYSCALL_ERRNO_START)
         if state.solver.is_false(error_cond):
             # guaranteed no error
@@ -1605,7 +1607,7 @@ class SimCCSystemVAMD64(SimCC):
                     regfile_offset = arch.registers[ex_arg.reg_name][0]
                 while regfile_offset not in arch.register_names:
                     regfile_offset -= 1
-                ex_arg.reg_name = arch.register_names[regfile_offset]
+                ex_arg.reg_name = arch.register_names[regfile_offset]  # type: ignore
                 ex_arg.reg_offset = 0
 
             if ex_arg not in all_fp_args and ex_arg not in all_int_args and ex_arg not in some_both_args:
@@ -2004,7 +2006,7 @@ class SimCCARMLinuxSyscall(SimCCSyscall):
         return False
 
     @staticmethod
-    def syscall_num(state):
+    def syscall_num(state):  # type: ignore
         if ((state.regs.ip_at_syscall & 1) == 1).is_true():
             insn = state.mem[state.regs.ip_at_syscall - 3].short.resolved
             is_svc = ((insn & 0xFF00) == 0xDF00).is_true()
@@ -2049,20 +2051,180 @@ class SimCCAArch64LinuxSyscall(SimCCSyscall):
 
 
 class SimCCRISCV64(SimCC):
-    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7"]
-    FP_ARG_REGS = ["fa0", "fa1", "fa2", "fa3", "fa4", "fa5", "fa6", "fa7"]
-    STACKARG_SP_BUFF = 0xA0
-    RETURN_VAL = SimRegArg("a0", 8)
-    RETURN_ADDR = SimRegArg("x1", 8)
+    _XLEN = 8  # Bytes
+    ARG_REGS = [f"a{i}" for i in range(8)]
+    FP_ARG_REGS = [f"fa{i}" for i in range(8)]
+    FP_RETURN_VAL = SimRegArg("fa0", _XLEN)
+    RETURN_VAL = SimRegArg("a0", _XLEN)
+    RETURN_ADDR = SimRegArg("ra", _XLEN)
+    CALLER_SAVED_REGS = ["ra"] + [f"a{i}" for i in range(8)] + [f"t{i}" for i in range(7)]
+    STACK_ALIGNMENT = 16
     ARCH = archinfo.ArchRISCV64
+
+    # https://github.com/riscv-non-isa/riscv-elf-psabi-doc/blob/master/riscv-cc.adoc
+    def next_arg(self, session, arg_type):
+        # TODO: Implement variable parameter passing
+        # EXAMPLE:
+        # struct F1 {float a, int b};
+        # struct F2 {double a, float b, int c};
+        # func(struct F1, struct F2, float a, int b);
+        saved_full_state = session.getstate()
+
+        classification = self._classify(arg_type)
+
+        if "REFERENCE" in classification:
+            arg_size = arg_type.size if arg_type.size is not None else 0
+            slot_count = (arg_size + self.arch.bits - 1) // self.arch.bits
+            referenced_locs = [SimStackArg(i * 8, 8) for i in range(slot_count)]
+            main_loc = refine_locs_with_struct_type(self.arch, referenced_locs, arg_type)
+            try:
+                ptr_loc = next(session.int_iter)
+            except StopIteration:
+                ptr_loc = next(session.both_iter)
+            return SimReferenceArgument(ptr_loc, main_loc)
+
+        try:
+            mapped = {"INTEGER": session.int_iter, "FLOAT": session.fp_iter}
+            if isinstance(arg_type, SimStruct):  # struct
+                is_flattened = any(c == "FLOAT" for c in classification)
+                locs_dict = {}
+
+                if is_flattened:  # The type of faN + aN
+                    # struct {float a, int b} => {fa0, a0}
+                    sorted_fields = sorted(arg_type.fields.items(), key=lambda item: arg_type.offsets[item[0]])
+                    for i, (name, field_ty) in enumerate(sorted_fields):
+                        cls = classification[i]
+
+                        reg = next(session.fp_iter) if cls == "FLOAT" else next(session.int_iter)
+
+                        is_field_fp = isinstance(field_ty, (SimTypeFloat, SimTypeDouble))
+                        field_size_bits = field_ty.size if field_ty.size is not None else 0
+                        locs_dict[name] = reg.refine(size=field_size_bits // 8, arch=self.arch, is_fp=is_field_fp)
+                    return SimStructArg(arg_type, locs_dict)
+                # The type of aN, a(N+1), ...
+                # struct {double a, float b, int c} => {a1, a2}
+                raw_locs = [next(mapped[cls]) for cls in classification]
+
+                # upper
+                bytes_per_reg = self.arch.bytes
+                arg_size_bits = arg_type.size if arg_type.size is not None else 0
+                arg_bytes = (arg_size_bits + self.arch.byte_width - 1) // self.arch.byte_width
+                n_slots_needed = (arg_bytes + bytes_per_reg - 1) // bytes_per_reg
+
+                if len(raw_locs) > n_slots_needed:
+                    session.setstate(saved_full_state)
+                    locs_to_use = [next(session.int_iter) for _ in range(n_slots_needed)]
+                else:
+                    locs_to_use = raw_locs
+
+                for name, field_ty in arg_type.fields.items():
+                    offset = arg_type.offsets[name]
+                    field_size = field_ty.size // 8
+
+                    reg_idx = offset // self.arch.bytes
+                    reg_offset = offset % self.arch.bytes
+
+                    if reg_idx < len(locs_to_use):
+                        base_reg = locs_to_use[reg_idx]
+
+                        locs_dict[name] = base_reg.refine(
+                            size=field_size,
+                            offset=reg_offset,
+                            arch=self.arch,
+                            is_fp=False,  # i don't know if it's ok to set false
+                        )
+                return SimStructArg(arg_type, locs_dict)
+            # int, float, union
+            # float a => fa1
+            # int b => a3
+            raw_locs = [next(mapped[cls]) for cls in classification]
+            return refine_locs_with_struct_type(self.arch, raw_locs, arg_type)
+        except StopIteration:  # on stack
+            session.setstate(saved_full_state)
+            return self._allocate_on_stack(session, arg_type)
+
+    def _allocate_on_stack(self, session, arg_type):
+        required_align = self.arch.bytes
+        current_offset = session.both_iter.getstate()
+        aligned_offset = (current_offset + required_align - 1) // required_align * required_align
+
+        session.both_iter.setstate(aligned_offset)
+
+        size_bits = arg_type.size
+        n_slots = (size_bits + self.arch.bits - 1) // self.arch.bits
+        locs = [next(session.both_iter) for _ in range(n_slots)]
+        return refine_locs_with_struct_type(self.arch, locs, arg_type)
+
+    def _flatten(self, ty) -> dict[int, list] | None:
+        result = defaultdict(list)
+        if isinstance(ty, SimStruct):
+            for field, subty in ty.fields.items():
+                offset = ty.offsets[field]
+                subresult = self._flatten(subty)
+                if subresult is None:
+                    return None
+                for suboffset, subty_list in subresult.items():
+                    result[offset + suboffset] += subty_list
+        elif isinstance(ty, SimTypeFixedSizeArray):
+            subresult = self._flatten(ty.elem_type)
+            if subresult is None:
+                return None
+
+            if ty.elem_type.size is None:
+                return None
+
+            stride = ty.elem_type.size // self.arch.byte_width
+
+            if ty.length is None:
+                return None
+
+            for idx in range(ty.length):
+                for suboffset, subty_list in subresult.items():
+                    result[idx * stride + suboffset] += subty_list
+        else:
+            result[0].append(ty)
+        return result
+
+    def _classify(self, arg_type):
+        if isinstance(arg_type, (SimTypeFloat, SimTypeDouble)):
+            return ["FLOAT"]
+
+        size_bits = arg_type.size
+        # > 2 * _XLEN (Bytes)
+        # REFERENCE from psABI:
+        # Scalars wider than 2 * XLEN bits are passed by reference
+        # and are replaced in the argument list with the address.
+        if size_bits > 2 * self.arch.bits:
+            return ["REFERENCE"]
+
+        if isinstance(arg_type, (SimStruct, SimTypeFixedSizeArray)):
+            flat_map = self._flatten(arg_type)
+            if flat_map is not None:
+                all_types = []
+                for tys in flat_map.values():
+                    for t in tys:
+                        all_types.append(t)
+
+                if 1 <= len(all_types) <= 2 and any(isinstance(t, (SimTypeFloat, SimTypeDouble)) for t in all_types):
+                    res = []
+                    for off in sorted(flat_map.keys()):
+                        for t in flat_map[off]:
+                            if isinstance(t, (SimTypeFloat, SimTypeDouble)):
+                                res.append("FLOAT")
+                            else:
+                                res.append("INTEGER")
+                    return res
+        n_slots = (size_bits + self.arch.bits - 1) // self.arch.bits
+        return ["INTEGER"] * n_slots
 
 
 class SimCCRISCV64LinuxSyscall(SimCCSyscall):
     # reference: https://elixir.bootlin.com/linux/v6.13/source/arch/riscv/kernel/traps.c#L318
-    ARG_REGS = ["a0", "a1", "a2", "a3", "a4", "a5"]
+    _XLEN = 8  # Bytes
+    ARG_REGS = [f"a{i}" for i in range(6)]
     FP_ARG_REGS = []
-    RETURN_VAL = SimRegArg("a0", 8)
-    RETURN_ADDR = SimRegArg("ip_at_syscall", 4)
+    RETURN_VAL = SimRegArg("a0", _XLEN)
+    RETURN_ADDR = SimRegArg("ip_at_syscall", _XLEN)
     ARCH = archinfo.ArchRISCV64
 
     @classmethod
@@ -2426,6 +2588,7 @@ CC: dict[str, dict[str, list[type[SimCC]]]] = {
         "default": [SimCCS390X],
         "Linux": [SimCCS390X],
     },
+    "RISCV64": {"default": [SimCCRISCV64], "Linux": [SimCCRISCV64]},
 }
 
 
@@ -2474,6 +2637,7 @@ ARCH_NAME_ALIASES = {
     "MIPS64": [],
     "PPC32": ["powerpc32"],
     "PPC64": ["powerpc64"],
+    "RISCV64": ["riscv64"],
     "Soot": [],
     "AVR8": ["avr8"],
     "MSP": [],
