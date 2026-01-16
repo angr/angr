@@ -572,7 +572,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen.show_externs and self.codegen.cexterns:
             # Emit struct definitions for types used by externs
             extern_types = []
-            defined_struct_names = set(name_to_structtypes.keys()) if self.codegen.show_local_types else set()  # type: ignore[possibly-undefined]
+            defined_struct_names = (
+                set(name_to_structtypes.keys())  # type: ignore[possibly-undefined]
+                if self.codegen.show_local_types
+                else set()
+            )
             for v in self.codegen.cexterns:
                 if v.variable not in self.variables_in_use or v.type is None:
                     continue
