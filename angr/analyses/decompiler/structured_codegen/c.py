@@ -547,8 +547,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def full_c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
-            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             name_to_structtypes = {}
+            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
@@ -572,17 +572,14 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         if self.codegen.show_externs and self.codegen.cexterns:
             # Emit struct definitions for types used by externs
             extern_types = []
-            defined_struct_names = set(name_to_structtypes.keys()) if self.codegen.show_local_types else set()
+            defined_struct_names = set(name_to_structtypes.keys()) if self.codegen.show_local_types else set()  # type: ignore[possibly-undefined]
             for v in self.codegen.cexterns:
                 if v.variable not in self.variables_in_use or v.type is None:
                     continue
                 ty = unpack_typeref(v.type)
                 # Unwrap all pointer/array
                 while isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
-                    if isinstance(ty, SimTypePointer):
-                        ty = unpack_typeref(ty.pts_to)
-                    else:
-                        ty = unpack_typeref(ty.elem_type)
+                    ty = unpack_typeref(ty.pts_to) if isinstance(ty, SimTypePointer) else unpack_typeref(ty.elem_type)
                 if isinstance(ty, SimStruct) and ty not in extern_types:
                     extern_types.append(ty)
 
@@ -1948,7 +1945,7 @@ class CBinaryOp(CExpression):
             return rhs_ty
 
         if lhs_signed == rhs_signed:
-            if lhs_ty.size > rhs_ty.size:
+            if lhs_ty.size > rhs_ty.size:  # type: ignore[operator]
                 return lhs_ty
             return rhs_ty
 
@@ -1959,9 +1956,9 @@ class CBinaryOp(CExpression):
             signed_ty = rhs_ty
             unsigned_ty = lhs_ty
 
-        if unsigned_ty.size >= signed_ty.size:
+        if unsigned_ty.size >= signed_ty.size:  # type: ignore[operator]
             return unsigned_ty
-        if signed_ty.size > unsigned_ty.size:
+        if signed_ty.size > unsigned_ty.size:  # type: ignore[operator]
             return signed_ty
         # uh oh!!
         return signed_ty
