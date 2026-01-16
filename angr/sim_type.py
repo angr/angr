@@ -1359,7 +1359,7 @@ class SimTypeFunction(SimType):
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
         formatted_args = [
-            a.c_repr(n, full - 1, memo, indent)
+            a.c_repr(n, max(full - 1, 0), memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
         ]
         if self.variadic:
@@ -1730,7 +1730,7 @@ class SimStruct(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
         out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
@@ -1961,7 +1961,7 @@ class SimUnion(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.members.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.members.items()
         )
         out = f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
