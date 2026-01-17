@@ -547,8 +547,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def full_c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
-            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             name_to_structtypes = {}
+            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
@@ -570,6 +570,45 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
+            # Emit struct definitions for types used by externs
+            extern_types = []
+            defined_struct_names = (
+                set(name_to_structtypes.keys())  # type: ignore[possibly-undefined]
+                if self.codegen.show_local_types
+                else set()
+            )
+            for v in self.codegen.cexterns:
+                if v.variable not in self.variables_in_use or v.type is None:
+                    continue
+                ty = unpack_typeref(v.type)
+                # Unwrap all pointer/array
+                while isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                    ty = unpack_typeref(ty.pts_to) if isinstance(ty, SimTypePointer) else unpack_typeref(ty.elem_type)
+                if isinstance(ty, SimStruct) and ty not in extern_types:
+                    extern_types.append(ty)
+
+            # Discover all nested structs
+            for ty in extern_types:
+                for field in ty.fields.values():
+                    field = unpack_typeref(field)
+                    while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                        if isinstance(field, SimTypePointer):
+                            field = unpack_typeref(field.pts_to)
+                        else:
+                            field = unpack_typeref(field.elem_type)
+                    if isinstance(field, SimStruct) and field not in extern_types:
+                        if field.name and not field.fields and field.name in defined_struct_names:
+                            continue
+                        extern_types.append(field)
+
+            # Emit in reverse order: nested structs first
+            for ty in reversed(extern_types):
+                if ty.name in defined_struct_names:
+                    continue
+                defined_struct_names.add(ty.name)
+                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+
+            # Emit extern declarations
             for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
                 if v.variable not in self.variables_in_use:
                     continue
@@ -1910,7 +1949,7 @@ class CBinaryOp(CExpression):
             return rhs_ty
 
         if lhs_signed == rhs_signed:
-            if lhs_ty.size > rhs_ty.size:
+            if lhs_ty.size > rhs_ty.size:  # type: ignore[operator]
                 return lhs_ty
             return rhs_ty
 
@@ -1921,9 +1960,9 @@ class CBinaryOp(CExpression):
             signed_ty = rhs_ty
             unsigned_ty = lhs_ty
 
-        if unsigned_ty.size >= signed_ty.size:
+        if unsigned_ty.size >= signed_ty.size:  # type: ignore[operator]
             return unsigned_ty
-        if signed_ty.size > unsigned_ty.size:
+        if signed_ty.size > unsigned_ty.size:  # type: ignore[operator]
             return signed_ty
         # uh oh!!
         return signed_ty
