@@ -739,6 +739,12 @@ class SimpleSolver:
                     constraint.sub_type, PRIMITIVE_TYPES
                 ):
                     continue
+                if (
+                    isinstance(constraint.sub_type, TypeVariable)
+                    and isinstance(constraint.super_type, TypeVariable)
+                    and self._should_skip_unification(constraint.sub_type, constraint.super_type)
+                ):
+                    continue
                 self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
 
         out_graph = networkx.MultiDiGraph()  # there can be multiple edges between two nodes, each edge is associated
@@ -880,6 +886,72 @@ class SimpleSolver:
                 # a cycle exists
                 ref_node = RecursiveRefNode(visited[succ].typevar)
                 sketch.add_edge(curr_node, ref_node, label)
+
+    @staticmethod
+    def _get_base_and_indirection_level(
+        t: TypeVariable | DerivedTypeVariable,
+    ) -> tuple[TypeVariable, int]:
+        """
+        Get the base type variable and indirection level.
+
+        Indirection level is the number of Load/Store operations in the labels.
+        AddN/SubN (pointer arithmetic) does NOT increase indirection level.
+
+        Examples:
+            tv                      -> (tv, 0)
+            tv.+1                   -> (tv, 0)   # pointer arithmetic, same level
+            tv.store                -> (tv, 1)   # through pointer
+            tv.store.<32 bits>@0    -> (tv, 1)   # field access at level 1
+            tv.load.store.field     -> (tv, 2)   # two dereferences
+        """
+        if isinstance(t, DerivedTypeVariable):
+            base = t.type_var
+            level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
+            return base, level
+        return t, 0
+
+    @staticmethod
+    def _should_skip_unification(
+        sub_type: TypeVariable | DerivedTypeVariable,
+        super_type: TypeVariable | DerivedTypeVariable,
+    ) -> bool:
+        """
+        Check if unification should be skipped for a constraint sub_type <: super_type.
+
+        Returns True to skip unification, False to proceed with unification.
+
+        We skip unification in two cases:
+
+        1. Same base, different indirection levels:
+            tv <: tv.store.field         -> skip (preserve self-referential)
+
+        2. Different bases, TypeVariable unified with Store-derived (no Load):
+            tvA <: tvB.store.field       -> skip if tvB has Store but no Load
+            This prevents false struct creation when assigning between global variables.
+            e.g., `*(&c) = b` should not make `c` a struct pointer.
+
+        Do not skip (returns False):
+            tv1 <: tv2                   -> different bases, no Store
+            tv.store.f1 <: tv.store.f2   -> same base, same level
+            tv.store.field <: tv         -> derived <: base (self-referential struct)
+            tvA <: tvB.load.store.field  -> has Load (pointer dereference)
+        """
+        base_sub, level_sub = SimpleSolver._get_base_and_indirection_level(sub_type)
+        base_super, level_super = SimpleSolver._get_base_and_indirection_level(super_type)
+
+        # Case 1: Same base, different levels
+        if base_sub == base_super and level_sub != level_super:
+            return level_sub < level_super
+
+        # Case 2: Different bases
+        if base_sub != base_super:
+            if isinstance(sub_type, TypeVariable) and isinstance(super_type, DerivedTypeVariable):
+                has_store = any(isinstance(lbl, Store) for lbl in super_type.labels)
+                has_load = any(isinstance(lbl, Load) for lbl in super_type.labels)
+                if has_store and not has_load:
+                    return True
+
+        return False
 
     @staticmethod
     def _unify(

@@ -8,7 +8,7 @@ import os
 import unittest
 
 import angr
-from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct
+from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -271,6 +271,37 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(field_8_field_0.pts_to, SimStruct)
         assert field_0.pts_to == field_8_field_0.pts_to
         assert field_8.pts_to == field_0_field_8.pts_to
+
+    def test_global_variable_type(self):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(data_references=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # Test bodyqueslot from G_CheckSpot
+        func = cfg.kb.functions["G_CheckSpot"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        bodyqueslot_addr = proj.loader.find_symbol("bodyqueslot").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[bodyqueslot_addr], SimTypeInt)
+
+        # Test displayplayer from G_Responder
+        func = cfg.kb.functions["G_Responder"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        displayplayer_addr = proj.loader.find_symbol("displayplayer").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[displayplayer_addr], SimTypeInt)
+
+        # Test joyxmove, mousex, and gametic from G_DoLoadLevel
+        func = cfg.kb.functions["G_DoLoadLevel"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        joyxmove_addr = proj.loader.find_symbol("joyxmove").rebased_addr
+        mousex_addr = proj.loader.find_symbol("mousex").rebased_addr
+        gametic_addr = proj.loader.find_symbol("gametic").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[joyxmove_addr], SimTypeInt)
+        assert isinstance(cexterns[mousex_addr], SimTypeInt)
+        assert isinstance(cexterns[gametic_addr], SimTypeInt)
 
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
