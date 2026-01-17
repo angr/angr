@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 
-from angr.ailment.expression import Convert, VirtualVariable
-from angr.ailment.statement import Call
+from angr.ailment.expression import CallExpr, Convert, VirtualVariable
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 from .rewriter_base import CCallRewriterBase
@@ -324,7 +323,7 @@ class X86CCallRewriter(CCallRewriterBase):
                     prototype = prototype.with_arch(self.project.arch)
                     if prototype.returnty and prototype.returnty.size:
                         returnty_bits = prototype.returnty.size
-                call_expr = Call(
+                call_expr = CallExpr(
                     ccall.idx,
                     X86_Win32_TIB_Funcs[virtual_addr.value_int],
                     args=[],

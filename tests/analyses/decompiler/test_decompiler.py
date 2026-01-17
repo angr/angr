@@ -2850,7 +2850,7 @@ class TestDecompiler(unittest.TestCase):
         for target_node in target_nodes:
             # these are the two calls, their last arg should actually be r14
             assert target_node.statements
-            assert isinstance(target_node.statements[-1], ailment.Stmt.Call)
+            assert isinstance(target_node.statements[-1], ailment.Stmt.CallStmt)
             arg = target_node.statements[-1].args[2]
             assert isinstance(arg, ailment.Expr.VirtualVariable)
             assert arg.was_reg

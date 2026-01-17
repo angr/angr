@@ -8,7 +8,7 @@ from angr.engines.vex.claripy.irop import vexop_to_simop
 from angr.errors import UnsupportedIROpError
 
 from .block import Block
-from .statement import Assignment, CAS, Store, Jump, Call, ConditionalJump, DirtyStatement, Return
+from .statement import Assignment, CAS, Store, Jump, CallStmt, ConditionalJump, DirtyStatement, Return
 from .expression import (
     Const,
     Register,
@@ -785,7 +785,7 @@ class VEXIRSBConverter(Converter):
                 raise NotImplementedError("Unsupported jumpkind")
 
             statements.append(
-                Call(
+                CallStmt(
                     manager.next_atom(),
                     target,
                     ret_expr=ret_expr,

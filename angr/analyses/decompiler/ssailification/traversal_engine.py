@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-from angr.ailment.statement import Call, Store, ConditionalJump, CAS
+from angr.ailment.statement import CallStmt, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
     Register,
     BinaryOp,
@@ -104,7 +104,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
 
-    def _handle_stmt_Call(self, stmt: Call):
+    def _handle_stmt_Call(self, stmt: CallStmt):
 
         # kill caller-saved registers
         cc = (

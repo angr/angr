@@ -4,8 +4,8 @@ from __future__ import annotations
 import archinfo
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Call, Assignment
-from angr.ailment.expression import Const, Register, VirtualVariable
+from angr.ailment.statement import Statement, CallStmt, Assignment
+from angr.ailment.expression import CallExpr, Const, Register, VirtualVariable
 
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -45,7 +45,7 @@ class StringObfType3Rewriter(OptimizationPass):
 
     @staticmethod
     def is_call_or_call_assignment(stmt) -> bool:
-        return isinstance(stmt, Call) or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call))
+        return isinstance(stmt, CallStmt) or (isinstance(stmt, Assignment) and isinstance(stmt.src, CallExpr))
 
     def _analyze(self, cache=None):
 
@@ -75,8 +75,8 @@ class StringObfType3Rewriter(OptimizationPass):
         # replace the call
         old_stmt: Statement = block.statements[-1]
         str_id = self.kb.custom_strings.allocate(deobf_content)
-        old_call: Call = old_stmt.src if isinstance(old_stmt, Assignment) else old_stmt
-        new_call = Call(
+        old_call: CallExpr = old_stmt.src if isinstance(old_stmt, Assignment) else old_stmt
+        new_call = CallExpr(
             old_call.idx,
             "init_str",
             args=[
@@ -84,7 +84,6 @@ class StringObfType3Rewriter(OptimizationPass):
                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                 Const(None, None, len(deobf_content), self.project.arch.bits),
             ],
-            ret_expr=old_call.ret_expr,
             bits=old_call.bits,
             **old_call.tags,
         )

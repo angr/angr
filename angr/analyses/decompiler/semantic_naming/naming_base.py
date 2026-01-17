@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import logging
 
-from angr.ailment.statement import Call
+from angr.ailment.statement import CallStmt
 from angr.ailment.expression import Const
 from angr.sim_variable import SimVariable
 
@@ -107,7 +107,7 @@ class SemanticNamingBase(ABC):
             return expr.variable
         return None
 
-    def _get_function_name(self, call: Call) -> str | None:
+    def _get_function_name(self, call: CallStmt) -> str | None:
         """
         Extract the function name from a Call expression.
         """

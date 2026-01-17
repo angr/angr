@@ -3,8 +3,9 @@ from collections import defaultdict
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
+from angr.ailment.statement import CallStmt, Statement, ConditionalJump, Assignment, Store, Return, Jump
 from angr.ailment.expression import (
+    CallExpr,
     Load,
     VirtualVariable,
     Expression,
@@ -132,7 +133,7 @@ class BlockIOFinder(AILBlockViewer):
         input_loc = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_CallStmt(self, stmt_idx: int, stmt: CallStmt, block: Block | None):
         if stmt.args:
             for i, arg in enumerate(stmt.args):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
@@ -203,7 +204,7 @@ class BlockIOFinder(AILBlockViewer):
         return None
 
     def _handle_CallExpr(
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
+        self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement, block: Block | None, is_memory=False
     ):
         args = set()
         if expr.args:

@@ -43,7 +43,7 @@ class LoopSimplifier(SequenceWalker):
     @staticmethod
     def _control_transferring_statement(stmt: ailment.Stmt.Statement) -> bool:
         return isinstance(
-            stmt, (ailment.Stmt.Call, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)
+            stmt, (ailment.Stmt.CallStmt, ailment.Stmt.Return, ailment.Stmt.Jump, ailment.Stmt.ConditionalJump)
         )
 
     def _handle_sequencenode(self, node, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):

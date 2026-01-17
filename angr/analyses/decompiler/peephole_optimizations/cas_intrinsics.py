@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from angr.ailment import Const
-from angr.ailment.expression import BinaryOp, Load, Expression, Tmp
-from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, Call
+from angr.ailment.expression import BinaryOp, CallExpr, Load, Expression, Tmp
+from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment
 
 from .base import PeepholeOptimizationMultiStmtBase
 
@@ -93,7 +93,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                     if cas_stmt.data_lo.op == "Add" and cas_stmt.data_lo.operands[0].likes(cas_stmt.expd_lo):
                         if isinstance(cas_stmt.data_lo.operands[1], Const) and cas_stmt.data_lo.operands[1].value == 1:
                             # lock inc
-                            call_expr = Call(
+                            call_expr = CallExpr(
                                 cas_stmt.idx,
                                 self._get_instrincs_name(f"lock_inc{cas_stmt.bits}"),
                                 args=[cas_stmt.addr],
@@ -102,7 +102,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                             )
                         else:
                             # lock xadd
-                            call_expr = Call(
+                            call_expr = CallExpr(
                                 cas_stmt.idx,
                                 self._get_instrincs_name(f"lock_xadd{cas_stmt.bits}"),
                                 args=[cas_stmt.addr, cas_stmt.data_lo.operands[1]],
@@ -116,7 +116,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                         and cas_stmt.data_lo.operands[1].value == 1
                     ):
                         # lock dec
-                        call_expr = Call(
+                        call_expr = CallExpr(
                             cas_stmt.idx,
                             self._get_instrincs_name(f"lock_dec{cas_stmt.bits}"),
                             args=[cas_stmt.addr],
@@ -125,7 +125,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                         )
 
                 if call_expr is None:
-                    call_expr = Call(
+                    call_expr = CallExpr(
                         cas_stmt.idx,
                         self._get_instrincs_name(f"xchg{cas_stmt.bits}"),
                         args=[addr, cas_stmt.data_lo],
@@ -144,7 +144,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
         if cas_stmt.old_hi is None:
             # TODO: Support cases where cas_stmt.old_hi is not None
             # Case 2
-            call_expr = Call(
+            call_expr = CallExpr(
                 cas_stmt.idx,
                 self._get_instrincs_name(f"cmpxchg{cas_stmt.bits}"),
                 args=[

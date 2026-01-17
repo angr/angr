@@ -8,6 +8,7 @@ import networkx
 import archinfo
 from angr.ailment import Expression, Block, UnaryOp, Address
 from angr.ailment.expression import (
+    CallExpr,
     VirtualVariable,
     Const,
     Phi,
@@ -18,7 +19,7 @@ from angr.ailment.expression import (
     DirtyExpression,
     ITE,
 )
-from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
+from angr.ailment.statement import Statement, Assignment, CallStmt, Store, CAS
 from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -105,7 +106,7 @@ def get_vvar_deflocs(
                     phi_vvars[stmt.dst.varid] = {
                         vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
                     }
-            elif isinstance(stmt, Call):
+            elif isinstance(stmt, CallStmt):
                 if isinstance(stmt.ret_expr, VirtualVariable):
                     vvar_to_loc[stmt.ret_expr.varid] = stmt.ret_expr, AILCodeLocation(
                         block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")
@@ -213,7 +214,7 @@ class AILBlacklistExprTypeWalker(AILBlockViewer):
 
 def is_const_and_vvar_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Load, Register, Phi, CallExpr, DirtyExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -221,7 +222,7 @@ def is_const_and_vvar_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Load, Register, Phi, CallExpr, DirtyExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -229,7 +230,7 @@ def is_const_vvar_tmp_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call, DirtyExpression))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, CallExpr, DirtyExpression))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -237,7 +238,7 @@ def is_const_vvar_load_assignment(stmt: Statement) -> bool:
 
 def is_const_vvar_load_dirty_assignment(stmt: Statement) -> bool:
     if isinstance(stmt, Assignment):
-        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, Call))
+        walker = AILBlacklistExprTypeWalker((Tmp, Register, Phi, CallExpr))
         walker.walk_expression(stmt.src)
         return not walker.has_blacklisted_exprs
     return False
@@ -361,10 +362,10 @@ def has_call_in_between_stmts(
 ) -> bool:
 
     def _contains_call(stmt: Statement) -> bool:
-        if isinstance(stmt, Call):
+        if isinstance(stmt, CallStmt):
             return True
         # walk the statement and check if there is a call expression
-        walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)
+        walker = AILBlacklistExprTypeWalker((CallExpr,), skip_if_contains_vvar=skip_if_contains_vvar)
         walker.walk_statement(stmt)
         return walker.has_blacklisted_exprs
 

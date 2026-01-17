@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store
+from angr.ailment.statement import Assignment, CallStmt, Store
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase
 
@@ -64,7 +64,7 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
             assert dst_offset is not None and src_offset is not None and store_size is not None
             # replace it with a call to memcpy
             assert self.project is not None
-            return Call(
+            return CallStmt(
                 stmt.idx,
                 "memcpy",
                 args=[

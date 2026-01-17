@@ -7,7 +7,7 @@ import pypcode
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.pcode.lifter import IRSB
 from .block import Block
-from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
+from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, CallStmt
 from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
 
 # FIXME: Convert, ITE
@@ -568,7 +568,7 @@ class PCodeIRSBConverter(Converter):
             dest = Const(self._manager.next_atom(), None, self._irsb.next.con.value, self._manager.arch.bits)
         else:
             dest = None
-        stmt = Call(
+        stmt = CallStmt(
             self._manager.next_atom(),
             dest,
             ret_expr=ret_expr,
@@ -585,7 +585,7 @@ class PCodeIRSBConverter(Converter):
         ret_reg_offset = self._manager.arch.ret_offset
         ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)  # ???
         dest = self._get_value(self._current_op.inputs[0])
-        stmt = Call(
+        stmt = CallStmt(
             self._manager.next_atom(),
             dest,
             ret_expr=ret_expr,

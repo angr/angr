@@ -418,6 +418,8 @@ class DivSimplifier(OptimizationPass):
             old_block = None
 
             while new_block != old_block:
+                print(f"New block: {type(new_block)} {new_block.statements}")
+                print(f"Processing block at {block.addr:#x}")
                 old_block = new_block
                 new_block = self.engine.process(state=self.state.copy(), block=old_block.copy())
                 _l.debug("new block: %s", new_block.statements)

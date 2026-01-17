@@ -4,7 +4,7 @@ from typing import Literal, Any
 from collections import defaultdict
 
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, BinaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement
+from angr.ailment.statement import CallStmt, Assignment, Store, Statement
 from angr.ailment.utils import is_none_or_likeable
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase
@@ -106,7 +106,7 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                     continue
 
                 assert self.project is not None
-                call_stmt = Call(
+                call_stmt = CallStmt(
                     stmt.idx,
                     "memset",
                     args=[

@@ -15,13 +15,14 @@ from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
-    Call,
+    CallStmt,
     ConditionalJump,
     DirtyStatement,
     WeakAssignment,
     Return,
 )
 from angr.ailment.expression import (
+    CallExpr,
     Register,
     Convert,
     Load,
@@ -356,14 +357,14 @@ class AILSimplifier(Analysis):
             for stmt_idx, stmt in enumerate(block.statements):
                 if isinstance(stmt, Assignment):
                     if isinstance(stmt.dst, VirtualVariable) and isinstance(
-                        stmt.src, (VirtualVariable, Tmp, Call, Convert)
+                        stmt.src, (VirtualVariable, Tmp, CallExpr, Convert)
                     ):
                         codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
                 elif isinstance(stmt, WeakAssignment):
                     codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
-                elif isinstance(stmt, Call):
+                elif isinstance(stmt, CallStmt):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
@@ -373,7 +374,7 @@ class AILSimplifier(Analysis):
                 elif (
                     isinstance(stmt, Store)
                     and isinstance(stmt.size, int)
-                    and isinstance(stmt.data, (VirtualVariable, Tmp, Call, Convert))
+                    and isinstance(stmt.data, (VirtualVariable, Tmp, CallExpr, Convert))
                 ):
                     if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
                         # stack variable
@@ -608,7 +609,7 @@ class AILSimplifier(Analysis):
 
             # special case: if the statement is a Call statement and expr is None, it means we have not been able to
             # determine if the expression is really used by the call or not. skip it in this case
-            if isinstance(stmt, Call) and expr is None:
+            if isinstance(stmt, CallStmt) and expr is None:
                 all_used_sizes.add(atom.size)
                 continue
             # special case: if the statement is a phi statement, we ignore it
@@ -626,7 +627,7 @@ class AILSimplifier(Analysis):
                 return ExprNarrowingInfo(False)
 
             all_used_sizes.add(expr_size)
-            if not isinstance(stmt, Call):
+            if not isinstance(stmt, CallStmt):
                 noncall_used_sizes.add(expr_size)
             used_by_loc[loc].append((atom, used_by_exprs))
 
@@ -1531,11 +1532,11 @@ class AILSimplifier(Analysis):
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
-                if isinstance(eq.atom1, Call):
+                if isinstance(eq.atom1, CallExpr):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
-                elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
+                elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, CallExpr):
                     # register variable = Convert(Call)
                     call = eq.atom1
                     # call_addr = call.operand.target.value if isinstance(call.operand.target, Const) else None
@@ -1636,7 +1637,7 @@ class AILSimplifier(Analysis):
                     src = used_expr
                     dst: Expression = call.copy()
 
-                    if isinstance(dst, Call) and dst.ret_expr is not None:
+                    if isinstance(dst, CallStmt) and dst.ret_expr is not None:
                         dst_bits = dst.ret_expr.bits
                         # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an
                         # expression
@@ -1701,7 +1702,7 @@ class AILSimplifier(Analysis):
 
         encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
         while True:
-            if terminate_with_calls and b.statements and isinstance(b.statements[-1], Call):
+            if terminate_with_calls and b.statements and isinstance(b.statements[-1], CallStmt):
                 return False
 
             encountered_block_addrs.add((b.addr, b.idx))
@@ -1830,7 +1831,9 @@ class AILSimplifier(Analysis):
                 for _, loc in uses:
                     if loc in dead_vvar_codelocs and loc.block_addr is not None and loc.stmt_idx is not None:
                         stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
-                        if not self._statement_has_call_exprs(stmt) and not isinstance(stmt, (DirtyStatement, Call)):
+                        if not self._statement_has_call_exprs(stmt) and not isinstance(
+                            stmt, (DirtyStatement, CallStmt)
+                        ):
                             continue
                     filtered_uses_count += 1
 
@@ -1900,7 +1903,7 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, Call):
+                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, CallStmt):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
                     if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
@@ -1940,12 +1943,21 @@ class AILSimplifier(Analysis):
                             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                                 # no one is using the returned virtual variable.
                                 # now the things are a bit tricky here
-                                if isinstance(stmt.src, Call):
+                                if isinstance(stmt.src, CallExpr):
                                     # replace this assignment statement with a call statement
-                                    stmt = stmt.src
-                                elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, Call):
+                                    stmt = CallStmt(
+                                        stmt.idx,
+                                        stmt.src.target,
+                                        calling_convention=stmt.src.calling_convention,
+                                        prototype=stmt.src.prototype,
+                                        args=stmt.src.args,
+                                        bits=stmt.src.bits,
+                                        **stmt.src.tags,
+                                    )
+                                elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, CallExpr):
                                     # the convert is useless now
                                     stmt = stmt.src.operand
+                                    assert isinstance(stmt, Statement)
                                 else:
                                     # we can't change this stmt at all because it has an expression with Calls inside
                                     pass
@@ -1953,7 +1965,7 @@ class AILSimplifier(Analysis):
                             # no calls. remove it
                             simplified = True
                             continue
-                    elif isinstance(stmt, Call):
+                    elif isinstance(stmt, CallStmt):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
@@ -2189,7 +2201,7 @@ class AILSimplifier(Analysis):
             raise HasCallNotification
 
         walker = AILBlockViewer()
-        walker.expr_handlers[Call] = _handle_callexpr
+        walker.expr_handlers[CallExpr] = _handle_callexpr
         try:
             walker.walk_statement(stmt)
         except HasCallNotification:
@@ -2203,7 +2215,7 @@ class AILSimplifier(Analysis):
             raise HasCallNotification
 
         walker = AILBlockViewer()
-        walker.expr_handlers[Call] = _handle_callexpr
+        walker.expr_handlers[CallExpr] = _handle_callexpr
         try:
             walker.walk_expression(expr)
         except HasCallNotification:

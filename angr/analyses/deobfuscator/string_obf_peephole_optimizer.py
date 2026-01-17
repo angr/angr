@@ -1,6 +1,5 @@
 from __future__ import annotations
-from angr.ailment.statement import Call
-from angr.ailment.expression import Const
+from angr.ailment.expression import CallExpr, Const
 import claripy
 
 from angr.analyses.decompiler.peephole_optimizations.base import PeepholeOptimizationExprBase
@@ -16,9 +15,9 @@ class StringObfType1PeepholeOptimizer(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Simplify Type 1/2 string deobfuscation references"
-    expr_classes = (Call,)
+    expr_classes = (CallExpr,)
 
-    def optimize(self, expr: Call, **kwargs):
+    def optimize(self, expr: CallExpr, **kwargs):
         if isinstance(expr.target, Const) and (  # noqa: SIM102
             expr.target.value in self.kb.obfuscations.type1_string_loader_candidates
             or expr.target.value in self.kb.obfuscations.type2_string_loader_candidates

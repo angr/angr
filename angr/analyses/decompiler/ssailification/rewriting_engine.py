@@ -11,7 +11,7 @@ from angr.ailment.statement import (
     Assignment,
     CAS,
     Store,
-    Call,
+    CallStmt,
     Return,
     ConditionalJump,
     DirtyStatement,
@@ -20,6 +20,7 @@ from angr.ailment.statement import (
 )
 from angr.ailment.expression import (
     Atom,
+    CallExpr,
     Expression,
     Register,
     VirtualVariable,
@@ -349,7 +350,7 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_stmt_Call(self, stmt: Call) -> Call | None:
+    def _handle_stmt_Call(self, stmt: CallStmt) -> CallStmt | None:
         changed = False
 
         new_target = self._replace_use_expr(stmt.target) if not isinstance(stmt.target, str) else None
@@ -397,7 +398,7 @@ class SimEngineSSARewriting(
             changed = True
 
         if changed:
-            return Call(
+            return CallStmt(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,
                 calling_convention=stmt.calling_convention,
@@ -438,6 +439,7 @@ class SimEngineSSARewriting(
 
     def _handle_expr_Convert(self, expr: Convert) -> Convert | None:
         new_operand = self._expr(expr.operand)
+        assert new_operand is None or isinstance(new_operand, Expression)
         if new_operand is not None:
             return Convert(
                 expr.idx,
@@ -535,8 +537,44 @@ class SimEngineSSARewriting(
     def _handle_expr_BasePointerOffset(self, expr):
         return None
 
-    def _handle_expr_Call(self, expr):
-        return self._handle_stmt_Call(expr)
+    def _handle_expr_Call(self, expr: CallExpr):
+        changed = False
+
+        new_target = self._replace_use_expr(expr.target) if not isinstance(expr.target, str) else None
+
+        cc = expr.calling_convention if expr.calling_convention is not None else self.project.factory.cc()
+        if cc is not None:
+            # clean up all caller-saved registers (and their subregisters)
+            for reg_name in cc.CALLER_SAVED_REGS:
+                base_off, base_size = self.arch.registers[reg_name]
+                self._clear_aliasing_regs(base_off, base_size)
+                self.state.registers[base_off][base_size] = None
+
+        new_args = None
+        if expr.args is not None:
+            new_args = []
+            for arg in expr.args:
+                new_arg = self._expr(arg)
+                if new_arg is not None:
+                    changed = True
+                    new_args.append(new_arg)
+                else:
+                    new_args.append(arg)
+
+        if new_target is not None:
+            changed = True
+
+        if changed:
+            return CallExpr(
+                expr.idx,
+                expr.target if new_target is None else new_target,
+                calling_convention=expr.calling_convention,
+                prototype=expr.prototype,
+                args=new_args,
+                bits=expr.bits,
+                **expr.tags,
+            )
+        return None
 
     def _handle_expr_Const(self, expr):
         return None

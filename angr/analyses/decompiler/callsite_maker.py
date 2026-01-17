@@ -65,9 +65,9 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        if type(last_stmt) is Stmt.Call:
+        if type(last_stmt) is Stmt.CallStmt:
             call_stmt = last_stmt
-        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Stmt.Call:
+        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Expr.CallExpr:
             call_stmt = last_stmt.src
         else:
             self.result_block = self.block
@@ -318,7 +318,7 @@ class CallSiteMaker(Analysis):
                 ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
-        new_stmt = Stmt.Call(
+        new_stmt = Stmt.CallStmt(
             call_stmt.idx,
             call_stmt.target,
             calling_convention=cc,
@@ -384,7 +384,7 @@ class CallSiteMaker(Analysis):
         return None
 
     def _resolve_stack_argument(
-        self, call_stmt: Stmt.Call, arg_loc
+        self, call_stmt: Stmt.CallStmt, arg_loc
     ) -> tuple[Any, Any]:  # pylint:disable=unused-argument
         assert self._stack_pointer_tracker is not None
 

@@ -4,8 +4,8 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
-from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
-from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, CallStmt, Store, Jump
+from angr.ailment.expression import CallExpr, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
@@ -39,11 +39,11 @@ class HasCallExprWalker(AILBlockViewer):
         super().__init__()
         self.has_call_expr = False
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):  # pylint:disable=unused-argument
+    def _handle_CallStmt(self, stmt_idx: int, stmt: CallStmt, block: Block | None):  # pylint:disable=unused-argument
         self.has_call_expr = True
 
     def _handle_CallExpr(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
+        self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         self.has_call_expr = True
 
@@ -231,7 +231,7 @@ class BlockSimplifier(Analysis):
                 if (
                     not replace_loads
                     and isinstance(old, Load)
-                    and not isinstance(stmt, Call)
+                    and not isinstance(stmt, CallStmt)
                     and not (gp is not None and isinstance(new, Const) and new.value == gp)
                 ):
                     # skip memory-based replacement for non-Call and non-gp-loading statements
@@ -239,7 +239,7 @@ class BlockSimplifier(Analysis):
                 if stmt == old:
                     # the replacement must be a call, since replacements can only be expressions
                     # and call is the only thing which is both a statement and an expression
-                    assert isinstance(new, Call)
+                    assert isinstance(new, CallStmt)
                     r = True
                     new_stmt = new
                 else:
@@ -253,7 +253,7 @@ class BlockSimplifier(Analysis):
                         # never replace an l-value with an r-value
                         r = False
                         new_stmt = None
-                    elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+                    elif isinstance(stmt, CallStmt) and isinstance(new, CallStmt) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
@@ -363,9 +363,17 @@ class BlockSimplifier(Analysis):
                     if not _expression_has_calls(stmt.src):
                         continue
 
-                    if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
+                    if type(stmt.dst) is Tmp and isinstance(stmt.src, CallExpr):
                         # eliminate the assignment and replace it with the call
-                        stmt = stmt.src
+                        stmt = CallStmt(
+                            stmt.src.idx,
+                            stmt.src.target,
+                            calling_convention=stmt.src.calling_convention,
+                            prototype=stmt.src.prototype,
+                            args=stmt.src.args,
+                            bits=stmt.src.bits,
+                            **stmt.tags,
+                        )
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue

@@ -16,6 +16,8 @@ from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
 
 if TYPE_CHECKING:
+    from angr import SimCC
+    from angr.sim_type import SimTypeFunction
     from .statement import Statement
 
 
@@ -1653,3 +1655,148 @@ def negate(expr: Expression) -> Expression:
             **expr.tags,
         )
     return UnaryOp(None, "Not", expr, **expr.tags)
+
+
+class CallExpr(Expression):
+    """
+    Call as an expression.
+
+    The size of the call expression is stored in the bits attribute.
+    """
+
+    __slots__ = (
+        "args",
+        "calling_convention",
+        "prototype",
+        "target",
+    )
+
+    def __init__(
+        self,
+        idx: int | None,
+        target: Expression | str,
+        calling_convention: SimCC | None = None,
+        prototype: SimTypeFunction | None = None,
+        args: Sequence[Expression] | None = None,
+        bits: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
+
+        self.target = target
+        self.calling_convention = calling_convention
+        self.prototype = prototype
+        self.args = args
+        if bits is not None:
+            self.bits = bits
+        else:
+            self.bits = 0  # uhhhhhhhhhhhhhhhhhhh
+
+    def __eq__(self, other):
+        return (
+            type(other) is CallExpr
+            and self.target == other.target
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and self.args == other.args
+        )
+
+    def likes(self, other):
+        return (
+            type(other) is CallExpr
+            and is_none_or_likeable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_likeable(self.args, other.args, is_list=True)
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is CallExpr
+            and is_none_or_matchable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_matchable(self.args, other.args, is_list=True)
+        )
+
+    __hash__ = TaggedObject.__hash__  # type: ignore
+
+    def _hash_core(self):
+        return stable_hash((CallExpr, self.idx, self.target))
+
+    def __repr__(self):
+        return f"CallExpr(target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+
+    def __str__(self):
+        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
+        if self.args is None:
+            if self.calling_convention is not None:
+                s = (
+                    (f"{cc}")
+                    if self.prototype is None
+                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
+                )
+            else:
+                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
+        else:
+            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
+
+        return f"CallExpr({self.target}, {s})"
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    @property
+    def verbose_op(self):
+        return "call"
+
+    @property
+    def op(self):
+        return "call"
+
+    def replace(self, old_expr: Expression, new_expr: Expression):
+        if isinstance(self.target, Expression):
+            r0, replaced_target = self.target.replace(old_expr, new_expr)
+        else:
+            r0 = False
+            replaced_target = self.target
+
+        r = r0
+
+        new_args = None
+        if self.args:
+            new_args = []
+            for arg in self.args:
+                if arg == old_expr:
+                    r_arg = True
+                    replaced_arg = new_expr
+                else:
+                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
+                r |= r_arg
+                new_args.append(replaced_arg)
+
+        new_bits = self.bits
+
+        if r:
+            return True, CallExpr(
+                self.idx,
+                replaced_target,
+                calling_convention=self.calling_convention,
+                prototype=self.prototype,
+                args=new_args,
+                bits=new_bits,
+                **self.tags,
+            )
+        return False, self
+
+    def copy(self):
+        return CallExpr(
+            self.idx,
+            self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=self.args[::] if self.args is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )

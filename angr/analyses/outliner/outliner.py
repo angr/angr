@@ -6,8 +6,8 @@ from typing import TypeVar
 import networkx
 
 from angr.ailment import Block, Address
-from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Return, Jump
+from angr.ailment.expression import CallExpr, Const, BinaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ssa import is_phi_assignment
 from angr.analyses import Analysis, AnalysesHub
@@ -168,7 +168,7 @@ class Outliner(Analysis):
 
         # rewrite the callsite
         vvar_id = self._next_vvar_id()
-        call_expr = Call(
+        call_expr = CallExpr(
             None,
             f"outlined_func_{src_node.addr:x}",
             # Const(None, None, src_node.addr, 64),

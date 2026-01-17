@@ -5,8 +5,8 @@ import logging
 
 from angr.ailment import Statement, Block
 from angr.ailment.block_walker import AILBlockRewriter
-from angr.ailment.statement import WeakAssignment, Call
-from angr.ailment.expression import VirtualVariable, Const, Load, UnaryOp
+from angr.ailment.statement import WeakAssignment
+from angr.ailment.expression import CallExpr, VirtualVariable, Const, Load, UnaryOp
 from angr.sim_type import SimType, SimTypePointer, SimTypeChar
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -22,7 +22,7 @@ class RewriteStdStringCallWalker(AILBlockRewriter):
         self.kb = kb
         self.functions = kb.functions
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement, block: Block | None):
         if isinstance(expr.target, Const) and self.functions.contains_addr(expr.target.value_int):
             func = self.functions.get_by_addr(expr.target.value_int)
             if "std::basic_string" in func.demangled_name:
