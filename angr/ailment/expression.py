@@ -3,14 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 from collections.abc import Sequence
 from enum import Enum, IntEnum
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing_extensions import Self
 
-
-try:
-    import claripy
-except ImportError:
-    claripy = None
+import archinfo
+import claripy
 
 from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
@@ -19,7 +16,7 @@ if TYPE_CHECKING:
     from .statement import Statement
 
 
-class Expression(TaggedObject):
+class Expression(TaggedObject, ABC):
     """
     The base class of all AIL expressions.
     """
@@ -44,10 +41,12 @@ class Expression(TaggedObject):
             return self is atom
         return self.likes(atom)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if self is other:
             return True
         return type(self) is type(other) and self.likes(other) and self.idx == other.idx
+
+    __hash__ = TaggedObject.__hash__
 
     @abstractmethod
     def likes(self, other):  # pylint:disable=unused-argument,no-self-use
@@ -137,7 +136,6 @@ class Const(Atom):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.value, self.bits))
@@ -180,7 +178,6 @@ class Tmp(Atom):
         return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("tmp", self.tmp_idx, self.bits))
@@ -209,14 +206,14 @@ class Register(Atom):
         return str(self)
 
     def __str__(self):
-        if hasattr(self, "reg_name"):
-            return f"{self.reg_name}<{self.bits // 8}>"
+        reg_name = self.tags.get("reg_name", None)
+        if reg_name is not None:
+            return f"{reg_name}<{self.bits // 8}>"
         if self.variable is None:
             return f"reg_{self.reg_offset}<{self.bits // 8}>"
         return f"{self.variable.name!s}"
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
@@ -350,8 +347,6 @@ class VirtualVariable(Atom):
                 ori_str = f"{{s{self.oident}|{self.size}b}}"
         return f"vvar_{self.varid}{ori_str}"
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(("var", self.varid, self.bits, self.category, self.oident))
 
@@ -427,8 +422,6 @@ class Phi(Atom):
 
     def __repr__(self):
         return f"𝜙@{self.bits}b {self.src_and_vvars}"
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))
@@ -532,8 +525,6 @@ class UnaryOp(Op):
             and self.bits == other.bits
             and self.operand.matches(other.operand)
         )
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.op, self.operand, self.bits))
@@ -651,8 +642,6 @@ class Convert(UnaryOp):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (
@@ -757,8 +746,6 @@ class Reinterpret(UnaryOp):
             and self.to_type == other.to_type
             and self.operand.matches(other.operand)
         )
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(
@@ -941,8 +928,6 @@ class BinaryOp(Op):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (self.op, tuple(self.operands), self.bits, self.signed, self.floating_point, self.rounding_mode)
@@ -1079,7 +1064,7 @@ class Load(Expression):
         if super().has_atom(atom, identity=identity):
             return True
 
-        if claripy is not None and isinstance(self.addr, (int, claripy.ast.Base)):
+        if isinstance(self.addr, (int, claripy.ast.Base)):
             return False
         return self.addr.has_atom(atom, identity=identity)
 
@@ -1124,8 +1109,6 @@ class Load(Expression):
             and self.guard == other.guard
             and self.alt == other.alt
         )
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("Load", self.addr, self.size, self.endness))
@@ -1203,8 +1186,6 @@ class ITE(Expression):
             and self.iftrue == other.iftrue
             and self.bits == other.bits
         )
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
@@ -1320,8 +1301,6 @@ class DirtyExpression(Expression):
             and self.bits == other.bits
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (
@@ -1429,8 +1408,6 @@ class VEXCCallExpression(Expression):
             and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash((VEXCCallExpression, self.callee, self.bits, tuple(self.operands)))
 
@@ -1485,8 +1462,6 @@ class MultiStatementExpression(Expression):
         self.stmts = stmts
         self.expr = expr
         self.bits = self.expr.bits
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((MultiStatementExpression, *tuple(self.stmts), self.expr))
@@ -1601,7 +1576,6 @@ class BasePointerOffset(Expression):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.bits, self.base, self.offset))
@@ -1653,3 +1627,168 @@ def negate(expr: Expression) -> Expression:
             **expr.tags,
         )
     return UnaryOp(None, "Not", expr, **expr.tags)
+
+
+class Extract(Expression):
+    __slots__ = ("base", "offset")
+
+    def __init__(self, idx: int | None, bits: int, base: Expression, offset: Expression, **kwargs):
+        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
+
+        self.bits = bits
+        self.base = base
+        self.offset = offset
+
+    def is_lsb_extract(self, arch: archinfo.Arch) -> bool:
+        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+            return False
+        if arch.register_endness == arch.memory_endness or (
+            isinstance(self.base, VirtualVariable)
+            and (
+                self.base.was_reg
+                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
+            )
+        ):
+            endness = arch.register_endness
+        elif isinstance(self.base, VirtualVariable) and (
+            self.base.was_stack
+            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
+        ):
+            endness = arch.memory_endness
+        elif isinstance(self.base, Register):
+            endness = arch.register_endness
+        elif isinstance(self.base, Load):
+            endness = arch.memory_endness
+        else:
+            return False
+
+        if endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * arch.byte_width + self.bits == self.base.bits
+
+    def copy(self) -> Extract:
+        return Extract(self.idx, self.bits, self.base, self.offset, **self.tags)
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    def __repr__(self):
+        return f"Extract({self.base}, {self.offset})"
+
+    def __str__(self):
+        return f"Extract({self.base}, {self.offset})"
+
+    def likes(self, other):
+        return (
+            type(other) is type(self)
+            and self.base == other.base
+            and self.offset == other.offset
+            and self.bits == other.bits
+        )
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((self.bits, self.base, self.offset))
+
+    def replace(self, old_expr, new_expr):
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+
+        if base_replaced or offset_replaced:
+            return True, Extract(self.idx, self.bits, new_base, new_offset, **self.tags)
+        return False, self
+
+
+class Insert(Expression):
+    __slots__ = ("base", "offset", "value")
+
+    def __init__(self, idx: int | None, base: Expression, offset: Expression, value: Expression, **kwargs):
+        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
+
+        assert value.bits <= base.bits
+        self.bits = base.bits
+        self.base = base
+        self.offset = offset
+        self.value = value
+
+    def is_lsb_overwrite(self, arch: archinfo.Arch) -> bool:
+        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+            return False
+        if arch.register_endness == arch.memory_endness or (
+            isinstance(self.base, VirtualVariable)
+            and (
+                self.base.was_reg
+                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
+            )
+        ):
+            endness = arch.register_endness
+        elif isinstance(self.base, VirtualVariable) and (
+            self.base.was_stack
+            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
+        ):
+            endness = arch.memory_endness
+        elif isinstance(self.base, Register):
+            endness = arch.register_endness
+        elif isinstance(self.base, Load):
+            endness = arch.memory_endness
+        else:
+            return False
+
+        if endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * arch.byte_width + self.value.bits == self.bits
+
+    def copy(self) -> Insert:
+        return Insert(self.idx, self.base, self.offset, self.value, **self.tags)
+
+    @property
+    def size(self):
+        return self.bits // 8
+
+    def __repr__(self):
+        return f"Insert({self.base}, {self.offset}, {self.value})"
+
+    def __str__(self):
+        return f"Insert({self.base}, {self.offset}, {self.value})"
+
+    def likes(self, other):
+        return (
+            type(other) is type(self)
+            and self.base == other.base
+            and self.offset == other.offset
+            and self.value == other.value
+        )
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((self.bits, self.base, self.offset, self.value))
+
+    def replace(self, old_expr, new_expr):
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+
+        if self.value == old_expr:
+            value_replaced, new_value = True, new_expr
+        else:
+            value_replaced, new_value = self.value.replace(old_expr, new_expr)
+
+        if base_replaced or offset_replaced or value_replaced:
+            return True, Insert(self.idx, new_base, new_offset, new_value, **self.tags)
+        return False, self

@@ -85,6 +85,17 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
             self.operations.append(expr)
         return has_target_expr
 
+    def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        r = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        r |= self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        r |= self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+        return r
+
+    def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        r = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        r |= self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        return r
+
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 

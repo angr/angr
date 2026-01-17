@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
 from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
@@ -58,6 +59,7 @@ class BlockSimplifier(Analysis):
         block: Block | None,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
+        ail_manager: Manager | None = None,
         peephole_optimizations: None | (
             Iterable[
                 type[PeepholeOptimizationStmtBase]
@@ -81,6 +83,7 @@ class BlockSimplifier(Analysis):
         self._stack_pointer_tracker = stack_pointer_tracker
         self._preserve_vvar_ids = preserve_vvar_ids
         self._type_hints = type_hints
+        self._ail_manager = ail_manager
 
         if peephole_optimizations is None:
             self._expr_peephole_opts = [
@@ -135,10 +138,10 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # print(str(block))
+            # block.pp()
             new_block = self._simplify_block_once(block)
             # print()
-            # print(str(new_block))
+            # new_block.pp()
             if new_block == block:
                 break
             self._clear_cache()
@@ -159,6 +162,7 @@ class BlockSimplifier(Analysis):
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
+                ail_manager=self._ail_manager,
             )
         return self._propagator
 

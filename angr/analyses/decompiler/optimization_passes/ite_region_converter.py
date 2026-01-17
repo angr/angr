@@ -303,6 +303,7 @@ class ITERegionConverter(OptimizationPass):
                     stmt.dst,
                     new_src_and_vvars[0][1],
                     **stmt.tags,
+                    dephi=True,
                 )
             else:
                 new_phi = Phi(
