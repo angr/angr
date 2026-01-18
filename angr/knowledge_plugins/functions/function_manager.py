@@ -560,6 +560,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         Save multiple functions to LMDB.
         """
         self._init_lmdb()
+        assert self._funcsdb is not None
 
         while True:
             try:
@@ -577,6 +578,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         """
         Delete a function from LMDB.
         """
+        if self._funcsdb is None:
+            return
+
         key = str(addr).encode("utf-8")
 
         with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:

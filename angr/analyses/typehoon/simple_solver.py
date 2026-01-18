@@ -944,12 +944,15 @@ class SimpleSolver:
             return level_sub < level_super
 
         # Case 2: Different bases
-        if base_sub != base_super:
-            if isinstance(sub_type, TypeVariable) and isinstance(super_type, DerivedTypeVariable):
-                has_store = any(isinstance(lbl, Store) for lbl in super_type.labels)
-                has_load = any(isinstance(lbl, Load) for lbl in super_type.labels)
-                if has_store and not has_load:
-                    return True
+        if (
+            base_sub != base_super
+            and isinstance(sub_type, TypeVariable)
+            and isinstance(super_type, DerivedTypeVariable)
+        ):
+            has_store = any(isinstance(lbl, Store) for lbl in super_type.labels)
+            has_load = any(isinstance(lbl, Load) for lbl in super_type.labels)
+            if has_store and not has_load:
+                return True
 
         return False
 
