@@ -234,7 +234,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._meta_func_cache: LRUCache[K, Function] = SmartLRUCache(
             maxsize=cache_limit, evict=self._meta_func_cache_evicted
         )
-        self._funcsdb = None
+        self._funcsdb: str | None = None
         self._db_batch_size: int = max(cache_limit - 1, db_batch_size)
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
@@ -544,7 +544,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         Lazily initialize the LMDB database for spilling functions.
         """
         if self._funcsdb is None:
-            self._funcsdb = self.rtdb.get_db("functions")
+            self._funcsdb = self.rtdb.open_db("functions")
         l.debug("Initialized LRU cache LMDB.")
 
     def _cleanup_lmdb(self):
