@@ -165,7 +165,6 @@ jobs:
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5
         with:
           use_oidc: true
-          fail_ci_if_error: true
           verbose: true
           files: ${{ steps.files.outputs.coverage }}
       - name: Upload test results to Codecov
