@@ -1384,6 +1384,7 @@ class SimCCStdcall(SimCCMicrosoftCdecl):
 
 class SimCCMicrosoftFastcall(SimCC):
     ARG_REGS = ["ecx", "edx"]  # Remaining arguments are passed in stack
+    CALLER_SAVED_REGS = ["eax", "ecx", "edx"]
     STACKARG_SP_DIFF = 4  # Return address is pushed on to stack by call
     RETURN_VAL = SimRegArg("eax", 4)
     RETURN_ADDR = SimStackArg(0, 4)
