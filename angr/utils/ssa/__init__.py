@@ -8,6 +8,8 @@ import networkx
 import archinfo
 from angr.ailment import Expression, Block, Address
 from angr.ailment.expression import (
+    Convert,
+    Extract,
     Insert,
     VirtualVariable,
     Const,
@@ -317,6 +319,25 @@ def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
     walker = AILReferenceFinder(vvar_id)
     walker.walk_statement(stmt)
     return walker.has_references_to_vvar
+
+
+def stmt_is_simple_call(stmt: Statement) -> Call | None:
+    if isinstance(stmt, Call):
+        return stmt
+    if not isinstance(stmt, Assignment):
+        return None
+    src = stmt.src
+    while True:
+        if isinstance(src, Call):
+            return src
+        if isinstance(src, Convert):
+            src = src.operand
+        elif isinstance(src, Extract):
+            src = src.base
+        elif isinstance(src, Insert):
+            src = src.value
+        else:
+            return None
 
 
 def check_in_between_stmts(
