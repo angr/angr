@@ -11,7 +11,7 @@ from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode, FuncNode
-from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
+from angr.engines.light import SimEngineNostmtVEX, SimEngineLight
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
 from angr.sim_type import SimTypeBottom, SimTypeFunction
 from angr.utils.types import dereference_simtype_by_lib
@@ -165,7 +165,7 @@ class SimEngineFactCollectorVEX(
         # so we need to check if this register write is actually a no-op
         if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
             t = self.state.tmps.get(stmt.data.tmp, None)
-            if isinstance(t, RegisterOffset) and t.reg == stmt.offset:
+            if t is not None and t[0] == KIND_REG and t[1] == stmt.offset:
                 same_ins_read = False
                 for i in range(self.stmt_idx, -1, -1):
                     if i >= self.block.vex.stmts_used:
@@ -197,9 +197,9 @@ class SimEngineFactCollectorVEX(
 
         if addr[0] == KIND_SP:
             self.state.stack_written(addr[2], stmt.data.result_size(self.tyenv) // self.arch.byte_width)
-            if isinstance(data, RegisterOffset) and not isinstance(data, SpOffset):
+            if data is not None and data[0] == KIND_REG and data[2] == 0:
                 # push reg; we record the stored register as well as the stack slot offset
-                self.state.callee_stored_regs[data.reg] = u2s(addr[2], self.arch.bits)
+                self.state.callee_stored_regs[data[1]] = u2s(addr[2], self.arch.bits)
             self.state.simple_stack[addr[2]] = data
         else:
             self.state.pointer_arg_derefs[addr] |= 2
