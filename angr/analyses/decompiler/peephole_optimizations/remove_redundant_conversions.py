@@ -132,7 +132,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
                                 expr.op,
                                 [r1, Const(c.idx, c.variable, c.value, from_bits)],
                                 expr.signed,
-                                bits=from_bits,
+                                bits=1,
                                 **expr.tags,
                             )
 
