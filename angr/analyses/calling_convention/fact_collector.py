@@ -743,7 +743,10 @@ class FactCollector(Analysis):
         # determine callee-saved registers
         for state in end_states:
             for reg_offset, stack_offset in state.callee_stored_regs.items():
-                if reg_offset in callee_restored_regs:
+                # we see cases where a register is saved but not restored
+                # but should be counted as callee-save. We attempt to detect
+                # this by detecting the complete disuse of that argument value.
+                if reg_offset in callee_restored_regs or self.seen_reg_uses[reg_offset] < 2:
                     callee_saved_regs.add(reg_offset)
                     callee_saved_reg_stack_offsets.add(stack_offset)
 
@@ -754,10 +757,6 @@ class FactCollector(Analysis):
                     or offset == self.project.arch.bp_offset
                     or not is_sane_register_variable(self.project.arch, offset, size)
                     or offset in callee_saved_regs
-                    # we see cases where a register is saved but not restored
-                    # but should be counted as callee-save. We attempt to detect
-                    # this by detecting the complete disuse of that argument value.
-                    or self.seen_reg_uses[offset] < 2
                 ):
                     continue
                 reg_offset_created.add(offset)
