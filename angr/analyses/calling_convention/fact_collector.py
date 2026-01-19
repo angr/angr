@@ -138,9 +138,10 @@ class SimEngineFactCollectorVEX(
     The engine for FactCollector.
     """
 
-    def __init__(self, project, bp_as_gpr: bool, track_arg_uses: bool):
+    def __init__(self, project, bp_as_gpr: bool, track_arg_uses: bool, seen_reg_uses: defaultdict[int, int]):
         self.bp_as_gpr = bp_as_gpr
         self.track_arg_uses = track_arg_uses
+        self.seen_reg_uses = seen_reg_uses
         super().__init__(project)
 
     def _process_block_end(self, stmt_result: list, whitelist: set[int] | None) -> None:
@@ -152,6 +153,19 @@ class SimEngineFactCollectorVEX(
 
     def _is_top(self, expr) -> bool:
         return expr is None
+
+    def _expr(self, expr):
+        r = super()._expr(expr)
+        if (
+            r is not None
+            and r[0] == KIND_REG
+            and not (
+                isinstance((stmt := self.block.vex.statements[self.stmt_idx]), pyvex.stmt.WrTmp) and stmt.data is expr
+            )
+        ):
+            # don't count wrtmp datas
+            self.seen_reg_uses[r[1]] += 1
+        return r
 
     def _handle_conversion(self, from_size: int, to_size: int, signed: bool, operand: pyvex.expr.IRExpr):
         return None
@@ -297,6 +311,7 @@ class FactCollector(Analysis):
         self.input_args: list[SimRegArg | SimStackArg] | None = None
         self.retval_size: int | None = None
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
+        self.seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
 
@@ -316,7 +331,7 @@ class FactCollector(Analysis):
             return []
 
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
-        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses)
+        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self.seen_reg_uses)
         init_state = FactCollectorState()
         if self.project.arch.call_pushes_ret:
             init_state.sp_value = self.project.arch.bytes
@@ -423,6 +438,7 @@ class FactCollector(Analysis):
                 if isinstance(loc, SimRegArg):
                     base_offset = self.project.arch.registers[loc.reg_name][0]
                     state.register_read(base_offset + loc.reg_offset, loc.size)
+                    self.seen_reg_uses[base_offset] += 1
                     if self._track_arg_passthru:
                         val = state.simple_regs.get(base_offset, (KIND_REG, base_offset, 0))
                 elif isinstance(loc, SimStackArg):
@@ -738,6 +754,10 @@ class FactCollector(Analysis):
                     or offset == self.project.arch.bp_offset
                     or not is_sane_register_variable(self.project.arch, offset, size)
                     or offset in callee_saved_regs
+                    # we see cases where a register is saved but not restored
+                    # but should be counted as callee-save. We attempt to detect
+                    # this by detecting the complete disuse of that argument value.
+                    or self.seen_reg_uses[offset] < 2
                 ):
                     continue
                 reg_offset_created.add(offset)
