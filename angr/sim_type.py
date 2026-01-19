@@ -4110,10 +4110,9 @@ def _decl_to_type(
             next_value = 0
             for enumerator in decl.values.enumerators:
                 if enumerator.value is not None:
-                    try:
+                    with contextlib.suppress(ValueError):
+                        # Keep the auto-incremented value
                         next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
-                    except ValueError:
-                        pass  # Keep the auto-incremented value
                 members[enumerator.name] = next_value
                 next_value += 1
 
