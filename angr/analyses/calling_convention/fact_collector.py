@@ -309,9 +309,10 @@ class FactCollector(Analysis):
         self.callsites: dict[int, tuple[Function, list[FactData]]] = {}
 
         self.input_args: list[SimRegArg | SimStackArg] | None = None
+        self.unused_args: list[SimRegArg] = []
         self.retval_size: int | None = None
         self.pointer_arg_derefs: defaultdict[FactData, int] = defaultdict(int)
-        self.seen_reg_uses: defaultdict[int, int] = defaultdict(int)
+        self._seen_reg_uses: defaultdict[int, int] = defaultdict(int)
 
         self._analyze()
 
@@ -331,7 +332,7 @@ class FactCollector(Analysis):
             return []
 
         bp_as_gpr = self.function.info.get("bp_as_gpr", False)
-        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self.seen_reg_uses)
+        engine = SimEngineFactCollectorVEX(self.project, bp_as_gpr, self._track_arg_uses, self._seen_reg_uses)
         init_state = FactCollectorState()
         if self.project.arch.call_pushes_ret:
             init_state.sp_value = self.project.arch.bytes
@@ -438,7 +439,6 @@ class FactCollector(Analysis):
                 if isinstance(loc, SimRegArg):
                     base_offset = self.project.arch.registers[loc.reg_name][0]
                     state.register_read(base_offset + loc.reg_offset, loc.size)
-                    self.seen_reg_uses[base_offset] += 1
                     if self._track_arg_passthru:
                         val = state.simple_regs.get(base_offset, (KIND_REG, base_offset, 0))
                 elif isinstance(loc, SimStackArg):
@@ -449,6 +449,8 @@ class FactCollector(Analysis):
                         if self._track_arg_passthru:
                             val = state.simple_stack.get(offset, (KIND_STACKVAL, offset, 0))
             if self._track_arg_passthru:
+                if val is not None and val[0] == KIND_REG:
+                    self._seen_reg_uses[val[1]] += 1
                 self.callsites[state.ins_addr][1].append(val)
 
         # clobber caller-saved regs
@@ -741,14 +743,14 @@ class FactCollector(Analysis):
                     self.pointer_arg_derefs[k] |= v
 
         # determine callee-saved registers
+        unused_hint_offsets = set()
         for state in end_states:
             for reg_offset, stack_offset in state.callee_stored_regs.items():
-                # we see cases where a register is saved but not restored
-                # but should be counted as callee-save. We attempt to detect
-                # this by detecting the complete disuse of that argument value.
-                if reg_offset in callee_restored_regs or self.seen_reg_uses[reg_offset] < 2:
+                if reg_offset in callee_restored_regs:
                     callee_saved_regs.add(reg_offset)
                     callee_saved_reg_stack_offsets.add(stack_offset)
+                elif self._seen_reg_uses[reg_offset] < 2:
+                    unused_hint_offsets.add(reg_offset)
 
         for state in end_states:
             for offset, size in state.reg_reads.items():
@@ -763,6 +765,8 @@ class FactCollector(Analysis):
                 reg_name = self.project.arch.translate_register_name(offset, size=size)
                 arg = SimRegArg(reg_name, size)
                 self.input_args.append(arg)
+                if offset in unused_hint_offsets:
+                    self.unused_args.append(arg)
 
         stack_offset_created = set()
         ret_addr_offset = 0 if not self.project.arch.call_pushes_ret else self.project.arch.bytes
