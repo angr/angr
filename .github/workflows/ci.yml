@@ -6,6 +6,7 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
