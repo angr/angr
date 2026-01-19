@@ -68,6 +68,21 @@ _INVERSE_OPERATIONS = {
 }
 
 
+class AILExprIdAnnotation(claripy.Annotation):
+    """
+    An annotation that we use to annotate BVVs so that they are differentiable between other BVVs with the same value
+    and size.
+    """
+
+    @property
+    def eliminatable(self):
+        return False
+
+    @property
+    def relocateable(self):
+        return False
+
+
 #
 # Util methods and mapping used during AIL AST to claripy AST conversion
 #
@@ -922,6 +937,10 @@ class ConditionProcessor:
                 var = claripy.BoolV(condition.value)
             else:
                 var = claripy.BVV(condition.value, condition.bits)
+                if condition.idx is not None:
+                    # we do not want to lose track of this constant when it has idx
+                    var = var.annotate(AILExprIdAnnotation())
+                    self._condition_mapping[var] = condition
             if isinstance(var, claripy.ast.Bits) and var.size() == 1:
                 var = claripy.true() if var.concrete_value == 1 else claripy.false()
             return var

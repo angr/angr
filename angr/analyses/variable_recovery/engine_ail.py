@@ -431,28 +431,7 @@ class SimEngineVRAIL(
         return RichR(self.state.top(expr.bits), typevar=tv)
 
     def _handle_expr_Const(self, expr: ailment.Expr.Const):
-        if isinstance(expr.value, float):
-            v = claripy.FPV(expr.value, claripy.FSORT_DOUBLE if expr.bits == 64 else claripy.FSORT_FLOAT).to_bv()
-            ty = typeconsts.float_type(expr.bits)
-        else:
-            if self.project.loader.find_segment_containing(expr.value) is not None:
-                r = self._load_from_global(expr.value, 1, expr=expr)
-                ty = r.typevar
-            elif expr.value == 0 and expr.bits == self.arch.bits:
-                # this can be viewed as a NULL
-                ty = (
-                    typeconsts.Pointer64(typeconsts.TopType())
-                    if self.arch.bits == 64
-                    else typeconsts.Pointer32(typeconsts.TopType())
-                )
-            else:
-                ty = typeconsts.int_type(expr.bits)
-            v = claripy.BVV(expr.value, expr.bits)
-        r = RichR(v, typevar=ty)
-        codeloc = self._codeloc()
-        self._ensure_variable_existence(r, codeloc)
-        self._reference(r, codeloc)
-        return r
+        return self._get_const(expr.value, expr.bits, expr=expr)
 
     def _handle_expr_Convert(self, expr: ailment.Expr.Convert):
         r = self._expr(expr.operand)
@@ -867,6 +846,30 @@ class SimEngineVRAIL(
         # TODO: Model the operation. Don't lose type constraints
         return RichR(self.state.top(expr.bits))
 
+    # comparisons may propagate type information
+
+    def _handle_binop_Cmp_Default(self, expr):
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+        if (
+            r0.typevar is not None
+            and r1.typevar is not None
+            and (isinstance(r0.typevar, typevars.TypeVariable) or isinstance(r1.typevar, typevars.TypeVariable))
+        ):
+            tc = typevars.Equivalence(r0.typevar, r1.typevar)
+            self.state.add_type_constraint(tc)
+
+        return RichR(self.state.top(expr.bits))
+
+    _handle_binop_CmpEQ = _handle_binop_Cmp_Default
+    _handle_binop_CmpNE = _handle_binop_Cmp_Default
+    _handle_binop_CmpLT = _handle_binop_Cmp_Default
+    _handle_binop_CmpLE = _handle_binop_Cmp_Default
+    _handle_binop_CmpGT = _handle_binop_Cmp_Default
+    _handle_binop_CmpGE = _handle_binop_Cmp_Default
+
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands
 
@@ -902,12 +905,6 @@ class SimEngineVRAIL(
     _handle_binop_MinV = _handle_binop_Default
     _handle_binop_QAddV = _handle_binop_Default
     _handle_binop_QNarrowBinV = _handle_binop_Default
-    _handle_binop_CmpEQ = _handle_binop_Default
-    _handle_binop_CmpNE = _handle_binop_Default
-    _handle_binop_CmpLT = _handle_binop_Default
-    _handle_binop_CmpLE = _handle_binop_Default
-    _handle_binop_CmpGT = _handle_binop_Default
-    _handle_binop_CmpGE = _handle_binop_Default
     _handle_binop_CmpORD = _handle_binop_Default
     _handle_binop_CmpEQV = _handle_binop_Default
     _handle_binop_CmpNEV = _handle_binop_Default

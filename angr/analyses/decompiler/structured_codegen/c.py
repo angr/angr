@@ -3775,6 +3775,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_ is None and "type" in expr.tags:
             type_ = expr.tags["type"]
 
+        if type_ is None and expr.variable is not None:
+            type_ = self._get_variable_type(expr.variable)
+
         if reference_values is None and "reference_values" in expr.tags:
             reference_values = expr.tags["reference_values"].copy()
         if type_ is None and reference_values is not None and len(reference_values) == 1:  # type: ignore

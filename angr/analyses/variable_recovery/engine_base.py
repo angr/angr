@@ -11,7 +11,7 @@ from angr.engines.light.engine import BlockType
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
@@ -1213,6 +1213,53 @@ class SimEngineVRBase(
             self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
 
         return RichR(value, variable=var, typevar=typevar)
+
+    def _get_const(self, value, bits: int, expr=None) -> RichR:
+        codeloc = self._codeloc()
+
+        if isinstance(value, float):
+            v = claripy.FPV(value, claripy.FSORT_DOUBLE if bits == 64 else claripy.FSORT_FLOAT).to_bv()
+            ty = typeconsts.float_type(bits)
+        else:
+            if self.project.loader.find_segment_containing(value) is not None:
+                r = self._load_from_global(value, 1, expr=expr)
+                ty = r.typevar
+            elif value == 0 and bits == self.arch.bits:
+                # this can be viewed as a NULL
+                ty = (
+                    typeconsts.Pointer64(typeconsts.TopType())
+                    if self.arch.bits == 64
+                    else typeconsts.Pointer32(typeconsts.TopType())
+                )
+            else:
+                # this allows us to type integer constants if necessary
+                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_stmt(
+                    self.block.addr,
+                    self.stmt_idx,
+                    "constant",
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                if not var_candidates:
+                    var = SimConstantVariable(
+                        expr.size,
+                        ident=self.state.variable_manager[self.func_addr].next_variable_ident("constant"),
+                        value=expr.value,
+                    )
+                    self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
+                else:
+                    var = var_candidates[0][0]
+                ty = typevars.TypeVariable()
+                ty_const = typeconsts.int_type(expr.bits)
+                if not self.state.typevars.has_type_variable_for(var):
+                    self.state.typevars.add_type_variable(var, ty)
+                self.state.add_type_constraint(typevars.Subtype(ty, ty_const))
+            v = claripy.BVV(expr.value, expr.bits)
+        r = RichR(v, typevar=ty)
+        self._ensure_variable_existence(r, codeloc)
+        self._reference(r, codeloc)
+        return r
 
     def _create_access_typevar(
         self,
