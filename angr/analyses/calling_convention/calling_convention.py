@@ -129,6 +129,7 @@ class CallingConventionAnalysis(Analysis):
         self.callsite_insn_addr = callsite_insn_addr
         self._func_graph = func_graph
         self._input_args = input_args
+        self._unused_args: list[SimRegArg] = []
         self._retval_size = retval_size
         self._collect_facts = collect_facts
         self._collect_facts_arg_uses = collect_facts_arg_uses
@@ -271,6 +272,7 @@ class CallingConventionAnalysis(Analysis):
             self._retval_size = facts.retval_size
             self._callsites = facts.callsites
             self._pointer_arg_derefs = facts.pointer_arg_derefs
+            self._unused_args = facts.unused_args
 
         r = self._analyze_function()
         if r is None:
@@ -454,7 +456,13 @@ class CallingConventionAnalysis(Analysis):
 
         full_input_args = self._consolidate_input_args(input_args)
         full_input_args_copy = list(full_input_args)  # input_args might be modified by find_cc()
-        cc = SimCC.find_cc(self.project.arch, full_input_args_copy, sp_delta, platform=self.project.simos.name)
+        cc = SimCC.find_cc(
+            self.project.arch,
+            full_input_args_copy,
+            sp_delta,
+            platform=self.project.simos.name,
+            unused_hint=self._unused_args,
+        )
 
         # update input_args according to the difference between full_input_args and full_input_args_copy
         for a in full_input_args:
@@ -1163,6 +1171,9 @@ class CallingConventionAnalysis(Analysis):
             stores.append((i, idx, base, disp))
 
         if not stores:
+            return False, None
+
+        if stores[-1][1] != len(allowed_spilled_regs) - 1:
             return False, None
 
         base = stores[0][2]
