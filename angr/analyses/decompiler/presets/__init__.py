@@ -6,7 +6,6 @@ from .full import preset_full
 from .basic import preset_basic
 from .malware import preset_malware
 
-
 DECOMPILATION_PRESETS = {
     "fast": preset_fast,
     "full": preset_full,

@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 
 from tests.common import bin_location
 
-
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 FAUXWARE_PATH = os.path.join(bin_location, "tests", "x86_64", "fauxware")

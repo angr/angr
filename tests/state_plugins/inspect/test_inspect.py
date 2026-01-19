@@ -18,7 +18,6 @@ from angr.project import load_shellcode
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

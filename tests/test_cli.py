@@ -17,7 +17,6 @@ from angr.analyses.decompiler.utils import decompile_functions
 
 from .common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

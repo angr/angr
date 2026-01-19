@@ -3,7 +3,6 @@ import os
 import sys
 from collections.abc import Sequence, Callable
 
-
 if sys.platform == "win32":
     import colorama  # pylint:disable=import-error
 

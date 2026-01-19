@@ -6,7 +6,6 @@ import os.path
 import angr
 from angr.analyses.codecave import CodeCaveClassification
 
-
 TEST_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries", "tests")
 FAUXWARE = os.path.join(TEST_LOCATION, "x86_64", "fauxware")
 

@@ -6,7 +6,6 @@ import importlib.util
 import logging
 from collections.abc import Callable
 
-
 l = logging.getLogger(name=__name__)
 
 

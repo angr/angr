@@ -5,7 +5,6 @@ import claripy
 
 import angr
 
-
 l = logging.getLogger(name=__name__)
 
 # BOOL GetLastInputInfo(

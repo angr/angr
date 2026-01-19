@@ -7,6 +7,7 @@ This module coordinates multiple naming patterns and applies them in priority or
 Note: Loop counter naming is NOT included here as it runs in RegionSimplifier
 after structuring, where it can leverage the structured LoopNode information.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging

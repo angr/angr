@@ -17,7 +17,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
     NAME = "Eager expression evaluation"
     expr_classes = (BinaryOp, UnaryOp, Convert)
 
-    def optimize(self, expr, **kwargs):  # type:ignore
+    def optimize(self, expr, **kwargs):  # type: ignore
         if isinstance(expr, BinaryOp):
             return self._optimize_binaryop(expr)
         if isinstance(expr, Convert):

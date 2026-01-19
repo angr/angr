@@ -4273,7 +4273,7 @@ def _cpp_decl_to_type(
         if isinstance(t, NamedTypeMixin):
             t = t.copy()
             t.name = lbl  # pylint:disable=attribute-defined-outside-init
-        return t  # type:ignore
+        return t  # type: ignore
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
@@ -4299,7 +4299,7 @@ def _cpp_decl_to_type(
             _cpp_decl_to_type(param.type, extra_types, opaque_classes=opaque_classes) for param in decl.parameters
         )
         param_names = (
-            tuple(param.name.format() for param in decl.parameters)  # type:ignore
+            tuple(param.name.format() for param in decl.parameters)  # type: ignore
             if all(param.name is not None for param in decl.parameters)
             else None
         )
@@ -4399,9 +4399,7 @@ if pycparser is not None:
     _accepts_scope_stack()
 
 with contextlib.suppress(ImportError):
-    register_types(
-        parse_types(
-            """
+    register_types(parse_types("""
 typedef long time_t;
 
 struct timespec {
@@ -4413,8 +4411,6 @@ struct timeval {
     time_t tv_sec;
     long tv_usec;
 };
-"""
-        )
-    )
+"""))
 
 from .state_plugins.view import SimMemView

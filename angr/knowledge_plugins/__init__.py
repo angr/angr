@@ -20,7 +20,6 @@ from .custom_strings import CustomStrings
 from .obfuscations import Obfuscations
 from .rtdb import RuntimeDb
 
-
 __all__ = (
     "CFGManager",
     "CallsitePrototypes",

@@ -28,7 +28,6 @@ from .javavm_classloader import SimJavaVmClassloader
 from .symbolizer import SimSymbolizer
 from .debug_variables import SimDebugVariable, SimDebugVariablePlugin
 
-
 __all__ = (
     "BP_AFTER",
     "BP_BEFORE",

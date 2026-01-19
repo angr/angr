@@ -15,7 +15,6 @@ from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
 from angr.engines import SimSuccessors
 
-
 log = logging.getLogger(__name__)
 
 

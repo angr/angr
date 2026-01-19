@@ -24,7 +24,6 @@ from angr.analyses.typehoon.translator import TypeTranslator
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -330,7 +329,7 @@ class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
         tx = TypeTranslator()
         tc = Float32()
-        (st, _) = tx.tc2simtype(tc)
+        st, _ = tx.tc2simtype(tc)
         assert isinstance(st, SimTypeFloat)
 
     def test_simtype2tc(self):

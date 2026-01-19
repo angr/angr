@@ -12,7 +12,6 @@ from angr.sim_type import SimType, SimTypePointer, SimTypeChar
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

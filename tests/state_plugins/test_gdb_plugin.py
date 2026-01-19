@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 data_location = os.path.join(bin_location, "tests_data", "test_gdb_plugin")
 

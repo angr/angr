@@ -5,7 +5,6 @@ import claripy
 
 from angr.procedures.cgc.receive import receive as orig_receive
 
-
 l = logging.getLogger(name=__name__)
 
 

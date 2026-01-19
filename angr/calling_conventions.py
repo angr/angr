@@ -279,7 +279,7 @@ class SimFunctionArgument:
             if self.size not in (4, 8):
                 raise ValueError(f"What do I do with a float {self.size} bytes long")
             value = claripy.FPV(value, claripy.FSORT_FLOAT if self.size == 4 else claripy.FSORT_DOUBLE)
-        return value.raw_to_bv()  # type:ignore
+        return value.raw_to_bv()  # type: ignore
 
     def check_value_get(self, value):
         if self.is_fp:
@@ -839,8 +839,8 @@ class SimCC:
             or (isinstance(val, claripy.ast.Base) and val.op.startswith("fp"))  # type: ignore
             or (
                 isinstance(val, claripy.ast.Base)
-                and val.op == "Reverse"  # type:ignore
-                and val.args[0].op.startswith("fp")  # type:ignore
+                and val.op == "Reverse"  # type: ignore
+                and val.args[0].op.startswith("fp")  # type: ignore
             )
         )
 
@@ -1052,7 +1052,7 @@ class SimCC:
 
             if arg.buffer:
                 if isinstance(arg.value, claripy.ast.Bits):
-                    real_value = arg.value.chop(state.arch.byte_width)  # type:ignore
+                    real_value = arg.value.chop(state.arch.byte_width)  # type: ignore
                 elif type(arg.value) in (bytes, str):
                     real_value = claripy.BVV(arg.value).chop(8)
                 else:
@@ -1214,7 +1214,7 @@ class SimCC:
         assert cls.ARCH is not None
         if hasattr(cls, "LANGUAGE"):  # noqa: SIM108
             # this is a PCode SimCC where cls.ARCH is directly callable
-            stack_arg_size = cls.ARCH().bytes  # type:ignore
+            stack_arg_size = cls.ARCH().bytes  # type: ignore
         else:
             stack_arg_size = cls.ARCH(archinfo.Endness.LE).bytes
         stack_args = [a for a in args if isinstance(a, SimStackArg)]
@@ -1282,14 +1282,14 @@ class SimLyingRegArg(SimRegArg):
         # val = super(SimLyingRegArg, self).get_value(state, **kwargs)
         val = state.registers.load(self.reg_name).raw_to_fp()
         if self._real_size == 4:
-            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)  # type:ignore
+            val = claripy.fpToFP(claripy.fp.RM.RM_NearestTiesEven, val.raw_to_fp(), claripy.FSORT_FLOAT)  # type: ignore
         return val
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ,unused-argument
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
             value = claripy.fpToFP(
-                claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE  # type:ignore
+                claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE  # type: ignore
             )
         state.registers.store(self.reg_name, value)
         # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
@@ -1306,10 +1306,10 @@ class SimCCUsercall(SimCC):
 
     ArgSession = UsercallArgSession
 
-    def next_arg(self, session: UsercallArgSession, arg_type):  # type:ignore[reportIncompatibleMethodOverride]
+    def next_arg(self, session: UsercallArgSession, arg_type):  # type: ignore[reportIncompatibleMethodOverride]
         return next(session.real_args)
 
-    def return_val(self, ty, **kwargs):  # type:ignore  # pylint: disable=unused-argument
+    def return_val(self, ty, **kwargs):  # type: ignore  # pylint: disable=unused-argument
         return self.ret_loc
 
 
@@ -1379,7 +1379,7 @@ class SimCCMicrosoftThiscall(SimCCCdecl):
             return []
         return [SimRegArg("ecx", self.arch.bytes)] + [
             self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]
-        ]  # type:ignore
+        ]  # type: ignore
 
 
 class SimCCStdcall(SimCCMicrosoftCdecl):
@@ -1480,7 +1480,7 @@ class SimCCSyscall(SimCC):
     The base class of all syscall CCs.
     """
 
-    ERROR_REG: SimRegArg = None  # type:ignore
+    ERROR_REG: SimRegArg = None  # type: ignore
     SYSCALL_ERRNO_START = None
 
     @staticmethod
@@ -1515,7 +1515,7 @@ class SimCCSyscall(SimCC):
         self.ERROR_REG.set_value(state, error_reg_val)
         return expr
 
-    def set_return_val(self, state, val, ty, **kwargs):  # type:ignore  # pylint:disable=arguments-differ
+    def set_return_val(self, state, val, ty, **kwargs):  # type: ignore  # pylint:disable=arguments-differ
         if self.ERROR_REG is not None:
             val = self.linux_syscall_update_error_reg(state, val)
         super().set_return_val(state, val, ty, **kwargs)
@@ -1777,7 +1777,7 @@ class SimCCAMD64LinuxSyscall(SimCCSyscall):
     CALLER_SAVED_REGS = ["rax", "rcx", "r11"]
 
     @staticmethod
-    def _match(arch, args, sp_delta):  # type:ignore # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta):  # type: ignore # pylint: disable=unused-argument
         # doesn't appear anywhere but syscalls
         return False
 
@@ -2506,7 +2506,7 @@ class SimCCUnknown(SimCC):
     """
 
     @staticmethod
-    def _match(arch, args, sp_delta):  # type:ignore  # pylint: disable=unused-argument
+    def _match(arch, args, sp_delta):  # type: ignore  # pylint: disable=unused-argument
         # It always returns True
         return True
 

@@ -11,7 +11,6 @@ from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
-
 ASCII_PRINTABLES = set(string.printable)
 ASCII_DIGITS = set(string.digits)
 

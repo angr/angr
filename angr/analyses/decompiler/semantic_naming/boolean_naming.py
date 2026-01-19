@@ -5,6 +5,7 @@ Semantic variable naming for boolean flag variables.
 This module detects variables used as boolean flags and names them appropriately
 (e.g., found, done, flag, ok).
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging

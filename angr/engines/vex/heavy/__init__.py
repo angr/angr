@@ -6,7 +6,6 @@ from .inspect import SimInspectMixin
 from .resilience import HeavyResilienceMixin
 from .super_fastpath import SuperFastpathMixin
 
-
 __all__ = (
     "HeavyResilienceMixin",
     "HeavyVEXMixin",

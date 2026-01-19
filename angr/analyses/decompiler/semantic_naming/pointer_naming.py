@@ -5,6 +5,7 @@ Semantic variable naming for pointer variables.
 This module detects variables used as pointers and names them appropriately
 (e.g., ptr, p, cur, next, prev).
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging

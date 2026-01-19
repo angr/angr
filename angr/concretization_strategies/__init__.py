@@ -14,7 +14,6 @@ from .single import SimConcretizationStrategySingle
 from .solutions import SimConcretizationStrategySolutions
 from .unlimited_range import SimConcretizationStrategyUnlimitedRange
 
-
 __all__ = (
     "SimConcretizationStrategy",
     "SimConcretizationStrategyAny",

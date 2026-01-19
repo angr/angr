@@ -20,7 +20,6 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.utils.types import dereference_simtype_by_lib
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState

@@ -858,15 +858,15 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         #
         # Variables used during analysis
         #
-        self._pending_jobs = None  # type:ignore
-        self._traced_addresses = None  # type:ignore
-        self._function_returns: defaultdict[int, set] = None  # type:ignore
-        self._function_exits = None  # type:ignore
+        self._pending_jobs = None  # type: ignore
+        self._traced_addresses = None  # type: ignore
+        self._function_returns: defaultdict[int, set] = None  # type: ignore
+        self._function_exits = None  # type: ignore
         self._gp_value: int | None = None
         self._ro_region_cdata_cache: list | None = None
         self._job_ctr = 0
         self._decoding_assumptions: dict[int, DecodingAssumption] = {}
-        self._decoding_assumption_relations: networkx.DiGraph = None  # type:ignore
+        self._decoding_assumption_relations: networkx.DiGraph = None  # type: ignore
 
         # A mapping between address and the actual data in memory
         # self._memory_data = { }
@@ -905,7 +905,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if size is None:
             size = len(data)
 
-        data = bytes(pyvex.ffi.buffer(data, size))  # type:ignore
+        data = bytes(pyvex.ffi.buffer(data, size))  # type: ignore
         for x in range(256):
             p_x = float(data.count(x)) / size
             if p_x > 0:
@@ -1823,7 +1823,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         remaining_edges_to_repair = []
 
         for edge in self._model.edges_to_repair:
-            (src, dst, data) = edge
+            src, dst, data = edge
 
             if not self._model.graph.has_node(src):
                 continue  # Source no longer in the graph, drop it
@@ -4680,7 +4680,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             # Let's try to create the pyvex IRSB directly, since it's much faster
             nodecode = False
             irsb: pyvex.IRSB | PcodeIRSB | None = None
-            lifted_block: Block = None  # type:ignore
+            lifted_block: Block = None  # type: ignore
             try:
                 lifted_block = self._lift(
                     addr,

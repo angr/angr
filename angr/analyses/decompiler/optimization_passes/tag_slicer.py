@@ -5,7 +5,6 @@ import logging
 from angr.ailment.statement import ConditionalJump, Jump, Label
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

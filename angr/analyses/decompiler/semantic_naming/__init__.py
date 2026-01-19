@@ -12,6 +12,7 @@ The naming passes are split into two categories:
 Loop counter naming is a Region-based pass that runs in RegionSimplifier to
 leverage the structured LoopNode information.
 """
+
 from __future__ import annotations
 from .naming_base import SemanticNamingBase, ClinicNamingBase, RegionNamingBase
 from .region_loop_counter_naming import RegionLoopCounterNaming

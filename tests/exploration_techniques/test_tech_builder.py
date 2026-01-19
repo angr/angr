@@ -12,7 +12,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 log = logging.getLogger("angr_tests.test_proxy")
 

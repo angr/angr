@@ -148,11 +148,11 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
-    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type:ignore #pylint:disable=unused-argument
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type: ignore #pylint:disable=unused-argument
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -290,7 +290,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._cache_limit = state["cache_limit"]
         self._db_batch_size = state["db_batch_size"]
         self.data = {}
-        self.rtdb = None  # type:ignore
+        self.rtdb = None  # type: ignore
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
         self._list = SortedList()
@@ -369,11 +369,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
-    def get(self, addr, default=_missing, /, meta_only: bool = False):  # type:ignore
+    def get(self, addr, default=_missing, /, meta_only: bool = False):  # type: ignore
         # First check in-memory
         if self.is_cached(addr):
             try:
@@ -610,7 +610,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 if value is None:
                     return None
 
-                cmsg = function_pb2.Function()  # type:ignore  # pylint:disable=no-member
+                cmsg = function_pb2.Function()  # type: ignore  # pylint:disable=no-member
                 cmsg.ParseFromString(value)
 
                 # Reconstruct function

@@ -9,7 +9,6 @@ from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal_engine import SimEngineSSATraversal
 from .traversal_state import TraversalState
 
-
 l = logging.getLogger(__name__)
 
 

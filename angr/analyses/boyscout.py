@@ -8,7 +8,6 @@ from archinfo.arch_arm import is_arm_arch
 
 from angr.analyses import AnalysesHub, Analysis
 
-
 l = logging.getLogger(name=__name__)
 
 

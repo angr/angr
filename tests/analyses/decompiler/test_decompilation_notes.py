@@ -13,7 +13,6 @@ from angr.sim_type import parse_signature
 
 from tests.common import bin_location, print_decompilation_result
 
-
 binaries_base = os.path.join(bin_location, "tests")
 
 

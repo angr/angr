@@ -18,7 +18,6 @@ from angr.analyses import register_analysis
 from angr.analyses.analysis import Analysis
 from .engine_vex import SimEnginePropagatorVEX
 
-
 _l = logging.getLogger(name=__name__)
 
 

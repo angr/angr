@@ -16,7 +16,6 @@ from .engine_base import SimEnginePropagatorBaseMixin
 from .top_checker_mixin import ClaripyDataVEXEngineMixin
 from .vex_vars import VEXReg, VEXTmp, VEXMemVar
 
-
 _l = logging.getLogger(name=__name__)
 
 dirty_handler = SimEngineNostmtVEX[PropagatorVEXState, claripy.ast.BV, PropagatorVEXState].dirty_handler
