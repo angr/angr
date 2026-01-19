@@ -6,7 +6,6 @@ import claripy
 import angr
 from angr.storage.file import SimFileDescriptor
 
-
 l = logging.getLogger(name=__name__)
 
 

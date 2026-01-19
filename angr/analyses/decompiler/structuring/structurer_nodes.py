@@ -8,7 +8,6 @@ import claripy
 import angr.ailment as ailment
 from angr.ailment.block import Block
 
-
 INDENT_DELTA = 2
 
 

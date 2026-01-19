@@ -10,5 +10,4 @@ except ImportError as err:
 
 from .db import AngrDB
 
-
 __all__ = ("AngrDB",)

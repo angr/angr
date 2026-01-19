@@ -14,7 +14,6 @@ from angr.sim_type import SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBotto
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
 
-
 api_namespaces = {}
 altnames = set()
 

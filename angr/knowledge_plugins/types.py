@@ -6,7 +6,6 @@ from collections.abc import Iterator
 from .plugin import KnowledgeBasePlugin
 from angr.sim_type import ALL_TYPES, TypeRef, SimType
 
-
 FRUITS = [
     "mango",
     "cherry",

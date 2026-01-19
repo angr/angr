@@ -11,7 +11,6 @@ from .cfg_fast_soot import CFGFastSoot
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 
-
 __all__ = (
     "CFG",
     "CFBlanket",

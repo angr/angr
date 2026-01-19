@@ -7,7 +7,6 @@ import angr
 
 from tests.common import bin_location
 
-
 # pylint: disable=missing-class-docstring
 
 

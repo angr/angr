@@ -21,7 +21,6 @@ from angr.analyses.complete_calling_conventions import CallingConventionAnalysis
 from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom, SimTypeFloat
 from tests.common import bin_location, requires_binaries_private
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

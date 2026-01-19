@@ -69,7 +69,7 @@ class FunctionInfo(UserDict):
         self._func._dirty = True
         super().__delitem__(key)
 
-    def copy(self, owner: Function) -> FunctionInfo:  # type:ignore[reportIncompatibleMethodOverride]
+    def copy(self, owner: Function) -> FunctionInfo:  # type: ignore[reportIncompatibleMethodOverride]
         new_info = FunctionInfo(owner)
         new_info.data = self.data.copy()
         return new_info
@@ -575,7 +575,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return function_pb2.Function()  # type:ignore  # pylint:disable=no-member
+        return function_pb2.Function()  # type: ignore  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         return FunctionParser.serialize(self)

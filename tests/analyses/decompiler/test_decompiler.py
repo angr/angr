@@ -53,7 +53,6 @@ from angr.utils.library import convert_cproto_to_py
 
 from tests.common import bin_location, broken, print_decompilation_result, set_decompiler_option, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)
@@ -1685,8 +1684,7 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CFGFast(normalize=True)
 
-        typedefs = angr.types.parse_file(
-            """
+        typedefs = angr.types.parse_file("""
         struct A {
             int a1;
             int a2;
@@ -1704,8 +1702,7 @@ class TestDecompiler(unittest.TestCase):
             int c3[10];
             struct C *c4;
         };
-        """
-        )
+        """)
 
         d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
         assert d.cache is not None and d.cache.clinic is not None and d.cache.clinic.variable_kb is not None
@@ -5060,15 +5057,13 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         text = normalize_whitespace(dec.codegen.text)
-        expected = normalize_whitespace(
-            r"""
+        expected = normalize_whitespace(r"""
             void* print_hello_world()
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
                 return 0;
-            }"""
-        )
+            }""")
 
         assert text == expected
 
@@ -5084,8 +5079,7 @@ class TestDecompiler(unittest.TestCase):
 
         # Ensure v0 <= 1000 branch is not flipped
         text = normalize_whitespace(dec.codegen.text)
-        expected = normalize_whitespace(
-            r"""
+        expected = normalize_whitespace(r"""
             v0 = 10;
             if (v0 <= 1000)
             {
@@ -5099,8 +5093,7 @@ class TestDecompiler(unittest.TestCase):
                 v0 += 8;
                 v0 += 9;
             }
-            """
-        )
+            """)
 
         assert expected in text
         assert "g(v0)" in text
@@ -5275,61 +5268,41 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if ((unsigned int)a0)
                     return test_cond_tailcall_jmp_callee(a0);
                 return (unsigned int)a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if (a0)
                     test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
                 return a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if ((unsigned int)a0)
                     return test_cond_tailcall_cjmp_callee(a0);
                 return (unsigned int)a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if (a0)
                     test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */
                 return a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
     def test_decompiling_arduino_giga_flash_webhandler_switch_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "06aa650f61d71744c6709c7c092d9169.hex")
@@ -5380,34 +5353,19 @@ class TestDecompiler(unittest.TestCase):
         assert "return __inbyte(233);" in decomp("test_io_inb")
         assert "__outword(a0, a1);" in decomp("test_io_outw")
         assert "return __inword(a0);" in decomp("test_io_inw")
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
             __outdword(3320, a0);
             __outdword(3324, a1);
-            """
-            )
-            in decomp("test_io_outl")
-        )
-        assert (
-            normalize_whitespace(
-                """
+            """) in decomp("test_io_outl")
+        assert normalize_whitespace("""
             __outdword(3320, a0);
             return __indword(3324)
-            """
-            )
-            in decomp("test_io_inl")
-        )
-        assert (
-            normalize_whitespace(
-                """
+            """) in decomp("test_io_inl")
+        assert normalize_whitespace("""
                 if (!(char)__inbyte(233))
                     return 456;
                 return 123;
-                """
-            )
-            in decomp("test_in_cond")
-        )
+                """) in decomp("test_in_cond")
 
 
 if __name__ == "__main__":

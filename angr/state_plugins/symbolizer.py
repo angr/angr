@@ -9,7 +9,6 @@ from angr.sim_state import SimState
 from angr.storage.memory_mixins import PagedMemoryMixin
 from .plugin import SimStatePlugin
 
-
 l = logging.getLogger(name=__name__)
 
 

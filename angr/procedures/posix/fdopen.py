@@ -4,7 +4,6 @@ from cle.backends.externs.simdata.io_file import io_file_data_for_arch
 
 import angr
 
-
 # Reference for implementation: glibc-2.25/libio/iofdopen.c
 
 

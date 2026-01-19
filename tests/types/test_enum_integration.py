@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use
 """Integration tests for enum types in decompiler and calling conventions."""
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.types"  # pylint:disable=redefined-builtin

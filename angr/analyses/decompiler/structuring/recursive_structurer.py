@@ -15,7 +15,6 @@ from .structurer_nodes import BaseNode
 from .structurer_base import StructurerBase
 from .dream import DreamStructurer
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 

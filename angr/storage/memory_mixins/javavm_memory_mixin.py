@@ -18,7 +18,6 @@ from angr.engines.soot.values import (
 )
 from angr.storage.memory_mixins.memory_mixin import MemoryMixin
 
-
 l = logging.getLogger(name=__name__)
 
 

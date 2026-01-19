@@ -124,7 +124,7 @@ class PartialConstantExprRewriter(AILBlockRewriter):
         self.varid = varid
         self.zero_high_bits = zero_high_bits
 
-    def _handle_BinaryOp(  # type:ignore
+    def _handle_BinaryOp(  # type: ignore
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         if (
@@ -2147,7 +2147,7 @@ class AILSimplifier(Analysis):
             if rewriter.result is not None:
                 _any_update.v = True
                 if walker._update_block and block is not None:
-                    block.statements[stmt_idx] = rewriter.result  # type:ignore
+                    block.statements[stmt_idx] = rewriter.result  # type: ignore
                 assert isinstance(rewriter.result, Statement)
                 return rewriter.result
             return stmt

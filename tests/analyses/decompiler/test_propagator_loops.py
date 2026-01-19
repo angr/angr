@@ -61,8 +61,7 @@ class TestPropagatorLoops(unittest.TestCase):
         return snodes[1].condition
 
     def test_loop_counter_reg(self):
-        cond = self._test_loop_variant_common(
-            """
+        cond = self._test_loop_variant_common("""
             push rbp
             push rbx
             mov ebx, 0xa
@@ -72,14 +71,12 @@ class TestPropagatorLoops(unittest.TestCase):
             jnz loop
             pop rbx
             pop rbp
-            ret"""
-        )
+            ret""")
         # TODO: we should only get vvar_\d+ != 0 once we implement value numbering
         assert re.match(r"\(vvar_\d+{r40|4b} != 0x1<32>\)", str(cond)) is not None
 
     def test_loop_counter_stack(self):
-        cond = self._test_loop_variant_common(
-            """
+        cond = self._test_loop_variant_common("""
             push rbp
             mov rbp, rsp
             sub rsp, 8
@@ -90,8 +87,7 @@ class TestPropagatorLoops(unittest.TestCase):
             cmp dword ptr [rsp], 9
             jle loop
             leave
-            ret"""
-        )
+            ret""")
         assert re.match(r"\(vvar_\d+{s-16|4b} <=s 0x9<32>\)", str(cond)) is not None
 
 

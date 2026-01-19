@@ -59,7 +59,6 @@ from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .rewrite_conv_mul import RewriteConvMul
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
-
 ALL_PEEPHOLE_OPTS: list[Any] = [
     ADivConstAddAMulNDivConst,
     AMulConstDivShrConst,

@@ -5,8 +5,7 @@ from __future__ import annotations
 __version__ = "9.2.194.dev0"
 
 if bytes is str:
-    raise Exception(
-        """
+    raise Exception("""
 
 =-=-=-=-=-=-=-=-=-=-=-=-=  WELCOME TO THE FUTURE!  =-=-=-=-=-=-=-=-=-=-=-=-=-=
 
@@ -19,8 +18,7 @@ vaccinations. It hurts a little bit initially but in the end it's worth it.
 For more information, see here: https://docs.angr.io/appendix/migration
 
 Good luck!
-"""
-    )
+""")
 
 from .utils.formatting import setup_terminal
 

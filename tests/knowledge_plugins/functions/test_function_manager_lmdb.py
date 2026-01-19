@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint:disable=missing-class-docstring
 """Test cases for FunctionManager LMDB save/load and LRU cache functionality."""
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.functions"  # pylint:disable=redefined-builtin
@@ -11,7 +12,6 @@ import unittest
 import angr
 
 from tests.common import bin_location
-
 
 test_location = os.path.join(bin_location, "tests")
 

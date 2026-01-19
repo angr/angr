@@ -10,7 +10,6 @@ from angr.ailment.block import Block
 
 from .structuring.structurer_nodes import ConditionNode, MultiNode
 
-
 l = logging.getLogger(name=__name__)
 
 

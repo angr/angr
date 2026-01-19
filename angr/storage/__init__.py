@@ -6,7 +6,6 @@ from .file import SimFile
 from .memory_object import SimMemoryObject
 from .memory_mixins import DefaultMemory
 
-
 __all__ = (
     "DUMMY_SYMBOLIC_READ_VALUE",
     "DefaultMemory",

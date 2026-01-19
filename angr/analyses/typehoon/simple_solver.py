@@ -1548,7 +1548,7 @@ class SimpleSolver:
 
         # initialize the reaching-push sets R(x)
         for x, y, data in graph.edges(data=True):
-            if "label" in data and data.get("label")[1] == "forget":  # type:ignore
+            if "label" in data and data.get("label")[1] == "forget":  # type: ignore
                 d = data["label"][0], x
                 R[y].add(d)
 

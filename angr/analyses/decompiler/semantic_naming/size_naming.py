@@ -5,6 +5,7 @@ Semantic variable naming for size/length/count variables.
 This module detects variables used as sizes, lengths, or counts and names them
 appropriately (e.g., size, len, count, n).
 """
+
 from __future__ import annotations
 import logging
 from collections import defaultdict

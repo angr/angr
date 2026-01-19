@@ -35,7 +35,6 @@ from .structuring.structurer_nodes import (
 from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
 
-
 l = logging.getLogger(__name__)
 l.addFilter(UniqueLogFilter())
 

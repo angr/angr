@@ -6,7 +6,6 @@ import claripy
 
 import angr
 
-
 l = logging.getLogger(name=__name__)
 
 Dirent = namedtuple("dirent", ("d_ino", "d_off", "d_reclen", "d_type", "d_name"))

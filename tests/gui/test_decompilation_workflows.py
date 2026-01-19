@@ -10,7 +10,6 @@ import angr
 from angr.sim_type import SimTypeInt, TypeRef
 from tests.common import bin_location, print_decompilation_result
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

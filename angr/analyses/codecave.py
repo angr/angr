@@ -6,7 +6,6 @@ from dataclasses import dataclass
 
 from angr.analyses import Analysis, AnalysesHub
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 

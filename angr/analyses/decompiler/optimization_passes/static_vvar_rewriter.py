@@ -9,7 +9,6 @@ from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(__name__)
 
 

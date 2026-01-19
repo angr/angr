@@ -10,7 +10,6 @@ from .inspect import BP_AFTER, BP_BEFORE
 from .plugin import SimStatePlugin
 from .sim_action import SimActionObject, SimActionData
 
-
 l = logging.getLogger(name=__name__)
 
 

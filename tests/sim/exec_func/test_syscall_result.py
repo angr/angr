@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 arches = {"mips", "mipsel", "mips64", "x86_64", "ppc", "ppc64"}

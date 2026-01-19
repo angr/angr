@@ -14,7 +14,6 @@ from angr.analyses.decompiler.optimization_passes import (
     PostStructuringPeepholeOptimizationPass,
 )
 
-
 preset_basic = DecompilationPreset(
     "basic",
     [

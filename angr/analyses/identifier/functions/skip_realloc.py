@@ -4,7 +4,6 @@ import logging
 from angr.analyses.identifier.func import Func, TestData
 from angr.errors import SimMemoryError
 
-
 l = logging.getLogger(name=__name__)
 
 

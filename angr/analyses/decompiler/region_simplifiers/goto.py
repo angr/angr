@@ -16,7 +16,6 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
 from .node_address_finder import NodeAddressFinder
 from angr.analyses.decompiler.goto_manager import Goto
 
-
 l = logging.getLogger(name=__name__)
 
 

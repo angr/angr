@@ -1,7 +1,6 @@
 from __future__ import annotations
 from .errors import SimStateOptionsError
 
-
 _NO_DEFAULT_VALUE = "_NO_DEFAULT_VALUE"  # please god don't use this value as the default value of your state option
 
 

@@ -18,7 +18,6 @@ from angr.storage.memory_mixins import LabeledMemory
 from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
 
-
 if TYPE_CHECKING:
     from archinfo import Arch
 

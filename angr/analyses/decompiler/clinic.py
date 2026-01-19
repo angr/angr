@@ -227,7 +227,7 @@ class Clinic(Analysis):
         # intermediate variables used during decompilation
         #
 
-        self._ail_graph: networkx.DiGraph = None  # type:ignore
+        self._ail_graph: networkx.DiGraph = None  # type: ignore
         self._spt = None
         # cached block-level reaching definition analysis results and propagator results
         self._block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
@@ -989,7 +989,7 @@ class Clinic(Analysis):
         return graph_copy
 
     def copy_graph(self, graph=None) -> networkx.DiGraph:
-        return self._copy_graph(graph or self.graph)  # type:ignore
+        return self._copy_graph(graph or self.graph)  # type: ignore
 
     @timethis
     def _set_function_graph(self):
@@ -1112,7 +1112,7 @@ class Clinic(Analysis):
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
-                    fail_fast=self._fail_fast,  # type:ignore
+                    fail_fast=self._fail_fast,  # type: ignore
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -1988,10 +1988,10 @@ class Clinic(Analysis):
         tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
-            fail_fast=self._fail_fast,  # type:ignore
+            fail_fast=self._fail_fast,  # type: ignore
             func_graph=ail_graph,
             entry_node_addr=self.entry_node_addr,
-            kb=tmp_kb,  # type:ignore
+            kb=tmp_kb,  # type: ignore
             track_sp=False,
             func_args=arg_list,
             func_ret_var=self.func_ret_var,

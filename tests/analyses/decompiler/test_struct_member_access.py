@@ -11,7 +11,6 @@ from angr import default_cc
 
 from tests.common import bin_location, print_decompilation_result
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

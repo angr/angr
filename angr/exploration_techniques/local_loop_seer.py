@@ -5,7 +5,6 @@ from collections import defaultdict
 
 from .base import ExplorationTechnique
 
-
 l = logging.getLogger(name=__name__)
 
 

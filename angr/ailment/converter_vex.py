@@ -24,7 +24,6 @@ from .expression import (
 )
 from .converter_common import SkipConversionNotice, Converter
 
-
 log = logging.getLogger(name=__name__)
 
 

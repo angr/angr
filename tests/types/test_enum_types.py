@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # pylint: disable=missing-class-docstring,no-self-use
 """Tests for SimTypeEnum and SimTypeBitfield types."""
+
 from __future__ import annotations
 
 import unittest

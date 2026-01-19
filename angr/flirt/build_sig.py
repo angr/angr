@@ -10,7 +10,6 @@ from collections import defaultdict
 
 import angr
 
-
 UNIQUE_STRING_COUNT = 20
 # strings longer than MAX_UNIQUE_STRING_LEN will be truncated
 MAX_UNIQUE_STRING_LEN = 70

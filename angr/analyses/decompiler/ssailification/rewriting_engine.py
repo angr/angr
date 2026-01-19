@@ -42,7 +42,6 @@ from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.utils.ssa import get_reg_offset_base_and_size
 from .rewriting_state import RewritingState
 
-
 _l = logging.getLogger(__name__)
 
 

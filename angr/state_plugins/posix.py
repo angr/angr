@@ -11,7 +11,6 @@ from angr.storage.file import SimFile, SimPacketsStream, Flags, SimFileDescripto
 from .filesystem import SimMount, Stat
 from .plugin import SimStatePlugin
 
-
 l = logging.getLogger(name=__name__)
 
 max_fds = 8192
