@@ -416,13 +416,19 @@ def has_load_expr_in_between_stmts(
     )
 
 
-def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
+def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None, stack_arg_offsets: set[int] | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
         if isinstance(def_stmt, Assignment):
             # do not create huge insert chains
             return not isinstance(def_stmt.src, Insert)
         return True
-    if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
+    if vvar.was_stack and isinstance(def_stmt, Assignment):
+        if (
+            stack_arg_offsets is not None
+            and vvar.stack_offset in stack_arg_offsets
+            and not isinstance(def_stmt.src, Phi)
+        ):
+            return True
         if (
             isinstance(def_stmt.src, VirtualVariable)
             and def_stmt.src.was_stack

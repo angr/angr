@@ -213,7 +213,7 @@ class Clinic(Analysis):
         self._type_constraint_set_degradation_threshold = type_constraint_set_degradation_threshold
         self.vvar_id_start = vvar_id_start
         self.vvar_to_vvar: dict[int, int] | None = None
-        self._stackarg_offsets = None
+        self._stackarg_offsets: set[tuple[int, int]] | None = None
         self._removed_vvar_ids = None
 
         self.notes = notes if notes is not None else {}
@@ -697,9 +697,17 @@ class Clinic(Analysis):
 
         # Make call-sites again so we may identify variadic function arguments
         self._update_progress(50.0, text="Making callsites")
-        _, self._stackarg_offsets, self._removed_vvar_ids = self._make_callsites(
+        _, _stackarg_offsets, _removed_vvar_ids = self._make_callsites(
             self._ail_graph, self.func_args, stack_pointer_tracker=self._spt, preserve_vvar_ids=self._preserve_vvar_ids
         )
+        if self._stackarg_offsets is not None:
+            self._stackarg_offsets |= _stackarg_offsets
+        else:
+            self._stackarg_offsets = _stackarg_offsets
+        if self._removed_vvar_ids is not None:
+            self._removed_vvar_ids |= _removed_vvar_ids
+        else:
+            self._removed_vvar_ids = _removed_vvar_ids
 
         # Simplify the entire function for the first time
         self._update_progress(45.0, text="Simplifying function 1")

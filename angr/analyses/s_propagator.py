@@ -9,6 +9,7 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     Const,
+    Phi,
     VirtualVariable,
     VirtualVariableCategory,
     StackBaseOffset,
@@ -173,6 +174,7 @@ class SPropagatorAnalysis(Analysis):
                 and isinstance(stmt.dst, VirtualVariable)
                 and stmt.dst.was_stack
                 and stmt.dst.stack_offset in self.stack_arg_offsets
+                and not isinstance(stmt.src, Phi)
             ):
                 # force propagation of stack variables to callsites
                 r = True
@@ -285,7 +287,7 @@ class SPropagatorAnalysis(Analysis):
                         self.model.dead_vvar_ids.add(vvar.varid)
                         continue
 
-                if is_vvar_propagatable(vvar, stmt):
+                if is_vvar_propagatable(vvar, stmt, self.stack_arg_offsets):
                     if len(vvar_uselocs_set) == 1:
                         vvar_used, vvar_useloc = next(iter(vvar_uselocs_set))
                         if (
