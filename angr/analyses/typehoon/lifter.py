@@ -17,7 +17,20 @@ from angr.sim_type import (
     SimCppClass,
     SimTypeEnum,
 )
-from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array, Float32, Float64, Enum
+from .typeconsts import (
+    BottomType,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Pointer32,
+    Pointer64,
+    Struct,
+    Array,
+    Float32,
+    Float64,
+    Enum,
+)
 
 if TYPE_CHECKING:
     from .typeconsts import TypeConstant

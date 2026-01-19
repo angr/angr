@@ -380,11 +380,7 @@ class Enum(TypeConstant):
         return f"enum#{self.idx}{name_str}{{{members_str}}}"
 
     def __eq__(self, other):
-        return (
-            type(other) is type(self)
-            and self.idx == other.idx
-            and self.members == other.members
-        )
+        return type(other) is type(self) and self.idx == other.idx and self.members == other.members
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:
