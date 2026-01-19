@@ -540,7 +540,7 @@ class SimEngineLightAIL(
             "Store": self._handle_stmt_Store,
             "Jump": self._handle_stmt_Jump,
             "ConditionalJump": self._handle_stmt_ConditionalJump,
-            "Call": self._handle_stmt_Call,
+            "CallStmt": self._handle_stmt_Call,
             "Return": self._handle_stmt_Return,
             "DirtyStatement": self._handle_stmt_DirtyStatement,
             "Label": self._handle_stmt_Label,
@@ -559,7 +559,7 @@ class SimEngineLightAIL(
             "Load": self._handle_expr_Load,
             "Register": self._handle_expr_Register,
             "ITE": self._handle_expr_ITE,
-            "Call": self._handle_expr_Call,
+            "CallExpr": self._handle_expr_Call,
             "DirtyExpression": self._handle_expr_DirtyExpression,
             "VEXCCallExpression": self._handle_expr_VEXCCallExpression,
             "MultiStatementExpression": self._handle_expr_MultiStatementExpression,
@@ -724,7 +724,7 @@ class SimEngineLightAIL(
     def _handle_stmt_ConditionalJump(self, stmt: ailment.statement.ConditionalJump) -> StmtDataType: ...
 
     @abstractmethod
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> StmtDataType: ...
+    def _handle_stmt_Call(self, stmt: ailment.statement.CallStmt) -> StmtDataType: ...
 
     @abstractmethod
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType: ...
@@ -783,7 +783,7 @@ class SimEngineLightAIL(
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co: ...
+    def _handle_expr_Call(self, expr: ailment.expression.CallExpr) -> DataType_co: ...
 
     @abstractmethod
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co: ...
@@ -1093,7 +1093,7 @@ class SimEngineNoexprAIL(
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co | None:
         pass
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co | None:
+    def _handle_expr_Call(self, expr: ailment.expression.CallExpr) -> DataType_co | None:
         pass
 
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co | None:

@@ -8,7 +8,7 @@ from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
-    Call,
+    CallStmt,
     CAS,
     Return,
     ConditionalJump,
@@ -17,6 +17,7 @@ from angr.ailment.statement import (
 )
 from angr.ailment.expression import (
     Atom,
+    CallExpr,
     Expression,
     VirtualVariable,
     Load,
@@ -221,7 +222,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         new_fp_ret_expr = self._expr(stmt.fp_ret_expr) if stmt.fp_ret_expr is not None else None
 
         if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
-            return Call(
+            return CallStmt(
                 stmt.idx,
                 stmt.target if new_target is None else new_target,
                 calling_convention=stmt.calling_convention,
@@ -424,20 +425,16 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
     def _handle_expr_StackBaseOffset(self, expr):
         return None
 
-    def _handle_expr_Call(self, expr: Call):
+    def _handle_expr_Call(self, expr: CallExpr):
         new_target = self._expr(expr.target) if expr.target is not None and not isinstance(expr.target, str) else None
-        new_ret_expr = self._expr(expr.ret_expr) if expr.ret_expr is not None else None
-        new_fp_ret_expr = self._expr(expr.fp_ret_expr) if expr.fp_ret_expr is not None else None
 
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
-            return Call(
+        if new_target is not None:
+            return CallExpr(
                 expr.idx,
                 expr.target if new_target is None else new_target,
                 calling_convention=expr.calling_convention,
                 prototype=expr.prototype,
                 args=expr.args,
-                ret_expr=expr.ret_expr if new_ret_expr is None else new_ret_expr,
-                fp_ret_expr=expr.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
                 bits=expr.bits,
                 **expr.tags,
             )

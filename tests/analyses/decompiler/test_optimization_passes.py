@@ -9,7 +9,7 @@ import unittest
 
 import networkx as nx
 from angr.ailment import Block, Assignment, Register, Const, BinaryOp
-from angr.ailment.statement import Return, Store, ConditionalJump, Call
+from angr.ailment.statement import Return, Store, ConditionalJump, CallStmt
 
 import angr
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
@@ -139,7 +139,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
             0x400037,
             1,
             [
-                Call(None, "always_called", None, None, [r(0)]),  # Must not be moved
+                CallStmt(None, "always_called", None, None, [r(0)]),  # Must not be moved
                 Return(None, []),
             ],
         )
@@ -158,7 +158,7 @@ class TestFlipBooleanCmp(unittest.TestCase):
         assert isinstance(seq.nodes[0], Block)
         assert isinstance(seq.nodes[1], ConditionNode)
         assert isinstance(seq.nodes[2], Block)
-        assert isinstance(seq.nodes[2].statements[0], Call)
+        assert isinstance(seq.nodes[2].statements[0], CallStmt)
         assert isinstance(seq.nodes[2].statements[1], Return)
 
         pre_transform_seq_repr = seq.dbg_repr()

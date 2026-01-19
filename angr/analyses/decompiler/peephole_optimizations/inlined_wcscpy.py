@@ -6,7 +6,7 @@ from archinfo import Endness
 
 from angr.ailment import BinaryOp
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Call, Assignment, Statement, Store
+from angr.ailment.statement import CallStmt, Assignment, Statement, Store
 
 from angr.sim_type import SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
@@ -54,7 +54,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
             assert s is not None
             str_id = self.kb.custom_strings.allocate(s)
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
-            return Call(
+            return CallStmt(
                 stmt.idx,
                 "wcsncpy",
                 args=[
@@ -97,7 +97,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
 
                     str_id = self.kb.custom_strings.allocate(s)
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
-                    return Call(
+                    return CallStmt(
                         stmt.idx,
                         "wcsncpy",
                         args=[
@@ -246,7 +246,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_wcsncpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
+            isinstance(stmt, CallStmt)
             and isinstance(stmt.target, str)
             and stmt.target == "wcsncpy"
             and stmt.args is not None

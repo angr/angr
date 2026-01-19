@@ -9,7 +9,8 @@ from angr.analyses.decompiler.sequence_walker import SequenceWalker
 
 if TYPE_CHECKING:
     from angr.ailment import Address
-    from angr.ailment.statement import Call
+    from angr.ailment.statement import CallStmt
+    from angr.ailment.expression import CallExpr
 
 
 class AILBlockCallCounter(AILBlockViewer):
@@ -22,23 +23,23 @@ class AILBlockCallCounter(AILBlockViewer):
         super().__init__()
         self.calls: int = 0
         self.consider_conditions = consider_conditions
-        self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
-        self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
+        self.call_stmts: list[tuple[tuple[Address | None, int], CallStmt]] = []
+        self.call_exprs: list[tuple[tuple[Address | None, int], CallExpr]] = []
 
     def _handle_ConditionalJump(self, stmt_idx: int, stmt: ConditionalJump, block: Block | None):
         if not self.consider_conditions:
             return
         super()._handle_ConditionalJump(stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt, block: Block | None):
+    def _handle_CallExpr(self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt, block: Block | None):
         self.calls += 1
         self.call_exprs.append((((block.addr, block.idx) if block is not None else None, stmt_idx), expr))
         super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_CallStmt(self, stmt_idx: int, stmt: CallStmt, block: Block | None):
         self.calls += 1
         self.call_stmts.append((((block.addr, block.idx) if block is not None else None, stmt_idx), stmt))
-        super()._handle_Call(stmt_idx, stmt, block)
+        super()._handle_CallStmt(stmt_idx, stmt, block)
 
 
 class AILCallCounter(SequenceWalker):
@@ -55,8 +56,8 @@ class AILCallCounter(SequenceWalker):
         self.calls = 0
         self.non_label_stmts = 0
         self.consider_conditions = consider_conditions
-        self.call_stmts: list[tuple[tuple[Address | None, int], Call]] = []
-        self.call_exprs: list[tuple[tuple[Address | None, int], Call]] = []
+        self.call_stmts: list[tuple[tuple[Address | None, int], CallStmt]] = []
+        self.call_exprs: list[tuple[tuple[Address | None, int], CallExpr]] = []
 
     def _handle_Condition(self, node, **kwargs):
         if self.consider_conditions:

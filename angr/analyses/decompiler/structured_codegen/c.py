@@ -11,7 +11,7 @@ import re
 
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.constant import UNDETERMINED_SIZE
-from angr.ailment.expression import StackBaseOffset, BinaryOp
+from angr.ailment.expression import CallExpr, StackBaseOffset, BinaryOp
 from unique_log_filter import UniqueLogFilter
 
 from angr.sim_type import (
@@ -2672,7 +2672,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
             Stmt.WeakAssignment: self._handle_Stmt_WeakAssignment,
-            Stmt.Call: self._handle_Stmt_Call,
+            Stmt.CallStmt: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
@@ -2693,6 +2693,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
+            Expr.CallExpr: self._handle_Expr_Call,
         }
 
         self._func = func
@@ -3325,7 +3326,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # special case for Call
             converted = (
                 handler(node, is_expr=is_expr)
-                if isinstance(node, Stmt.Call)
+                if isinstance(node, Stmt.CallStmt | CallExpr)
                 else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
@@ -3586,7 +3587,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_Call(self, stmt: Stmt.CallStmt, **kwargs):
         try:
             # Try to handle it as a normal function call
             target = self._handle(stmt.target, lvalue=True) if not isinstance(stmt.target, str) else stmt.target
@@ -3629,33 +3630,21 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 args.append(new_arg)
 
         ret_expr = None
-        if not is_expr and stmt.ret_expr is not None:
+        if stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
-        result = CFunctionCall(
+        return CFunctionCall(
             target,
             target_func,
             args,
             returning=target_func.returning if target_func is not None else True,
             ret_expr=ret_expr,
             tags=stmt.tags,
-            is_expr=is_expr,
+            is_expr=False,
             show_demangled_name=self.show_demangled_name,
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
-
-        if result.is_expr and result.type.size != stmt.size * self.project.arch.byte_width:
-            result = CTypeCast(
-                result.type,
-                self.default_simtype_from_bits(
-                    stmt.size * self.project.arch.byte_width, signed=getattr(result.type, "signed", False)
-                ),
-                result,
-                codegen=self,
-            )
-
-        return result
 
     def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
@@ -4075,6 +4064,72 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # FIXME
         stack_base = CFakeVariable("stack_base", SimTypePointer(SimTypeBottom()), codegen=self)
         return CBinaryOp("Add", stack_base, CConstant(expr.offset, SimTypeInt(), codegen=self), codegen=self)
+
+    def _handle_Expr_Call(self, expr: Expr.CallExpr, **kwargs):
+        try:
+            # Try to handle it as a normal function call
+            target = self._handle(expr.target, lvalue=True) if not isinstance(expr.target, str) else expr.target
+        except UnsupportedNodeTypeError:
+            target = expr.target
+
+        if (
+            isinstance(target, CUnaryOp)
+            and target.op == "Reference"
+            and isinstance(target.operand, CVariable)
+            and isinstance(target.operand.variable, SimMemoryVariable)
+            and not isinstance(target.operand.variable, SimStackVariable)
+            and target.operand.variable.size == 1
+        ):
+            # special case: convert &global_var to just global_var if it's used as the call target
+            target = target.operand
+
+        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
+
+        args = []
+        if expr.args is not None:
+            for i, arg in enumerate(expr.args):
+                type_ = None
+                if (
+                    target_func is not None
+                    and target_func.prototype is not None
+                    and i < len(target_func.prototype.args)
+                ):
+                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    if target_func.prototype_libname is not None:
+                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
+
+                if isinstance(arg, Expr.Const):
+                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
+                        type_ = guess_value_type(arg.value, self.project) or type_
+
+                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                else:
+                    new_arg = self._handle(arg, type_=type_)
+                args.append(new_arg)
+
+        result = CFunctionCall(
+            target,
+            target_func,
+            args,
+            returning=target_func.returning if target_func is not None else True,
+            tags=expr.tags,
+            is_expr=True,
+            show_demangled_name=self.show_demangled_name,
+            show_disambiguated_name=self.show_disambiguated_name,
+            codegen=self,
+        )
+
+        if result.type.size != expr.size * self.project.arch.byte_width:
+            result = CTypeCast(
+                result.type,
+                self.default_simtype_from_bits(
+                    expr.size * self.project.arch.byte_width, signed=getattr(result.type, "signed", False)
+                ),
+                result,
+                codegen=self,
+            )
+
+        return result
 
 
 class CStructuredCodeWalker:

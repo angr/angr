@@ -180,16 +180,33 @@ class RegionSimplifier(Analysis):
             if fail:
                 continue
 
-            if isinstance(definition, ailment.Stmt.Call):
+            if isinstance(definition, ailment.statement.CallStmt):
                 # clear the existing variable since we no longer write to this variable after expression folding
-                definition = definition.copy()
-                if definition.ret_expr is not None:
-                    definition.ret_expr = definition.ret_expr.copy()
-                    definition.ret_expr.variable = None
+                # definition = definition.copy()
+                # if definition.ret_expr is not None:
+                #     definition.ret_expr = definition.ret_expr.copy()
+                #     definition.ret_expr.variable = None
+                tags = dict(definition.tags)
+                tags["variable"] = None
+                definition = ailment.expression.CallExpr(
+                    definition.idx,
+                    definition.target,
+                    calling_convention=definition.calling_convention,
+                    prototype=definition.prototype,
+                    args=definition.args,
+                    bits=definition.bits,
+                    **tags,
+                )
+
+            else:
+                print(type(definition))
+
             variable_assignments[var] = definition, loc
             variable_uses[var] = next(iter(expr_counter.outerscope_uses[var]))
             variable_assignment_dependencies[var] = deps
 
+        for e in variable_assignments.values():
+            assert isinstance(e[0], ailment.Expression)
         # any variable definition that uses an existing to-be-removed variable cannot be folded
         all_variables_to_fold = set(variable_assignments)
         for var in all_variables_to_fold:
@@ -197,12 +214,16 @@ class RegionSimplifier(Analysis):
                 del variable_assignments[var]
                 del variable_uses[var]
 
+        for e in variable_assignments.values():
+            assert isinstance(e[0], ailment.Expression)
         # ensure there is no interference between the call site and the use site
         checker = InterferenceChecker(variable_assignments, variable_uses, region)
         for varid in checker.interfered_assignments:
             if varid in variable_assignments:
                 del variable_assignments[varid]
                 del variable_uses[varid]
+        for e in variable_assignments.values():
+            assert isinstance(e[0], ailment.Expression)
         # fold these expressions if possible
         ExpressionFolder(variable_assignments, variable_uses, region)
         return region

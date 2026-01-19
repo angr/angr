@@ -1,7 +1,6 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Const, Expression, Convert
-from angr.ailment.statement import Call
+from angr.ailment.expression import CallExpr, BinaryOp, Const, Expression, Convert
 
 from .base import PeepholeOptimizationExprBase
 from .utils import get_expr_shift_left_amount
@@ -41,11 +40,11 @@ class Bswap(PeepholeOptimizationExprBase):
                 ):
                     r, the_expr = self._match_inner(or_first, or_second)
                     if r:
-                        return Call(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
+                        return CallExpr(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
 
                     r, the_expr = self._match_inner(or_second, or_first)
                     if r:
-                        return Call(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
+                        return CallExpr(expr.idx, "__builtin_bswap16", args=[the_expr], bits=expr.bits, **expr.tags)
 
                     return None
 
@@ -100,7 +99,7 @@ class Bswap(PeepholeOptimizationExprBase):
                     (">>", 8, 0xFF00),
                 }:
                     core_expr = next(iter(cores))
-                    return Call(expr.idx, "__buildin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
+                    return CallExpr(expr.idx, "__buildin_bswap32", args=[core_expr], bits=expr.bits, **expr.tags)
 
         return None
 

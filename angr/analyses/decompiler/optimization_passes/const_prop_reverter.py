@@ -7,8 +7,8 @@ import networkx
 import claripy
 from angr.ailment import Const
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from angr.ailment.expression import Convert, Register, Expression, Load
+from angr.ailment.statement import CallStmt, Statement, ConditionalJump, Assignment, Store, Return
+from angr.ailment.expression import CallExpr, Convert, Register, Expression, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
@@ -30,7 +30,7 @@ class PairAILBlockRewriter:
 
         _default_stmt_handlers = {
             Assignment: self._handle_Assignment_pair,
-            Call: self._handle_Call_pair,
+            CallStmt: self._handle_Call_pair,
             Store: self._handle_Store_pair,
             ConditionalJump: self._handle_ConditionalJump_pair,
             Return: self._handle_Return_pair,
@@ -42,7 +42,7 @@ class PairAILBlockRewriter:
 
     # pylint: disable=no-self-use
     def _walk_block(self, block):
-        walked_objs = {Assignment: set(), Call: set(), Store: set(), ConditionalJump: set(), Return: set()}
+        walked_objs = {Assignment: set(), CallStmt: set(), Store: set(), ConditionalJump: set(), Return: set()}
 
         # create a walker that will:
         # 1. recursively expand a stmt with the default handler then,
@@ -52,7 +52,7 @@ class PairAILBlockRewriter:
         walker = AILBlockViewer()
         _default_stmt_handlers = {
             Assignment: walker._handle_Assignment,
-            Call: walker._handle_Call,
+            CallStmt: walker._handle_CallStmt,
             Store: walker._handle_Store,
             ConditionalJump: walker._handle_ConditionalJump,
             Return: walker._handle_Return,
@@ -63,12 +63,12 @@ class PairAILBlockRewriter:
             walked_objs[type(stmt)].add(stmt)
 
         # pylint: disable=unused-argument
-        def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
-            walked_objs[Call].add(expr)
+        def _handle_call_stmt(expr_idx: int, expr: CallStmt, stmt_idx: int, stmt: Statement, block_):
+            walked_objs[CallStmt].add(expr)
 
         _stmt_handlers = dict.fromkeys(walked_objs, _handle_ail_obj)
         walker.stmt_handlers = _stmt_handlers
-        walker.expr_handlers[Call] = _handle_call_expr
+        walker.expr_handlers[CallExpr] = _handle_call_stmt
 
         walker.walk(block)
         return walked_objs
@@ -165,7 +165,7 @@ class ConstPropOptReverter(OptimizationPass):
         self.out_graph = self._graph.copy()
 
         _pair_stmt_handlers = {
-            Call: self._handle_Call_pair,
+            CallStmt: self._handle_Call_pair,
             Return: self._handle_Return_pair,
         }
 
@@ -273,7 +273,7 @@ class ConstPropOptReverter(OptimizationPass):
             if isinstance(expr, Convert):
                 unpacked_expr = expr.operands[0]
 
-            if isinstance(unpacked_expr, (Const, Call)):
+            if isinstance(unpacked_expr, (Const, CallExpr)):
                 const_expr = expr
             else:
                 symb_expr = expr
@@ -284,7 +284,7 @@ class ConstPropOptReverter(OptimizationPass):
         # now we do specific cases for matching
         if (
             isinstance(symb_expr, Register)
-            and isinstance(const_expr, Call)
+            and isinstance(const_expr, CallExpr)
             and isinstance(const_expr.ret_expr, Register)
         ):
             # Handles the following case
@@ -323,7 +323,7 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Calls
     #
 
-    def _handle_Call_pair(self, obj0: Call, blk0, obj1: Call, blk1):
+    def _handle_Call_pair(self, obj0: CallStmt, blk0, obj1: CallStmt, blk1):
         if obj0 is obj1:
             return
 
@@ -353,7 +353,7 @@ class ConstPropOptReverter(OptimizationPass):
         self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
 
     @staticmethod
-    def find_conflicting_call_args(call0: Call, call1: Call):
+    def find_conflicting_call_args(call0: CallStmt, call1: CallStmt):
         if not call0.args or not call1.args:
             return None
 

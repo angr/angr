@@ -1,5 +1,5 @@
 from __future__ import annotations
-from angr.ailment import Expr, Stmt
+from angr.ailment import Expr
 
 from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
@@ -366,7 +366,7 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
 
-                        return Stmt.Call(
+                        return Expr.CallExpr(
                             ccall.idx,
                             "__CFADD__",
                             calling_convention=SimCCUsercall(self.project.arch, [], None),

@@ -4,8 +4,8 @@ from __future__ import annotations
 import networkx
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Assignment, Call, Return
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.statement import Assignment, CallStmt, Return
+from angr.ailment.expression import CallExpr, VirtualVariable
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.code_location import AILCodeLocation
@@ -119,9 +119,9 @@ class SReachingDefinitionsAnalysis(Analysis):
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
                     if (  # pylint:disable=too-many-boolean-expressions
-                        (isinstance(stmt, Call) and stmt.args is None)
-                        or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
-                        or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))
+                        (isinstance(stmt, CallStmt) and stmt.args is None)
+                        or (isinstance(stmt, Assignment) and isinstance(stmt.src, CallExpr) and stmt.src.args is None)
+                        or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], CallExpr))
                     ):
                         call_stmt_ids.append(((block.addr, block.idx), stmt_idx))
 
@@ -133,12 +133,14 @@ class SReachingDefinitionsAnalysis(Analysis):
 
                 block = blocks[(block_addr, block_idx)]
                 stmt = block.statements[stmt_idx]
-                assert isinstance(stmt, (Call, Assignment, Return))
+                assert isinstance(stmt, (CallStmt, Assignment, Return))
 
                 call = (
-                    stmt if isinstance(stmt, Call) else stmt.src if isinstance(stmt, Assignment) else stmt.ret_exprs[0]
+                    stmt
+                    if isinstance(stmt, CallStmt)
+                    else stmt.src if isinstance(stmt, Assignment) else stmt.ret_exprs[0]
                 )
-                assert isinstance(call, Call)
+                # assert isinstance(call, CallStmt)
 
                 # conservatively add uses to all registers that are potentially used here
                 if call.calling_convention is not None:

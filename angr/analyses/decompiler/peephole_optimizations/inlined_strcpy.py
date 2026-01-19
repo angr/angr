@@ -5,7 +5,7 @@ import string
 from archinfo import Endness
 
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement
+from angr.ailment.statement import CallStmt, Assignment, Store, Statement
 
 from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
@@ -67,7 +67,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                return Call(
+                return CallStmt(
                     stmt.idx,
                     "strncpy",
                     args=[
@@ -121,7 +121,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         block.statements = [ss for ss in block.statements if ss is not None]
 
                         str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                        return Call(
+                        return CallStmt(
                             stmt.idx,
                             "strncpy",
                             args=[
@@ -207,7 +207,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_strcpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
+            isinstance(stmt, CallStmt)
             and isinstance(stmt.target, str)
             and stmt.target == "strncpy"
             and stmt.args is not None

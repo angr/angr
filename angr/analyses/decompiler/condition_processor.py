@@ -890,7 +890,7 @@ class ConditionProcessor:
             (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE),
         ):
             return _dummy_bvs(condition, self._condition_mapping)
-        if isinstance(condition, ailment.Stmt.Call):
+        if isinstance(condition, ailment.expression.CallExpr):
             return _dummy_bvs(condition, self._condition_mapping, name_suffix=hex(condition.tags.get("ins_addr", 0)))
         if isinstance(condition, (ailment.Expr.Load, ailment.Expr.Register, ailment.Expr.VirtualVariable)):
             # does it have a variable associated?

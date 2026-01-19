@@ -4,7 +4,7 @@ from collections import defaultdict
 import networkx
 from angr.ailment import Block
 from angr.ailment.expression import VirtualVariable
-from angr.ailment.statement import Assignment, Call, ConditionalJump
+from angr.ailment.statement import Assignment, CallStmt, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
 from angr.knowledge_plugins.functions.function import Function
@@ -108,7 +108,7 @@ class SLivenessAnalysis(Analysis):
                 # handle assignments: a defined vvar is not live before the assignment
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     live.discard(stmt.dst.varid)
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                elif isinstance(stmt, CallStmt) and isinstance(stmt.ret_expr, VirtualVariable):
                     live.discard(stmt.ret_expr.varid)
 
                 phi_expr = phi_assignment_get_src(stmt)
@@ -181,7 +181,7 @@ class SLivenessAnalysis(Analysis):
             for stmt in reversed(stmts):
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvar = stmt.dst.varid
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                elif isinstance(stmt, CallStmt) and isinstance(stmt.ret_expr, VirtualVariable):
                     def_vvar = stmt.ret_expr.varid
                 else:
                     def_vvar = None
@@ -231,7 +231,7 @@ class SLivenessAnalysis(Analysis):
                 stmt_idx = len(stmts) - i - 1
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
                     def_vvar = stmt.dst.varid
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
+                elif isinstance(stmt, CallStmt) and isinstance(stmt.ret_expr, VirtualVariable):
                     def_vvar = stmt.ret_expr.varid
                 else:
                     def_vvar = None

@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
-from angr.ailment.expression import Const, VirtualVariable, Load
+from angr.ailment.expression import CallExpr, Const, VirtualVariable, Load
 from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
-from angr.ailment.statement import Call
+from angr.ailment.statement import CallStmt
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -94,7 +94,7 @@ class VVarRewritingVisitor(AILBlockRewriter):
 
         return super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement, block: Block | None):
         if expr.target in {"strlen", "wcslen"} and expr.args:
             arg = expr.args[0]
             if isinstance(arg, VirtualVariable) and arg.varid in self._static_vvars:
@@ -180,14 +180,12 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     new_args.append(arg)
 
             if new_args is not None:
-                return Call(
+                return CallExpr(
                     expr.idx,
                     expr.target,
                     calling_convention=expr.calling_convention,
                     prototype=expr.prototype,
                     args=new_args,
-                    ret_expr=expr.ret_expr,
-                    fp_ret_expr=expr.fp_ret_expr,
                     bits=expr.bits,
                     **expr.tags,
                 )
@@ -225,7 +223,7 @@ class VVarAliasVisitor(AILBlockViewer):
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None):
         return Offset(expr.value, expr.bits)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_CallStmt(self, stmt_idx: int, stmt: CallStmt, block: Block | None):
         if (
             stmt.target == "memcpy"
             and isinstance(stmt.args[0], VirtualVariable)
@@ -241,12 +239,12 @@ class VVarAliasVisitor(AILBlockViewer):
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
                 else:
                     # TODO: Support other cases
-                    return super()._handle_Call(stmt_idx, stmt, block)
+                    return super()._handle_CallStmt(stmt_idx, stmt, block)
                 if ident not in self._static_buffers:
                     self._static_buffers[ident] = fixed_buffer
                 self._static_vvars[dst.varid] = FixedBufferPtr(ident, 0)
 
-        return super()._handle_Call(stmt_idx, stmt, block)
+        return super()._handle_CallStmt(stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         op0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)

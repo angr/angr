@@ -6,8 +6,8 @@ from typing import Any, TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment import Expression, Block, AILBlockRewriter
-from angr.ailment.expression import ITE, Atom, Load, VirtualVariable
-from angr.ailment.statement import Statement, Assignment, Call, Return
+from angr.ailment.expression import CallExpr, ITE, Atom, Load, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, Return
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
@@ -301,12 +301,12 @@ class ExpressionCounter(SequenceWalker):
                     )
                 )
         if (
-            isinstance(stmt, ailment.Stmt.Call)
+            isinstance(stmt, ailment.Stmt.CallStmt)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
             and stmt.ret_expr.was_reg
         ):
             dependency_finder = ExpressionUseFinder()
-            dependency_finder.walk_expression(stmt)
+            dependency_finder.walk_statement(stmt)
             dependencies = tuple(dependency_finder.uses)
             self.assignments[stmt.ret_expr.varid].add(
                 (
@@ -404,7 +404,7 @@ class ExpressionSpotter(VVarUsesCollector):
         self.has_calls: bool = False
         self.has_loads: bool = False
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, expr_idx: int, expr: CallExpr, stmt_idx: int, stmt: Statement, block: Block | None):
         self.has_calls = True
         return super()._handle_CallExpr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -463,11 +463,11 @@ class InterferenceChecker(SequenceWalker):
             the_call = None
             if (
                 isinstance(stmt, Assignment)
-                and isinstance(stmt.src, ailment.Stmt.Call)
+                and isinstance(stmt.src, ailment.expression.CallExpr)
                 and not isinstance(stmt.src.target, str)
             ):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
+            elif isinstance(stmt, ailment.Stmt.CallStmt) and not isinstance(stmt.target, str):
                 the_call = stmt
             if the_call is not None:
                 assert isinstance(the_call.target, ailment.Stmt.Expression)
@@ -489,7 +489,7 @@ class InterferenceChecker(SequenceWalker):
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
 
-            if isinstance(stmt, ailment.Stmt.Call):
+            if isinstance(stmt, ailment.Stmt.CallStmt):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
@@ -505,7 +505,7 @@ class InterferenceChecker(SequenceWalker):
                 self._assignment_interferences[stmt.dst.varid] = []
 
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.CallStmt)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
@@ -571,6 +571,8 @@ class InterferenceChecker(SequenceWalker):
 
 class ExpressionReplacer(AILBlockRewriter):
     def __init__(self, assignments: dict[int, Any], uses: dict[int, Any]):
+        for v in uses.values():
+            assert isinstance(v[0], Expression)
         super().__init__()
         self._assignments = assignments
         self._uses = uses
@@ -629,7 +631,7 @@ class ExpressionReplacer(AILBlockRewriter):
         changed = False
 
         dst = self._handle_expr(0, stmt.dst, stmt_idx, stmt, block)
-        if dst is not stmt.dst and not isinstance(dst, (Call, ITE)):
+        if dst is not stmt.dst and not isinstance(dst, (CallExpr, ITE)):
             changed = True
         else:
             dst = stmt.dst
@@ -650,6 +652,7 @@ class ExpressionReplacer(AILBlockRewriter):
     ) -> Expression:
         if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_reg and expr.varid in self._uses:
             replace_with, _ = self._assignments[expr.varid]
+            assert isinstance(replace_with, Expression)
             return replace_with
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -665,6 +668,8 @@ class ExpressionFolder(SequenceWalker):
         }
 
         super().__init__(handlers)
+        for v in assignments.values():
+            assert isinstance(v[0], Expression)
         self._assignments = assignments
         self._uses = uses
         self.walk(node)
@@ -682,7 +687,7 @@ class ExpressionFolder(SequenceWalker):
                 # remove this statement
                 continue
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.CallStmt)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None

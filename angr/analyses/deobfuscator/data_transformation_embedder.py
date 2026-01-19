@@ -7,8 +7,8 @@ import networkx
 import claripy
 from angr import sim_options
 from angr.ailment import Block
-from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Const, UnaryOp
+from angr.ailment.statement import Assignment, CallStmt
+from angr.ailment.expression import CallExpr, VirtualVariable, VirtualVariableCategory, Const, UnaryOp
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.analyses import Analysis
@@ -200,11 +200,11 @@ class DataTransformationEmbedder(Analysis):
         # FIXME: We are only doing this because we were using clinic.graph instead of clinic.cc_graph above
         for stmt_idx, call_stmt in enumerate(block.statements):
             call_stmt = block.statements[stmt_idx]
-            if isinstance(call_stmt, Call):
+            if isinstance(call_stmt, CallStmt):
                 dst = None
                 callsite_stmt_idx = stmt_idx
                 break
-            if isinstance(call_stmt, Assignment) and isinstance(call_stmt.src, Call):
+            if isinstance(call_stmt, Assignment) and isinstance(call_stmt.src, CallExpr):
                 dst = call_stmt.dst
                 callsite_stmt_idx = stmt_idx
                 break
@@ -274,7 +274,7 @@ class DataTransformationEmbedder(Analysis):
                 )
                 buf_size = len(data)
                 # TODO: Ensure the source of the return value is from malloc
-                alloc_expr = Call(
+                alloc_expr = CallExpr(
                     None,
                     "malloc",
                     args=[Const(None, None, buf_size, self.project.arch.bits)],
@@ -287,7 +287,7 @@ class DataTransformationEmbedder(Analysis):
                 src_expr = Const(
                     None, None, str_id, self.project.arch.bits, ins_addr=callsite_insaddr, custom_string=True
                 )
-                assign_stmt = Call(
+                assign_stmt = CallStmt(
                     None,
                     "memcpy",
                     args=[dst, src_expr, Const(None, None, len(data), self.project.arch.bits)],
@@ -440,7 +440,7 @@ class DataTransformationEmbedder(Analysis):
                     new_vvars = new_vvars_list[0]
                     bad = False
                     for vvar_id, (_, initial_assignment) in list(frontier_var_assignments.items()):
-                        if isinstance(initial_assignment, Call) and vvar_id in new_vvars:
+                        if isinstance(initial_assignment, CallStmt) and vvar_id in new_vvars:
                             # TODO: Check if it's a supported call
                             frontier_var_values[vvar_id] = new_vvars[vvar_id]
                             if isinstance(initial_assignment.args[-1], Const):
@@ -586,14 +586,14 @@ class DataTransformationEmbedder(Analysis):
         stmts = []
         for vvar_id, v in var_values.items():
             old_vvar, old_assignment = var_assignments[vvar_id]
-            if isinstance(old_assignment, Call):  # TODO: Ensure it's a buffer-allocating call
+            if isinstance(old_assignment, CallStmt):  # TODO: Ensure it's a buffer-allocating call
                 assign_stmt = Assignment(None, old_vvar, old_assignment, ins_addr=addr)
                 stmts.append(assign_stmt)
                 buffer_addr = v.concrete_value
                 str_id = self.project.kb.custom_strings.allocate(known_buffers[buffer_addr])
                 src_expr = Const(None, None, str_id, v.size(), ins_addr=addr, custom_string=True)
                 size_expr = Const(None, None, len(known_buffers[buffer_addr]), v.size(), ins_addr=addr)
-                memcpy_stmt = Call(None, "memcpy", args=[old_vvar, src_expr, size_expr], ins_addr=addr)
+                memcpy_stmt = CallStmt(None, "memcpy", args=[old_vvar, src_expr, size_expr], ins_addr=addr)
                 stmts.append(memcpy_stmt)
             else:
                 const_expr = Const(None, None, v.concrete_value, v.size(), ins_addr=addr)

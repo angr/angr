@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
-from angr.ailment.statement import Call, Store
+from angr.ailment.statement import CallStmt, Store
 
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationMultiStmtBase
@@ -17,16 +17,16 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
     __slots__ = ()
 
     NAME = "Consolidate multiple inlined strcpy calls"
-    stmt_classes = ((Call, Call), (Call, Store))
+    stmt_classes = ((CallStmt, CallStmt), (CallStmt, Store))
 
-    def optimize(self, stmts: list[Call], **kwargs):
+    def optimize(self, stmts: list[CallStmt], **kwargs):
         last_stmt, stmt = stmts
         if InlinedStrcpy.is_inlined_strcpy(last_stmt):
             s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedStrcpy.is_inlined_strcpy(stmt):
+            if isinstance(stmt, CallStmt) and InlinedStrcpy.is_inlined_strcpy(stmt):
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
                 addr_curr = stmt.args[0]
@@ -70,7 +70,7 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     ]
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
+                return [CallStmt(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
 
         return None
 
