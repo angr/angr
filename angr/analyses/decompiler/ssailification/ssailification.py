@@ -106,6 +106,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._def_to_udef,
             self._extern_defs,
             vvar_id_start=vvar_id_start,
+            stackvars=self._ssa_stackvars,
         )
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0

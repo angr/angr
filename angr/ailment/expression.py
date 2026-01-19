@@ -1636,6 +1636,7 @@ class Extract(Expression):
         self.bits = bits
         self.base = base
         self.offset = offset
+        assert self.base.bits >= self.bits
 
     def is_lsb_extract(self, arch: archinfo.Arch) -> bool:
         if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):

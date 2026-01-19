@@ -323,6 +323,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         return result
 
     def _handle_expr_StackBaseOffset(self, expr: StackBaseOffset) -> Value:
+        if not self.stackvars:
+            return set()
         if not isinstance(expr.offset, int):
             return set()
 

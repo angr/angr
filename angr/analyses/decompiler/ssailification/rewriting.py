@@ -48,6 +48,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         def_to_udef: MutableMapping[Def, UDef],
         extern_defs: set[UDef],
         vvar_id_start: int = 0,
+        stackvars: bool = False,
     ):
         self.project = project
         self._function = func
@@ -69,6 +70,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,
+            stackvars=stackvars,
         )
 
         self._visited_blocks: set[Any] = set()

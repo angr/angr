@@ -66,6 +66,7 @@ class SimEngineSSARewriting(
         def_to_udef: MutableMapping[Def, UDef],
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
+        stackvars: bool = False,
     ):
         super().__init__(project)
 
@@ -75,6 +76,7 @@ class SimEngineSSARewriting(
         self.ail_manager = ail_manager
         self.head_controlled_loop_outstate: RewritingState | None = None
         self.def_to_udef = def_to_udef
+        self.stackvars = stackvars
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
@@ -201,7 +203,7 @@ class SimEngineSSARewriting(
 
     def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | tuple[Assignment, ...] | None:
         new_data = self._expr(stmt.data)
-        if stmt.guard is None and isinstance(stmt.addr, StackBaseOffset):
+        if self.stackvars and stmt.guard is None and isinstance(stmt.addr, StackBaseOffset):
             # vvar assignment
             vvar = self._expr_to_vvar(stmt.addr, False)
             assert isinstance(stmt.addr.offset, int)
@@ -321,7 +323,7 @@ class SimEngineSSARewriting(
         )
 
     def _handle_expr_Load(self, expr: Load) -> Expression | None:
-        if isinstance(expr.addr, StackBaseOffset):
+        if self.stackvars and isinstance(expr.addr, StackBaseOffset):
             # vvar assignment
             vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
@@ -493,6 +495,9 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
+        if not self.stackvars:
+            return None
+
         vvar = self._expr_to_vvar(expr, True)
         refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
         if expr in self.def_to_udef:
