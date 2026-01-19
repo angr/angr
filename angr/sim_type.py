@@ -2042,7 +2042,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "members")
-    _args = ("members", "base_type", "name", "label", "qualifier")
+    _args = ("members", "base_type", "name", "qualifier")
     _ident = "enum"
 
     def __init__(
@@ -2050,10 +2050,9 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         members: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(name=name if name is not None else "<anon>")
         self.members: dict[str, int] = dict(members)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
@@ -2086,7 +2085,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=self.members,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2132,7 +2130,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=dict(self.members),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2156,7 +2153,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "flags")
-    _args = ("flags", "base_type", "name", "label", "qualifier")
+    _args = ("flags", "base_type", "name", "qualifier")
     _ident = "bitfield"
 
     def __init__(
@@ -2164,10 +2161,9 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         flags: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(None, name=name if name is not None else "<anon>")
         self.flags: dict[str, int] = dict(flags)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         # Sort flags by value (descending) to prefer higher-value flags when resolving
@@ -2254,7 +2250,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=self.flags,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2301,7 +2296,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=dict(self.flags),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2562,6 +2556,9 @@ class SimTypeRef(SimType):
         super().__init__(label=name)
         self.original_type = original_type
         self.qualifier = qualifier
+
+        if isinstance(original_type, SimTypeRef):
+            raise TypeError("SimTypeRef cannot reference another SimTypeRef")
 
     @property
     def name(self) -> str | None:

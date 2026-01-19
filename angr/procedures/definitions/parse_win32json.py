@@ -75,10 +75,12 @@ def get_angr_type_from_name(name):
 
 
 def get_typeref_if_available(t: angr.types.SimType) -> angr.types.SimType:
-    if isinstance(t, angr.types.SimStruct) and t.name and not is_anonymous_struct(t.name):
+    if isinstance(t, angr.types.SimTypeRef):
+        return t
+    if isinstance(t, (angr.types.SimStruct, angr.types.SimTypeEnum)) and t.name and not is_anonymous_struct(t.name):
         # replace it with a SimTypeRef to avoid duplicate definition
-        t = angr.types.SimTypeRef(t.name, angr.types.SimStruct)
-    if t.label is not None and t.label in typelib:
+        t = angr.types.SimTypeRef(t.name, t.__class__)
+    elif t.label is not None and t.label in typelib:
         t = angr.types.SimTypeRef(t.label, t.__class__)
     return t
 
@@ -136,38 +138,44 @@ def create_angr_type_from_json(t):
         new_typedef = handle_json_type(t)
         typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
-        # TODO: Handle Enums
         match t["IntegerBase"]:
             case "SByte":
-                ty_cls = angr.types.SimTypeChar
+                base_type_cls = angr.types.SimTypeChar
                 signed = True
             case "Byte":
-                ty_cls = angr.types.SimTypeChar
+                base_type_cls = angr.types.SimTypeChar
                 signed = False
             case "Int16":
-                ty_cls = angr.types.SimTypeShort
+                base_type_cls = angr.types.SimTypeShort
                 signed = True
             case "UInt16":
-                ty_cls = angr.types.SimTypeShort
+                base_type_cls = angr.types.SimTypeShort
                 signed = False
             case "Int32":
-                ty_cls = angr.types.SimTypeInt
+                base_type_cls = angr.types.SimTypeInt
                 signed = True
             case "UInt32":
-                ty_cls = angr.types.SimTypeInt
+                base_type_cls = angr.types.SimTypeInt
                 signed = False
             case "Int64":
-                ty_cls = angr.types.SimTypeLongLong
+                base_type_cls = angr.types.SimTypeLongLong
                 signed = True
             case "UInt64":
-                ty_cls = angr.types.SimTypeLongLong
+                base_type_cls = angr.types.SimTypeLongLong
                 signed = False
             case None:
-                ty_cls = angr.types.SimTypeInt
+                base_type_cls = angr.types.SimTypeInt
                 signed = False
             case _:
                 raise NotImplementedError(f"Unsupported IntegerBase {t['IntegerBase']}")
-        ty = ty_cls(signed=signed, label=t["Name"])
+        base_type = base_type_cls(signed=signed)
+
+        # values
+        values: dict[str, int] = {}
+        for d in t["Values"]:
+            values[d["Name"]] = d["Value"]
+
+        ty = angr.types.SimTypeEnum(values, base_type=base_type, name=t["Name"])
         typelib.add(t["Name"], ty)
     elif t["Kind"] == "Struct":
         known_struct_names.add(t["Name"])
