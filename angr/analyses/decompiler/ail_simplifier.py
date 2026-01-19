@@ -348,6 +348,7 @@ class AILSimplifier(Analysis):
             func_args=func_args,
             # gp=self._gp,
             only_consts=self._only_consts,
+            stack_arg_offsets={x for _, x in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None,
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
@@ -1753,7 +1754,7 @@ class AILSimplifier(Analysis):
                                 # we always remove unused phi variables
                                 pass
                             elif (def_codeloc.block_addr, def_codeloc.block_idx) in retpoints:
-                                # slack variable assignments in endpoint blocks are potentially removable.
+                                # stack variable assignments in endpoint blocks are potentially removable.
                                 # note that this is a hack! we should rely on more reliable stack variable
                                 # eliminatability detection.
                                 pass

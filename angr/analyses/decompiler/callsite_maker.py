@@ -318,6 +318,9 @@ class CallSiteMaker(Analysis):
                 )
                 self.stack_arg_offsets = None
             else:
+                if sp_offset >= (1 << (self.project.arch.bits - 1)):
+                    # make it a signed integer
+                    sp_offset -= 1 << self.project.arch.bits
                 self.stack_arg_offsets = {
                     (call_stmt.tags["ins_addr"], sp_offset + arg.stack_offset - stackarg_sp_diff)
                     for arg in stack_arg_locs
@@ -437,8 +440,7 @@ class CallSiteMaker(Analysis):
             sp_offset = sp_base + offset
             if sp_offset >= (1 << (self.project.arch.bits - 1)):
                 # make it a signed integer
-                mask = (1 << self.project.arch.bits) - 1
-                sp_offset = -(((~sp_offset) & mask) + 1)
+                sp_offset -= 1 << self.project.arch.bits
 
             if self._reaching_definitions is not None:
                 # find its definition

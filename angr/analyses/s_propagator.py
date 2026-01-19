@@ -67,6 +67,7 @@ class SPropagatorAnalysis(Analysis):
         func_args: set[VirtualVariable] | None = None,
         func_addr: int | None = None,
         ail_manager: Manager | None = None,
+        stack_arg_offsets: set[int] | None = None,
     ):
         if isinstance(subject, Block):
             self.block = subject
@@ -85,6 +86,7 @@ class SPropagatorAnalysis(Analysis):
         self.only_consts = only_consts
         self._sp_tracker = stack_pointer_tracker
         self._ail_manager = ail_manager
+        self.stack_arg_offsets = stack_arg_offsets
 
         bp_as_gpr = False
         the_func = None
@@ -165,6 +167,16 @@ class SPropagatorAnalysis(Analysis):
             r, v = is_const_assignment(stmt)
             if r and v is not None and v.tags.get("always_propagate", False):
                 pass
+            elif (
+                self.stack_arg_offsets is not None
+                and isinstance(stmt, Assignment)
+                and isinstance(stmt.dst, VirtualVariable)
+                and stmt.dst.was_stack
+                and stmt.dst.stack_offset in self.stack_arg_offsets
+            ):
+                # force propagation of stack variables to callsites
+                r = True
+                v = stmt.src
             elif not vvar.was_reg and not vvar.was_parameter:
                 continue
 

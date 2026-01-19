@@ -1193,8 +1193,9 @@ class SimCC:
             arg_ident = _arg_ident(arg)
             if arg_ident not in all_fp_args and arg_ident not in all_int_args and arg_ident not in some_both_args:
                 if isinstance(arg, SimRegArg) and arg.reg_name in sample_inst.CALLER_SAVED_REGS:
-                    continue
-                return False
+                    # if we see an undefined use of a caller-saved register, this must not be right
+                    return False
+                continue
             new_args.append(arg)
 
         # update args (e.g., drop caller-saved register arguments)
