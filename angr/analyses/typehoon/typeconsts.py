@@ -342,6 +342,70 @@ class Struct(TypeConstant):
         )
 
 
+_ENUM_ID = itertools.count()
+
+
+class Enum(TypeConstant):
+    """
+    Enum type constant for type inference.
+
+    :ivar members:      Mapping of enum member names to their integer values
+    :ivar base_type:    The underlying type constant (defaults to Int32)
+    :ivar idx:          Unique identifier for this enum
+    """
+
+    def __init__(
+        self,
+        members: dict[str, int] | None = None,
+        base_type: TypeConstant | None = None,
+        name: str | None = None,
+        idx: int = -1,
+    ):
+        super().__init__(name=name)
+        self.members: dict[str, int] = members if members is not None else {}
+        self.base_type = base_type
+        self.idx = idx if idx != -1 else next(_ENUM_ID)
+
+    @property
+    def size(self) -> int:
+        """Return the size of the enum in bytes."""
+        if self.base_type is not None:
+            return self.base_type.size
+        return 4  # Default to 32-bit int size
+
+    @memoize
+    def __repr__(self, memo=None):
+        members_str = ", ".join(f"{k}={v}" for k, v in self.members.items())
+        name_str = f" {self.name}" if self.name else ""
+        return f"enum#{self.idx}{name_str}{{{members_str}}}"
+
+    def __eq__(self, other):
+        return (
+            type(other) is type(self)
+            and self.idx == other.idx
+            and self.members == other.members
+        )
+
+    def _hash(self, visited: set[int]):
+        if id(self) in visited:
+            return 0
+        visited.add(id(self))
+        return hash((type(self), self.idx, tuple(sorted(self.members.items()))))
+
+    def __hash__(self):
+        return self._hash(set())
+
+    def replace(
+        self,
+        mapping: dict[TypeConstant, TypeConstant],
+        memo: set | None = None,
+    ) -> TypeConstant:
+        if self in mapping:
+            return mapping[self]
+        # Enums don't contain nested types that need recursive replacement
+        return self
+
+
 class Function(TypeConstant):
     def __init__(self, params: list, outputs: list, name: str | None = None):
         super().__init__(name=name)

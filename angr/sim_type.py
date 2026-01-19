@@ -4104,7 +4104,41 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.Enum):
         # See C99 at 6.7.2.2
-        return ALL_TYPES["int"].with_arch(arch)
+        # Parse enum members if present
+        members: dict[str, int] = {}
+        if decl.values is not None:
+            next_value = 0
+            for enumerator in decl.values.enumerators:
+                if enumerator.value is not None:
+                    try:
+                        next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
+                    except ValueError:
+                        pass  # Keep the auto-incremented value
+                members[enumerator.name] = next_value
+                next_value += 1
+
+        enum_name = decl.name
+        if enum_name is not None:
+            key = "enum " + enum_name
+            existing = extra_types.get(key) if extra_types else None
+            if existing is None:
+                existing = ALL_TYPES.get(key)
+            if existing is not None and isinstance(existing, SimTypeEnum):
+                # Update existing enum with members if it was forward-declared
+                if not existing.members and members:
+                    existing.members = members
+                return existing.with_arch(arch)
+
+            enum_type = SimTypeEnum(members, name=enum_name)
+            enum_type._arch = arch
+            if extra_types is not None:
+                extra_types[key] = enum_type
+            return enum_type
+
+        # Anonymous enum
+        enum_type = SimTypeEnum(members)
+        enum_type._arch = arch
+        return enum_type
 
     raise ValueError("Unknown type!")
 
@@ -4141,6 +4175,12 @@ def _parse_const(c, arch=None, extra_types=None):
     if type(c) is c_ast.UnaryOp:
         if c.op == "sizeof":
             return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
+        if c.op == "-":
+            return -_parse_const(c.expr, arch, extra_types)
+        if c.op == "+":
+            return _parse_const(c.expr, arch, extra_types)
+        if c.op == "~":
+            return ~_parse_const(c.expr, arch, extra_types)
         raise ValueError(f"Unary op {c.op}")
     if type(c) is c_ast.Cast:
         return _parse_const(c.expr, arch, extra_types)
