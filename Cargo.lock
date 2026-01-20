@@ -684,7 +684,7 @@ dependencies = [
 [[package]]
 name = "icicle-cpu"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "addr2line",
  "ahash",
@@ -704,7 +704,7 @@ dependencies = [
 [[package]]
 name = "icicle-fuzzing"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "ahash",
  "anyhow",
@@ -724,7 +724,7 @@ dependencies = [
 [[package]]
 name = "icicle-jit"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "cranelift",
  "cranelift-codegen",
@@ -742,7 +742,7 @@ dependencies = [
 [[package]]
 name = "icicle-linux"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "bitflags 2.9.1",
  "bstr",
@@ -758,7 +758,7 @@ dependencies = [
 [[package]]
 name = "icicle-mem"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "ahash",
  "tracing",
@@ -767,7 +767,7 @@ dependencies = [
 [[package]]
 name = "icicle-vm"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "anyhow",
  "icicle-cpu",
@@ -1104,7 +1104,7 @@ dependencies = [
 [[package]]
 name = "pcode"
 version = "0.2.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 
 [[package]]
 name = "petgraph"
@@ -1514,7 +1514,7 @@ checksum = "56199f7ddabf13fe5074ce809e7d3f42b42ae711800501b5b16ea82ad029c39d"
 [[package]]
 name = "sleigh-compile"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "pcode",
  "serde",
@@ -1527,12 +1527,12 @@ dependencies = [
 [[package]]
 name = "sleigh-parse"
 version = "0.3.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 
 [[package]]
 name = "sleigh-runtime"
 version = "0.1.0"
-source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=632dde378c03e2cbaca6c9d41c4379dd824ec65f#632dde378c03e2cbaca6c9d41c4379dd824ec65f"
+source = "git+https://github.com/icicle-emu/icicle-emu.git?rev=6040b08d23e8690b98f950cff5847fe5daa093f7#6040b08d23e8690b98f950cff5847fe5daa093f7"
 dependencies = [
  "ahash",
  "pcode",
