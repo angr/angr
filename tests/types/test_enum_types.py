@@ -80,7 +80,6 @@ class TestSimTypeEnum(unittest.TestCase):
         enum = SimTypeEnum(
             members={"A": 0, "B": 1},
             name="test",
-            label="test_label",
             qualifier=["const"],
         )
         arch = archinfo.ArchAMD64()
@@ -138,7 +137,6 @@ class TestSimTypeEnum(unittest.TestCase):
         enum = SimTypeEnum(
             members={"A": 0, "B": 1},
             name="test",
-            label="lbl",
             qualifier=["const"],
         )
         copied = enum.copy()
@@ -289,7 +287,6 @@ class TestSimTypeBitfield(unittest.TestCase):
         bf = SimTypeBitfield(
             flags={"A": 1, "B": 2},
             name="test",
-            label="lbl",
             qualifier=["const"],
         )
         arch = archinfo.ArchAMD64()
@@ -332,7 +329,6 @@ class TestSimTypeBitfield(unittest.TestCase):
         bf = SimTypeBitfield(
             flags={"A": 1, "B": 2},
             name="test",
-            label="lbl",
         )
         copied = bf.copy()
         assert copied.flags == bf.flags

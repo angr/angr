@@ -135,7 +135,11 @@ def handle_json_type(t, create_missing: bool = False):
 
 def create_angr_type_from_json(t):
     if t["Kind"] == "NativeTypedef":
-        new_typedef = handle_json_type(t)
+        # special case: PWSTR is a pointer to WCHAR
+        if t["Name"] == "PWSTR":
+            new_typedef = angr.types.SimTypePointer(angr.types.SimTypeWideChar(label="WCHAR"), label="PWSTR")
+        else:
+            new_typedef = handle_json_type(t)
         typelib.add(t["Name"], new_typedef)
     elif t["Kind"] == "Enum":
         match t["IntegerBase"]:

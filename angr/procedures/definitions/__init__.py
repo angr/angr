@@ -74,7 +74,7 @@ class SimTypeCollection:
             if isinstance(d, str):
                 d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
             try:
-                t = SimType.from_json(d)
+                t = SimType.from_json(d, type_collection=self)
             except (TypeError, ValueError) as ex:
                 l.warning("Failed to load type %s from JSON", name, exc_info=True)
                 # the type is missing

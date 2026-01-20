@@ -3754,16 +3754,10 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
         text = d.codegen.text
-        # *((unsigned short *)((char *)&v5 + 2 * v25)) = *((short *)((char *)&v5 + 2 * v25)) ^ 145 + (unsigned short)v25;
+        # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
 
-        m0 = re.search(
-            r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
-            r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
-            r"145 \+ \(unsigned short\)[^;\n]*v\d+;",
-            text,
-        )
-        m1 = re.search(r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ [^;\n]*v\d+\);", text)
-        assert m0 is not None or m1 is not None
+        m1 = re.search(r"\*\(\(unsigned short \*\)&v\d+\[v\d+\]\) = v\d+\[v\d+\] \^ 145 \+ [^;\n]*v\d+;", text)
+        assert m1 is not None
 
     @structuring_algo("sailr")
     def test_less_ret_dupe_gs_data_processor(self, decompiler_options=None):

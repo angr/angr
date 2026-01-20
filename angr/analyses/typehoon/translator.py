@@ -140,6 +140,8 @@ class TypeTranslator:
         return sim_type.SimTypeChar(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int16(self, tc):
+        if tc.name in {"WCHAR"}:
+            return sim_type.SimTypeWideChar(label=tc.name).with_arch(self.arch)
         return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
@@ -232,6 +234,9 @@ class TypeTranslator:
     def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
         return typeconsts.Int8(name=st.label)
 
+    def _translate_SimTypeWideChar(self, st: sim_type.SimTypeWideChar) -> typeconsts.Int16:
+        return typeconsts.Int16(name=st.label)
+
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
         fields = {}
         offsets = st.offsets
@@ -293,6 +298,7 @@ TypeConstHandlers = {
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
+    sim_type.SimTypeWideChar: TypeTranslator._translate_SimTypeWideChar,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
     sim_type.SimTypeShort: TypeTranslator._translate_SimTypeShort,
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,

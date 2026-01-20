@@ -5,7 +5,7 @@ import contextlib
 import copy
 import re
 import logging
-from typing import Literal, Any, cast, overload
+from typing import Literal, Any, cast, overload, TYPE_CHECKING
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
 from collections.abc import MutableMapping
@@ -18,7 +18,7 @@ import cxxheaderparser.types
 import pycparser
 from pycparser import c_ast
 
-from angr.errors import AngrTypeError
+from angr.errors import AngrTypeError, AngrMissingTypeError
 from angr.sim_state import SimState
 
 StoreType = int | claripy.ast.BV
@@ -28,6 +28,10 @@ l = logging.getLogger(name=__name__)
 # pycparser hack to parse type expressions
 errorlog = logging.getLogger(name=__name__ + ".yacc")
 errorlog.setLevel(logging.ERROR)
+
+
+if TYPE_CHECKING:
+    from angr.procedures.definitions import SimTypeCollection
 
 
 class SimType:
@@ -199,17 +203,27 @@ class SimType:
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]):
+    def from_json(d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None):
         """
         Deserialize a type class from a JSON-compatible dictionary.
         """
+        if memo is None:
+            memo = set()
+
         assert "_t" in d
         cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
-            return cls.from_json(d)
+            t = cls.from_json(d)
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
+                # attempt to resolve the type ref
+                with contextlib.suppress(AngrMissingTypeError):
+                    return type_collection.get(t.name)
+            return t
 
         kwargs = {}
+        if "name" in d:
+            memo.add(d["name"])
         for field in cls._args:
             field_key = "q" if field == "qualifier" else field
             if field_key not in d:
@@ -217,12 +231,12 @@ class SimType:
             value = d[field_key]
             if isinstance(value, dict):
                 if "_t" in value:
-                    value = SimType.from_json(value)
+                    value = SimType.from_json(value, type_collection=type_collection, memo=memo)
                 else:
                     new_value = {}
                     for k, v in value.items():
                         if isinstance(v, dict) and "_t" in v:
-                            new_value[k] = SimType.from_json(v)
+                            new_value[k] = SimType.from_json(v, type_collection=type_collection, memo=memo)
                         else:
                             new_value[k] = v
                     value = new_value
@@ -230,7 +244,7 @@ class SimType:
                 new_value = []
                 for v in value:
                     if isinstance(v, dict) and "_t" in v:
-                        new_value.append(SimType.from_json(v))
+                        new_value.append(SimType.from_json(v, type_collection=type_collection, memo=memo))
                     else:
                         new_value.append(v)
                 value = new_value
