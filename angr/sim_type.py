@@ -1379,7 +1379,8 @@ class SimTypeFunction(SimType):
         if self.variadic:
             formatted_args.append("...")
         name_str = f"({name or ''})" if name_parens else name or ""
-        proto = f"{name_str}({', '.join(formatted_args)})"
+        args_str = ", ".join(formatted_args) if formatted_args else "void"
+        proto = f"{name_str}({args_str})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property
