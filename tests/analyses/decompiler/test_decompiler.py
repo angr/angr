@@ -601,8 +601,8 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
-            # Try without call folding
-            m = re.search(r"(\w+) = access\(\w+, 0\);\s*if \(\1 == -1\)", code)
+            # Try with 0xffff_ffff
+            m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == 4294967295\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
