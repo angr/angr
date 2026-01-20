@@ -22,7 +22,6 @@ from angr.mcp.exceptions import (
     ProjectNotFoundError,
     CFGNotBuiltError,
     FunctionNotFoundError,
-    DecompilationError,
 )
 from angr.mcp.session import get_session_manager
 
@@ -461,9 +460,7 @@ class TestGetBasicBlocks:
         main_info = get_function_info(project_id, name="main")
         main_addr = main_info["address"]
 
-        result = get_basic_blocks(
-            project_id, function_address=main_addr, include_disasm=False
-        )
+        result = get_basic_blocks(project_id, function_address=main_addr, include_disasm=False)
 
         block = result["blocks"][0]
         assert "instructions" not in block
@@ -539,9 +536,7 @@ class TestFindFunctionsByPattern:
         project_id = load_result["project_id"]
         get_cfg(project_id)
 
-        result = find_functions_by_pattern(
-            project_id, pattern="sub_", search_type="contains"
-        )
+        result = find_functions_by_pattern(project_id, pattern="sub_", search_type="contains")
 
         assert "functions" in result
         for func in result["functions"]:
@@ -553,9 +548,7 @@ class TestFindFunctionsByPattern:
         project_id = load_result["project_id"]
         get_cfg(project_id)
 
-        result = find_functions_by_pattern(
-            project_id, pattern="sub_", search_type="startswith"
-        )
+        result = find_functions_by_pattern(project_id, pattern="sub_", search_type="startswith")
 
         for func in result["functions"]:
             assert func["name"].lower().startswith("sub_")
@@ -566,9 +559,7 @@ class TestFindFunctionsByPattern:
         project_id = load_result["project_id"]
         get_cfg(project_id)
 
-        result = find_functions_by_pattern(
-            project_id, pattern=r"^sub_[0-9a-f]+$", search_type="regex"
-        )
+        result = find_functions_by_pattern(project_id, pattern=r"^sub_[0-9a-f]+$", search_type="regex")
 
         assert result["count"] >= 0
 
@@ -579,9 +570,7 @@ class TestFindFunctionsByPattern:
         get_cfg(project_id)
 
         with pytest.raises(ValueError):
-            find_functions_by_pattern(
-                project_id, pattern="test", search_type="invalid"
-            )
+            find_functions_by_pattern(project_id, pattern="test", search_type="invalid")
 
     def test_find_functions_invalid_regex(self, binary_path):
         """Test invalid regex pattern."""
@@ -590,9 +579,7 @@ class TestFindFunctionsByPattern:
         get_cfg(project_id)
 
         with pytest.raises(ValueError):
-            find_functions_by_pattern(
-                project_id, pattern="[invalid", search_type="regex"
-            )
+            find_functions_by_pattern(project_id, pattern="[invalid", search_type="regex")
 
 
 class TestListProjects:

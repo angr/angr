@@ -41,9 +41,7 @@ class SessionManager:
     def __init__(self) -> None:
         self._sessions: dict[str, ProjectSession] = {}
 
-    def create_session(
-        self, binary_path: str, **kwargs: Any
-    ) -> ProjectSession:
+    def create_session(self, binary_path: str, **kwargs: Any) -> ProjectSession:
         """
         Load a binary and create a new project session.
 
@@ -89,10 +87,7 @@ class SessionManager:
         """
         if project_id not in self._sessions:
             available = list(self._sessions.keys())
-            raise KeyError(
-                f"No project with ID '{project_id}' found. "
-                f"Available: {available}"
-            )
+            raise KeyError(f"No project with ID '{project_id}' found. " f"Available: {available}")
         return self._sessions[project_id]
 
     def list_sessions(self) -> list[dict[str, Any]]:

@@ -9,9 +9,7 @@ import sys
 
 def main() -> None:
     """Entry point for running the angr MCP server."""
-    parser = argparse.ArgumentParser(
-        description="angr MCP Server - Binary analysis via Model Context Protocol"
-    )
+    parser = argparse.ArgumentParser(description="angr MCP Server - Binary analysis via Model Context Protocol")
     parser.add_argument(
         "--transport",
         choices=["stdio", "sse"],
