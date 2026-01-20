@@ -10,9 +10,7 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.xrefs import XRef
 
 
-def serialize_function(
-    func: Function, include_blocks: bool = False
-) -> dict[str, Any]:
+def serialize_function(func: Function, include_blocks: bool = False) -> dict[str, Any]:
     """
     Serialize a Function object to a JSON-compatible dict.
 

@@ -6,11 +6,8 @@ import pytest
 import angr
 from angr.mcp.session import SessionManager, get_session_manager
 
-
 # Path to test binaries
-BIN_LOCATION = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries"
-)
+BIN_LOCATION = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "binaries")
 
 # Test binary paths
 X86_64_BINARY = os.path.join(BIN_LOCATION, "tests", "x86_64", "1after909")

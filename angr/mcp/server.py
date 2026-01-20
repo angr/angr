@@ -41,10 +41,7 @@ def _get_session(project_id: str) -> ProjectSession:
 def _require_cfg(session: ProjectSession) -> None:
     """Helper to ensure CFG exists."""
     if not session.has_cfg:
-        raise CFGNotBuiltError(
-            f"CFG not built for project {session.project_id}. "
-            "Call get_cfg first."
-        )
+        raise CFGNotBuiltError(f"CFG not built for project {session.project_id}. " "Call get_cfg first.")
 
 
 def _parse_address(address: str | int) -> int:
@@ -232,9 +229,7 @@ def get_function_info(
                 break
 
     if func is None:
-        raise FunctionNotFoundError(
-            f"Function not found: address={address}, name={name}"
-        )
+        raise FunctionNotFoundError(f"Function not found: address={address}, name={name}")
 
     return {
         "project_id": project_id,
@@ -280,18 +275,14 @@ def decompile_function(
                 break
 
     if func is None:
-        raise FunctionNotFoundError(
-            f"Function not found: address={address}, name={name}"
-        )
+        raise FunctionNotFoundError(f"Function not found: address={address}, name={name}")
 
     # Decompile
     try:
         dec = proj.analyses.Decompiler(func)
 
         if dec.codegen is None:
-            raise DecompilationError(
-                f"Decompilation failed for {func.name}: no code generated"
-            )
+            raise DecompilationError(f"Decompilation failed for {func.name}: no code generated")
 
         return {
             "project_id": project_id,
@@ -393,11 +384,7 @@ def get_strings(
                             "address": hex(md.addr),
                             "content": content,
                             "size": md.size,
-                            "type": (
-                                "unicode"
-                                if md.sort == MemoryDataSort.UnicodeString
-                                else "ascii"
-                            ),
+                            "type": ("unicode" if md.sort == MemoryDataSort.UnicodeString else "ascii"),
                         }
                     )
             except Exception:
@@ -437,11 +424,7 @@ def get_imports(project_id: str) -> dict[str, Any]:
                 "resolved": reloc.resolved,
             }
             if reloc.symbol:
-                import_info["address"] = (
-                    hex(reloc.symbol.rebased_addr)
-                    if reloc.symbol.rebased_addr
-                    else None
-                )
+                import_info["address"] = hex(reloc.symbol.rebased_addr) if reloc.symbol.rebased_addr else None
             if hasattr(reloc, "resolvewith") and reloc.resolvewith:
                 import_info["library"] = reloc.resolvewith
             imports.append(import_info)
@@ -549,9 +532,7 @@ def get_callgraph(
     if root_address:
         root_addr = _parse_address(root_address)
         if root_addr not in cg:
-            raise FunctionNotFoundError(
-                f"Function at {root_address} not found in callgraph"
-            )
+            raise FunctionNotFoundError(f"Function at {root_address} not found in callgraph")
 
         if max_depth:
             # BFS to get nodes within depth

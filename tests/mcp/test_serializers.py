@@ -90,9 +90,7 @@ class TestSerializeXref:
         """Test serializing a cross-reference."""
         # Get xrefs to main
         main_func = angr_project_with_cfg.kb.functions["main"]
-        xrefs = list(
-            angr_project_with_cfg.kb.xrefs.xrefs_by_dst.get(main_func.addr, set())
-        )
+        xrefs = list(angr_project_with_cfg.kb.xrefs.xrefs_by_dst.get(main_func.addr, set()))
 
         if not xrefs:
             pytest.skip("No xrefs found to main")
