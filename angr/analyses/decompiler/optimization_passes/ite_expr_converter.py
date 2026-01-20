@@ -79,8 +79,8 @@ class ITEExprConverter(OptimizationPass):
     )
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, ite_exprs=None, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, ite_exprs=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self._ite_exprs = ite_exprs
 
         if self._ite_exprs:

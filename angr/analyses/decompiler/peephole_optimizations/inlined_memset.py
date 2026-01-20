@@ -87,16 +87,16 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
 
                 match candidate.kind:
                     case "stack":
-                        base_expr = StackBaseOffset(None, self.project.arch.bits, candidate.offset)
+                        base_expr = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, candidate.offset)
                     case "global":
-                        base_expr = Const(None, None, candidate.offset, self.project.arch.bits)
+                        base_expr = Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits)
                     case "heap":
                         base_expr = BinaryOp(
                             None,
                             "Add",
                             [
                                 candidate.base,
-                                Const(None, None, candidate.offset, self.project.arch.bits),
+                                Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits),
                             ],
                             False,
                             bits=self.project.arch.bits,
@@ -111,8 +111,8 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                     "memset",
                     args=[
                         base_expr,
-                        Const(None, None, candidate.value, 8),
-                        Const(None, None, candidate.count, self.project.arch.bits),
+                        Const(self.manager.next_atom(), None, candidate.value, 8),
+                        Const(self.manager.next_atom(), None, candidate.count, self.project.arch.bits),
                     ],
                     prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
                     **stmt.tags,

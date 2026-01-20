@@ -57,9 +57,9 @@ class BlockSimplifier(Analysis):
     def __init__(
         self,
         block: Block | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
-        ail_manager: Manager | None = None,
         peephole_optimizations: None
         | (
             Iterable[
@@ -88,15 +88,15 @@ class BlockSimplifier(Analysis):
 
         if peephole_optimizations is None:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in EXPR_OPTS
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in STMT_OPTS
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in MULTI_STMT_OPTS
             ]
         else:

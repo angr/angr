@@ -271,18 +271,18 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         # we force the base to 64-bit because it does not really matter when we use it
 
         if isinstance(addr, VirtualVariable) and addr.was_stack:
-            return StackBaseOffset(None, 64, 0), addr.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.stack_offset
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
-            return StackBaseOffset(None, 64, 0), addr.offset
+            return StackBaseOffset(-1, 64, 0), addr.offset
         if (
             isinstance(addr, UnaryOp)
             and addr.op == "Reference"
             and isinstance(addr.operand, VirtualVariable)
             and addr.operand.was_stack
         ):
-            return StackBaseOffset(None, 64, 0), addr.operand.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
                 base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr.operands[0])

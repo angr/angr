@@ -1381,7 +1381,7 @@ class Clinic(Analysis):
                 ret_reg_offset = self.project.arch.ret_offset
                 if target_func.returning and ret_reg_offset is not None:
                     ret_expr = ailment.Expr.Register(
-                        None,
+                        self._ail_manager.next_atom(),
                         None,
                         ret_reg_offset,
                         self.project.arch.bits,
@@ -1595,10 +1595,10 @@ class Clinic(Analysis):
 
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
+            self._ail_manager,
             self.function.addr,
             fail_fast=self._fail_fast,
             stack_pointer_tracker=stack_pointer_tracker,
-            ail_manager=self._ail_manager,
             peephole_optimizations=self.peephole_optimizations,
             cached_reaching_definitions=cached_rd,
             cached_propagator=cached_prop,
@@ -1734,6 +1734,7 @@ class Clinic(Analysis):
             pass_ = timethis(pass_)
             a = pass_(
                 self.function,
+                self._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -1928,10 +1929,10 @@ class Clinic(Analysis):
                 ail_block = csm.result_block
                 simp = self.project.analyses.AILBlockSimplifier(
                     ail_block,
+                    self._ail_manager,
                     self.function.addr,
                     fail_fast=self._fail_fast,
                     stack_pointer_tracker=stack_pointer_tracker,
-                    ail_manager=self._ail_manager,
                     peephole_optimizations=self.peephole_optimizations,
                     preserve_vvar_ids=preserve_vvar_ids,
                 )

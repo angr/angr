@@ -46,7 +46,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
 
     def __init__(
         self,
-        func,
+        *args,
         # settings
         max_opt_iters: int = 4,
         max_calls_in_regions: int = 2,
@@ -60,7 +60,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
     ):
         StructuringOptimizationPass.__init__(
             self,
-            func,
+            *args,
             max_opt_iters=max_opt_iters,
             prevent_new_gotos=prevent_new_gotos,
             require_gotos=True,
@@ -71,7 +71,7 @@ class ReturnDuplicatorLow(StructuringOptimizationPass, ReturnDuplicatorBase):
         )
         ReturnDuplicatorBase.__init__(
             self,
-            func,
+            *args,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
             ri=region_identifier,

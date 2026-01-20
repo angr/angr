@@ -22,8 +22,8 @@ class RetAddrSaveSimplifier(OptimizationPass):
     NAME = "Simplify return address storage"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

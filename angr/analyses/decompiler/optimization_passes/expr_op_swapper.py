@@ -122,8 +122,8 @@ class ExprOpSwapper(SequenceOptimizationPass):
     NAME = "Swap operands of expressions as requested"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, binop_operators: dict[OpDescriptor, str] | None = None, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, binop_operators: dict[OpDescriptor, str] | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
         self._expr_operators = {} if binop_operators is None else binop_operators
 
         if self._expr_operators:

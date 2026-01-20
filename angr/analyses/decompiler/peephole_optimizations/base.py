@@ -1,5 +1,6 @@
 from __future__ import annotations
 from angr.ailment.expression import BinaryOp, UnaryOp, Expression
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Statement, Assignment
 from angr.ailment import Block
 from angr.project import Project
@@ -15,6 +16,7 @@ class PeepholeOptimizationStmtBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "manager",
         "preserve_vvar_ids",
         "project",
         "type_hints",
@@ -33,12 +35,14 @@ class PeepholeOptimizationStmtBase:
         self,
         project: Project | None,
         kb: KnowledgeBase | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
+        self.manager = ail_manager
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
@@ -55,6 +59,7 @@ class PeepholeOptimizationMultiStmtBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "manager",
         "preserve_vvar_ids",
         "project",
         "type_hints",
@@ -73,12 +78,14 @@ class PeepholeOptimizationMultiStmtBase:
         self,
         project: Project | None,
         kb: KnowledgeBase | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
+        self.manager = ail_manager
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints
@@ -95,6 +102,7 @@ class PeepholeOptimizationExprBase:
     __slots__ = (
         "func_addr",
         "kb",
+        "manager",
         "preserve_vvar_ids",
         "project",
         "type_hints",
@@ -113,12 +121,14 @@ class PeepholeOptimizationExprBase:
         self,
         project: Project | None,
         kb: KnowledgeBase | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
     ):
         self.project = project
         self.kb = kb
+        self.manager = ail_manager
         self.func_addr = func_addr
         self.preserve_vvar_ids = set() if preserve_vvar_ids is None else preserve_vvar_ids
         self.type_hints = [] if type_hints is None else type_hints

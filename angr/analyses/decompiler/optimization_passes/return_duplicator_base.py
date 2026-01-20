@@ -81,6 +81,7 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
+        manager,
         *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
@@ -96,6 +97,7 @@ class ReturnDuplicatorBase:
         # this should also be set by the optimization passes initer
         self.scratch = scratch if scratch is not None else {}
         self._func = func
+        self._manager = manager
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
         self._max_func_blocks = max_func_blocks

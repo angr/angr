@@ -31,8 +31,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
     NAME = "Duplicate default-case nodes to undo default-case node reuse caused by compiler code deduplication"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.node_idx = count(start=self._scratch.get("node_idx", 0))
 
