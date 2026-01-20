@@ -2632,10 +2632,11 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text)
+            is not None
+            or re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
     @for_all_structuring_algos
@@ -3260,7 +3261,7 @@ class TestDecompiler(unittest.TestCase):
         text = dec.codegen.text
         while_offset = text.find("while (")
         while_line = text[while_offset : text.find("\n", while_offset)]
-        for substr in ["&in_stream", "check_and_close(", "open_next_file("]:
+        for substr in ["in_stream", "check_and_close(", "open_next_file("]:
             assert while_line.find(substr) > 0
 
         # never use multi-statement expressions
@@ -5060,7 +5061,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            void* print_hello_world()
+            unsigned long long print_hello_world()
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
