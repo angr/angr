@@ -74,7 +74,8 @@ class SimEngineSSARewriting(
         self.tmp_to_vvid_cache: dict[int, int] = {}
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
-        self.head_controlled_loop_outstate: RewritingState | None = None
+        self.head_controlled_loop_instate: RewritingState | None = None
+        self.out_block: Block | None = None
         self.def_to_udef = def_to_udef
         self.stackvars = stackvars
 
@@ -105,7 +106,7 @@ class SimEngineSSARewriting(
     def process(
         self, state: RewritingState, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> None:
-        self.head_controlled_loop_outstate = None
+        self.head_controlled_loop_instate = None
         super().process(state, block=block, whitelist=whitelist, **kwargs)
 
     def _top(self, bits):
@@ -116,15 +117,20 @@ class SimEngineSSARewriting(
 
     def _process_block_end(self, block, stmt_data, whitelist):
         assert whitelist is None
+        if all(stmt is None for stmt in stmt_data):
+            self.out_block = block
+            return
+
+        self.out_block = Block(block.addr, block.original_size, idx=block.idx)
         for stmt_idx, new_stmt in enumerate(stmt_data):
             if new_stmt is not None:
                 if isinstance(new_stmt, tuple):
                     for stmt_ in new_stmt:
-                        self.state.append_statement(stmt_)
+                        self.out_block.statements.append(stmt_)
                 else:
-                    self.state.append_statement(new_stmt)
+                    self.out_block.statements.append(new_stmt)
             else:
-                self.state.append_statement(block.statements[stmt_idx])
+                self.out_block.statements.append(block.statements[stmt_idx])
 
     def _stmt(self, stmt: Statement):
         self._extra_defs = []
@@ -240,7 +246,7 @@ class SimEngineSSARewriting(
         if self.stmt_idx != len(self.block.statements) - 1 and self._is_head_controlled_loop_jump(self.block, stmt):
             # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
             # we need to make a copy of the state and use the state of this point in its successor
-            self.head_controlled_loop_outstate = self.state.copy()
+            self.head_controlled_loop_instate = self.state.copy()
 
         if new_cond is not None or new_true_target is not None or new_false_target is not None:
             return ConditionalJump(

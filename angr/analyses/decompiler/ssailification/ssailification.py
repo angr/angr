@@ -123,13 +123,11 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         udef_to_defs: defaultdict[UDef, set[Def]] = defaultdict(set)
         udef_to_blockkeys: defaultdict[UDef, set[Address]] = defaultdict(set)
         blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
-        # blockkey_to_defs: defaultdict[Address, set[Def]] = defaultdict(set)
         def_to_udef: dict[Def, UDef] = {}
         extern_defs: set[UDef] = set()
         for def_, (kind, loc, offset, size, _) in traversal.def_info.items():
             udef = (kind, offset, size)
             udef_to_defs[udef].add(def_)
-            # blockkey_to_defs[blockkey].add(def_)
             if loc.is_extern:
                 extern_defs.add(udef)
                 udef_to_blockkeys[udef].add((-1, None))

@@ -13,9 +13,9 @@ from angr.ailment import Block
 from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, Statement
 
+from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
-from angr.analyses import ForwardAnalysis
-from angr.analyses.forward_analysis import FunctionGraphVisitor
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block, extract_partial_expr
 from angr.utils.ssa import get_reg_offset_base_and_size, is_phi_assignment
 from .rewriting_engine import SimEngineSSARewriting
@@ -23,13 +23,14 @@ from .rewriting_state import RewritingState
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
+    from angr.project import Project
 
 l = logging.getLogger(__name__)
 T = TypeVar("T")
 U = TypeVar("U")
 
 
-class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, object, object]):
+class RewritingAnalysis:
     """
     RewritingAnalysis traverses the AIL graph, inserts phi nodes, and rewrites all expression uses to virtual variables
     when necessary.
@@ -37,9 +38,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
     def __init__(
         self,
-        project,
-        func,
-        ail_graph,
+        project: Project,
+        func: Function,
+        ail_graph: networkx.DiGraph[Block],
         udef_to_phiid: dict[tuple, set[int]],
         phiid_to_loc: dict[int, tuple[int, int | None]],
         rewrite_tmps: bool,
@@ -52,11 +53,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
     ):
         self.project = project
         self._function = func
-        self._graph_visitor = FunctionGraphVisitor(self._function, ail_graph)
 
-        ForwardAnalysis.__init__(
-            self, order_jobs=True, allow_merging=False, allow_widening=False, graph_visitor=self._graph_visitor
-        )
         self._graph = ail_graph
         self._udef_to_phiid = udef_to_phiid
         self._phiid_to_loc = phiid_to_loc
@@ -73,7 +70,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
             stackvars=stackvars,
         )
 
-        self._visited_blocks: set[Any] = set()
+        self._pending_states: dict[ailment.Block, RewritingState] = {}
         self.out_blocks = {}
         self.out_states = {}
         # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
@@ -88,6 +85,15 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         self._analyze()
 
         self.out_graph = self._make_new_graph(ail_graph)
+
+    def _analyze(self):
+        self._pre_analysis()
+        entry_block = next((n for n in self._graph if n.addr == self._function.addr), None)
+        entry_blocks = {n for n in self._graph if not self._graph.pred[n]}
+        if entry_block is not None:
+            entry_blocks.add(entry_block)
+        traverse_in_order(self._graph, sorted(entry_blocks), self._run_on_node)
+        self._post_analysis()
 
     @property
     def max_vvar_id(self) -> int | None:
@@ -221,22 +227,8 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
     #
 
     def _pre_analysis(self):
-        # create a mapping from phi-variable ID to udefs
-        phiid_to_udef = {}
-        for udef, phiids in self._udef_to_phiid.items():
-            for phiid in phiids:
-                phiid_to_udef[phiid] = udef
-
-        # create a mapping from each node to its phi-var IDs
-        phi_ids_by_loc: dict[tuple[int, int | None], list[int]] = {}
-        for phiid, (block_addr, block_idx) in self._phiid_to_loc.items():
-            loc = block_addr, block_idx
-            if loc not in phi_ids_by_loc:
-                phi_ids_by_loc[loc] = []
-            phi_ids_by_loc[loc].append(phiid)
-
-        for node in self.graph:
-            phi_stmts = self.create_phi_statements(node, phiid_to_udef, phi_ids_by_loc.get((node.addr, node.idx), []))
+        for node in self._graph:
+            phi_stmts = self.create_phi_statements(node, self._udef_to_phiid, self._phiid_to_loc)
             if phi_stmts:
                 self.insert_phi_statements(node, phi_stmts)
 
@@ -280,7 +272,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
         return state
 
-    def _run_on_node(self, node, state: RewritingState):
+    def _run_on_node(self, node: Block):
         """
 
         :param node:    The current node.
@@ -288,63 +280,27 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
         :return:        A tuple: (any changes occur, successor state)
         """
 
-        if isinstance(node, ailment.Block):
-            block = node
-            block_key = (node.addr, node.idx)
-            engine = self._engine_ail
-        else:
-            l.warning("Unsupported node type %s.", node.__class__)
-            return False, state
+        state = self._pending_states.get(node, None)
+        state = self._initial_abstract_state(node) if state is None else state.copy()
+        block_key = (node.addr, node.idx)
 
-        if block_key in self._visited_blocks:
-            return False, state
+        state.loc = AILCodeLocation(node.addr, node.idx, 0, node.addr)
 
-        engine: SimEngineSSARewriting
-
-        old_state = state
-        state = old_state.copy()
-        state.loc = AILCodeLocation(block.addr, block.idx, 0, block.addr)
-        state.original_block = node
-
-        engine.process(
+        self._engine_ail.process(
             state,
-            block=block,
+            block=node,
         )
 
-        self._visited_blocks.add(block_key)
-        # get the output state (which is the input state for the successor node)
-        # if head_controlled_loop_outstate is set, then it is the output state of the successor node; in this case, the
-        # input state for the head-controlled loop block itself is out.state.
-        # otherwise (if head_controlled_loop_outstate is not set), engine.state is the input state of the successor
-        # node.
-        if engine.head_controlled_loop_outstate is None:
-            # this is a normal block
-            out_state = state
-        else:
-            # this is a head-controlled loop block
-            out_state = engine.head_controlled_loop_outstate
-            self.head_controlled_loop_outstates[block_key] = state
-        self.out_states[block_key] = out_state
-        # the final block is always in state
-        out_block = state.out_block
-
-        if out_block is not None:
-            assert out_block.addr == block.addr
-
-            if self.out_blocks.get(block_key, None) == out_block:
-                return True, out_state
-            self.out_blocks[block_key] = out_block
-            out_state.out_block = None
-            return True, out_state
-
-        return True, out_state
-
-    def _intra_analysis(self):
-        pass
+        if self._engine_ail.head_controlled_loop_instate is not None:
+            self.head_controlled_loop_outstates[block_key] = self._engine_ail.head_controlled_loop_instate
+        self.out_states[block_key] = state
+        self.out_blocks[block_key] = self._engine_ail.out_block
+        for succ in self._graph.succ[node]:
+            self._pending_states[succ] = state
 
     def _post_analysis(self):
         # update phi nodes
-        for original_node in self.graph:
+        for original_node in self._graph:
             node_key = original_node.addr, original_node.idx
             node = self.out_blocks.get(node_key, original_node)
 
@@ -373,9 +329,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                     src_and_vvars = []
                     if stmt.dst.was_reg:
                         perfect_matches = []
-                        for pred in self.graph.predecessors(original_node):
+                        for pred in self._graph.predecessors(original_node):
                             vvar = self._follow_one_path_backward(
-                                self.graph,
+                                self._graph,
                                 pred,
                                 partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset, reg_size=stmt.dst.size),
                             )
@@ -411,9 +367,9 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
                             phi_extraction_stmts.append(new_stmt)
 
                     elif stmt.dst.was_stack:
-                        for pred in self.graph.predecessors(original_node):
+                        for pred in self._graph.predecessors(original_node):
                             vvar = self._follow_one_path_backward(
-                                self.graph,
+                                self._graph,
                                 pred,
                                 partial(
                                     self._stack_predicate,
