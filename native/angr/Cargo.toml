@@ -8,7 +8,7 @@ name = "rustylib"
 crate-type = ["cdylib"]
 
 [dependencies]
-backtrace = "0.3.75"
+backtrace = "0.3.76"
 icicle-fuzzing = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "632dde378c03e2cbaca6c9d41c4379dd824ec65f" }
 icicle-vm = { git = "https://github.com/icicle-emu/icicle-emu.git", rev = "632dde378c03e2cbaca6c9d41c4379dd824ec65f" }
 libafl = { version = "0.15.3" }
