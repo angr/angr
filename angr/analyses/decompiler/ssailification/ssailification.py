@@ -91,34 +91,6 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         # calculate virtual variables and phi nodes
         self._udef_to_phiid: dict[tuple, set[int]] = {}
         self._phiid_to_loc: dict[int, tuple[int, int | None]] = {}
-        self._calculate_virtual_variables(ail_graph, traversal)
-
-        # insert phi variables and rewrite uses
-        rewriter = RewritingAnalysis(
-            self.project,
-            self._function,
-            ail_graph,
-            self._udef_to_phiid,
-            self._phiid_to_loc,
-            self._ssa_tmps,
-            self._ail_manager,
-            self._func_args,
-            self._def_to_udef,
-            self._extern_defs,
-            vvar_id_start=vvar_id_start,
-            stackvars=self._ssa_stackvars,
-        )
-        self.out_graph = rewriter.out_graph
-        self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
-
-    def _calculate_virtual_variables(
-        self,
-        ail_graph: networkx.DiGraph[Block],
-        traversal: TraversalAnalysis,
-    ):
-        """
-        Calculate the mapping from defs to virtual variables as well as where to insert phi nodes.
-        """
 
         udef_to_defs: defaultdict[UDef, set[Def]] = defaultdict(set)
         udef_to_blockkeys: defaultdict[UDef, set[Address]] = defaultdict(set)
@@ -148,6 +120,14 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             blocks = {self._entry if block_key[0] == -1 else blockkey_to_block[block_key] for block_key in block_keys}
             frontier_plus = calculate_iterated_dominace_frontier_set(frontiers, blocks)
             for block in frontier_plus:
+                # Don't generate a phi for this udef if the udef does not correspond to the actual live
+                # varible at this location
+                if udef[0] == "stack" and (state := traversal.start_states.get(block, None)) is not None:
+                    if udef[1] not in state.stackvar_defs:
+                        continue
+                    defs = state.stackvar_defs[udef[1]]
+                    if not any(traversal.def_info[def_][3] == udef[2] for def_ in defs):
+                        continue
                 phi_id = next(phi_id_ctr)
                 udef_to_phiid[udef].add(phi_id)
                 phiid_to_loc[phi_id] = block.addr, block.idx
@@ -156,6 +136,24 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._phiid_to_loc = phiid_to_loc
         self._def_to_udef = def_to_udef
         self._extern_defs = extern_defs
+
+        # insert phi variables and rewrite uses
+        rewriter = RewritingAnalysis(
+            self.project,
+            self._function,
+            ail_graph,
+            self._udef_to_phiid,
+            self._phiid_to_loc,
+            self._ssa_tmps,
+            self._ail_manager,
+            self._func_args,
+            self._def_to_udef,
+            self._extern_defs,
+            vvar_id_start=vvar_id_start,
+            stackvars=self._ssa_stackvars,
+        )
+        self.out_graph = rewriter.out_graph
+        self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
 
 
 register_analysis(Ssailification, "Ssailification")
