@@ -79,7 +79,7 @@ class TraversalState:
             live_stackvars=self.live_stackvars,
             register_blackout=self.register_blackout,
             live_vvars=self.live_vvars,
-            pending_ptr_defines_nonlocal_live=self.pending_ptr_defines_nonlocal_live,
+            pending_ptr_defines_nonlocal_live=set(self.pending_ptr_defines_nonlocal_live),
             stackvar_bases=dict(self.stackvar_bases),
             stackvar_defs=dict(self.stackvar_defs),
         )
