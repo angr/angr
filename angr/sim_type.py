@@ -218,7 +218,7 @@ class SimType:
             if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
                 # attempt to resolve the type ref
                 with contextlib.suppress(AngrMissingTypeError):
-                    return type_collection.get(t.name)
+                    return type_collection.get(t.name, memo=memo)
             return t
 
         kwargs = {}
