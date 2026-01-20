@@ -41,7 +41,7 @@ class TraversalAnalysis:
         self._function = func
         self._ail_graph = ail_graph
         self._func_args = func_args
-        self._pending_states: dict[ailment.Block, TraversalState | None] = {}
+        self.start_states: dict[ailment.Block, TraversalState | None] = {}
 
         self._engine_ail = SimEngineSSATraversal(
             self.project,
@@ -99,17 +99,16 @@ class TraversalAnalysis:
         :return:        A tuple: (any changes occur, successor state)
         """
 
-        state = self._pending_states.get(node, None)
+        state = self.start_states.get(node, None)
         if state is None:
-            state = self._initial_abstract_state()
-        self._pending_states[node] = None
+            state = self.start_states[node] = self._initial_abstract_state()
         self._engine_ail.process(state, block=node)
 
         succ_count = len(self._ail_graph.succ[node])
         for i, succ in enumerate(self._ail_graph.succ[node]):
-            if succ not in self._pending_states:
-                self._pending_states[succ] = state.copy() if i != succ_count - 1 else state
+            if succ not in self.start_states:
+                self.start_states[succ] = state.copy() if i != succ_count - 1 else state
             else:
-                existing = self._pending_states[succ]
+                existing = self.start_states[succ]
                 if existing is not None:
                     existing.merge(state)
