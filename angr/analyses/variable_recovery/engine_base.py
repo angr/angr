@@ -1224,13 +1224,6 @@ class SimEngineVRBase(
             if self.project.loader.find_segment_containing(value) is not None:
                 r = self._load_from_global(value, 1, expr=expr)
                 ty = r.typevar
-            elif value == 0 and bits == self.arch.bits:
-                # this can be viewed as a NULL
-                ty = (
-                    typeconsts.Pointer64(typeconsts.TopType())
-                    if self.arch.bits == 64
-                    else typeconsts.Pointer32(typeconsts.TopType())
-                )
             else:
                 # this allows us to type integer constants if necessary
                 var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
