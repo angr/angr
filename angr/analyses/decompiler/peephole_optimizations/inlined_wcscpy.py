@@ -37,7 +37,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
         ):
-            dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+            dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
             value_size = stmt.src.size
             value = stmt.src.value
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):

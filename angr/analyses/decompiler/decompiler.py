@@ -494,8 +494,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -555,8 +557,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -600,8 +604,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 seq=seq_node,
                 scratch=self._optimization_scratch,
                 peephole_optimizations=self._peephole_optimizations,

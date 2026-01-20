@@ -21,8 +21,8 @@ class DetermineLoadSizes(OptimizationPass):
     NAME = "Determine sizes of loads whose sizes are undetermined"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 

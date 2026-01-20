@@ -25,8 +25,8 @@ class ITERegionConverter(OptimizationPass):
     NAME = "Transform ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, max_updates=10, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, max_updates=10, **kwargs):
+        super().__init__(*args, **kwargs)
         self._max_updates = max_updates
         self.analyze()
 

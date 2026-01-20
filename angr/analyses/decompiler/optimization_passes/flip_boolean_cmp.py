@@ -98,8 +98,8 @@ class FlipBooleanCmp(SequenceOptimizationPass):
     NAME = "Flip small ret booleans"
     DESCRIPTION = "When false node has no successors, flip condition so else scope can be simplified later"
 
-    def __init__(self, func, flip_size=9, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, flip_size=9, **kwargs):
+        super().__init__(*args, **kwargs)
         self._graph = kwargs.get("graph")
         self._flip_size = flip_size
         self.analyze()

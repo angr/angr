@@ -41,7 +41,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         ):
             inlined_strcpy_candidate = True
             src = stmt.src
-            strcpy_dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+            strcpy_dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
         elif (
             isinstance(stmt, Store)
             and isinstance(stmt.addr, UnaryOp)

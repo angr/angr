@@ -31,8 +31,8 @@ class WinStackCanarySimplifier(OptimizationPass):
     NAME = "Simplify stack canaries in Windows PE files"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._security_cookie_addr: int | None = None
         if isinstance(self.project.loader.main_object, cle.PE):
             self._security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)

@@ -28,7 +28,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
     def __init__(
         self,
-        func,
+        *args,
         # internal parameters that should be used by Clinic
         node_idx_start: int = 0,
         # settings
@@ -36,7 +36,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
         max_call_duplications: int = 1,
         **kwargs,
     ):
-        super().__init__(func, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)
+        super().__init__(*args, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)
 
         self.node_idx = count(start=node_idx_start)
         self._max_call_dup = max_call_duplications
