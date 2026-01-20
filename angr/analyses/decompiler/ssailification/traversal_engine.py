@@ -1,4 +1,5 @@
 from __future__ import annotations
+from collections import defaultdict
 from typing import TYPE_CHECKING
 from collections.abc import Callable
 
@@ -93,6 +94,38 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
             self.perform_def("stack", def_, full_offset, full_endoffset - full_offset, stack_offset - full_offset, loc)
 
+        # sketchy situation. we want to make sure everything in the extern set
+        # has exactly the same extents if they overlap at all. this is sorta a redo
+        # of the unify code.
+        mapping: defaultdict[int, set[Def]] = defaultdict(set)
+        for def_, (kind, loc, offset, size, _) in self.def_info.items():
+            if kind != "stack" or not loc.is_extern:
+                continue
+            for suboffset in range(offset, offset + size):
+                mapping[suboffset].add(def_)
+
+        current_extent = (0, 0)
+        current_defs = set()
+
+        def flush():
+            for def2 in current_defs:
+                kind2, loc2, offset2, size2, extra_offset2 = self.def_info[def2]
+                size2 = current_extent[1] - current_extent[0]
+                self.def_info[def2] = kind2, loc2, current_extent[0], size2, extra_offset2 + offset2 - current_extent[0]
+
+        for offset in sorted(mapping):
+            for def_ in mapping[offset]:
+                _, loc, offset, size, _ = self.def_info[def_]
+
+                if offset >= current_extent[1] or current_extent[0] == current_extent[1]:
+                    flush()
+                    current_defs.clear()
+                    current_extent = offset, offset + size
+
+                current_defs.add(def_)
+                current_extent = min(current_extent[0], offset), max(current_extent[1], offset + size)
+        flush()
+
     def _acodeloc(self):
         return AILCodeLocation(
             self.block.addr,
@@ -110,7 +143,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         var_offset: int,
         loc: AILCodeLocation | None = None,
     ):
-        self.def_info[def_] = (kind, loc or self._acodeloc(), cell_offset, cell_size, var_offset)
+        loc = loc or self._acodeloc()
+        assert def_ not in self.def_info or self.def_info[def_][3] <= cell_size, "redefinining a variable as smaller"
+        assert (
+            def_ not in self.def_info or self.def_info[def_][1] == loc or self.def_info[def_][1].is_extern
+        ), "claiming an expression defines at two different locs"
+        self.def_info[def_] = (kind, loc, cell_offset, cell_size, var_offset)
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         offset = base_offset + min(extra_offset, 0)
@@ -122,11 +160,30 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         _, pending_def = self.state.pending_ptr_defines.pop(base_offset, (None, None))
 
-        for popped_offset in popped:
-            for def2 in self.state.stackvar_defs.pop(popped_offset, ()):
-                self.state.stackvar_defs[full_offset].add(def2)
-                (kind, other_loc, other_off, _, other_off2) = self.def_info[def2]
-                self.def_info[def2] = (kind, other_loc, full_offset, full_size, other_off + other_off2 - full_offset)
+        secret_stash = defaultdict(set)
+        while True:  # this loop should run until the UH OH is never reached
+            for popped_offset in popped:
+                for def2 in self.state.stackvar_defs.pop(popped_offset, set()) | secret_stash[popped_offset]:
+                    secret_stash[popped_offset].add(def2)
+                    self.state.stackvar_defs[full_offset].add(def2)
+                    (kind, other_loc, other_off, other_size, other_off2) = self.def_info[def2]
+                    if other_off < full_offset or other_off + other_size > full_offset + full_size:
+                        # UH OH. We have information from a parallel timeline about how big this var actually is...
+                        full_offset, full_size, popped2 = self.state.stackvar_unify(other_off, other_size)
+                        popped.update(popped2)
+                        break
+                    self.def_info[def2] = (
+                        kind,
+                        other_loc,
+                        full_offset,
+                        full_size,
+                        other_off + other_off2 - full_offset,
+                    )
+                else:
+                    continue
+                break
+            else:
+                break
 
         if full_offset not in self.state.live_stackvars:
             assert pending_def is not None  # SKETCHY

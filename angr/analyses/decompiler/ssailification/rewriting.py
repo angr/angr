@@ -109,9 +109,14 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
     def create_phi_statements(self, node, phiid_to_udef: dict, phi_ids: list[int]) -> list[Assignment]:
         phi_stmts = []
+        seen: set[tuple[str, int]] = set()
         for phi_id in phi_ids:
             udef = phiid_to_udef[phi_id]
             category = udef[0]
+            for suboffset in range(udef[1], udef[1] + udef[2]):
+                key = (udef[0], suboffset)
+                assert key not in seen, "Overlapping phis in a single block"
+                seen.add(key)
 
             match category:
                 case "reg":
