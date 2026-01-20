@@ -428,7 +428,7 @@ class TestEnumEdgeCases(unittest.TestCase):
     def test_empty_enum(self):
         """Test handling of empty enum."""
         empty = SimTypeEnum({}, name="Empty")
-        assert empty.members == {}
+        assert empty.members == {}  # pylint:disable=use-implicit-booleaness-not-comparison
         assert empty.c_repr(full=1) == "enum Empty {\n\n}"
 
     def test_single_member_enum(self):

@@ -152,7 +152,7 @@ class SimEngineVRAIL(
             return self._top(expr.bits)
 
     def _handle_expr_MultiStatementExpression(self, expr):
-        for stmt in expr.statements:
+        for stmt in expr.stmts:
             self._stmt(stmt)
         return self._expr(expr.expr)
 

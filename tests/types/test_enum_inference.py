@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint:disable=no-self-use
 from __future__ import annotations
 
 import os
@@ -55,6 +56,7 @@ class TestEnumTypeInference(unittest.TestCase):
         # Create an enum type
         original = parse_type("enum FileMode { READ = 1, WRITE = 2, EXEC = 4 }")
         original = original.with_arch(self.proj.arch)
+        assert isinstance(original, SimTypeEnum)
 
         # Lift to type constant
         lifter = TypeLifter(self.proj.arch.bits)

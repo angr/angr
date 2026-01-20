@@ -1236,19 +1236,19 @@ class SimEngineVRBase(
                 )
                 if not var_candidates:
                     var = SimConstantVariable(
-                        expr.size,
+                        bits // self.state.arch.byte_width,
                         ident=self.state.variable_manager[self.func_addr].next_variable_ident("constant"),
-                        value=expr.value,
+                        value=value,
                     )
                     self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
                 else:
                     var = var_candidates[0][0]
                 ty = typevars.TypeVariable()
-                ty_const = typeconsts.int_type(expr.bits)
+                ty_const = typeconsts.int_type(bits)
                 if not self.state.typevars.has_type_variable_for(var):
                     self.state.typevars.add_type_variable(var, ty)
                 self.state.add_type_constraint(typevars.Subtype(ty, ty_const))
-            v = claripy.BVV(expr.value, expr.bits)
+            v = claripy.BVV(value, bits)
         r = RichR(v, typevar=ty)
         self._ensure_variable_existence(r, codeloc)
         self._reference(r, codeloc)
