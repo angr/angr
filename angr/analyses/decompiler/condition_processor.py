@@ -76,7 +76,7 @@ class AILExprIdAnnotation(claripy.Annotation):
 
     @property
     def eliminatable(self):
-        return False
+        return True
 
     @property
     def relocateable(self):
