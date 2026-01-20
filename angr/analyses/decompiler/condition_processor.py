@@ -290,7 +290,9 @@ class ConditionProcessor:
         # fallback
         edge_cond_left = self.recover_edge_condition(graph, src, dst0)
         edge_cond_right = self.recover_edge_condition(graph, src, dst1)
-        return claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right)  # type: ignore
+        cond = claripy.Not(edge_cond_left) == edge_cond_right
+        # call claripy.simplify() just in case there are annotations
+        return claripy.is_true(claripy.simplify(cond))  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
 
@@ -811,7 +813,7 @@ class ConditionProcessor:
         if isinstance(cond, ailment.Expr.Expression):
             return cond
 
-        if cond.op in {"BoolS", "BoolV"} and claripy.is_true(cond):
+        if cond.op in {"BoolS", "BoolV"} and claripy.is_true(claripy.simplify(cond)):
             return ailment.Expr.Const(None, None, True, 1)
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
