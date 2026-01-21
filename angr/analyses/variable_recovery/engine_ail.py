@@ -371,9 +371,6 @@ class SimEngineVRAIL(
                                 arg_ty_basesize,
                                 ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
                             )
-                            self.state.variable_manager[self.func_addr].record_variable(
-                                self._codeloc(), stack_var, stack_var.offset, atom=arg_atom
-                            )
                             self.state.variable_manager[self.func_addr].add_variable(
                                 "stack", stack_var.offset, stack_var
                             )
