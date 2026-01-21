@@ -24,7 +24,7 @@ class TestFuzzer:
             cc = state.project.factory.cc()
             assert cc.return_addr is not None
             cc.return_addr.set_value(state, 0xDEADBEEF)
-            state.posix.stdin.write(0, "usernameN")
+            state.posix.stdin.write(0, b"usernameN")
             state.posix.stdin.write(0, input)
             print("Done")
 
@@ -63,7 +63,7 @@ class TestFuzzer:
             cc = state.project.factory.cc()
             assert cc.return_addr is not None
             cc.return_addr.set_value(state, 0xDEADBEEF)
-            state.posix.stdin.write(0, "usernameN")
+            state.posix.stdin.write(0, b"usernameN")
             state.posix.stdin.write(0, input)
             print("Done")
 
@@ -102,7 +102,7 @@ class TestFuzzer:
             cc = state.project.factory.cc()
             assert cc.return_addr is not None
             cc.return_addr.set_value(state, 0xDEADBEEF)
-            state.posix.stdin.write(0, "usernameN")
+            state.posix.stdin.write(0, b"usernameN")
             state.posix.stdin.write(0, input)
             print("Done")
 
@@ -136,7 +136,7 @@ class TestFuzzer:
             cc = state.project.factory.cc()
             assert cc.return_addr is not None
             cc.return_addr.set_value(state, 0xDEADBEEF)
-            state.posix.stdin.write(0, "usernameN")
+            state.posix.stdin.write(0, b"usernameN")
             state.posix.stdin.write(0, input)
             print("Done")
 
