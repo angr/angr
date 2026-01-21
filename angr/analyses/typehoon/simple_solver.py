@@ -507,6 +507,10 @@ class SimpleSolver:
         for func_tv in list(self._constraints):
             self._convert_arrays(self._constraints[func_tv])
 
+        for tv, tv_eq in self._equivalence.items():
+            if tv not in self.solution and tv_eq in self.solution:
+                self.solution[tv] = self.solution[tv_eq]
+
     def preprocess(self, func_tv: TypeVariable):
         self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])
         ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
