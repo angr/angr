@@ -55,7 +55,6 @@ class DetermineLoadSizes(OptimizationPass):
                                 operand.addr.value, max_size=4096
                             )
                             if bs is not None:
-                                operand.size = len(bs)
                                 operand.bits = len(bs) * 8
                     changed = True
 
