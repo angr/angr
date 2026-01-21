@@ -164,11 +164,14 @@ impl PyOnDiskCorpus {
             .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
             .borrow_mut();
         let input = testcase.input().clone().unwrap_or({
-            testcase.load_input(&self.inner).map_err(|e| {
-                PyRuntimeError::new_err(format!(
-                    "Failed to load input for corpus id {corpus_id}: {e}"
-                ))
-            })?.clone()
+            testcase
+                .load_input(&self.inner)
+                .map_err(|e| {
+                    PyRuntimeError::new_err(format!(
+                        "Failed to load input for corpus id {corpus_id}: {e}"
+                    ))
+                })?
+                .clone()
         });
         Ok(input.as_ref().clone())
     }
