@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Any
-import copy
 import logging
 
 import networkx
@@ -231,10 +230,9 @@ class ReturnDuplicatorBase:
             if node in copies:
                 node_copy = copies[node]
             else:
+                node_copy = node.deep_copy(self._manager)
                 if node is region_head:
-                    node_copy = self._copy_node_and_update_phi_variables(node, pred)
-                else:
-                    node_copy = copy.deepcopy(node)
+                    node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
                 node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)

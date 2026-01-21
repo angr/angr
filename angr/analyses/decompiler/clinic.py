@@ -2468,8 +2468,7 @@ class Clinic(Analysis):
 
         return graph
 
-    @staticmethod
-    def _duplicate_orphaned_cond_jumps(ail_graph) -> networkx.DiGraph:
+    def _duplicate_orphaned_cond_jumps(self, ail_graph: networkx.DiGraph[ailment.Block]) -> networkx.DiGraph:
         """
         Find conditional jumps that are orphaned (e.g., being the only instruction of the block). If these blocks have
         multiple predecessors, duplicate them to all predecessors. This is a workaround for cases where these
@@ -2501,7 +2500,7 @@ class Clinic(Analysis):
                         block_idx_start = block.idx + 1 if block.idx is not None else 1
                         for pred in preds[1:]:
                             ail_graph.remove_edge(pred, block)
-                            new_block = block.copy()
+                            new_block = block.deep_copy(self._ail_manager)
                             new_block.idx = block_idx_start
                             block_idx_start += 1
                             ail_graph.add_edge(pred, new_block)

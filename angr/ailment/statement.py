@@ -113,6 +113,9 @@ class Assignment(Statement):
     def copy(self) -> Assignment:
         return Assignment(self.idx, self.dst, self.src, **self.tags)
 
+    def deep_copy(self, manager) -> Assignment:
+        return Assignment(manager.next_atom(), self.dst.deep_copy(manager), self.src.deep_copy(manager), **self.tags)
+
 
 class WeakAssignment(Statement):
     """
@@ -166,6 +169,11 @@ class WeakAssignment(Statement):
 
     def copy(self) -> WeakAssignment:
         return WeakAssignment(self.idx, self.dst, self.src, **self.tags)
+
+    def deep_copy(self, manager) -> WeakAssignment:
+        return WeakAssignment(
+            manager.next_atom(), self.dst.deep_copy(manager), self.src.deep_copy(manager), **self.tags
+        )
 
 
 class Store(Statement):
@@ -285,6 +293,19 @@ class Store(Statement):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> Store:
+        return Store(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.data.deep_copy(manager),
+            self.size,
+            self.endness,
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
+            variable=self.variable,
+            offset=self.offset,
+            **self.tags,
+        )
+
 
 class Jump(Statement):
     """
@@ -336,6 +357,13 @@ class Jump(Statement):
         return Jump(
             self.idx,
             self.target,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Jump(
+            manager.next_atom(),
+            self.target.deep_copy(manager),
             **self.tags,
         )
 
@@ -463,6 +491,17 @@ class ConditionalJump(Statement):
             self.condition,
             self.true_target,
             self.false_target,
+            true_target_idx=self.true_target_idx,
+            false_target_idx=self.false_target_idx,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> ConditionalJump:
+        return ConditionalJump(
+            manager.next_atom(),
+            self.condition.deep_copy(manager),
+            self.true_target.deep_copy(manager) if self.true_target is not None else None,
+            self.false_target.deep_copy(manager) if self.false_target is not None else None,
             true_target_idx=self.true_target_idx,
             false_target_idx=self.false_target_idx,
             **self.tags,
@@ -646,6 +685,19 @@ class Call(Expression, Statement):
             **self.tags,
         )
 
+    def deep_copy(self, manager):
+        return Call(
+            manager.next_atom(),
+            self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+            ret_expr=self.ret_expr.deep_copy(manager) if self.ret_expr is not None else None,
+            fp_ret_expr=self.fp_ret_expr.deep_copy(manager) if self.fp_ret_expr is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )
+
 
 class Return(Statement):
     """
@@ -705,6 +757,13 @@ class Return(Statement):
         return Return(
             self.idx,
             self.ret_exprs[::],
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Return(
+            manager.next_atom(),
+            [expr.deep_copy(manager) for expr in self.ret_exprs],
             **self.tags,
         )
 
@@ -817,6 +876,20 @@ class CAS(Statement):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> CAS:
+        return CAS(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.data_lo.deep_copy(manager),
+            self.data_hi.deep_copy(manager) if self.data_hi is not None else None,
+            self.expd_lo.deep_copy(manager),
+            self.expd_hi.deep_copy(manager) if self.expd_hi is not None else None,
+            self.old_lo.deep_copy(manager),
+            self.old_hi.deep_copy(manager) if self.old_hi is not None else None,
+            endness=self.endness,
+            **self.tags,
+        )
+
     def likes(self, other) -> bool:
         return (
             type(other) is CAS
@@ -884,6 +957,9 @@ class DirtyStatement(Statement):
     def copy(self) -> DirtyStatement:
         return DirtyStatement(self.idx, self.dirty, **self.tags)
 
+    def deep_copy(self, manager) -> DirtyStatement:
+        return DirtyStatement(manager.next_atom(), self.dirty.deep_copy(manager), **self.tags)
+
     def likes(self, other):
         return type(other) is DirtyStatement and self.dirty.likes(other.dirty)
 
@@ -926,3 +1002,6 @@ class Label(Statement):
 
     def copy(self) -> Label:
         return Label(self.idx, self.name, **self.tags)
+
+    def deep_copy(self, manager) -> Label:
+        return Label(manager.next_atom(), self.name, **self.tags)

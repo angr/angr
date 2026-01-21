@@ -153,7 +153,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                         if unexpected_pred in jump_node_descedents:
                             continue
 
-                        default_case_block_copy = default_case_block.copy()
+                        assert default_case_block is not None
+                        default_case_block_copy = default_case_block.deep_copy(self.manager)
                         default_case_block_copy.idx = next(self.node_idx)
                         if out_graph is None:
                             out_graph = self._graph

@@ -1,6 +1,8 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
+from angr.ailment.manager import Manager
+
 if TYPE_CHECKING:
     from .statement import Statement
 
@@ -34,6 +36,14 @@ class Block:
             addr=self.addr,
             original_size=self.original_size,
             statements=self.statements[::] if statements is None else statements,
+            idx=self.idx,
+        )
+
+    def deep_copy(self, manager: Manager):
+        return Block(
+            addr=self.addr,
+            original_size=self.original_size,
+            statements=[stmt.deep_copy(manager=manager) for stmt in self.statements],
             idx=self.idx,
         )
 

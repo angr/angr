@@ -32,6 +32,10 @@ class Expression(TaggedObject, ABC):
         super().__init__(idx, **kwargs)
         self.depth = depth
 
+    @property
+    def size(self):
+        return self.bits // 8
+
     @abstractmethod
     def __repr__(self):
         raise NotImplementedError
@@ -88,9 +92,6 @@ class Atom(Expression):
     def __repr__(self) -> str:
         return f"Atom ({self.idx})"
 
-    def copy(self) -> Self:  # pylint:disable=no-self-use
-        raise NotImplementedError
-
 
 class Const(Atom):
     __slots__ = ("value",)
@@ -112,10 +113,6 @@ class Const(Atom):
         if isinstance(self.value, float):
             return self.value
         raise TypeError(f"Incorrect value type; expect float, got {type(self.value)}")
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     def __repr__(self):
         return str(self)
@@ -150,6 +147,9 @@ class Const(Atom):
     def copy(self) -> Const:
         return Const(self.idx, self.variable, self.value, self.bits, **self.tags)
 
+    def deep_copy(self, manager) -> Const:
+        return Const(manager.next_atom(), self.variable, self.value, self.bits, **self.tags)
+
     @property
     def is_int(self) -> bool:
         return isinstance(self.value, int)
@@ -163,10 +163,6 @@ class Tmp(Atom):
 
         self.tmp_idx = tmp_idx
         self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     def __repr__(self):
         return str(self)
@@ -185,6 +181,9 @@ class Tmp(Atom):
     def copy(self) -> Tmp:
         return Tmp(self.idx, self.variable, self.tmp_idx, self.bits, **self.tags)
 
+    def deep_copy(self, manager) -> Tmp:
+        return Tmp(manager.next_atom(), self.variable, self.tmp_idx, self.bits, **self.tags)
+
 
 class Register(Atom):
     __slots__ = ("reg_offset",)
@@ -194,10 +193,6 @@ class Register(Atom):
 
         self.reg_offset = reg_offset
         self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     def likes(self, other):
         return type(self) is type(other) and self.reg_offset == other.reg_offset and self.bits == other.bits
@@ -220,6 +215,9 @@ class Register(Atom):
 
     def copy(self) -> Register:
         return Register(self.idx, self.variable, self.reg_offset, self.bits, **self.tags)
+
+    def deep_copy(self, manager) -> Register:
+        return Register(manager.next_atom(), self.variable, self.reg_offset, self.bits, **self.tags)
 
 
 class VirtualVariableCategory(IntEnum):
@@ -253,10 +251,6 @@ class VirtualVariable(Atom):
         self.category = category
         self.oident = oident
         self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     @property
     def was_reg(self) -> bool:
@@ -361,6 +355,18 @@ class VirtualVariable(Atom):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> VirtualVariable:
+        return VirtualVariable(
+            manager.next_atom(),
+            self.varid,
+            self.bits,
+            self.category,
+            oident=self.oident,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            **self.tags,
+        )
+
 
 class Phi(Atom):
     __slots__ = ("src_and_vvars",)
@@ -375,10 +381,6 @@ class Phi(Atom):
         super().__init__(idx, **kwargs)
         self.bits = bits
         self.src_and_vvars = src_and_vvars
-
-    @property
-    def size(self) -> int:
-        return self.bits // 8
 
     @property
     def op(self) -> str:
@@ -429,6 +431,16 @@ class Phi(Atom):
             self.idx,
             self.bits,
             self.src_and_vvars[::],
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> Phi:
+        return Phi(
+            manager.next_atom(),
+            self.bits,
+            [(s, vvar.deep_copy(manager) if vvar is not None else None) for s, vvar in self.src_and_vvars],
             variable=self.variable,
             variable_offset=self.variable_offset,
             **self.tags,
@@ -542,15 +554,22 @@ class UnaryOp(Op):
     def operands(self):
         return [self.operand]
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> UnaryOp:
         return UnaryOp(
             self.idx,
             self.op,
             self.operand,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            bits=self.bits,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> UnaryOp:
+        return UnaryOp(
+            manager.next_atom(),
+            self.op,
+            self.operand.deep_copy(manager),
             variable=self.variable,
             variable_offset=self.variable_offset,
             bits=self.bits,
@@ -698,6 +717,19 @@ class Convert(UnaryOp):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> Convert:
+        return Convert(
+            manager.next_atom(),
+            self.from_bits,
+            self.to_bits,
+            self.is_signed,
+            self.operand.deep_copy(manager),
+            from_type=self.from_type,
+            to_type=self.to_type,
+            rounding_mode=self.rounding_mode,
+            **self.tags,
+        )
+
 
 class Reinterpret(UnaryOp):
     __slots__ = (
@@ -772,6 +804,17 @@ class Reinterpret(UnaryOp):
     def copy(self) -> Reinterpret:
         return Reinterpret(
             self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, self.operand, **self.tags
+        )
+
+    def deep_copy(self, manager) -> Reinterpret:
+        return Reinterpret(
+            manager.next_atom(),
+            self.from_bits,
+            self.from_type,
+            self.to_bits,
+            self.to_type,
+            self.operand.deep_copy(manager),
+            **self.tags,
         )
 
 
@@ -998,15 +1041,25 @@ class BinaryOp(Op):
                 op += " (signed)"
         return op
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> BinaryOp:
         return BinaryOp(
             self.idx,
             self.op,
             self.operands[::],
+            variable=self.variable,
+            signed=self.signed,
+            variable_offset=self.variable_offset,
+            bits=self.bits,
+            floating_point=self.floating_point,
+            rounding_mode=self.rounding_mode,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> BinaryOp:
+        return BinaryOp(
+            manager.next_atom(),
+            self.op,
+            [op.deep_copy(manager) for op in self.operands],
             variable=self.variable,
             signed=self.signed,
             variable_offset=self.variable_offset,
@@ -1023,7 +1076,6 @@ class Load(Expression):
         "alt",
         "endness",
         "guard",
-        "size",
         "variable",
         "variable_offset",
     )
@@ -1044,7 +1096,7 @@ class Load(Expression):
         super().__init__(idx, depth, **kwargs)
 
         self.addr = addr
-        self.size = size
+        self.bits = size * 8
         self.endness = endness
         self.guard = guard
         self.alt = alt
@@ -1120,6 +1172,19 @@ class Load(Expression):
             variable=self.variable,
             variable_offset=self.variable_offset,
             guard=self.guard,
+            alt=self.alt,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> Load:
+        return Load(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.size,
+            self.endness,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
             alt=self.alt,
             **self.tags,
         )
@@ -1223,12 +1288,17 @@ class ITE(Expression):
             return True, ITE(self.idx, new_cond, new_iffalse, new_iftrue, **self.tags)
         return False, self
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> ITE:
         return ITE(self.idx, self.cond, self.iffalse, self.iftrue, **self.tags)
+
+    def deep_copy(self, manager) -> ITE:
+        return ITE(
+            manager.next_atom(),
+            self.cond.deep_copy(manager),
+            self.iffalse.deep_copy(manager),
+            self.iftrue.deep_copy(manager),
+            **self.tags,
+        )
 
 
 class DirtyExpression(Expression):
@@ -1332,6 +1402,19 @@ class DirtyExpression(Expression):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> DirtyExpression:
+        return DirtyExpression(
+            manager.next_atom(),
+            self.callee,
+            [op.deep_copy(manager) for op in self.operands],
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
+            mfx=self.mfx,
+            maddr=self.maddr.deep_copy(manager) if self.maddr is not None else None,
+            msize=self.msize,
+            bits=self.bits,
+            **self.tags,
+        )
+
     def replace(self, old_expr: Expression, new_expr: Expression):
         new_operands = []
         replaced = False
@@ -1360,12 +1443,6 @@ class DirtyExpression(Expression):
                 **self.tags,
             )
         return False, self
-
-    @property
-    def size(self):
-        if self.bits is None:
-            return None
-        return self.bits // 8
 
 
 class VEXCCallExpression(Expression):
@@ -1419,6 +1496,15 @@ class VEXCCallExpression(Expression):
     def copy(self) -> VEXCCallExpression:
         return VEXCCallExpression(self.idx, self.callee, self.operands, bits=self.bits, **self.tags)
 
+    def deep_copy(self, manager) -> VEXCCallExpression:
+        return VEXCCallExpression(
+            manager.next_atom(),
+            self.callee,
+            tuple(op.deep_copy(manager) for op in self.operands),
+            bits=self.bits,
+            **self.tags,
+        )
+
     def replace(self, old_expr, new_expr):
         new_operands = []
         replaced = False
@@ -1437,12 +1523,6 @@ class VEXCCallExpression(Expression):
         if replaced:
             return True, VEXCCallExpression(self.idx, self.callee, tuple(new_operands), bits=self.bits, **self.tags)
         return False, self
-
-    @property
-    def size(self):
-        if self.bits is None:
-            return None
-        return self.bits // 8
 
 
 class MultiStatementExpression(Expression):
@@ -1489,10 +1569,6 @@ class MultiStatementExpression(Expression):
         concatenated_str = ", ".join([*stmts_str, expr_str])
         return f"({concatenated_str})"
 
-    @property
-    def size(self):
-        return self.expr.size
-
     def replace(self, old_expr, new_expr):
         replaced = False
 
@@ -1517,6 +1593,14 @@ class MultiStatementExpression(Expression):
 
     def copy(self) -> MultiStatementExpression:
         return MultiStatementExpression(self.idx, self.stmts[::], self.expr, **self.tags)
+
+    def deep_copy(self, manager) -> MultiStatementExpression:
+        return MultiStatementExpression(
+            manager.next_atom(),
+            [stmt.deep_copy(manager) for stmt in self.stmts],
+            self.expr.deep_copy(manager),
+            **self.tags,
+        )
 
 
 #
@@ -1548,10 +1632,6 @@ class BasePointerOffset(Expression):
         self.offset = offset
         self.variable = variable
         self.variable_offset = variable_offset
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     def __repr__(self):
         if self.offset is None:
@@ -1595,6 +1675,9 @@ class BasePointerOffset(Expression):
     def copy(self) -> BasePointerOffset:
         return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
 
+    def deep_copy(self, manager) -> BasePointerOffset:
+        return BasePointerOffset(manager.next_atom(), self.bits, self.base, self.offset, **self.tags)
+
 
 class StackBaseOffset(BasePointerOffset):
     __slots__ = ()
@@ -1607,6 +1690,9 @@ class StackBaseOffset(BasePointerOffset):
 
     def copy(self) -> StackBaseOffset:
         return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
+
+    def deep_copy(self, manager) -> StackBaseOffset:
+        return StackBaseOffset(manager.next_atom(), self.bits, self.offset, **self.tags)
 
 
 def negate(expr: Expression) -> Expression:
@@ -1668,9 +1754,10 @@ class Extract(Expression):
     def copy(self) -> Extract:
         return Extract(self.idx, self.bits, self.base, self.offset, **self.tags)
 
-    @property
-    def size(self):
-        return self.bits // 8
+    def deep_copy(self, manager) -> Extract:
+        return Extract(
+            manager.next_atom(), self.bits, self.base.deep_copy(manager), self.offset.deep_copy(manager), **self.tags
+        )
 
     def __repr__(self):
         return f"Extract({self.base}, {self.offset})"
@@ -1749,9 +1836,14 @@ class Insert(Expression):
     def copy(self) -> Insert:
         return Insert(self.idx, self.base, self.offset, self.value, **self.tags)
 
-    @property
-    def size(self):
-        return self.bits // 8
+    def deep_copy(self, manager) -> Insert:
+        return Insert(
+            manager.next_atom(),
+            self.base.deep_copy(manager),
+            self.offset.deep_copy(manager),
+            self.value.deep_copy(manager),
+            **self.tags,
+        )
 
     def __repr__(self):
         return f"Insert({self.base}, {self.offset}, {self.value})"
