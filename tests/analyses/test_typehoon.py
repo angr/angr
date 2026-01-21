@@ -7,6 +7,8 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
+import archinfo
+
 import angr
 from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
 from angr.analyses.typehoon.typevars import (
@@ -351,13 +353,13 @@ class TestTypehoon(unittest.TestCase):
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         tc = Float32()
         st, _ = tx.tc2simtype(tc)
         assert isinstance(st, SimTypeFloat)
 
     def test_simtype2tc(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)

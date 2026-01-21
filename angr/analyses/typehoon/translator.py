@@ -1,11 +1,15 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from itertools import count
 
 from angr import sim_type
 from angr.sim_type import SimType
 from . import typeconsts
 from .typeconsts import TypeConstant
+
+if TYPE_CHECKING:
+    import archinfo
 
 
 class SimTypeTempRef(sim_type.SimType):
@@ -26,8 +30,8 @@ class TypeTranslator:
     Translate type variables to SimType equivalence.
     """
 
-    def __init__(self, arch=None):
-        self.arch = arch
+    def __init__(self, arch: archinfo.Arch):
+        self.arch: archinfo.Arch = arch
 
         self.translated: dict[TypeConstant, SimType] = {}
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
@@ -181,7 +185,6 @@ class TypeTranslator:
             members=dict(tc.members),
             name=tc.name,
             base_type=base_simtype,
-            label=tc.name,
         ).with_arch(self.arch)
 
     #

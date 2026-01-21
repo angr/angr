@@ -2613,7 +2613,9 @@ class SimTypeRef(SimType):
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]) -> SimTypeRef:
+    def from_json(
+        d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None
+    ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
         original_type = IDENT_TO_CLS.get(d["ot"], None)
@@ -3991,7 +3993,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -4007,7 +4009,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -4067,7 +4069,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.name is not None:
             key = "union " + decl.name
@@ -4124,6 +4126,7 @@ def _decl_to_type(
                     with contextlib.suppress(ValueError):
                         # Keep the auto-incremented value
                         next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
+                assert isinstance(next_value, int)
                 members[enumerator.name] = next_value
                 next_value += 1
 
@@ -4207,6 +4210,14 @@ CPP_DECL_TYPES = (
     | cxxheaderparser.types.Function
     | cxxheaderparser.types.Type
 )
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[int]) -> int | None: ...
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[str]) -> str | None: ...
 
 
 def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type) -> int | str | None:
