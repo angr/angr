@@ -418,7 +418,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         return {(None, v) for off, v in val if off is None}
 
     def _handle_expr_Reinterpret(self, expr) -> Value:
-        self._expr(expr)
+        self._expr(expr.operand)
         return set()
 
     def _handle_expr_UnaryOp(self, expr) -> Value:
