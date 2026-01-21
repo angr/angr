@@ -5,7 +5,7 @@ import contextlib
 import copy
 import re
 import logging
-from typing import Literal, Any, cast, overload
+from typing import Literal, Any, cast, overload, TYPE_CHECKING
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
 from collections.abc import MutableMapping
@@ -18,7 +18,7 @@ import cxxheaderparser.types
 import pycparser
 from pycparser import c_ast
 
-from angr.errors import AngrTypeError
+from angr.errors import AngrTypeError, AngrMissingTypeError
 from angr.sim_state import SimState
 
 StoreType = int | claripy.ast.BV
@@ -28,6 +28,10 @@ l = logging.getLogger(name=__name__)
 # pycparser hack to parse type expressions
 errorlog = logging.getLogger(name=__name__ + ".yacc")
 errorlog.setLevel(logging.ERROR)
+
+
+if TYPE_CHECKING:
+    from angr.procedures.definitions import SimTypeCollection
 
 
 class SimType:
@@ -199,17 +203,27 @@ class SimType:
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]):
+    def from_json(d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None):
         """
         Deserialize a type class from a JSON-compatible dictionary.
         """
+        if memo is None:
+            memo = set()
+
         assert "_t" in d
         cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
-            return cls.from_json(d)
+            t = cls.from_json(d)
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
+                # attempt to resolve the type ref
+                with contextlib.suppress(AngrMissingTypeError):
+                    return type_collection.get(t.name, memo=memo)
+            return t
 
         kwargs = {}
+        if "name" in d:
+            memo.add(d["name"])
         for field in cls._args:
             field_key = "q" if field == "qualifier" else field
             if field_key not in d:
@@ -217,12 +231,12 @@ class SimType:
             value = d[field_key]
             if isinstance(value, dict):
                 if "_t" in value:
-                    value = SimType.from_json(value)
+                    value = SimType.from_json(value, type_collection=type_collection, memo=memo)
                 else:
                     new_value = {}
                     for k, v in value.items():
                         if isinstance(v, dict) and "_t" in v:
-                            new_value[k] = SimType.from_json(v)
+                            new_value[k] = SimType.from_json(v, type_collection=type_collection, memo=memo)
                         else:
                             new_value[k] = v
                     value = new_value
@@ -230,7 +244,7 @@ class SimType:
                 new_value = []
                 for v in value:
                     if isinstance(v, dict) and "_t" in v:
-                        new_value.append(SimType.from_json(v))
+                        new_value.append(SimType.from_json(v, type_collection=type_collection, memo=memo))
                     else:
                         new_value.append(v)
                 value = new_value
@@ -2042,7 +2056,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "members")
-    _args = ("members", "base_type", "name", "label", "qualifier")
+    _args = ("members", "base_type", "name", "qualifier")
     _ident = "enum"
 
     def __init__(
@@ -2050,10 +2064,9 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         members: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(name=name if name is not None else "<anon>")
         self.members: dict[str, int] = dict(members)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
@@ -2086,7 +2099,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=self.members,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2132,7 +2144,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=dict(self.members),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2156,7 +2167,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "flags")
-    _args = ("flags", "base_type", "name", "label", "qualifier")
+    _args = ("flags", "base_type", "name", "qualifier")
     _ident = "bitfield"
 
     def __init__(
@@ -2164,10 +2175,9 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         flags: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(None, name=name if name is not None else "<anon>")
         self.flags: dict[str, int] = dict(flags)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         # Sort flags by value (descending) to prefer higher-value flags when resolving
@@ -2254,7 +2264,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=self.flags,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2301,7 +2310,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=dict(self.flags),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2563,6 +2571,9 @@ class SimTypeRef(SimType):
         self.original_type = original_type
         self.qualifier = qualifier
 
+        if isinstance(original_type, SimTypeRef):
+            raise TypeError("SimTypeRef cannot reference another SimTypeRef")
+
     @property
     def name(self) -> str | None:
         return self.label
@@ -2602,7 +2613,9 @@ class SimTypeRef(SimType):
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]) -> SimTypeRef:
+    def from_json(
+        d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None
+    ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
         original_type = IDENT_TO_CLS.get(d["ot"], None)
@@ -3980,7 +3993,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -3996,7 +4009,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -4056,7 +4069,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.name is not None:
             key = "union " + decl.name
@@ -4113,6 +4126,7 @@ def _decl_to_type(
                     with contextlib.suppress(ValueError):
                         # Keep the auto-incremented value
                         next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
+                assert isinstance(next_value, int)
                 members[enumerator.name] = next_value
                 next_value += 1
 
@@ -4196,6 +4210,14 @@ CPP_DECL_TYPES = (
     | cxxheaderparser.types.Function
     | cxxheaderparser.types.Type
 )
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[int]) -> int | None: ...
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[str]) -> str | None: ...
 
 
 def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type) -> int | str | None:

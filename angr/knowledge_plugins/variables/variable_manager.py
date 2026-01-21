@@ -1,16 +1,16 @@
 from __future__ import annotations
-from typing import Literal, TYPE_CHECKING, overload
-import logging
+from typing import Literal, TypeVar, Generic, TYPE_CHECKING, cast, overload
 from collections import defaultdict
+from collections.abc import Iterator
 from itertools import count, chain
+import logging
 
-from sortedcontainers import SortedDict
 import networkx
 
-import angr.ailment as ailment
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
+from angr import ailment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.ail import is_phi_assignment
 from angr.utils.types import unpack_pointer, replace_pointer_pts_to
@@ -26,15 +26,27 @@ from angr.sim_type import (
     SimTypeShort,
     SimTypeInt,
     SimTypeLong,
+    SimTypeArray,
 )
 from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
+K = TypeVar("K")
+T = TypeVar("T")
+
 if TYPE_CHECKING:
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
+
+    class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
+        def irange(self, *args, **kwargs) -> Iterator[K]:  # pylint:disable=unused-argument, no-self-use
+            ...
+
+else:
+    from sortedcontainers import SortedDict
+
 
 l = logging.getLogger(name=__name__)
 
@@ -120,8 +132,9 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
-        # dict[int, tuple[SimStackVariable, SimStruct]]
-        self.stack_offset_to_struct = SortedDict()
+        self.stack_offset_to_complex_types: SortedDict[int, tuple[SimStackVariable, SimStruct | SimTypeArray]] = (
+            SortedDict()
+        )
 
         self.ret_val_size = None
 
@@ -1024,7 +1037,7 @@ class VariableManagerInternal(Serializable):
         if not name:
             name = self.types.unique_type_name()
         if name in self.types:
-            return self.types[name]
+            return cast(TypeRef, self.types[name])
         ty_ref = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
         self.types[name] = ty_ref
         return ty_ref
@@ -1073,8 +1086,11 @@ class VariableManagerInternal(Serializable):
                         self.variable_to_types[other_var] = ty
                         if mark_manual:
                             self.variables_with_manual_types.add(other_var)
-        if isinstance(var, SimStackVariable) and isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
-            self.stack_offset_to_struct[var.offset] = var, ty.type
+        if isinstance(var, SimStackVariable):
+            if isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
+                self.stack_offset_to_complex_types[var.offset] = var, ty.type
+            elif isinstance(ty, SimTypeArray):
+                self.stack_offset_to_complex_types[var.offset] = var, ty
 
     def get_variable_type(self, var) -> SimType | None:
         return self.variable_to_types.get(var, None)

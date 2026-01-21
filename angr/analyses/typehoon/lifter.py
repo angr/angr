@@ -16,6 +16,7 @@ from angr.sim_type import (
     SimTypeDouble,
     SimCppClass,
     SimTypeEnum,
+    SimTypeWideChar,
 )
 from .typeconsts import (
     BottomType,
@@ -60,6 +61,9 @@ class TypeLifter:
 
     def _lift_SimTypeChar(self, ty):  # pylint:disable=no-self-use
         return Int8(name=ty.label)
+
+    def _lift_SimTypeWideChar(self, ty):  # pylint:disable=no-self-use
+        return Int16(name=ty.label)
 
     def _lift_SimTypeShort(self, ty):  # pylint:disable=no-self-use
         return Int16(name=ty.label)
@@ -145,6 +149,7 @@ class TypeLifter:
 
 _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
+    SimTypeWideChar: TypeLifter._lift_SimTypeWideChar,
     SimTypeShort: TypeLifter._lift_SimTypeShort,
     SimTypeInt: TypeLifter._lift_SimTypeInt,
     SimTypeLong: TypeLifter._lift_SimTypeInt,

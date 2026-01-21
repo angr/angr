@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"GetDpiForShellUIComponent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHELL_UI_COMPONENT', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHELL_UI_COMPONENT', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['param0']}"
 		}
 	}
 }

@@ -12,88 +12,88 @@
 	},
 	"functions": {
 		"DnsAcquireContextHandle_A": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['CredentialFlags', 'Credentials', 'pContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['CredentialFlags', 'Credentials', 'pContext']}"
 		},
 		"DnsAcquireContextHandle_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['CredentialFlags', 'Credentials', 'pContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['CredentialFlags', 'Credentials', 'pContext']}"
 		},
 		"DnsCancelQuery": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
 		},
 		"DnsCancelQueryRaw": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['cancelHandle']}"
 		},
 		"DnsConnectionDeletePolicyEntries": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_TAG', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['PolicyEntryTag']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_TAG', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['PolicyEntryTag']}"
 		},
 		"DnsConnectionDeleteProxyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type']}"
 		},
 		"DnsConnectionFreeNameList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_NAME_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pNameList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_NAME_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pNameList']}"
 		},
 		"DnsConnectionFreeProxyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyInfo']}"
 		},
 		"DnsConnectionFreeProxyInfoEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyInfoEx']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyInfoEx']}"
 		},
 		"DnsConnectionFreeProxyList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pProxyList']}"
 		},
 		"DnsConnectionGetNameList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_NAME_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pNameList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_NAME_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pNameList']}"
 		},
 		"DnsConnectionGetProxyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type', 'pProxyInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type', 'pProxyInfo']}"
 		},
 		"DnsConnectionGetProxyInfoForHostUrl": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszHostUrl', 'pSelectionContext', 'dwSelectionContextLength', 'dwExplicitInterfaceIndex', 'pProxyInfoEx']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszHostUrl', 'pSelectionContext', 'dwSelectionContextLength', 'dwExplicitInterfaceIndex', 'pProxyInfoEx']}"
 		},
 		"DnsConnectionGetProxyInfoForHostUrlEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszHostUrl', 'pSelectionContext', 'dwSelectionContextLength', 'dwExplicitInterfaceIndex', 'pwszConnectionName', 'pProxyInfoEx']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO_EX', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszHostUrl', 'pSelectionContext', 'dwSelectionContextLength', 'dwExplicitInterfaceIndex', 'pwszConnectionName', 'pProxyInfoEx']}"
 		},
 		"DnsConnectionGetProxyList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'pProxyList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'pProxyList']}"
 		},
 		"DnsConnectionSetPolicyEntries": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_TAG', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_ENTRY_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['PolicyEntryTag', 'pPolicyEntryList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_TAG', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_POLICY_ENTRY_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['PolicyEntryTag', 'pPolicyEntryList']}"
 		},
 		"DnsConnectionSetProxyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type', 'pProxyInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_PROXY_INFO', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pwszConnectionName', 'Type', 'pProxyInfo']}"
 		},
 		"DnsConnectionUpdateIfIndexTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_IFINDEX_LIST', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pConnectionIfIndexEntries']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CONNECTION_IFINDEX_LIST', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pConnectionIfIndexEntries']}"
 		},
 		"DnsExtractRecordsFromMessage_UTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pDnsBuffer', 'wMessageLength', 'ppRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': 'struct'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pDnsBuffer', 'wMessageLength', 'ppRecord']}"
 		},
 		"DnsExtractRecordsFromMessage_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': '_ref'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pDnsBuffer', 'wMessageLength', 'ppRecord']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': 'struct'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pDnsBuffer', 'wMessageLength', 'ppRecord']}"
 		},
 		"DnsFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'DNS_FREE_TYPE', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pData', 'FreeType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'DNS_FREE_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pData', 'FreeType']}"
 		},
 		"DnsFreeCustomServers": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': '_ref'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pcServers', 'ppServers']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': 'struct'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pcServers', 'ppServers']}"
 		},
 		"DnsFreeProxyName": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['proxyName']}"
 		},
 		"DnsGetApplicationSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_APPLICATION_SETTINGS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pcServers', 'ppDefaultServers', 'pSettings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_APPLICATION_SETTINGS', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pcServers', 'ppDefaultServers', 'pSettings']}"
 		},
 		"DnsGetProxyInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_PROXY_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_PROXY_INFORMATION', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['completionContext', 'status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hostName', 'proxyInformation', 'defaultProxyInformation', 'completionRoutine', 'completionContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_PROXY_INFORMATION', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_PROXY_INFORMATION', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['completionContext', 'status']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hostName', 'proxyInformation', 'defaultProxyInformation', 'completionRoutine', 'completionContext']}"
 		},
 		"DnsModifyRecordsInSet_A": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
 		},
 		"DnsModifyRecordsInSet_UTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
 		},
 		"DnsModifyRecordsInSet_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAddRecords', 'pDeleteRecords', 'Options', 'hCredentials', 'pExtraList', 'pReserved']}"
 		},
 		"DnsNameCompare_A": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pName1', 'pName2']}"
@@ -102,106 +102,106 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pName1', 'pName2']}"
 		},
 		"DnsQueryConfig": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONFIG_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Config', 'Flag', 'pwsAdapterName', 'pReserved', 'pBuffer', 'pBufLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DNS_CONFIG_TYPE', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['Config', 'Flag', 'pwsAdapterName', 'pReserved', 'pBuffer', 'pBufLen']}"
 		},
 		"DnsQueryEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RESULT', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pQueryRequest', 'pQueryResults', 'pCancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RESULT', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pQueryRequest', 'pQueryResults', 'pCancelHandle']}"
 		},
 		"DnsQueryRaw": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['queryRequest', 'cancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['queryRequest', 'cancelHandle']}"
 		},
 		"DnsQueryRawResultFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_RESULT', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['queryResults']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_QUERY_RAW_RESULT', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['queryResults']}"
 		},
 		"DnsQuery_A": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'short'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
 		},
 		"DnsQuery_UTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'short'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
 		},
 		"DnsQuery_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'short'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_TYPE', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DNS_QUERY_OPTIONS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszName', 'wType', 'Options', 'pExtra', 'ppQueryResults', 'pReserved']}"
 		},
 		"DnsRecordCompare": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRecord1', 'pRecord2']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRecord1', 'pRecord2']}"
 		},
 		"DnsRecordCopyEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'int'}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, 'arg_names': ['pRecord', 'CharSetIn', 'CharSetOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'enum'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, 'arg_names': ['pRecord', 'CharSetIn', 'CharSetOut']}"
 		},
 		"DnsRecordSetCompare": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRR1', 'pRR2', 'ppDiff1', 'ppDiff2']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pRR1', 'pRR2', 'ppDiff1', 'ppDiff2']}"
 		},
 		"DnsRecordSetCopyEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'int'}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, 'arg_names': ['pRecordSet', 'CharSetIn', 'CharSetOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DNS_CHARSET', 'ot': 'enum'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, 'arg_names': ['pRecordSet', 'CharSetIn', 'CharSetOut']}"
 		},
 		"DnsRecordSetDetach": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, 'arg_names': ['pRecordList']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, 'arg_names': ['pRecordList']}"
 		},
 		"DnsReleaseContextHandle": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hContext']}"
 		},
 		"DnsReplaceRecordSetA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
 		},
 		"DnsReplaceRecordSetUTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
 		},
 		"DnsReplaceRecordSetW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_RECORDA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pReplaceSet', 'Options', 'hContext', 'pExtraInfo', 'pReserved']}"
 		},
 		"DnsServiceBrowse": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_BROWSE_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pRequest', 'pCancel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_BROWSE_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pRequest', 'pCancel']}"
 		},
 		"DnsServiceBrowseCancel": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
 		},
 		"DnsServiceConstructInstance": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'IP6Dword': {'_t': 'array', 'elem_type': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'length': 4}, 'IP6Word': {'_t': 'array', 'elem_type': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'length': 8}, 'IP6Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 16}}, 'name': '<anon>'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': '_ref'}}, 'arg_names': ['pServiceName', 'pHostName', 'pIp4', 'pIp6', 'wPort', 'wPriority', 'wWeight', 'dwPropertiesCount', 'keys', 'values']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'IP6Dword': {'_t': 'array', 'elem_type': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'length': 4}, 'IP6Word': {'_t': 'array', 'elem_type': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'length': 8}, 'IP6Byte': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'length': 16}}, 'name': '<anon>'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'label': 'LPArray'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': 'struct'}}, 'arg_names': ['pServiceName', 'pHostName', 'pIp4', 'pIp6', 'wPort', 'wPriority', 'wWeight', 'dwPropertiesCount', 'keys', 'values']}"
 		},
 		"DnsServiceCopyInstance": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': '_ref'}}, 'arg_names': ['pOrig']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': 'struct'}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': 'struct'}}, 'arg_names': ['pOrig']}"
 		},
 		"DnsServiceDeRegister": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_REGISTER_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRequest', 'pCancel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_REGISTER_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRequest', 'pCancel']}"
 		},
 		"DnsServiceFreeInstance": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pInstance']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_INSTANCE', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pInstance']}"
 		},
 		"DnsServiceRegister": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_REGISTER_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRequest', 'pCancel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_REGISTER_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRequest', 'pCancel']}"
 		},
 		"DnsServiceRegisterCancel": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pCancelHandle']}"
 		},
 		"DnsServiceResolve": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_RESOLVE_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pRequest', 'pCancel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_RESOLVE_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pRequest', 'pCancel']}"
 		},
 		"DnsServiceResolveCancel": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SERVICE_CANCEL', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pCancelHandle']}"
 		},
 		"DnsSetApplicationSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_APPLICATION_SETTINGS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['cServers', 'pServers', 'pSettings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_CUSTOM_SERVER', 'ot': 'struct'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_APPLICATION_SETTINGS', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['cServers', 'pServers', 'pSettings']}"
 		},
 		"DnsStartMulticastQuery": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_REQUEST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pQueryRequest', 'pHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_REQUEST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_HANDLE', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pQueryRequest', 'pHandle']}"
 		},
 		"DnsStopMulticastQuery": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MDNS_QUERY_HANDLE', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pHandle']}"
 		},
 		"DnsValidateName_A": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
 		},
 		"DnsValidateName_UTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
 		},
 		"DnsValidateName_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'DNS_NAME_FORMAT', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszName', 'Format']}"
 		},
 		"DnsWriteQuestionToBuffer_UTF8": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDnsBuffer', 'pdwBufferSize', 'pszName', 'wType', 'Xid', 'fRecursionDesired']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDnsBuffer', 'pdwBufferSize', 'pszName', 'wType', 'Xid', 'fRecursionDesired']}"
 		},
 		"DnsWriteQuestionToBuffer_W": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDnsBuffer', 'pdwBufferSize', 'pszName', 'wType', 'Xid', 'fRecursionDesired']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_MESSAGE_BUFFER', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pDnsBuffer', 'pdwBufferSize', 'pszName', 'wType', 'Xid', 'fRecursionDesired']}"
 		}
 	}
 }

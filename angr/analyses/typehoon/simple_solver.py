@@ -286,14 +286,13 @@ class Sketch:
         if (
             try_maxsize
             and isinstance(subtype, TypeVariable)
-            and subtype in self.solver.stackvar_max_sizes
+            and (max_size := self.solver.get_tv_max_stack_size(subtype)) is not None
             and isinstance(supertype, TypeConstant)
             and not isinstance(supertype, BottomType)
         ):
             basetype = supertype
             if not isinstance(basetype, (TopType, BottomType)):
                 assert basetype.size is not None
-                max_size = self.solver.stackvar_max_sizes.get(subtype, None)
                 if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
@@ -497,6 +496,10 @@ class SimpleSolver:
                 self.preprocess(func_tv)
                 self.simplified_constraints_count += len(self._constraints[func_tv])
 
+        self._repr_tv_to_tvs = defaultdict(set)
+        for tv, repr_tv in self._equivalence.items():
+            self._repr_tv_to_tvs[repr_tv].add(tv)
+
         self.solution = {}
         for tv, sol in self._equivalence.items():
             if isinstance(tv, TypeVariable) and isinstance(sol, TypeConstant):
@@ -510,6 +513,20 @@ class SimpleSolver:
         for tv, tv_eq in self._equivalence.items():
             if tv not in self.solution and tv_eq in self.solution:
                 self.solution[tv] = self.solution[tv_eq]
+
+    def get_tv_max_stack_size(self, tv: TypeVariable) -> int | None:
+        """
+        Get the potential maximum stack variable size of a given type variable, if any. Also considers other type
+        variables that are equivalent to the given type variable.
+        """
+
+        if tv in self.stackvar_max_sizes:
+            return self.stackvar_max_sizes[tv]
+        if tv in self._repr_tv_to_tvs:
+            for eq_tv in self._repr_tv_to_tvs[tv]:
+                if eq_tv in self.stackvar_max_sizes:
+                    return self.stackvar_max_sizes[eq_tv]
+        return None
 
     def preprocess(self, func_tv: TypeVariable):
         self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])
@@ -1409,6 +1426,8 @@ class SimpleSolver:
                             tv_sizes[sz].add(constraint)
                     elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
                         tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                    elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
+                        tv_sizes[constraint.super_type.SIZE].add(constraint)
 
             if not tv_sizes:
                 continue

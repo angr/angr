@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"D3DKMTEnumAdapters3": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ENUMADAPTERS3', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'D3DKMT_ENUMADAPTERS3', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'NTSTATUS', 'ot': 'int'}, 'arg_names': ['param0']}"
 		}
 	}
 }

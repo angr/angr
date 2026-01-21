@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"IsCrossIsolatedEnvironmentClipboardContent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['isCrossIsolatedEnvironmentClipboardContent']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['isCrossIsolatedEnvironmentClipboardContent']}"
 		},
 		"IsProcessInIsolatedWindowsEnvironment": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['isProcessInIsolatedWindowsEnvironment']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['isProcessInIsolatedWindowsEnvironment']}"
 		}
 	}
 }

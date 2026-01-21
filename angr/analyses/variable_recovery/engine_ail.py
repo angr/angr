@@ -233,7 +233,11 @@ class SimEngineVRAIL(
         ret_ty = None
         if prototype is not None:
             # add type constraints
-            self._call_add_arg_based_type_constraints(prototype, prototype_libname, args)
+            if (
+                isinstance(expr.target, (ailment.Expr.Const, str))
+                or expr.tags.get("is_prototype_guessed", True) is False
+            ):
+                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, expr.args)
             # handle return type
             if not expr.tags.get("is_prototype_guessed", True):
                 return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
@@ -294,7 +298,11 @@ class SimEngineVRAIL(
 
         ret_ty = None
         if prototype is not None:
-            self._call_add_arg_based_type_constraints(prototype, prototype_libname, args)
+            if (
+                isinstance(stmt.target, (ailment.Expr.Const, str))
+                or stmt.tags.get("is_prototype_guessed", True) is False
+            ):
+                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.args)
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
             ret_ty = typevars.TypeVariable()
@@ -330,13 +338,13 @@ class SimEngineVRAIL(
             )
 
     def _call_add_arg_based_type_constraints(
-        self, prototype: SimTypeFunction, prototype_libname: str | None, args: list
+        self, prototype: SimTypeFunction, prototype_libname: str | None, args: list, arg_atoms: list
     ) -> None:
         # add type constraints
         if not args:
             return
 
-        for arg, arg_type in zip(args, prototype.args):
+        for arg, _arg_atom, arg_type in zip(args, arg_atoms, prototype.args):
             if arg.typevar is None:
                 continue
             arg_type = dereference_simtype_by_lib(arg_type, prototype_libname) if prototype_libname else arg_type
@@ -344,31 +352,32 @@ class SimEngineVRAIL(
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
             ):
-                # special case: if arg_ty is a pointer to a struct, arg might be a pointer to the first
-                # field of the struct. although the two pointers are equivalent in value, we cannot
-                # establish a subtype relationship between them and subsequently reason about the type
-                # variable that arg.typevar points to.
-                # hence, if arg_ty points to a struct whose size is larger than arg.size, we create a new
-                # stack variable and its type variable that represents the full struct variable on the
-                # stack.
                 type_constraint = None
-                if isinstance(arg_ty, typeconsts.Pointer) and isinstance(arg_ty.basetype, typeconsts.Struct):
+                stack_offset = self.state.get_stack_offset(arg.data)
+                if (
+                    stack_offset is not None
+                    and isinstance(arg_ty, typeconsts.Pointer)
+                    and isinstance(arg_ty.basetype, typeconsts.Struct)
+                ):
+                    # special case: if arg_ty is a pointer to a struct, arg might be a pointer to the first
+                    # field of the struct. although the two pointers are equivalent in value, we cannot
+                    # establish a subtype relationship between them and subsequently reason about the type
+                    # variable that arg.typevar points to.
+                    # hence, if arg_ty points to a struct whose size is larger than arg.size, we create a new
+                    # stack variable and its type variable that represents the full struct variable on the
+                    # stack.
                     arg_ty_basesize = arg_ty.basetype.size
                     if arg_ty_basesize > arg.bits // self.arch.byte_width:
                         # create a new stack variable
-                        stack_offset = self.state.get_stack_offset(arg.data)
-                        if stack_offset is not None:
-                            stack_var = SimStackVariable(
-                                stack_offset,
-                                arg_ty_basesize,
-                                ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
-                            )
-                            self.state.variable_manager[self.func_addr].add_variable(
-                                "stack", stack_var.offset, stack_var
-                            )
-                            stack_typevar = typevars.TypeVariable()
-                            self.state.typevars.add_type_variable(stack_var, stack_typevar)
-                            type_constraint = typevars.Subtype(stack_typevar, arg_ty.basetype)
+                        stack_var = SimStackVariable(
+                            stack_offset,
+                            arg_ty_basesize,
+                            ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
+                        )
+                        self.state.variable_manager[self.func_addr].add_variable("stack", stack_var.offset, stack_var)
+                        stack_typevar = typevars.TypeVariable()
+                        self.state.typevars.add_type_variable(stack_var, stack_typevar)
+                        type_constraint = typevars.Subtype(stack_typevar, arg_ty.basetype)
                 if type_constraint is None:
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                 self.state.add_type_constraint(type_constraint)

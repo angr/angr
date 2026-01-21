@@ -57,12 +57,13 @@ class SimTypeCollection:
 
         self.types[name] = t
 
-    def get(self, name: str, bottom_on_missing: bool = False) -> SimType:
+    def get(self, name: str, bottom_on_missing: bool = False, memo: set[str] | None = None) -> SimType:
         """
         Get a SimType object from the collection as identified by the name.
 
         :param name:    Name of the type to get.
         :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
+        :param memo:    A set of names that have been queried in this call chain (to prevent infinite recursion).
         :return:        The SimType object.
         """
         if bottom_on_missing and name not in self:
@@ -70,11 +71,14 @@ class SimTypeCollection:
         if name not in self:
             raise AngrMissingTypeError(name)
         if name not in self.types and name in self.types_json:
+            if memo is None:
+                memo = {name}
+
             d = self.types_json[name]
             if isinstance(d, str):
                 d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
             try:
-                t = SimType.from_json(d)
+                t = SimType.from_json(d, type_collection=self, memo=memo)
             except (TypeError, ValueError) as ex:
                 l.warning("Failed to load type %s from JSON", name, exc_info=True)
                 # the type is missing

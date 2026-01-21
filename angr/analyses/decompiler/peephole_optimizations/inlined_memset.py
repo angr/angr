@@ -114,7 +114,7 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                         Const(None, None, candidate.value, 8),
                         Const(None, None, candidate.count, self.project.arch.bits),
                     ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy"),
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset"),
                     **stmt.tags,
                 )
                 if start_stmt_idx == stmt_idx:

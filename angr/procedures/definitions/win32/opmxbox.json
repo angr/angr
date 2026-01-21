@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"OPMXboxEnableHDCP": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['HDCPType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['HDCPType']}"
 		},
 		"OPMXboxGetHDCPStatus": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus']}"
 		},
 		"OPMXboxGetHDCPStatusAndType": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus', 'pHDCPType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_STATUS', 'ot': 'enum'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPM_HDCP_TYPE', 'ot': 'enum'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pHDCPStatus', 'pHDCPType']}"
 		}
 	}
 }
