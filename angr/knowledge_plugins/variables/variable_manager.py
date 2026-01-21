@@ -26,6 +26,7 @@ from angr.sim_type import (
     SimTypeShort,
     SimTypeInt,
     SimTypeLong,
+    SimTypeArray,
 )
 from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -120,8 +121,9 @@ class VariableManagerInternal(Serializable):
         # optimization
         self._variables_without_writes = set()
 
-        # dict[int, tuple[SimStackVariable, SimStruct]]
-        self.stack_offset_to_struct = SortedDict()
+        self.stack_offset_to_complex_types: SortedDict[int, tuple[SimStackVariable, SimStruct | SimTypeArray]] = (
+            SortedDict()
+        )
 
         self.ret_val_size = None
 
@@ -1073,8 +1075,11 @@ class VariableManagerInternal(Serializable):
                         self.variable_to_types[other_var] = ty
                         if mark_manual:
                             self.variables_with_manual_types.add(other_var)
-        if isinstance(var, SimStackVariable) and isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
-            self.stack_offset_to_struct[var.offset] = var, ty.type
+        if isinstance(var, SimStackVariable):
+            if isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
+                self.stack_offset_to_complex_types[var.offset] = var, ty.type
+            elif isinstance(ty, SimTypeArray):
+                self.stack_offset_to_complex_types[var.offset] = var, ty
 
     def get_variable_type(self, var) -> SimType | None:
         return self.variable_to_types.get(var, None)

@@ -2391,8 +2391,8 @@ class Clinic(Analysis):
     ) -> bool:
         any_struct_found = False
         off = the_stack_offset
-        for stack_off in variable_manager.stack_offset_to_struct.irange(maximum=off, reverse=True):
-            the_var, vartype = variable_manager.stack_offset_to_struct[stack_off]
+        for stack_off in variable_manager.stack_offset_to_complex_types.irange(maximum=off, reverse=True):
+            the_var, vartype = variable_manager.stack_offset_to_complex_types[stack_off]
             if stack_off <= off < stack_off + vartype.size // self.project.arch.byte_width:
                 expr_or_stmt.tags["struct_member_info"] = off - stack_off, the_var, vartype
                 any_struct_found = True
