@@ -163,10 +163,10 @@ class AILSimplifier(Analysis):
         self,
         func: Function,
         func_graph: networkx.DiGraph[Block],
+        ail_manager: Manager,
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
-        ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
         fold_expressions=True,
@@ -188,7 +188,7 @@ class AILSimplifier(Analysis):
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
-        self._ail_manager: Manager | None = ail_manager
+        self._ail_manager = ail_manager
         self._gp = gp
         self._narrow_expressions = narrow_expressions
         self._fold_expressions = fold_expressions
@@ -816,7 +816,9 @@ class AILSimplifier(Analysis):
                     }
                 reps = filtered_reps
 
-            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
+            r, new_block = BlockSimplifier._replace_and_build(
+                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
+            )
             replaced |= r
             self.blocks[block] = new_block
 

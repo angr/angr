@@ -92,7 +92,7 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                         base_expr = Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits)
                     case "heap":
                         base_expr = BinaryOp(
-                            None,
+                            self.manager.next_atom(),
                             "Add",
                             [
                                 candidate.base,

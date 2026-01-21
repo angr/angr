@@ -205,7 +205,9 @@ class BlockSimplifier(Analysis):
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
+                    _, new_block = self._replace_and_build(
+                        block, replacements, self._ail_manager, replace_registers=True
+                    )
                     new_block = self._eliminate_self_assignments(new_block)
                     self._clear_cache()
         else:
@@ -221,6 +223,7 @@ class BlockSimplifier(Analysis):
     def _replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
+        ail_manager: Manager,
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
         gp: int | None = None,
@@ -231,6 +234,7 @@ class BlockSimplifier(Analysis):
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                new = new.deep_copy(ail_manager)
                 assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
