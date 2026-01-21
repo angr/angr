@@ -476,7 +476,10 @@ class SimEngineVRBase(
 
             # create constraints accordingly
             if richr.typevar is not typevar:
-                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+                if richr.data.concrete:
+                    self.state.add_type_constraint(typevars.Equivalence(richr.typevar, typevar))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
@@ -726,7 +729,10 @@ class SimEngineVRBase(
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
-            self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
+            if data.data.concrete:
+                self.state.add_type_constraint(typevars.Equivalence(store_typevar, data_typevar))
+            else:
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
     def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
         """
@@ -1226,12 +1232,12 @@ class SimEngineVRBase(
                 ty = r.typevar
             else:
                 # this allows us to type integer constants if necessary
-                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                var_candidates: set[tuple[SimVariable, int]] = self.state.variable_manager[
                     self.func_addr
-                ].find_variables_by_stmt(
+                ].find_variables_by_atom(
                     self.block.addr,
                     self.stmt_idx,
-                    "constant",
+                    expr,
                     block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
                 )
                 if not var_candidates:
@@ -1242,7 +1248,7 @@ class SimEngineVRBase(
                     )
                     self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
                 else:
-                    var = var_candidates[0][0]
+                    var = next(iter(var_candidates))[0]
                 ty = typevars.TypeVariable()
                 ty_const = typeconsts.int_type(bits)
                 if not self.state.typevars.has_type_variable_for(var):
