@@ -390,6 +390,7 @@ class OptimizationPass(BaseOptimizationPass):
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,
+                ail_manager=self.manager,
                 fold_expressions=self._fold_expressions,
                 use_callee_saved_regs_at_return=False,
                 gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
