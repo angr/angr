@@ -204,8 +204,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         offset = base_offset + min(extra_offset, 0)
         var_offset = max(extra_offset, 0)
         size = var_offset + base_size
-        # DO NOT unify on set. set has the potential to create totally new locations unrelated to old ones.
-        # full_offset, full_size = self.state.stackvar_unify(offset, size)
 
         self.state.pending_ptr_defines_nonlocal_live.discard(base_offset)
         if base_offset in self.pending_ptr_defines_nonlocal:
@@ -213,14 +211,25 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         self.state.live_stackvars[offset] = value
 
+        other_defs: set[Def] = set()
         for suboff in range(offset, offset + size):
+            # set up current var mapping
             self.state.stackvar_bases[suboff] = (offset, size)
+            # additional consideration: if we have only partially overwritten some def, make sure the other defs
+            # in range know of the updated size
+            if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
+                old_defs = self.state.stackvar_defs.pop(suboff, set())
+                for old_def in old_defs:
+                    kind, loc, cell_offset, _, var_offset = self.def_info[old_def]
+                    # TODO consider that we actually have to do unification...
+                    self.def_info[old_def] = (kind, loc, offset, size, var_offset + cell_offset - offset)
+                    other_defs.add(old_def)
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:
             assert def2 is not None
             self.perform_def("stack", def2, offset, size, var_offset, loc2)
-            self.state.stackvar_defs[offset] = {def2}
+            self.state.stackvar_defs[offset] = {def2} | other_defs
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
