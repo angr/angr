@@ -3828,13 +3828,6 @@ def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None and _type_parser_singleton is None:
         _type_parser_singleton = pycparser.CParser()
-        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
-            module=_type_parser_singleton,
-            start="parameter_declaration",
-            debug=False,
-            optimize=False,
-            errorlog=errorlog,
-        )
     assert _type_parser_singleton is not None
     return _type_parser_singleton
 
@@ -3868,7 +3861,7 @@ def parse_type_with_name(
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
     # pylint: disable=unexpected-keyword-arg
-    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse_type(text=defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.Typename) and not isinstance(node, c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
@@ -3882,7 +3875,9 @@ def _accepts_scope_stack():
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
 
-    def parse(self, text, filename="", debug=False, scope_stack=None):
+    def parse(self, text, filename="", debug=False, scope_stack=None):  # pylint:disable=unused-argument
+        # debug is not used and only kept for backward compatibility as in pycparser >= 3.0
+
         self.clex._filename = filename
         self.clex._lineno = 1
         self._scope_stack = [{}] if scope_stack is None else scope_stack
@@ -3896,7 +3891,22 @@ def _accepts_scope_stack():
             self._parse_error(f"before: {tok.value}", self._tok_coord(tok))
         return ast
 
+    def parse_type(self, text, filename="", scope_stack=None) -> c_ast.Typename:
+        self.clex._filename = filename
+        self.clex._lineno = 1
+        self._scope_stack = [{}] if scope_stack is None else scope_stack
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        ast = self._parse_type_name()
+        tok = self._peek()
+        if tok is not None:
+            self._parse_error(f"before: {tok.value}", self._tok_coord(tok))
+        return ast
+
     pycparser.CParser.parse = parse
+    pycparser.CParser.parse_type = parse_type
 
 
 def _decl_to_type(
