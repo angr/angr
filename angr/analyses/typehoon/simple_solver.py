@@ -1660,6 +1660,8 @@ class SimpleSolver:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
             return True
+        if isinstance(typevar, Enum) and Enum_ in typevar_set:
+            return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
             return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
         if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
