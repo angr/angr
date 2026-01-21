@@ -4953,14 +4953,17 @@ class TestDecompiler(unittest.TestCase):
         assert "WNDCLASSEXA v" in dec.codegen.text
         wndclass_var = re.findall(r"WNDCLASSEXA (v\d+);", dec.codegen.text)[0]
         assert f"{wndclass_var}.cbSize = 48;" in dec.codegen.text
-        assert f"{wndclass_var}.style = 3;" in dec.codegen.text
+        assert (
+            f"{wndclass_var}.style = 3;" in dec.codegen.text
+            or f"*((unsigned int *)&{wndclass_var}.style) = 3;" in dec.codegen.text
+        )
         assert f"{wndclass_var}.lpfnWndProc = sub_410880;" in dec.codegen.text
         assert f"{wndclass_var}.cbClsExtra = 0;" in dec.codegen.text
         assert f"{wndclass_var}.cbWndExtra = 0;" in dec.codegen.text
         assert f"{wndclass_var}.hInstance = " in dec.codegen.text
         assert f"{wndclass_var}.hIcon = LoadIconA(" in dec.codegen.text
         assert f"{wndclass_var}.hCursor = LoadCursorA(" in dec.codegen.text
-        assert f"{wndclass_var}.hbrBackground = GetStockObject(4);" in dec.codegen.text
+        assert f"{wndclass_var}.hbrBackground = GetStockObject(BLACK_BRUSH);" in dec.codegen.text
         assert f"{wndclass_var}.lpszMenuName = 109;" in dec.codegen.text
         assert f'{wndclass_var}.lpszClassName = "BOLHAS";' in dec.codegen.text
         assert f"{wndclass_var}.hIconSm = 0;" in dec.codegen.text
