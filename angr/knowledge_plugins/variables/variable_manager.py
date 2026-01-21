@@ -1,17 +1,16 @@
 from __future__ import annotations
 from typing import Literal, TypeVar, Generic, TYPE_CHECKING, cast, overload
-
-from collections.abc import Iterator
-import logging
 from collections import defaultdict
+from collections.abc import Iterator
 from itertools import count, chain
+import logging
 
 import networkx
 
-import angr.ailment as ailment
 from cle.backends.elf.compilation_unit import CompilationUnit
 from cle.backends.elf.variable import Variable
 
+from angr import ailment
 from angr.utils.orderedset import OrderedSet
 from angr.utils.ail import is_phi_assignment
 from angr.utils.types import unpack_pointer, replace_pointer_pts_to
@@ -41,8 +40,9 @@ if TYPE_CHECKING:
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
 
-    class SortedDict(Generic[K, T], dict[K, T]):
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+    class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
+        def irange(self, *args, **kwargs) -> Iterator[K]:  # pylint:disable=unused-argument, no-self-use
+            ...
 
 else:
     from sortedcontainers import SortedDict
