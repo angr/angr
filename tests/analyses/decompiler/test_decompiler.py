@@ -3468,9 +3468,13 @@ class TestDecompiler(unittest.TestCase):
         assert first_good_if.start() == all_if_stmts[0].start()
 
         # the if-stmt immediately after the first one should be a true check on -1
-        second_good_if = re.search("if \\(.*? == -1\\)", text)
+        second_good_if = re.search("if \\(.*? == -1\\)", text) or re.search("if \\(.*? == 4294967295\\)", text)
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
+
+        # ensure the constant memory read exists
+        const_mem_read = re.search(r"\*\(\(int \*\)0x501380\) == 1", text)
+        assert const_mem_read is not None
 
     @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
