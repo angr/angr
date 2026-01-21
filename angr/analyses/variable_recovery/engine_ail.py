@@ -371,41 +371,15 @@ class SimEngineVRAIL(
                                 arg_ty_basesize,
                                 ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
                             )
+                            self.state.variable_manager[self.func_addr].record_variable(
+                                self._codeloc(), stack_var, stack_var.offset, atom=arg_atom
+                            )
                             self.state.variable_manager[self.func_addr].add_variable(
                                 "stack", stack_var.offset, stack_var
                             )
                             stack_typevar = typevars.TypeVariable()
                             self.state.typevars.add_type_variable(stack_var, stack_typevar)
                             type_constraint = typevars.Subtype(stack_typevar, arg_ty.basetype)
-                    elif isinstance(arg_ty.basetype, (typeconsts.Int8, typeconsts.Int16)):
-                        # char* or wchar_t*?
-                        existing_stack_vars = self.state.variable_manager[
-                            self.func_addr
-                        ].find_variables_by_stack_offset(stack_offset)
-                        existing_stack_var = next(iter(existing_stack_vars), None)
-
-                        if existing_stack_var is not None:  # noqa: SIM108
-                            arg_ty_basesize = existing_stack_var.size
-                        else:
-                            # create a new 16-byte stack variable...
-                            arg_ty_basesize = 4  # TODO: Determine the likely size more intelligently
-                        stack_var = SimStackVariable(
-                            stack_offset,
-                            arg_ty_basesize,
-                            ident=self.state.variable_manager[self.func_addr].next_variable_ident("stack"),
-                        )
-                        self.state.variable_manager[self.func_addr].add_variable("stack", stack_var.offset, stack_var)
-                        self.state.variable_manager[self.func_addr].record_variable(
-                            self._codeloc(), stack_var, stack_var.offset, atom=arg_atom
-                        )
-
-                        stack_typevar = typevars.TypeVariable()
-                        self.state.typevars.add_type_variable(stack_var, stack_typevar)
-
-                        type_constraint = typevars.Subtype(
-                            stack_typevar,
-                            typeconsts.Array(element=arg_ty.basetype, count=arg_ty_basesize // arg_ty.basetype.size),
-                        )
                 if type_constraint is None:
                     type_constraint = typevars.Subtype(arg.typevar, arg_ty)
                 self.state.add_type_constraint(type_constraint)
