@@ -3,6 +3,8 @@ from collections import defaultdict
 from typing import TYPE_CHECKING
 from collections.abc import Callable
 
+from archinfo.arch_arm import is_arm_arch
+
 from angr.ailment.statement import Call, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
     Const,
@@ -221,7 +223,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.state.stackvar_defs[offset] = {def2}
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
-        base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+        if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
+            # hack: assume the s and d registers do not alias since we cannot narrow them properly
+            # If you want to fix this, please implement proper unification support for regs
+            base_off, base_size = offset, size
+        else:
+            base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+
         if base_off not in self.state.live_registers:
             self.perform_def(
                 "reg",
@@ -235,7 +243,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         return self.state.live_registers[offset]
 
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
-        base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+        if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
+            # hack: assume the s and d registers do not alias since we cannot narrow them properly
+            # If you want to fix this, please implement proper unification support for regs
+            base_off, base_size = offset, size
+        else:
+            base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+
         self.perform_def("reg", def_, base_off, base_size, offset - base_off)
         self.state.live_registers[base_off] = value
 
@@ -291,6 +305,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)
+        if stmt.fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
+            self.register_set(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size, result, stmt.fp_ret_expr)
 
     def _handle_expr_Call(self, expr):
         target = expr.target
