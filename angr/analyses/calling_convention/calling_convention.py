@@ -926,7 +926,7 @@ class CallingConventionAnalysis(Analysis):
                     new_input_args.add(a)
             return new_input_args
 
-        return input_args
+        return set(input_args)
 
     def _reorder_args(self, args: set[SimRegArg | SimStackArg], cc: SimCC) -> list[SimRegArg | SimStackArg]:
         """

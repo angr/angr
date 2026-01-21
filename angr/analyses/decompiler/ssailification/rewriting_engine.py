@@ -310,7 +310,7 @@ class SimEngineSSARewriting(
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
         vvar = self._expr_to_vvar(expr, True)
-        return self._vvar_extract(vvar, expr.size, vvar.reg_offset - expr.reg_offset, expr)
+        return self._vvar_extract(vvar, expr.size, expr.reg_offset - vvar.reg_offset, expr)
 
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         if not self.rewrite_tmps:
@@ -607,6 +607,7 @@ class SimEngineSSARewriting(
     def _vvar_extract(
         self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
     ) -> Extract | VirtualVariable:
+        assert offset >= 0
         if size == vvar.size:
             return vvar
         return Extract(self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), **orig_tags.tags)
