@@ -1,10 +1,11 @@
 from __future__ import annotations
-from typing import Literal, TYPE_CHECKING, overload
+from typing import Literal, TypeVar, Generic, TYPE_CHECKING, cast, overload
+
+from collections.abc import Iterator
 import logging
 from collections import defaultdict
 from itertools import count, chain
 
-from sortedcontainers import SortedDict
 import networkx
 
 import angr.ailment as ailment
@@ -33,9 +34,19 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.knowledge_plugins.types import TypesStore
 from .variable_access import VariableAccess, VariableAccessSort
 
+K = TypeVar("K")
+T = TypeVar("T")
+
 if TYPE_CHECKING:
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
+
+    class SortedDict(Generic[K, T], dict[K, T]):
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+
+else:
+    from sortedcontainers import SortedDict
+
 
 l = logging.getLogger(name=__name__)
 
@@ -1026,7 +1037,7 @@ class VariableManagerInternal(Serializable):
         if not name:
             name = self.types.unique_type_name()
         if name in self.types:
-            return self.types[name]
+            return cast(TypeRef, self.types[name])
         ty_ref = TypeRef(name, ty).with_arch(self.manager._kb._project.arch)
         self.types[name] = ty_ref
         return ty_ref
