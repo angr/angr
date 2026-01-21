@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, TypedDict, TYPE_CHECKING
+from typing import Any, Self, TypedDict, TYPE_CHECKING
+
+from angr.ailment.manager import Manager
 
 if TYPE_CHECKING:
     from typing_extensions import Unpack
@@ -55,4 +57,10 @@ class TaggedObject:
         return self._hash
 
     def _hash_core(self) -> int:
+        raise NotImplementedError
+
+    def copy(self) -> Self:
+        raise NotImplementedError
+
+    def deep_copy(self, manager: Manager) -> Self:
         raise NotImplementedError

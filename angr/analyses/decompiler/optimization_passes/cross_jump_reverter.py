@@ -1,7 +1,6 @@
 from __future__ import annotations
 from collections import defaultdict
 from itertools import count
-import copy
 import logging
 import inspect
 
@@ -94,7 +93,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
             # update the edges
             for src, goto_blk in update_edges:
-                cp = copy.deepcopy(goto_blk)
+                cp = goto_blk.deep_copy(self.manager)
                 cp.idx = next(self.node_idx)
                 self.out_graph.remove_edge(src, goto_blk)
                 self.out_graph.add_edge(src, cp)

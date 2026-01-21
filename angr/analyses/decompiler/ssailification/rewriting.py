@@ -200,8 +200,7 @@ class RewritingAnalysis:
             if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
-            vvar = existing_var.copy()
-            vvar.idx = self._ail_manager.next_atom()
+            vvar = existing_var.deep_copy(self._ail_manager)
             return True, vvar
 
         return False, None
@@ -217,8 +216,7 @@ class RewritingAnalysis:
             if existing_var is None:
                 # the vvar is not set. it should never be referenced
                 return True, None
-            vvar = existing_var.copy()
-            vvar.idx = self._ail_manager.next_atom()
+            vvar = existing_var.deep_copy(self._ail_manager)
             return True, vvar
         return False, None
 
