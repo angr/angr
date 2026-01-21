@@ -16,7 +16,7 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.types import unpack_pointer, replace_pointer_pts_to
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
-from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimConstantVariable
 from angr.sim_type import (
     TypeRef,
     SimType,
@@ -103,6 +103,7 @@ class VariableManagerInternal(Serializable):
             "argument": count(),
             "phi": count(),
             "global": count(),
+            "constant": count(),
         }
 
         self._unified_variables: set[SimVariable] = set()
@@ -416,6 +417,8 @@ class VariableManagerInternal(Serializable):
             prefix = "arg"
         elif sort == "global":
             prefix = "g"
+        elif sort == "constant":
+            prefix = "c"
         else:
             prefix = "m"
 
@@ -428,6 +431,8 @@ class VariableManagerInternal(Serializable):
             region = self._register_region
         elif sort == "global":
             region = self._global_region
+        elif sort == "constant":
+            region = None
         else:
             raise ValueError(f"Unsupported sort {sort} in add_variable().")
 
@@ -440,7 +445,8 @@ class VariableManagerInternal(Serializable):
                     variable.renamed = existing_var.renamed
             self._ident_to_variable[variable.ident] = variable
 
-        region.add_variable(start, variable)
+        if region is not None:
+            region.add_variable(start, variable)
         self._variables.add(variable)
         self._variables_without_writes.add(variable)
 
@@ -667,6 +673,10 @@ class VariableManagerInternal(Serializable):
         elif sort == "register":
             var_and_offsets = [
                 (var, offset) for var, offset in self._stmt_to_variable[key] if isinstance(var, SimRegisterVariable)
+            ]
+        elif sort == "constant":
+            var_and_offsets = [
+                (var, offset) for var, offset in self._stmt_to_variable[key] if isinstance(var, SimConstantVariable)
             ]
         else:
             l.error('find_variables_by_stmt(): Unsupported variable sort "%s".', sort)

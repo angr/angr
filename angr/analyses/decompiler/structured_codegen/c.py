@@ -3150,8 +3150,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         def bail_out():
             if len(o_terms) == 0:
-                # probably a plain integer, return as is
-                return expr
+                # probably a plain integer, return as *(int_type*)expr
+                return CUnaryOp(
+                    "Dereference", CTypeCast(expr.type, SimTypePointer(data_type), expr, codegen=self), codegen=self
+                )
             result = None
             pointer_length_int_type = (
                 SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False)
@@ -3217,7 +3219,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             i += 1
 
         if kernel is None:
-            l.warning("Dereferencing a plain integer. Uh oh!")
+            # Dereferencing a plain integer
             return bail_out()
 
         terms.sort(key=lambda x: x[0])
@@ -3774,6 +3776,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None and "type" in expr.tags:
             type_ = expr.tags["type"]
+
+        if type_ is None and expr.variable is not None:
+            type_ = self._get_variable_type(expr.variable)
 
         if reference_values is None and "reference_values" in expr.tags:
             reference_values = expr.tags["reference_values"].copy()

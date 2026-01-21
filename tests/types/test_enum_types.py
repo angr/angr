@@ -17,6 +17,7 @@ from angr.sim_type import (
     SimTypePointer,
     SimTypeChar,
     TypeRef,
+    parse_type,
 )
 
 
@@ -419,6 +420,66 @@ class TestEnumInFunctionPrototype(unittest.TestCase):
         )
         assert proto.args[2] == bf
         assert isinstance(proto.args[2], SimTypeBitfield)
+
+
+class TestEnumEdgeCases(unittest.TestCase):
+    """Test edge cases for enum handling."""
+
+    def test_empty_enum(self):
+        """Test handling of empty enum."""
+        empty = SimTypeEnum({}, name="Empty")
+        assert empty.members == {}  # pylint:disable=use-implicit-booleaness-not-comparison
+        assert empty.c_repr(full=1) == "enum Empty {\n\n}"
+
+    def test_single_member_enum(self):
+        """Test enum with single member."""
+        single = SimTypeEnum({"ONLY": 42}, name="Single")
+        assert single.members == {"ONLY": 42}
+        c_repr = single.c_repr(full=1)
+        assert "ONLY = 42" in c_repr
+
+    def test_large_enum_values(self):
+        """Test enum with large values."""
+        large = SimTypeEnum({"MIN": -2147483648, "MAX": 2147483647, "ZERO": 0}, name="Limits")
+
+        assert large.members["MIN"] == -2147483648
+        assert large.members["MAX"] == 2147483647
+
+    def test_enum_with_special_names(self):
+        """Test enum with various naming conventions."""
+        special = SimTypeEnum(
+            {
+                "ALL_CAPS": 0,
+                "mixedCase": 1,
+                "with_underscore": 2,
+                "_leading": 3,
+                "trailing_": 4,
+            },
+            name="SpecialNames",
+        )
+
+        # All names should be preserved
+        assert len(special.members) == 5
+        for name in ["ALL_CAPS", "mixedCase", "with_underscore", "_leading", "trailing_"]:
+            assert name in special.members
+
+    def test_parse_enum_with_hex_values(self):
+        """Test parsing enum with hexadecimal values."""
+        enum_type = parse_type("enum Flags { NONE = 0x0, READ = 0x1, WRITE = 0x2, EXEC = 0x4 }")
+        assert isinstance(enum_type, SimTypeEnum)
+        assert enum_type.members["NONE"] == 0
+        assert enum_type.members["READ"] == 1
+        assert enum_type.members["WRITE"] == 2
+        assert enum_type.members["EXEC"] == 4
+
+    def test_parse_enum_with_expressions(self):
+        """Test parsing enum with constant expressions."""
+        enum_type = parse_type("enum Bits { B0 = 1, B1 = 1 << 1, B2 = 1 << 2, B3 = 1 << 3 }")
+        assert isinstance(enum_type, SimTypeEnum)
+        assert enum_type.members["B0"] == 1
+        assert enum_type.members["B1"] == 2
+        assert enum_type.members["B2"] == 4
+        assert enum_type.members["B3"] == 8
 
 
 if __name__ == "__main__":

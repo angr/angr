@@ -52,6 +52,7 @@ from .typeconsts import (
     Float,
     Float32,
     Float64,
+    Enum,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -76,6 +77,7 @@ Array_ = Array()
 Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
+Enum_ = Enum()
 
 
 PRIMITIVE_TYPES = {
@@ -96,6 +98,7 @@ PRIMITIVE_TYPES = {
     Float_,
     Float32_,
     Float64_,
+    Enum_,
 }
 
 
@@ -114,6 +117,8 @@ BASE_LATTICE_64.add_edge(Int16_, Bottom_)
 BASE_LATTICE_64.add_edge(Int8_, Bottom_)
 BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
 BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Enum_)
+BASE_LATTICE_64.add_edge(Enum_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
@@ -130,6 +135,8 @@ BASE_LATTICE_32.add_edge(Int64_, Bottom_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Enum_)
+BASE_LATTICE_32.add_edge(Enum_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -499,6 +506,10 @@ class SimpleSolver:
         self.solve()
         for func_tv in list(self._constraints):
             self._convert_arrays(self._constraints[func_tv])
+
+        for tv, tv_eq in self._equivalence.items():
+            if tv not in self.solution and tv_eq in self.solution:
+                self.solution[tv] = self.solution[tv_eq]
 
     def preprocess(self, func_tv: TypeVariable):
         self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])

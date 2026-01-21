@@ -40,7 +40,7 @@ from angr.sim_type import (
     SimCppClass,
 )
 from angr.analyses.stack_pointer_tracker import Register, OffsetVal
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
@@ -2064,7 +2064,8 @@ class Clinic(Analysis):
                     {
                         v: t
                         for v, t in vr.var_to_typevars.items()
-                        if isinstance(v, (SimRegisterVariable, SimStackVariable)) or v is self.func_ret_var
+                        if isinstance(v, (SimRegisterVariable, SimStackVariable, SimConstantVariable))
+                        or v is self.func_ret_var
                     },
                     vr.stack_offset_typevars,
                 )
@@ -2340,8 +2341,8 @@ class Clinic(Analysis):
             else:
                 # global variable?
                 global_vars = global_variables.get_global_variables(expr.value_int)
-                # detect if there is a related symbol
                 if not global_vars and self.project.loader.find_object_containing(expr.value_int):
+                    # detect if there is a related symbol
                     symbol = self.project.loader.find_symbol(expr.value)
                     if symbol is not None:
                         # Create a new global variable if there isn't one already
@@ -2354,6 +2355,13 @@ class Clinic(Analysis):
                     global_var = next(iter(global_vars))
                     expr.tags["reference_variable"] = global_var
                     expr.tags["reference_variable_offset"] = 0
+                else:
+                    # is there a related constant variable?
+                    variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+                    if len(variables) >= 1:
+                        var, offset = next(iter(variables))
+                        expr.variable = var
+                        expr.variable_offset = offset
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)

@@ -601,8 +601,8 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
-            # Try without call folding
-            m = re.search(r"(\w+) = access\(\w+, 0\);\s*if \(\1 == -1\)", code)
+            # Try with 0xffff_ffff
+            m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == 4294967295\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
@@ -2632,8 +2632,11 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text)
+            is not None
+            or re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
     @for_all_structuring_algos
@@ -3258,7 +3261,7 @@ class TestDecompiler(unittest.TestCase):
         text = dec.codegen.text
         while_offset = text.find("while (")
         while_line = text[while_offset : text.find("\n", while_offset)]
-        for substr in ["&in_stream", "check_and_close(", "open_next_file("]:
+        for substr in ["in_stream", "check_and_close(", "open_next_file("]:
             assert while_line.find(substr) > 0
 
         # never use multi-statement expressions
@@ -3465,9 +3468,13 @@ class TestDecompiler(unittest.TestCase):
         assert first_good_if.start() == all_if_stmts[0].start()
 
         # the if-stmt immediately after the first one should be a true check on -1
-        second_good_if = re.search("if \\(.*? == -1\\)", text)
+        second_good_if = re.search("if \\(.*? == -1\\)", text) or re.search("if \\(.*? == 4294967295\\)", text)
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
+
+        # ensure the constant memory read exists
+        const_mem_read = re.search(r"\*\(\(int \*\)0x501380\) == 1", text)
+        assert const_mem_read is not None
 
     @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
@@ -5058,7 +5065,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            void* print_hello_world()
+            unsigned long long print_hello_world()
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
