@@ -3783,6 +3783,7 @@ def parse_file(
     defn = "\n".join(x for x in defn.split("\n") if _include_re.match(x) is None)
     # remove comments
     defn = re.sub(r"/\*.*?\*/", r"", defn, flags=re.DOTALL)
+    defn = re.sub(r"//.*?$", r"", defn, flags=re.MULTILINE)
 
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
