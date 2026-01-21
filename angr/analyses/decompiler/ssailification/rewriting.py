@@ -289,8 +289,10 @@ class RewritingAnalysis:
             block=node,
         )
 
-        if self._engine_ail.head_controlled_loop_instate is not None:
-            self.head_controlled_loop_outstates[block_key] = self._engine_ail.head_controlled_loop_instate
+        if self._engine_ail.hclb_side_exit_state is not None:
+            self.head_controlled_loop_outstates[block_key] = state
+            state = self._engine_ail.hclb_side_exit_state
+            self._engine_ail.hclb_side_exit_state = None
         self.out_states[block_key] = state
         self.out_blocks[block_key] = self._engine_ail.out_block
         for succ in self._graph.succ[node]:

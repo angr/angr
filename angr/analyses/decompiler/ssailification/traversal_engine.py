@@ -67,6 +67,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
         ] = {}
+        self.hclb_side_exit_state: TraversalState | None = None
 
     def _is_top(self, expr):
         return not expr
@@ -181,6 +182,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     )
                 else:
                     continue
+                    self.hclb_side_exit_state: TraversalState | None = None
                 break
             else:
                 break
@@ -278,6 +280,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self._expr(stmt.true_target)
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
+
+        if isinstance(stmt.true_target, Const) and stmt.true_target.value == self.ins_addr:
+            self.hclb_side_exit_state = self.state.copy()
+        if isinstance(stmt.false_target, Const) and stmt.false_target.value == self.ins_addr:
+            self.hclb_side_exit_state = self.state.copy()
 
     def _handle_stmt_Call(self, stmt: Call):
         result = self._handle_expr_Call(stmt)

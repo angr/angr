@@ -102,12 +102,19 @@ class TraversalAnalysis:
         state = self.start_states.get(node, None)
         if state is None:
             state = self.start_states[node] = self._initial_abstract_state()
+        else:
+            state = state.copy()
         self._engine_ail.process(state, block=node)
 
         succ_count = len(self._ail_graph.succ[node])
         for i, succ in enumerate(self._ail_graph.succ[node]):
+            if self._engine_ail.hclb_side_exit_state is not None and succ is not node:
+                succ_state = self._engine_ail.hclb_side_exit_state
+                self._engine_ail.hclb_side_exit_state = None
+            else:
+                succ_state = state
             if succ not in self.start_states:
-                self.start_states[succ] = state.copy() if i != succ_count - 1 else state
+                self.start_states[succ] = succ_state.copy() if i != succ_count - 1 else succ_state
             else:
                 existing = self.start_states[succ]
                 if existing is not None:
