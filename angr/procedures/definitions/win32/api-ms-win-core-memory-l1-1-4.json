@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"QueryVirtualMemoryInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'WIN32_MEMORY_INFORMATION_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Process', 'VirtualAddress', 'MemoryInformationClass', 'MemoryInformation', 'MemoryInformationSize', 'ReturnSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'WIN32_MEMORY_INFORMATION_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['Process', 'VirtualAddress', 'MemoryInformationClass', 'MemoryInformation', 'MemoryInformationSize', 'ReturnSize']}"
 		}
 	}
 }
