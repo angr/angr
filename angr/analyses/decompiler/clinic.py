@@ -13,7 +13,6 @@ import capstone
 
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import VirtualVariable
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
@@ -451,7 +450,7 @@ class Clinic(Analysis):
         for idx, stmt in enumerate(block.statements):
             if is_phi_assignment(stmt):
                 assert isinstance(stmt, ailment.Stmt.Assignment) and isinstance(stmt.src, ailment.Expr.Phi)
-                new_src_and_vvars: list[tuple[ailment.Address, VirtualVariable | None]] = [
+                new_src_and_vvars: list[tuple[ailment.Address, ailment.expression.VirtualVariable | None]] = [
                     ((src_block_addr, new_block_idx), vvar) for (src_block_addr, _), vvar in stmt.src.src_and_vvars
                 ]
                 new_src = ailment.Expr.Phi(stmt.src.idx, stmt.src.bits, new_src_and_vvars, **stmt.src.tags)
@@ -2740,6 +2739,14 @@ class Clinic(Analysis):
             block_nodes = node_dict[block_addr]
             for block_node in block_nodes:
                 if ail_graph.in_degree[block_node] > 1:
+                    # it may be okay for a switch head to have multiple predecessors
+                    # if it does a conditional indirect jump
+                    jump_stmt = block_node.statements[-1]
+                    if isinstance(jump_stmt, ailment.statement.ConditionalJump) and (
+                        isinstance(jump_stmt.true_target, ailment.expression.Const)
+                        ^ isinstance(jump_stmt.false_target, ailment.expression.Const)
+                    ):
+                        continue
                     # found it
                     candidates.append(block_node)
 
