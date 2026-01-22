@@ -1,4 +1,6 @@
+# pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+
 from angr.ailment.expression import BinaryOp, Const, Convert, Expression
 
 from .base import PeepholeOptimizationExprBase
@@ -89,10 +91,13 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         # This handles cases where the sign extension is split across statements
         if stmt_idx is not None and block is not None:
             high_def = self.find_definition(high, stmt_idx, block)
-            is_sar_const = (
-                isinstance(high_def, BinaryOp) and high_def.op == "Sar" and isinstance(high_def.operands[1], Const)
-            )
-            if is_sar_const and high_def.operands[1].value == low.bits - 1 and high_def.operands[0].likes(low):
+            if (
+                isinstance(high_def, BinaryOp)
+                and high_def.op == "Sar"
+                and isinstance(high_def.operands[1], Const)
+                and high_def.operands[1].value == low.bits - 1
+                and high_def.operands[0].likes(low)
+            ):
                 return Convert(
                     expr.idx,
                     low.bits,
