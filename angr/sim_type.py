@@ -3751,45 +3751,29 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def do_preprocess(defn, include_path=()):
-    """
-    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
-    """
-    from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
-
-    lexer = lex.lex(cpp)
-    p = cpp.Preprocessor(lexer)
-    for included in include_path:
-        p.add_path(included)
-    p.parse(defn)
-    return "".join(tok.value for tok in p.parser if tok.type not in p.ignore)
-
-
-def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_signature(defn, predefined_types=None, arch=None):
     """
     Parse a single function prototype and return its type
     """
     try:
-        parsed = parse_file(
-            defn.strip(" \n\t;") + ";", preprocess=preprocess, predefined_types=predefined_types, arch=arch
-        )
+        parsed = parse_file(defn.strip(" \n\t;") + ";", predefined_types=predefined_types, arch=arch)
         return next(iter(parsed[0].values()))
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
 
-def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_defns(defn, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_types(defn, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[1]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[1]
 
 
 _include_re = re.compile(r"^\s*#include")
@@ -3797,7 +3781,6 @@ _include_re = re.compile(r"^\s*#include")
 
 def parse_file(
     defn,
-    preprocess=True,
     predefined_types: dict[Any, SimType] | None = None,
     arch=None,
     side_effect_types: dict[Any, SimType] | None = None,
@@ -3811,8 +3794,9 @@ def parse_file(
         raise ImportError("Please install pycparser in order to parse C definitions")
 
     defn = "\n".join(x for x in defn.split("\n") if _include_re.match(x) is None)
-    if preprocess:
-        defn = do_preprocess(defn)
+    # remove comments
+    defn = re.sub(r"/\*.*?\*/", r"", defn, flags=re.DOTALL)
+    defn = re.sub(r"//.*?$", r"", defn, flags=re.MULTILINE)
 
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
@@ -3858,24 +3842,17 @@ def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None and _type_parser_singleton is None:
         _type_parser_singleton = pycparser.CParser()
-        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
-            module=_type_parser_singleton,
-            start="parameter_declaration",
-            debug=False,
-            optimize=False,
-            errorlog=errorlog,
-        )
     assert _type_parser_singleton is not None
     return _type_parser_singleton
 
 
-def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
+def parse_type(defn, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_type_with_name(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
 def parse_type_with_name(
@@ -3898,7 +3875,7 @@ def parse_type_with_name(
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
     # pylint: disable=unexpected-keyword-arg
-    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse_type_with_name(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.Typename) and not isinstance(node, c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
@@ -3912,14 +3889,34 @@ def _accepts_scope_stack():
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
 
-    def parse(self, text, filename="", debug=False, scope_stack=None):
-        self.clex.filename = filename
-        self.clex.reset_lineno()
+    def parse(self, text, filename="", debug=False, scope_stack=None):  # pylint:disable=unused-argument
+        # debug is not used and only kept for backward compatibility as in pycparser >= 3.0
+
+        self.clex._filename = filename
+        self.clex._lineno = 1
         self._scope_stack = [{}] if scope_stack is None else scope_stack
-        self._last_yielded_token = None
-        return self.cparser.parse(input=text, lexer=self.clex, debug=debug)
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        ast = self._parse_translation_unit_or_empty()
+        tok = self._peek()
+        if tok is not None:
+            self._parse_error(f"before: {tok.value}", self._tok_coord(tok))
+        return ast
+
+    def parse_type_with_name(self, text, filename="", scope_stack=None) -> c_ast.Typename:
+        self.clex._filename = filename
+        self.clex._lineno = 1
+        self._scope_stack = [{}] if scope_stack is None else scope_stack
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        return self._parse_type_name()  # ignore all tokens that follow the type name
 
     pycparser.CParser.parse = parse
+    pycparser.CParser.parse_type_with_name = parse_type_with_name
 
 
 def _decl_to_type(
