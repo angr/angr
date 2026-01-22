@@ -231,40 +231,65 @@ class RewritingAnalysis:
                 self.insert_phi_statements(node, phi_stmts)
 
     def _initial_abstract_state(self, node) -> RewritingState:
+        func_args_map = {}
+        # we may identify args that are not identified by Traversal. make sure these still get used
+        unused_func_args = set(self._func_args)
+        for arg_vvar in self._func_args:
+            offset = (
+                arg_vvar.parameter_reg_offset
+                if arg_vvar.parameter_category == VirtualVariableCategory.REGISTER
+                else arg_vvar.parameter_stack_offset
+            )
+            assert offset is not None
+            for suboffset in range(offset, offset + arg_vvar.size):
+                func_args_map[(arg_vvar.parameter_category, suboffset)] = arg_vvar
+
         state = RewritingState(
             AILCodeLocation(node.addr, node.idx, 0, node.addr),
             self.project.arch,
             self._function,
             node,
         )
-        more_args = []
+        more_args: list[VirtualVariable] = []
         for kind, offset, size in sorted(self._extern_defs):
-            varid = self._engine_ail._current_vvar_id
-            self._engine_ail._current_vvar_id += 1
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
-            vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+            if (arg_vvar := func_args_map.get((category, offset), None)) is not None:
+                unused_func_args.discard(arg_vvar)
+                if arg_vvar.size == size:
+                    vvar = arg_vvar
+                else:
+                    vvar = VirtualVariable(
+                        arg_vvar.idx,
+                        arg_vvar.varid,
+                        size * 8,
+                        VirtualVariableCategory.PARAMETER,
+                        (category, offset),
+                        **arg_vvar.tags,
+                    )
+            else:
+                varid = self._engine_ail._current_vvar_id
+                self._engine_ail._current_vvar_id += 1
+                vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
             more_args.append(vvar)
 
         # update state with function arguments
-        for func_arg in chain(more_args, self._func_args):
+        for func_arg in chain(more_args, unused_func_args):
             if func_arg.category == VirtualVariableCategory.REGISTER:
-                reg_offset, reg_size = func_arg.reg_offset, func_arg.size
-                assert reg_offset is not None and reg_size is not None
+                reg_offset = func_arg.reg_offset
                 for suboff in range(reg_offset, reg_offset + func_arg.size):
                     state.registers[suboff] = func_arg
             elif func_arg.category == VirtualVariableCategory.STACK:
                 stack_offset = func_arg.stack_offset
-                assert stack_offset is not None and func_arg.size is not None
                 for suboff in range(stack_offset, stack_offset + func_arg.size):
                     state.stackvars[suboff] = func_arg
             elif func_arg.parameter_category == VirtualVariableCategory.REGISTER:
-                reg_offset, reg_size = func_arg.parameter_reg_offset, func_arg.size
-                assert reg_offset is not None and reg_size is not None
+                reg_offset = func_arg.parameter_reg_offset
+                assert reg_offset is not None
                 for suboff in range(reg_offset, reg_offset + func_arg.size):
                     state.registers[suboff] = func_arg
             elif func_arg.parameter_category == VirtualVariableCategory.STACK:
                 stack_offset = func_arg.parameter_stack_offset
-                assert stack_offset is not None and func_arg.size is not None
+                assert stack_offset is not None
                 for suboff in range(stack_offset, stack_offset + func_arg.size):
                     state.stackvars[suboff] = func_arg
 
