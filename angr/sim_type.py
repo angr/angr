@@ -1371,7 +1371,7 @@ class SimTypeFunction(SimType):
             argstrs.append("...")
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True, show_void: bool = True):  # type: ignore[override]
         formatted_args = [
             a.c_repr(n, max(full - 1, 0), memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
@@ -1379,7 +1379,8 @@ class SimTypeFunction(SimType):
         if self.variadic:
             formatted_args.append("...")
         name_str = f"({name or ''})" if name_parens else name or ""
-        proto = f"{name_str}({', '.join(formatted_args)})"
+        args_str = ", ".join(formatted_args) if formatted_args else "void" if show_void else ""
+        proto = f"{name_str}({args_str})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property

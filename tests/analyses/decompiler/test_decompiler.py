@@ -5062,7 +5062,7 @@ class TestDecompiler(unittest.TestCase):
 
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            unsigned long long print_hello_world()
+            unsigned long long print_hello_world(void)
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
@@ -5370,6 +5370,27 @@ class TestDecompiler(unittest.TestCase):
                     return 456;
                 return 123;
                 """) in decomp("test_in_cond")
+
+    def test_decompiling_void_function_parameter(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        func = proj.kb.functions["G_DoWorldDone"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # Check that the function definition has (void) not ()
+        assert "G_DoWorldDone(void)" in dec.codegen.text, "Function definition should have (void) parameter"
+
+        # Check that callee prototypes with no args also have (void)
+        callee = proj.kb.functions["G_DoLoadLevel"]
+        assert callee.prototype is not None, "Callee should have a prototype"
+        assert len(callee.prototype.args) == 0, "Callee should have no args"
+        proto_str = callee.prototype.c_repr("G_DoLoadLevel")
+        assert "(void)" in proto_str, f"Callee prototype should have (void), got: {proto_str}"
 
 
 if __name__ == "__main__":
