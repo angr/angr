@@ -442,7 +442,7 @@ class FactCollector(Analysis):
                     if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(succ.addr)
-                    if func_succ is not None and func_succ.name not in {"_security_check_cookie"}:  # noqa:SIM102
+                    if func_succ is not None and func_succ.name not in {"_security_check_cookie"}:
                         if (
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None
@@ -465,7 +465,7 @@ class FactCollector(Analysis):
                                 retval_size = returnty_size // self.project.arch.byte_width
                             retval_sizes.append(retval_size)
                             continue
-                        elif (
+                        if (
                             func_succ.prototype is not None
                             and func_succ.prototype.returnty is not None
                             and isinstance(func_succ.prototype.returnty, SimTypeBottom)
