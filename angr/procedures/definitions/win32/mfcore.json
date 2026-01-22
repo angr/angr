@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"MFCreateExtendedCameraIntrinsicModel": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MFCameraIntrinsic_DistortionModelType', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFExtendedCameraIntrinsicModel', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['distortionModelType', 'ppExtendedCameraIntrinsicModel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MFCameraIntrinsic_DistortionModelType', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFExtendedCameraIntrinsicModel', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['distortionModelType', 'ppExtendedCameraIntrinsicModel']}"
 		},
 		"MFCreateExtendedCameraIntrinsics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFExtendedCameraIntrinsics', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppExtendedCameraIntrinsics']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFExtendedCameraIntrinsics', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppExtendedCameraIntrinsics']}"
 		}
 	}
 }

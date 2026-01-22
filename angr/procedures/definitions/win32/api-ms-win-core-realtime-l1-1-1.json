@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"QueryInterruptTime": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpInterruptTime']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpInterruptTime']}"
 		},
 		"QueryInterruptTimePrecise": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpInterruptTimePrecise']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpInterruptTimePrecise']}"
 		},
 		"QueryUnbiasedInterruptTimePrecise": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpUnbiasedInterruptTimePrecise']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['lpUnbiasedInterruptTimePrecise']}"
 		}
 	}
 }

@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from itertools import count, chain
 import logging
 
+import cle
 import networkx
 
 from cle.backends.elf.compilation_unit import CompilationUnit
@@ -121,7 +122,7 @@ class VariableManagerInternal(Serializable):
         self._unified_variables: set[SimVariable] = set()
         self._variables_to_unified_variables: dict[SimVariable, SimVariable] = {}
 
-        self._phi_variables = {}
+        self._phi_variables: dict[SimVariable, set[SimVariable]] = {}
         self._variables_to_phivars = defaultdict(set)
         self._phi_variables_by_block = defaultdict(set)
 
@@ -298,7 +299,7 @@ class VariableManagerInternal(Serializable):
         variable_by_ident = {}
 
         # variables
-        all_vars = []
+        all_vars: list[tuple[bool, SimVariable]] = []
 
         for regvar_pb2 in cmsg.regvars:
             all_vars.append(
@@ -515,7 +516,7 @@ class VariableManagerInternal(Serializable):
         offset,
         location: CodeLocation,
         overwrite=False,
-        atom=None,
+        atom: ailment.expression.Atom | None = None,
     ):
         atom_hash = (hash(atom) & 0xFFFF_FFFF) if atom is not None else None
         if overwrite:
@@ -526,7 +527,7 @@ class VariableManagerInternal(Serializable):
         if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
             self._variables_without_writes.discard(variable)
 
-    def record_variable(self, location: CodeLocation, variable, offset: int | None, overwrite=False, atom=None):
+    def record_variable(self, location: CodeLocation, variable, offset: int | None, overwrite=False, atom: ailment.expression.Atom | None = None):
         if variable.ident not in self._ident_to_variable:
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
@@ -718,7 +719,7 @@ class VariableManagerInternal(Serializable):
         return None
 
     def find_variables_by_atom(
-        self, block_addr, stmt_idx, atom, block_idx: int | None = None
+        self, block_addr, stmt_idx, atom: ailment.expression.Atom, block_idx: int | None = None
     ) -> set[tuple[SimVariable, int | None]]:
         key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
@@ -736,7 +737,10 @@ class VariableManagerInternal(Serializable):
 
     def find_variables_by_register(self, reg: str | int) -> set[SimVariable]:
         if type(reg) is str:
-            reg = self.manager._kb._project.arch.registers.get(reg)[0]
+            reg_ = self.manager._kb._project.arch.registers.get(reg)
+            if reg_ is None:
+                raise KeyError(reg)
+            reg = reg_[0]
         return self._register_region.get_variables_by_offset(reg)
 
     def get_variable_accesses(self, variable: SimVariable, same_name: bool = False) -> list[VariableAccess]:
@@ -1110,7 +1114,7 @@ class VariableManagerInternal(Serializable):
         self.types.clear()
         self.variable_to_types.clear()
 
-    def _variables_interfere(self, interference: networkx.DiGraph, v0: SimVariable, v1: SimVariable) -> bool:
+    def _variables_interfere(self, interference: networkx.Graph[int], v0: SimVariable, v1: SimVariable) -> bool:
         vvar_ids_0 = self._variable_to_vvarids[v0]
         vvar_ids_1 = self._variable_to_vvarids[v1]
         for vvar_id_0 in vvar_ids_0:
@@ -1119,7 +1123,7 @@ class VariableManagerInternal(Serializable):
                     return True
         return False
 
-    def unify_variables(self, interference: networkx.DiGraph | None = None) -> None:
+    def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
@@ -1138,7 +1142,9 @@ class VariableManagerInternal(Serializable):
                 reg_vars.add(v)
 
         # unify variables based on phi nodes
-        graph = networkx.DiGraph()  # an edge v1 -> v2 means v2 is the phi variable for v1
+        graph: networkx.DiGraph[SimVariable] = (
+            networkx.DiGraph()
+        )  # an edge v1 -> v2 means v2 is the phi variable for v1
         for v, subvs in self._phi_variables.items():
             if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                 continue
@@ -1158,7 +1164,7 @@ class VariableManagerInternal(Serializable):
                 break
 
         # convert the directional graph into a non-directional graph
-        graph_ = networkx.Graph()
+        graph_: networkx.Graph[SimVariable] = networkx.Graph()
         graph_.add_nodes_from(graph.nodes)
         graph_.add_edges_from(graph.edges)
 
@@ -1171,8 +1177,8 @@ class VariableManagerInternal(Serializable):
             for v in nodes:
                 self.set_unified_variable(v, unified)
             for v in nodes:
-                reg_vars.discard(v)
-                stack_vars.discard(v)
+                reg_vars.discard(v)  # type: ignore
+                stack_vars.discard(v)  # type: ignore
 
         # deal with remaining variables
         for v in sorted(reg_vars, key=lambda v: v.ident if v.ident else ""):
@@ -1206,6 +1212,7 @@ class VariableManagerInternal(Serializable):
                         start = i + 1
 
                 seen = set()
+                print(congruence_classes)
                 for cls in congruence_classes.values():
                     if any(v in seen for v in cls):
                         continue
@@ -1398,6 +1405,7 @@ class VariableManager(KnowledgeBasePlugin):
             manager.add_variable(v.sort, v.addr, simv)
 
     def load_from_dwarf(self, cu_list: list[CompilationUnit] | None = None):
+        assert isinstance(self._kb._project.loader.main_object, cle.ELF)
         cu_list = cu_list or self._kb._project.loader.main_object.compilation_units
         if cu_list is None:
             l.warning("no CompilationUnit found")

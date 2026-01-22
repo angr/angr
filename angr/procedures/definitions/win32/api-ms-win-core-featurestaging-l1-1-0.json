@@ -15,13 +15,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'FEATURE_CHANGE_TIME', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'FEATURE_ENABLED_STATE', 'ot': 'enum'}, 'arg_names': ['featureId', 'changeTime']}"
 		},
 		"RecordFeatureError": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_ERROR', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['featureId', 'error']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_ERROR', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['featureId', 'error']}"
 		},
 		"RecordFeatureUsage": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['featureId', 'kind', 'addend', 'originName']}"
 		},
 		"SubscribeFeatureStateChangeNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_STATE_CHANGE_SUBSCRIPTION', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['subscription', 'callback', 'context']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FEATURE_STATE_CHANGE_SUBSCRIPTION', 'ot': 'ptr'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['context']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['subscription', 'callback', 'context']}"
 		},
 		"UnsubscribeFeatureStateChangeNotification": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'FEATURE_STATE_CHANGE_SUBSCRIPTION', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['subscription']}"

@@ -12,19 +12,19 @@
 	},
 	"functions": {
 		"MFCreateSinkWriterFromMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSinkWriter', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaSink', 'pAttributes', 'ppSinkWriter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSinkWriter', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaSink', 'pAttributes', 'ppSinkWriter']}"
 		},
 		"MFCreateSinkWriterFromURL": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSinkWriter', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszOutputURL', 'pByteStream', 'pAttributes', 'ppSinkWriter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSinkWriter', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszOutputURL', 'pByteStream', 'pAttributes', 'ppSinkWriter']}"
 		},
 		"MFCreateSourceReaderFromByteStream": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pByteStream', 'pAttributes', 'ppSourceReader']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pByteStream', 'pAttributes', 'ppSourceReader']}"
 		},
 		"MFCreateSourceReaderFromMediaSource": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaSource', 'pAttributes', 'ppSourceReader']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaSource', 'pAttributes', 'ppSourceReader']}"
 		},
 		"MFCreateSourceReaderFromURL": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszURL', 'pAttributes', 'ppSourceReader']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSourceReader', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszURL', 'pAttributes', 'ppSourceReader']}"
 		}
 	}
 }

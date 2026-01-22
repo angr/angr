@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"DsBrowseForContainerA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DSBROWSEINFOA', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DSBROWSEINFOA', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pInfo']}"
 		},
 		"DsBrowseForContainerW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DSBROWSEINFOW', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DSBROWSEINFOW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pInfo']}"
 		},
 		"DsGetFriendlyClassName": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszObjectClass', 'pszBuffer', 'cchBuffer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszObjectClass', 'pszBuffer', 'cchBuffer']}"
 		},
 		"DsGetIcon": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HICON', 'ot': 'ptr'}, 'arg_names': ['dwFlags', 'pszObjectClass', 'cxImage', 'cyImage']}"

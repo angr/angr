@@ -20,6 +20,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.codenode import BlockNode, FuncNode
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
 from angr.utils import timethis
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
@@ -47,6 +48,7 @@ from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.reaching_definitions import ReachingDefinitionsAnalysis
 from angr.analyses.typehoon import Typehoon
+from angr.analyses.s_liveness import SLivenessAnalysis
 from .ail_simplifier import AILSimplifier
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
@@ -2124,7 +2126,7 @@ class Clinic(Analysis):
 
         # Unify SSA variables
         tmp_kb.variables.global_manager.assign_variable_names(labels=self.kb.labels, types={SimMemoryVariable})
-        liveness = self.project.analyses.SLiveness(
+        liveness = self.project.analyses[SLivenessAnalysis].prep()(
             self.function,
             func_graph=ail_graph,
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
@@ -2237,7 +2239,9 @@ class Clinic(Analysis):
         if not is_expr and stmt.ret_expr:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr)
 
-    def _link_variables_on_expr(self, variable_manager, global_variables, block, stmt_idx, stmt, expr):
+    def _link_variables_on_expr(
+        self, variable_manager: VariableManagerInternal, global_variables, block, stmt_idx, stmt, expr
+    ):
         """
         Link atoms (AIL expressions) in the given expression to corresponding variables identified previously.
 

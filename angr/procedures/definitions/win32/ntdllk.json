@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"RtlGetSystemGlobalData": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RTL_SYSTEM_GLOBAL_DATA_ID', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DataId', 'Buffer', 'Size']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'RTL_SYSTEM_GLOBAL_DATA_ID', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DataId', 'Buffer', 'Size']}"
 		}
 	}
 }

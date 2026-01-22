@@ -349,7 +349,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 if ty.pts_to is None:
                     size = 1
                 else:
-                    size = (ty.size or 8) // 8
+                    size = (ty.pts_to.size or 8) // 8
                     if not size:
                         continue
 

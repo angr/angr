@@ -3,7 +3,7 @@ from collections import defaultdict
 
 import networkx
 from angr.ailment import Block, Address
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
@@ -32,14 +32,14 @@ class SLivenessAnalysis(Analysis):
     def __init__(
         self,
         func: Function,
-        func_graph: networkx.DiGraph[Block] | None = None,
+        func_graph: networkx.DiGraph[Block],
         entry: Block | None = None,
         func_addr: int | None = None,
         arg_vvars: list[VirtualVariable] | None = None,
     ):
         self.func = func
         self.func_addr = func_addr if func_addr is not None else func.addr
-        self.func_graph = func_graph if func_graph is not None else func.graph
+        self.func_graph = func_graph
         self.entry = (
             entry
             if entry is not None
@@ -113,6 +113,8 @@ class SLivenessAnalysis(Analysis):
 
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
+                    assert isinstance(stmt, Assignment)
+                    assert isinstance(stmt.dst, VirtualVariable)
                     for src, vvar in phi_expr.src_and_vvars:
                         if head_controlled_loop and src == (block.addr, block.idx):
                             # this is a head-controlled loop block; we ignore the self-loop edge
@@ -126,6 +128,8 @@ class SLivenessAnalysis(Analysis):
 
                 # handle the statement: add used vvars to the live set
                 if head_controlled_loop and is_phi_assignment(stmt):
+                    assert isinstance(stmt, Assignment)
+                    assert isinstance(stmt.src, Phi)
                     for src, vvar in stmt.src.src_and_vvars:
                         # this is a head-controlled loop block; we ignore the self-loop edge
                         if src != (block.addr, block.idx) and vvar is not None:
@@ -156,7 +160,7 @@ class SLivenessAnalysis(Analysis):
         self.model.live_ins = live_ins
         self.model.live_outs = live_outs
 
-    def interference_graph(self) -> networkx.Graph:
+    def interference_graph(self) -> networkx.Graph[int]:
         """
         Generate an interference graph based on the liveness analysis result.
 
