@@ -647,7 +647,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         paren = CClosingObject("(")
         brace = CClosingObject("{")
         yield "(", paren
-        if not self.functy.args:
+        if not self.functy.args and self.codegen.cstyle_void_param:
             yield "void", None
         for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
             if i:
@@ -2648,6 +2648,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         display_notes: bool = True,
         max_str_len: int | None = None,
         prettify_thiscall: bool = False,
+        cstyle_void_param: bool = True,
     ):
         super().__init__(
             flavor=flavor,
@@ -2738,6 +2739,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.display_notes = display_notes
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
+        self.cstyle_void_param = cstyle_void_param
 
         self._analyze()
 
@@ -2763,6 +2765,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.simplify_else_scope = value
             elif option.param == "cstyle_ifs":
                 self.cstyle_ifs = value
+            elif option.param == "cstyle_void_param":
+                self.cstyle_void_param = value
 
     def _analyze(self):
         self._variables_in_use = {}
