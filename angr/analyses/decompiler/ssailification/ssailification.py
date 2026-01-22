@@ -84,7 +84,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             bp_as_gpr,
             ssa_stackvars,
             ssa_tmps,
-            self._func_args,
+            set(),
             self.kb.functions.get,
         )
 

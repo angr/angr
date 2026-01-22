@@ -239,7 +239,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         else:
             base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
 
-        if base_off not in self.state.live_registers:
+        if base_off not in self.state.live_registers or base_off in self.state.register_blackout:
             self.perform_def(
                 "reg",
                 def_,
@@ -261,6 +261,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         self.perform_def("reg", def_, base_off, base_size, offset - base_off)
         self.state.live_registers[base_off] = value
+        self.state.register_blackout.discard(base_off)
 
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -322,16 +323,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
         target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
-        # kill caller-saved registers
-        if expr.calling_convention is not None:
-            cc = expr.calling_convention
-        elif target is not None and target.calling_convention is not None:
-            cc = target.calling_convention
-        else:
-            cc = default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)
-            assert cc is not None
-            cc = cc(self.arch)
-
         if expr.prototype is not None:
             proto = expr.prototype
         elif target is not None and target.prototype is not None:
@@ -368,6 +359,16 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             self.stackvar_set(stackref, extra, size, set())
                         else:
                             self.stackvar_get(stackref, extra, size)
+
+        # kill caller-saved registers
+        if expr.calling_convention is not None:
+            cc = expr.calling_convention
+        elif target is not None and target.calling_convention is not None:
+            cc = target.calling_convention
+        else:
+            cc = default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)
+            assert cc is not None
+            cc = cc(self.arch)
 
         for reg_name in cc.CALLER_SAVED_REGS:
             reg_offset = self.arch.registers[reg_name][0]
