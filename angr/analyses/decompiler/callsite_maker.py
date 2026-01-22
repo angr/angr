@@ -25,7 +25,6 @@ from angr.calling_conventions import (
     SimStructArg,
     SimComboArg,
     SimFunctionArgument,
-    default_cc,
 )
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 from angr.analyses import Analysis, register_analysis
@@ -125,30 +124,8 @@ class CallSiteMaker(Analysis):
         args = []
         arg_vvars = []
         arg_locs = None
-        fallback_stack_arg_locs: list[SimStackArg] = []
         if cc is None:
             l.warning("Call site %#x (callee %s) has an unknown calling convention.", self.block.addr, repr(func))
-            # When the callee has no calling convention, use the default CC for the architecture
-            # to identify potential stack argument locations. This helps remove dead stores that
-            # are setting up arguments for the callee.
-            simos_name = self.project.simos.name if self.project.simos is not None else None
-            platform = "Win32" if simos_name and "Win" in simos_name else simos_name
-            fallback_cc_cls = default_cc(self.project.arch.name, platform=platform)
-            if fallback_cc_cls is not None:
-                fallback_cc = fallback_cc_cls(self.project.arch)
-                stackarg_sp_diff = fallback_cc.STACKARG_SP_DIFF
-                # Create a dummy prototype with enough arguments to cover potential stack args
-                # We use a conservative number of arguments (e.g., 10) to identify stack locations
-                num_args = 10
-                base_type = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
-                dummy_proto = SimTypeFunction(
-                    [base_type().with_arch(self.project.arch)] * num_args,
-                    base_type().with_arch(self.project.arch),
-                )
-                dummy_arg_locs = fallback_cc.arg_locs(dummy_proto)
-                for arg_loc in dummy_arg_locs:
-                    if isinstance(arg_loc, SimStackArg):
-                        fallback_stack_arg_locs.append(arg_loc)
         else:
             stackarg_sp_diff = cc.STACKARG_SP_DIFF
             if prototype is not None:
@@ -291,9 +268,8 @@ class CallSiteMaker(Analysis):
 
         # calculate stack offsets for arguments that are put on the stack. these offsets will be consumed by
         # simplification steps in the future, which may decide to remove statements that store arguments on the stack.
-        # When callee CC is unknown, we use the fallback stack arg locations to identify potential stack arguments.
-        effective_stack_arg_locs = stack_arg_locs if stack_arg_locs else fallback_stack_arg_locs
-        if effective_stack_arg_locs and self._stack_pointer_tracker is not None:
+        if stack_arg_locs:
+            assert self._stack_pointer_tracker is not None
             sp_offset = self._stack_pointer_tracker.offset_before(
                 call_stmt.tags["ins_addr"], self.project.arch.sp_offset
             )
@@ -311,7 +287,7 @@ class CallSiteMaker(Analysis):
                 effective_sp_diff = 0 if is_tail_call else stackarg_sp_diff
                 self.stack_arg_offsets = {
                     (call_stmt.tags["ins_addr"], sp_offset + arg.stack_offset - effective_sp_diff)
-                    for arg in effective_stack_arg_locs
+                    for arg in stack_arg_locs
                 }
 
         ret_expr = call_stmt.ret_expr
