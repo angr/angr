@@ -5372,8 +5372,11 @@ class TestDecompiler(unittest.TestCase):
                 """) in decomp("test_in_cond")
 
     def test_decompiler_win_bad_arg(self, decompiler_options=None):
-        bin_path = os.path.join(test_location, "x86_64", "windows", "USER32.dll")
-        proj = angr.Project(bin_path, auto_load_libs=False)
+        bin_path = os.path.join(test_location, "x86_64", "windows", "u32_blob.bin")
+        # been unable to load this in such a way where their are args for all functions the main function calls
+        proj = angr.Project(
+            bin_path, auto_load_libs=False, main_opts={"backend": "blob", "arch": "AMD64", "base_addr": 0x180048870}
+        )
         cfg = proj.analyses.CFGFast(normalize=True)
         proj.analyses.CompleteCallingConventions(analyze_callsites=True)
         f = proj.kb.functions[0x180048870]  # MsgWaitForMultipleObjects
