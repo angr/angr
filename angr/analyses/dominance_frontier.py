@@ -6,7 +6,6 @@ from angr.codenode import CodeNode
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.graph import compute_dominance_frontier, Dominators
 
-
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -63,7 +62,7 @@ class DominanceFrontier(Generic[T_co]):
                 startpoint = self.function.startpoint
 
         # Compute the dominator tree
-        doms: Dominators[T_co] = Dominators(g, startpoint)  # type:ignore
+        doms: Dominators[T_co] = Dominators(g, startpoint)  # type: ignore
 
         # Compute the dominance frontier
         return compute_dominance_frontier(g, doms.dom)

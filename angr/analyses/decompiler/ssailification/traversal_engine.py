@@ -169,7 +169,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 for def2 in self.state.stackvar_defs.pop(popped_offset, set()) | secret_stash[popped_offset]:
                     secret_stash[popped_offset].add(def2)
                     self.state.stackvar_defs[full_offset].add(def2)
-                    (kind, other_loc, other_off, other_size, other_off2) = self.def_info[def2]
+                    kind, other_loc, other_off, other_size, other_off2 = self.def_info[def2]
                     if other_off < full_offset or other_off + other_size > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
                         full_offset, full_size, popped2 = self.state.stackvar_unify(other_off, other_size)
