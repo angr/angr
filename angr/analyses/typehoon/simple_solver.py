@@ -112,6 +112,9 @@ BASE_LATTICE_64.add_edge(Int_, Int64_)
 BASE_LATTICE_64.add_edge(Int_, Int32_)
 BASE_LATTICE_64.add_edge(Int_, Int16_)
 BASE_LATTICE_64.add_edge(Int_, Int8_)
+BASE_LATTICE_64.add_edge(Int512_, Bottom_)
+BASE_LATTICE_64.add_edge(Int256_, Bottom_)
+BASE_LATTICE_64.add_edge(Int128_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Bottom_)
 BASE_LATTICE_64.add_edge(Int16_, Bottom_)
 BASE_LATTICE_64.add_edge(Int8_, Bottom_)
@@ -130,8 +133,11 @@ BASE_LATTICE_32.add_edge(Int_, Int64_)
 BASE_LATTICE_32.add_edge(Int_, Int32_)
 BASE_LATTICE_32.add_edge(Int_, Int16_)
 BASE_LATTICE_32.add_edge(Int_, Int8_)
-BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
+BASE_LATTICE_32.add_edge(Int512_, Bottom_)
+BASE_LATTICE_32.add_edge(Int256_, Bottom_)
+BASE_LATTICE_32.add_edge(Int128_, Bottom_)
 BASE_LATTICE_32.add_edge(Int64_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
@@ -1760,6 +1766,8 @@ class SimpleSolver:
             return Pointer32()
         if isinstance(t, Pointer64):
             return Pointer64()
+        if isinstance(t, Enum):
+            return Enum_
         return t
 
     @staticmethod
