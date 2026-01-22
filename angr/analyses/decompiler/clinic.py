@@ -1373,6 +1373,7 @@ class Clinic(Analysis):
                     calling_convention=None,  # target_func.calling_convention,
                     prototype=None,  # target_func.prototype,
                     ret_expr=ret_expr,
+                    tail_call=True,
                     **last_stmt.tags,
                 )
 

@@ -5371,6 +5371,23 @@ class TestDecompiler(unittest.TestCase):
                 return 123;
                 """) in decomp("test_in_cond")
 
+    def test_decompiler_win_bad_arg(self, decompiler_options=None):
+        # load a windows shellcode
+        proj = angr.load_shellcode(
+            b"@SH\x83\xec0E3\xd2E\x8b\xd9D\x8bL$`E\x85\xc0A\x8b\xc1\x8b\xd9A\x0f\x95\xc2\x83\xe0\x07<\x07u9A\x0f\xba\xe9\x0ceH\x8b\x04%0\x00\x00\x00\x83=\x13\x9d\x08\x00\x00H\x8b\x88`\x08\x00\x00u,E\x8b\xc3D\x89T$`\x8b\xcbH\x83\xc40[H\xff%0X\x06\x00\xcc\xcc\xcc\xcc\xccA\x8b\xc1%\x07\x04\x00\x00=\x07\x04\x00\x00t\xb8\xeb\xbbH\x85\xc9t\xcf\x83y\x1c\x00~\xc9H\x8b\x050\x87\x08\x00E\x8b\xc3\x8b\xcbD\x89T$ \xe8\x11'\x06\x00H\x83\xc40[\xc3\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xcc\xccH\x83\xec(\xf7\xc1\x00\xa2\xff",
+            arch="x86_64",
+        )
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+        f = proj.kb.functions[0]  # (0x180048870 in normal binary)
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        assert (
+            "a4 =" not in dec.codegen.text
+        ), "arg still incorrectly shown as reassigned"  # ensure arg4 is not assigned to anything, ever!
+
 
 if __name__ == "__main__":
     unittest.main()

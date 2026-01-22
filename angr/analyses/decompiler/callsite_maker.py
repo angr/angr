@@ -281,8 +281,12 @@ class CallSiteMaker(Analysis):
                 )
                 self.stack_arg_offsets = None
             else:
+                # For tail calls (jmp instead of call), no return address is pushed on the stack,
+                # so we should not subtract stackarg_sp_diff
+                is_tail_call = call_stmt.tags.get("tail_call", False)
+                effective_sp_diff = 0 if is_tail_call else stackarg_sp_diff
                 self.stack_arg_offsets = {
-                    (call_stmt.tags["ins_addr"], sp_offset + arg.stack_offset - stackarg_sp_diff)
+                    (call_stmt.tags["ins_addr"], sp_offset + arg.stack_offset - effective_sp_diff)
                     for arg in stack_arg_locs
                 }
 

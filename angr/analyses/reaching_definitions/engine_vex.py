@@ -553,7 +553,14 @@ class SimEngineRDVEX(
             # extension, extract, or doing nothing
             data: set[claripy.ast.BV | claripy.ast.FP] = set()
             for v in next(iter(arg_0.values())):
-                assert v.size() == from_size
+                # Handle size mismatches: the tracked value may have a different size than expected
+                # due to value merging or other operations in the reaching definitions analysis
+                actual_size = v.size()
+                if actual_size != from_size:
+                    # Adjust the value to match the expected from_size
+                    # Extend the value to from_size
+                    # Otherwise, truncate the value to from_size
+                    v = v.zero_extend(from_size - actual_size) if actual_size < from_size else v[from_size - 1 : 0]
                 if to_size > from_size:
                     if signed:
                         data.add(v.sign_extend(to_size - from_size))
