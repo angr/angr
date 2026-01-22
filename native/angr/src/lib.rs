@@ -1,6 +1,11 @@
 pub mod fuzzer;
 pub mod icicle;
 pub mod segmentlist;
+pub mod ail_expr;
+pub mod ail_stmt;
+pub mod ail_block;
+pub mod ail_tags;
+pub mod ailment;
 
 use pyo3::prelude::*;
 
@@ -26,6 +31,7 @@ fn import_submodule<'py>(
 fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
     import_submodule(m.py(), m, "angr.rustylib", "fuzzer", fuzzer::fuzzer)?;
     import_submodule(m.py(), m, "angr.rustylib", "icicle", icicle::icicle)?;
+    import_submodule(m.py(), m, "angr.rustylib", "ailment", ailment::ailment)?;
     import_submodule(
         m.py(),
         m,
