@@ -1,5 +1,5 @@
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Const, Convert
+from angr.ailment.expression import BinaryOp, Const, Convert, Expression
 
 from .base import PeepholeOptimizationExprBase
 
@@ -31,7 +31,7 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
             return self._optimize_convert_concat(expr)
         return None
 
-    def _optimize_concat(self, expr: BinaryOp, stmt_idx: int | None = None, block=None) -> BinaryOp | Convert | None:
+    def _optimize_concat(self, expr: BinaryOp, stmt_idx: int | None = None, block=None) -> Expression | None:
         """
         Simplify Concat expressions that represent sign/zero extension.
         """
@@ -89,14 +89,10 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         # This handles cases where the sign extension is split across statements
         if stmt_idx is not None and block is not None:
             high_def = self.find_definition(high, stmt_idx, block)
-            if (
-                high_def is not None
-                and isinstance(high_def, BinaryOp)
-                and high_def.op == "Sar"
-                and isinstance(high_def.operands[1], Const)
-                and high_def.operands[1].value == low.bits - 1
-                and high_def.operands[0].likes(low)
-            ):
+            is_sar_const = (
+                isinstance(high_def, BinaryOp) and high_def.op == "Sar" and isinstance(high_def.operands[1], Const)
+            )
+            if is_sar_const and high_def.operands[1].value == low.bits - 1 and high_def.operands[0].likes(low):
                 return Convert(
                     expr.idx,
                     low.bits,
@@ -109,7 +105,7 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         return None
 
     @staticmethod
-    def _optimize_shr_concat(expr: BinaryOp) -> BinaryOp | Convert | None:
+    def _optimize_shr_concat(expr: BinaryOp) -> Expression | None:
         """
         Simplify (a CONCAT b) >> bits(b)  =>  a  (high-part extraction)
         """
@@ -151,7 +147,7 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         return result
 
     @staticmethod
-    def _optimize_and_concat(expr: BinaryOp) -> BinaryOp | Convert | None:
+    def _optimize_and_concat(expr: BinaryOp) -> Expression | None:
         """
         Simplify (a CONCAT b) & mask  =>  b  (low-part extraction)
         where mask = (1 << bits(b)) - 1
@@ -204,7 +200,7 @@ class ConcatSimplifier(PeepholeOptimizationExprBase):
         return result
 
     @staticmethod
-    def _optimize_convert_concat(expr: Convert) -> BinaryOp | Convert | None:
+    def _optimize_convert_concat(expr: Convert) -> Expression | None:
         """
         Simplify Convert(a CONCAT b, to_bits=bits(b))  =>  b  (truncate to low part)
         """

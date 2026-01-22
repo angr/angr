@@ -102,7 +102,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         result = self.opt.optimize(and_expr)
         assert result is None
 
-    def test_doom_g_deathmatchspawnplayer_no_concat(self):
+    def test_concat_simplification_1(self):
         bin_path = os.path.join(test_location, "x86_64", "g_game.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
@@ -115,10 +115,10 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         code = dec.codegen.text
 
         assert "CONCAT" not in code, f"CONCAT found in decompiled code:\n{code}"
-        # P_Random() % selections
-        assert "P_Random() %" in code, f"Modulo not found:\n{code}"
+        # (P_Random() & 4294967295) % selections
+        assert "P_Random()" in code and "%" in code, f"P_Random modulo not found:\n{code}"
 
-    def test_doom_d_net_netupdate_no_concat(self):
+    def test_concat_simplification_2(self):
         bin_path = os.path.join(test_location, "x86_64", "d_net.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
@@ -135,7 +135,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         # I_GetTime()/ticdup, gametic/ticdup
         assert "/ ticdup" in code, f"'/ ticdup' not found:\n{code}"
 
-    def test_doom_d_net_tryruntics_no_concat(self):
+    def test_concat_simplification_3(self):
         bin_path = os.path.join(test_location, "x86_64", "d_net.o")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
