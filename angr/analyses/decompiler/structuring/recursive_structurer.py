@@ -1,12 +1,10 @@
 from __future__ import annotations
-import itertools
 from typing import TYPE_CHECKING
 import logging
 
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.graph_region import GraphRegion
-from angr.analyses.decompiler.jumptable_entry_condition_rewriter import JumpTableEntryConditionRewriter
 from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
@@ -115,17 +113,7 @@ class RecursiveStructurer(Analysis):
                         parent_region, current_region, st._region, st.result, st.virtualized_edges
                     )
 
-        if self.structurer_cls is DreamStructurer:
-            # rewrite conditions in the result to remove all jump table entry conditions
-            rewriter = JumpTableEntryConditionRewriter(set(itertools.chain(*self.cond_proc.jump_table_conds.values())))
-            rewriter.walk(self.result)  # update SequenceNodes in-place
-
-            # remove all goto statements
-            # TODO: Properly implement support for multi-entry regions
-            StructurerBase._remove_all_jumps(self.result)
-
-        else:
-            StructurerBase._remove_redundant_jumps(self.result)
+        StructurerBase._remove_redundant_jumps(self.result)
 
         # remove redundant labels
         jtc = JumpTargetCollector(self.result)
@@ -133,10 +121,6 @@ class RecursiveStructurer(Analysis):
 
         # remove empty nodes (if any)
         self.result = EmptyNodeRemover(self.result).result
-
-        if self.structurer_cls is DreamStructurer:
-            # remove conditional jumps
-            StructurerBase._remove_conditional_jumps(self.result)
 
         self.result = self.cond_proc.remove_claripy_bool_asts(self.result)
 
