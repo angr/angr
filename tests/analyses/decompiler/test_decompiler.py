@@ -5375,8 +5375,7 @@ class TestDecompiler(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "windows", "USER32.dll")
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast(normalize=True)
-        # the below line is commented because it fails with Assert error. It could be related to overall test failure.
-        # proj.analyses.CompleteCallingConventions(analyze_callsites=True)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=True)
         f = proj.kb.functions[0x180048870]  # MsgWaitForMultipleObjects
         dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
