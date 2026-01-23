@@ -118,7 +118,7 @@ class InstructionMapping:
     def get_nearest_pos(self, ins_addr: int) -> int | None:
         try:
             pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
-            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
+            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=False))
         except StopIteration:
             return None
 
