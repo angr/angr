@@ -108,17 +108,7 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
 
         return new_graph
 
-    def create_phi_statements(self, node, udef_to_phiid: dict, phiid_to_loc: dict) -> list[Assignment]:
-        phi_ids = []
-        for phiid, (block_addr, block_idx) in phiid_to_loc.items():
-            if block_addr == node.addr and block_idx == node.idx:
-                phi_ids.append(phiid)
-
-        phiid_to_udef = {}
-        for udef, phiids in udef_to_phiid.items():
-            for phiid in phiids:
-                phiid_to_udef[phiid] = udef
-
+    def create_phi_statements(self, node, phiid_to_udef: dict, phi_ids: list[int]) -> list[Assignment]:
         phi_stmts = []
         for phi_id in phi_ids:
             udef = phiid_to_udef[phi_id]
@@ -243,8 +233,22 @@ class RewritingAnalysis(ForwardAnalysis[RewritingState, ailment.Block, object, o
     #
 
     def _pre_analysis(self):
+        # create a mapping from phi-variable ID to udefs
+        phiid_to_udef = {}
+        for udef, phiids in self._udef_to_phiid.items():
+            for phiid in phiids:
+                phiid_to_udef[phiid] = udef
+
+        # create a mapping from each node to its phi-var IDs
+        phi_ids_by_loc: dict[tuple[int, int | None], list[int]] = {}
+        for phiid, (block_addr, block_idx) in self._phiid_to_loc.items():
+            loc = block_addr, block_idx
+            if loc not in phi_ids_by_loc:
+                phi_ids_by_loc[loc] = []
+            phi_ids_by_loc[loc].append(phiid)
+
         for node in self.graph:
-            phi_stmts = self.create_phi_statements(node, self._udef_to_phiid, self._phiid_to_loc)
+            phi_stmts = self.create_phi_statements(node, phiid_to_udef, phi_ids_by_loc.get((node.addr, node.idx), []))
             if phi_stmts:
                 self.insert_phi_statements(node, phi_stmts)
 
