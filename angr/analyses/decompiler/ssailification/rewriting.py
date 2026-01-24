@@ -73,6 +73,7 @@ class RewritingAnalysis:
         self._pending_states: dict[ailment.Block, RewritingState] = {}
         self.out_blocks = {}
         self.out_states = {}
+        self.resized_func_args: dict[VirtualVariable, VirtualVariable] = {}
         # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
         # following:
         #    0x4036df | t4 = (rcx<8> == 0x0<64>)
@@ -257,7 +258,10 @@ class RewritingAnalysis:
                 unused_func_args.discard(arg_vvar)
                 if arg_vvar.size == size:
                     vvar = arg_vvar
+                elif arg_vvar in self.resized_func_args:
+                    vvar = self.resized_func_args[arg_vvar]
                 else:
+                    # rewriting the size the arg
                     vvar = VirtualVariable(
                         arg_vvar.idx,
                         arg_vvar.varid,
@@ -266,6 +270,7 @@ class RewritingAnalysis:
                         (category, offset),
                         **arg_vvar.tags,
                     )
+                    self.resized_func_args[arg_vvar] = vvar
             else:
                 varid = self._engine_ail._current_vvar_id
                 self._engine_ail._current_vvar_id += 1

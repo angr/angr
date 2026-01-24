@@ -644,7 +644,7 @@ class AILSimplifier(Analysis):
 
             all_used_sizes.add(expr_size)
             if not isinstance(stmt, Call) and (
-                used_by_exprs is None or any(isinstance(e, Call) for e in used_by_exprs[1])
+                used_by_exprs is None or not any(isinstance(e, Call) for e in used_by_exprs[1])
             ):
                 noncall_used_sizes.add(expr_size)
             used_by_loc[loc].append((atom, used_by_exprs))
