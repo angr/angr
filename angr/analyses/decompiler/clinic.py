@@ -2193,10 +2193,6 @@ class Clinic(Analysis):
                         )
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.data)
 
-                # link struct member info
-                if isinstance(stmt.variable, SimStackVariable):
-                    self._map_stackvar_to_struct_member(variable_manager, stmt)
-
             elif stmt_type is ailment.Stmt.Assignment or stmt_type is ailment.Stmt.WeakAssignment:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.src)
@@ -2280,9 +2276,6 @@ class Clinic(Analysis):
                 expr.variable = var
                 expr.variable_offset = offset
 
-                if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
-                    self._map_stackvar_to_struct_member(variable_manager, expr)
-
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) == 0:
@@ -2316,9 +2309,6 @@ class Clinic(Analysis):
                 var, offset = next(iter(variables))
                 expr.variable = var
                 expr.variable_offset = offset
-
-                if isinstance(var, SimStackVariable):
-                    self._map_stackvar_to_struct_member(variable_manager, expr)
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -2423,22 +2413,6 @@ class Clinic(Analysis):
             for _, vvar in expr.src_and_vvars:
                 if vvar is not None:
                     self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, vvar)
-
-    def _map_stackvar_to_struct_member(
-        self,
-        variable_manager: VariableManagerInternal,
-        expr_or_stmt: ailment.expression.Expression | ailment.statement.Statement,
-    ) -> bool:
-        variable = getattr(expr_or_stmt, "variable", None)
-        vartype = variable_manager.uvar_to_complex_types.get(variable, None) if variable is not None else None
-        if vartype is None and variable is not None:
-            variable = variable_manager.unified_variable(variable)
-            assert isinstance(variable, SimStackVariable)
-            vartype = variable_manager.uvar_to_complex_types.get(variable, None) if variable is not None else None
-        if vartype is not None and variable is not None:
-            expr_or_stmt.tags["struct_member_info"] = 0, variable, vartype
-            return True
-        return False
 
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:

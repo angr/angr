@@ -3501,12 +3501,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if stmt.variable is not None:
-            if "struct_member_info" in stmt.tags:
-                offset, var, _ = stmt.tags["struct_member_info"]
-                cvar = self._variable(var, stmt.size)
-            else:
-                cvar = self._variable(stmt.variable, stmt.size)
-                offset = stmt.offset or 0
+            cvar = self._variable(stmt.variable, stmt.size)
+            offset = stmt.offset or 0
             assert type(offset) is int  # I refuse to deal with the alternative
 
             cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, cdata.type, True, negotiate)
@@ -3718,12 +3714,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if expr.variable is not None:
-            if "struct_member_info" in expr.tags:
-                offset, var, _ = expr.tags["struct_member_info"]
-                cvar = self._variable(var, var.size)
-            else:
-                cvar = self._variable(expr.variable, expr_size)
-                offset = expr.variable_offset or 0
+            cvar = self._variable(expr.variable, expr_size)
+            offset = expr.variable_offset or 0
 
             assert type(offset) is int  # I refuse to deal with the alternative
             return self._access_constant_offset(CUnaryOp("Reference", cvar, codegen=self), offset, ty, False, negotiate)
@@ -4038,34 +4030,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return old_ty
 
         if expr.variable is not None:
-            if "struct_member_info" in expr.tags:
-                offset, var, _ = expr.tags["struct_member_info"]
-                if ref:  # noqa:SIM108
-                    # this virtual variable is only used as the operand of a & operation, so the size is unreliable
-                    size = var.size // self.project.arch.byte_width
-                else:
-                    size = expr.size
-                cbasevar = self._variable(var, size, vvar_id=expr.varid)
-                data_type = type_
-                if data_type is None:
-                    # try to determine the type of this variable read
-                    data_type = cbasevar.type
-                    if data_type.size // self.project.arch.byte_width > expr.size:
-                        # fallback to a more suitable type
-                        data_type = {
-                            64: SimTypeLongLong(signed=False),
-                            32: SimTypeInt(signed=False),
-                            16: SimTypeShort(signed=False),
-                            8: SimTypeChar(signed=False),
-                        }.get(expr.bits, data_type).with_arch(self.project.arch)
-                if ref and offset == 0:
-                    cvar = cbasevar
-                else:
-                    cvar = self._access_constant_offset(
-                        self._get_variable_reference(cbasevar), offset, data_type, lvalue, negotiate
-                    )
-            else:
-                cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
+            cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
 
             if not lvalue and expr.variable.size != expr.size:
                 l.warning(

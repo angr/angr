@@ -29,7 +29,6 @@ class TagDict(TypedDict, total=False):
     reference_variable_offset: int
     reference_variable: SimVariable
     reg_name: str
-    struct_member_info: tuple[int, SimVariable, SimType]
     type: dict[str, SimType]
     uninitialized: bool
     vex_block_addr: int

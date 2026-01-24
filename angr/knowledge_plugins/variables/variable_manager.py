@@ -27,7 +27,6 @@ from angr.sim_type import (
     SimTypeShort,
     SimTypeInt,
     SimTypeLong,
-    SimTypeArray,
 )
 from angr.keyed_region import KeyedRegion
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
@@ -133,9 +132,6 @@ class VariableManagerInternal(Serializable):
 
         # optimization
         self._variables_without_writes = set()
-
-        self.pending_complex_types: dict[SimVariable, SimStruct | SimTypeArray] = {}
-        self.uvar_to_complex_types: dict[SimStackVariable, SimStruct | SimTypeArray] = {}
 
         self.ret_val_size = None
 
@@ -1107,11 +1103,6 @@ class VariableManagerInternal(Serializable):
                         self.variable_to_types[other_var] = ty
                         if mark_manual:
                             self.variables_with_manual_types.add(other_var)
-        if isinstance(var, SimStackVariable):
-            if isinstance(ty, TypeRef) and isinstance(ty.type, SimStruct):
-                self.pending_complex_types[var] = ty.type
-            elif isinstance(ty, SimTypeArray):
-                self.pending_complex_types[var] = ty
 
     def get_variable_type(self, var) -> SimType | None:
         return self.variable_to_types.get(var, None)
@@ -1221,11 +1212,6 @@ class VariableManagerInternal(Serializable):
 
         self._unified_variables.add(unified)
         self._variables_to_unified_variables[variable] = unified
-
-        cty = self.pending_complex_types.pop(variable, None)
-        if cty is not None:
-            assert isinstance(unified, SimStackVariable)
-            self.uvar_to_complex_types[unified] = cty
 
     def unified_variable(self, variable: SimVariable) -> SimVariable | None:
         """
