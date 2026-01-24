@@ -2671,7 +2671,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
-            Stmt.WeakAssignment: self._handle_Stmt_WeakAssignment,
+            Stmt.WeakAssignment: self._handle_Stmt_Assignment,
             Stmt.Call: self._handle_Stmt_Call,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
@@ -3516,70 +3516,34 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, cdata, tags=stmt.tags, codegen=self)
 
+    def variables_unify(self, v1: Expr.VirtualVariable, v2: Expr.VirtualVariable) -> bool:
+        vmi = self._variable_kb.variables[self._func.addr]
+        v1v = vmi.unified_variable(v1.variable) if v1.variable is not None else None
+        v2v = vmi.unified_variable(v2.variable) if v2.variable is not None else None
+        return v1v == v2v
+
     def _handle_Stmt_Assignment(self, stmt, **kwargs):
-        csrc = self._handle(stmt.src, lvalue=False)
-        cdst = None
-
-        dst_type = csrc.type
-        if "tags" in stmt.tags:
-            dst_type = stmt.tags["type"].get("dst")
-
-        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
-
-            def negotiate(old_ty, proposed_ty):
-                # transfer casts from the dst to the src if possible
-                # if we see something like *(size_t*)&v4 = x; where v4 is a pointer, change to v4 = (void*)x;
-                nonlocal csrc
-                if not type_equals(old_ty, proposed_ty) and qualifies_for_simple_cast(old_ty, proposed_ty):
-                    csrc = CTypeCast(csrc.type, proposed_ty, csrc, codegen=self)
-                    return proposed_ty
-                return old_ty
-
-            if stmt.dst.variable is not None:
-                if "struct_member_info" in stmt.dst.tags:
-                    # TODO is this obsoleted by Insert?
-                    offset, var, _ = stmt.dst.tags["struct_member_info"]
-                    cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
-                else:
-                    cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
-                    offset = stmt.dst.variable_offset or 0
-
-                    if (
-                        isinstance(stmt.src, Expr.Insert)
-                        and isinstance(stmt.src.base, Expr.VirtualVariable)
-                        and stmt.src.base.oident == stmt.dst.oident
-                        and isinstance(stmt.src.offset, Expr.Const)
-                        and isinstance(stmt.src.offset.value, int)
-                        and isinstance(cvar.type, SimStruct)
-                    ):
-                        field = next((name for name, off in cvar.type.offsets.items() if off == offset), None)
-                        if field is not None:
-                            offset = stmt.src.offset.value
-                            csrc = self._handle(stmt.src.value)
-                            dst_type = cvar.type.fields[field]
-
-                assert type(offset) is int  # I refuse to deal with the alternative
-
-                cdst = self._access_constant_offset(
-                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
-                )
-
-        if cdst is None:
-            cdst = self._handle(stmt.dst, lvalue=True)
-
-        return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
-
-    def _handle_Stmt_WeakAssignment(self, stmt, **kwargs):
-        csrc = self._handle(stmt.src, lvalue=False)
-        cdst = None
-
-        src_type = csrc.type
-        dst_type = src_type
-        if "type" in stmt.tags:
-            src_type = stmt.tags["type"].get("src")
-            dst_type = stmt.tags["type"].get("dst")
-
-        if isinstance(stmt.dst, Expr.VirtualVariable) and stmt.dst.was_stack:
+        if (
+            isinstance(stmt.dst, Expr.VirtualVariable)
+            and stmt.dst.was_stack
+            and stmt.dst.variable is not None
+            and isinstance(stmt.src, Expr.Insert)
+            and isinstance(stmt.src.offset, Expr.Const)
+            and isinstance(stmt.src.offset.value, int)
+            and (
+                (isinstance(stmt.src.base, Expr.VirtualVariable) and self.variables_unify(stmt.src.base, stmt.dst))
+                or stmt.src.base.tags.get("uninitialized", False)
+            )
+        ):
+            offset = stmt.src.offset.value
+            var = stmt.dst.variable
+            cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
+            csrc = self._handle(stmt.src.value)
+            src_type = csrc.type
+            dst_type = src_type
+            if "type" in stmt.tags:
+                src_type = stmt.tags["type"].get("src")
+                dst_type = stmt.tags["type"].get("dst")
 
             def negotiate(old_ty, proposed_ty):
                 # transfer casts from the dst to the src if possible
@@ -3590,20 +3554,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return proposed_ty
                 return old_ty
 
-            if stmt.dst.variable is not None:
-                if "struct_member_info" in stmt.dst.tags:
-                    offset, var, _ = stmt.dst.tags["struct_member_info"]
-                    cvar = self._variable(var, stmt.dst.size, vvar_id=stmt.dst.varid)
-                else:
-                    cvar = self._variable(stmt.dst.variable, stmt.dst.size, vvar_id=stmt.dst.varid)
-                    offset = stmt.dst.variable_offset or 0
-                assert type(offset) is int  # I refuse to deal with the alternative
-
-                cdst = self._access_constant_offset(
-                    self._get_variable_reference(cvar), offset, dst_type, True, negotiate
-                )
-
-        if cdst is None:
+            cdst = self._access_constant_offset(self._get_variable_reference(cvar), offset, dst_type, True, negotiate)
+        else:
+            csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
@@ -3985,12 +3938,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         offset = (
             expr.offset.value if isinstance(expr.offset, Expr.Const) and isinstance(expr.offset.value, int) else None
         )
-        if isinstance(child.type, SimStruct) and offset is not None:
-            field = next((name for name, off in child.type.offsets.items() if off == offset), None)
-            if field is not None and offset in child.type.fields and expr.bits == child.type.fields[field].size:
-                return CVariableField(child, CStructField(child.type, offset, field, codegen=self), codegen=self)
-        if isinstance(child.type, SimTypeInt) and offset == 0:  # TODO not big-endian safe
-            return CTypeCast(child.type, target_type, child, codegen=self)
+        child_type = child.type
+        if isinstance(child_type, TypeRef):
+            child_type = child_type.type
+        if isinstance(child_type, SimStruct) and offset is not None:
+            field = next((name for name, off in child_type.offsets.items() if off == offset), None)
+            if field is not None and expr.bits == child_type.fields[field].size:
+                return CVariableField(child, CStructField(child_type, offset, field, codegen=self), codegen=self)
+        if isinstance(child_type, SimTypeInt) and offset == 0:  # TODO not big-endian safe
+            return CTypeCast(child_type, target_type, child, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
         return CUnaryOp(
@@ -4001,7 +3957,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 CBinaryOp(
                     "Add",
                     CTypeCast(
-                        SimTypePointer(child.type).with_arch(self.project.arch),
+                        SimTypePointer(child_type).with_arch(self.project.arch),
                         voidp,
                         CUnaryOp("Reference", child, codegen=self),
                         codegen=self,

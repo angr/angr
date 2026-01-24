@@ -5,6 +5,7 @@ import logging
 
 import angr.ailment as ailment
 from angr.ailment.constant import UNDETERMINED_SIZE
+from angr.errors import SimMemoryMissingError
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
@@ -12,6 +13,7 @@ from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.lifter import TypeLifter
+from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 from .engine_base import SimEngineVRBase, RichR
 
@@ -352,7 +354,6 @@ class SimEngineVRAIL(
             if arg.typevar is not None and isinstance(
                 arg_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)
             ):
-                type_constraint = None
                 stack_offset = self.state.get_stack_offset(arg.data)
                 if (
                     stack_offset is not None
@@ -366,8 +367,19 @@ class SimEngineVRAIL(
                     # hence, if arg_ty points to a struct whose size is larger than arg.size, we create a new
                     # stack variable and its type variable that represents the full struct variable on the
                     # stack.
+                    existing_variables = set()
                     arg_ty_basesize = arg_ty.basetype.size
-                    if arg_ty_basesize > arg.bits // self.arch.byte_width:
+                    try:
+                        vs: MultiValues = self.state.stack_region.load(stack_offset, 1)
+                        for values in vs.values():
+                            for value in values:
+                                existing_variables.update(
+                                    stack_var for o, stack_var in self.state.extract_variables(value) if o == 0
+                                )
+                    except SimMemoryMissingError:
+                        pass
+
+                    if not existing_variables:
                         # create a new stack variable
                         stack_var = SimStackVariable(
                             stack_offset,
@@ -377,10 +389,10 @@ class SimEngineVRAIL(
                         self.state.variable_manager[self.func_addr].add_variable("stack", stack_var.offset, stack_var)
                         stack_typevar = typevars.TypeVariable()
                         self.state.typevars.add_type_variable(stack_var, stack_typevar)
-                        type_constraint = typevars.Subtype(stack_typevar, arg_ty.basetype)
-                if type_constraint is None:
-                    type_constraint = typevars.Subtype(arg.typevar, arg_ty)
-                self.state.add_type_constraint(type_constraint)
+                        existing_variables.add(stack_var)
+                    for stack_var in existing_variables:
+                        self.state.add_type_constraint(typevars.Subtype(stack_var, arg_ty.basetype))
+                self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:
@@ -544,6 +556,8 @@ class SimEngineVRAIL(
 
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
         if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
+            if expr.tags.get("extra_def", False):
+                self._assign_to_vvar(expr.operand, self._top(expr.operand.bits))
             refbase_typevar = None
             off = expr.operand.stack_offset
 

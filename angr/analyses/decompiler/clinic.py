@@ -14,6 +14,7 @@ import capstone
 from angr import ailment
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.code_location import ExternalCodeLocation
 from angr.errors import AngrDecompilationError
 from angr.knowledge_base import KnowledgeBase
 from angr.knowledge_plugins.functions import Function
@@ -340,7 +341,7 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr in (0x1400035CC, 0x1400035DC):
+    #         if block.addr == 0x410876:
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
@@ -1960,7 +1961,7 @@ class Clinic(Analysis):
         return ail_graph
 
     @timethis
-    def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb):
+    def _make_function_prototype(self, arg_list: list[SimVariable], variable_kb: KnowledgeBase):
         if self.function.prototype is not None:
             if not self.function.is_prototype_guessed:
                 # do not overwrite an existing function prototype
@@ -2132,6 +2133,9 @@ class Clinic(Analysis):
             entry=next(iter(bb for bb in ail_graph if (bb.addr, bb.idx) == self.entry_node_addr)),
             arg_vvars=[vvar for vvar, _ in arg_vvars.values()],
         )
+        if arg_vvars is not None:
+            for vvar, var in arg_vvars.values():
+                var_manager.record_variable(ExternalCodeLocation(), var, 0, atom=vvar)
         var_manager.unify_variables(interference=liveness.interference_graph())
         var_manager.assign_unified_variable_names(
             labels=self.kb.labels,
@@ -2191,7 +2195,7 @@ class Clinic(Analysis):
 
                 # link struct member info
                 if isinstance(stmt.variable, SimStackVariable):
-                    self._map_stackvar_to_struct_member(variable_manager, stmt, stmt.variable.offset)
+                    self._map_stackvar_to_struct_member(variable_manager, stmt)
 
             elif stmt_type is ailment.Stmt.Assignment or stmt_type is ailment.Stmt.WeakAssignment:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.dst)
@@ -2277,7 +2281,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
                 if isinstance(expr, ailment.Expr.VirtualVariable) and expr.was_stack:
-                    self._map_stackvar_to_struct_member(variable_manager, expr, expr.stack_offset)
+                    self._map_stackvar_to_struct_member(variable_manager, expr)
 
         elif type(expr) is ailment.Expr.Load:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -2314,7 +2318,7 @@ class Clinic(Analysis):
                 expr.variable_offset = offset
 
                 if isinstance(var, SimStackVariable):
-                    self._map_stackvar_to_struct_member(variable_manager, expr, var.offset)
+                    self._map_stackvar_to_struct_member(variable_manager, expr)
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
@@ -2422,21 +2426,19 @@ class Clinic(Analysis):
 
     def _map_stackvar_to_struct_member(
         self,
-        variable_manager,
+        variable_manager: VariableManagerInternal,
         expr_or_stmt: ailment.expression.Expression | ailment.statement.Statement,
-        the_stack_offset: int,
     ) -> bool:
-        any_struct_found = False
-        off = the_stack_offset
-        for stack_off in variable_manager.stack_offset_to_complex_types.irange(maximum=off, reverse=True):
-            the_var, vartype = variable_manager.stack_offset_to_complex_types[stack_off]
-            if stack_off <= off < stack_off + vartype.size // self.project.arch.byte_width:
-                expr_or_stmt.tags["struct_member_info"] = off - stack_off, the_var, vartype
-                any_struct_found = True
-                break
-            if stack_off + vartype.size // self.project.arch.byte_width <= off:
-                break
-        return any_struct_found
+        variable = getattr(expr_or_stmt, "variable", None)
+        vartype = variable_manager.uvar_to_complex_types.get(variable, None) if variable is not None else None
+        if vartype is None and variable is not None:
+            variable = variable_manager.unified_variable(variable)
+            assert isinstance(variable, SimStackVariable)
+            vartype = variable_manager.uvar_to_complex_types.get(variable, None) if variable is not None else None
+        if vartype is not None and variable is not None:
+            expr_or_stmt.tags["struct_member_info"] = 0, variable, vartype
+            return True
+        return False
 
     def _function_graph_to_ail_graph(self, func_graph, blocks_by_addr_and_size=None):
         if blocks_by_addr_and_size is None:

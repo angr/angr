@@ -357,21 +357,21 @@ class SimEngineSSARewriting(
 
     def _handle_stmt_Return(self, stmt: Return) -> Return | None:
         if stmt.ret_exprs is None:
-            new_ret_exprs = None
-        else:
-            updated = False
-            new_ret_exprs = []
-            for r in stmt.ret_exprs:
-                new_r = self._expr(r)
-                if new_r is not None:
-                    updated = True
-                new_ret_exprs.append(new_r if new_r is not None else None)
-            if not updated:
-                new_ret_exprs = None
+            return None
 
-        if new_ret_exprs:
-            return Return(stmt.idx, new_ret_exprs, **stmt.tags)
-        return None
+        updated = False
+        new_ret_exprs = []
+        for r in stmt.ret_exprs:
+            new_r = self._expr(r)
+            if new_r is not None:
+                updated = True
+                new_ret_exprs.append(new_r)
+            else:
+                new_ret_exprs.append(r)
+
+        if not updated:
+            return None
+        return Return(stmt.idx, new_ret_exprs, **stmt.tags)
 
     def _handle_expr_BinaryOp(self, expr: BinaryOp) -> BinaryOp | None:
         new_op0 = self._expr(expr.operands[0])

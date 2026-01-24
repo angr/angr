@@ -14,6 +14,7 @@ class RemoveConstInsert(PeepholeOptimizationExprBase):
     def optimize(self, expr: Insert, **kwargs):
         if not (
             isinstance(expr.base, Const)
+            and not expr.base.tags.get("uninitialized", False)
             and isinstance(expr.base.value, int)
             and isinstance(expr.offset, Const)
             and isinstance(expr.offset.value, int)
