@@ -299,7 +299,12 @@ class Sketch:
             basetype = supertype
             if not isinstance(basetype, (TopType, BottomType)):
                 assert basetype.size is not None
-                if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
+                if (
+                    max_size not in {0, None}
+                    and basetype.size > 0
+                    and max_size // basetype.size > 0
+                    and basetype.size <= 8
+                ):  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(

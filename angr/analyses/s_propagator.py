@@ -161,6 +161,11 @@ class SPropagatorAnalysis(Analysis):
 
             block = blocks[(defloc.block_addr, defloc.block_idx)]
             stmt = block.statements[defloc.stmt_idx]
+            if isinstance(stmt, Assignment) and not (
+                isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id
+            ):
+                # come back later, this is not the def you're looking for
+                continue
             if is_phi_assignment(stmt):
                 phi_varids[vvar_id] = {
                     src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars
@@ -190,7 +195,6 @@ class SPropagatorAnalysis(Analysis):
                 const_vvars[vvar_id] = v
                 for vvar_at_use, useloc in vvar_uselocs[vvar_id]:
                     self.replace(replacements, useloc, vvar_at_use, v)
-                continue
 
         # function mode only
         if self.mode == "function":

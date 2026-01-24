@@ -31,6 +31,7 @@ class TagDict(TypedDict, total=False):
     reg_name: str
     struct_member_info: tuple[int, SimVariable, SimType]
     type: dict[str, SimType]
+    uninitialized: bool
     vex_block_addr: int
     vex_stmt_idx: int
     write_size: int
