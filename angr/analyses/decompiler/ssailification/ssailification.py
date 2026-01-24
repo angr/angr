@@ -154,6 +154,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         )
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
+        self.resized_func_args = rewriter.resized_func_args
 
 
 register_analysis(Ssailification, "Ssailification")

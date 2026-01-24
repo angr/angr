@@ -3661,8 +3661,8 @@ class TestDecompiler(unittest.TestCase):
         # Test function has same name as local variable
         d = proj.analyses[Decompiler]("main", cfg=cfg.model)
         vars_in_use = list(d.codegen.cfunc.variables_in_use.values())
-        vars_in_use[0].variable.name = "puts"
-        vars_in_use[0].variable.renamed = True
+        vars_in_use[0].unified_variable.name = "puts"
+        vars_in_use[0].unified_variable.renamed = True
         d.codegen.regenerate_text()
         print_decompilation_result(d)
         assert "::puts" in d.codegen.text
@@ -5368,8 +5368,10 @@ class TestDecompiler(unittest.TestCase):
         proj = angr.Project(bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFG(normalize=True)
         proj.analyses.CompleteCallingConventions()
+        dec = None
 
         def decomp(func_name: str) -> str:
+            nonlocal dec
             func = proj.kb.functions[func_name]
             dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
             assert dec.codegen is not None and dec.codegen.text is not None

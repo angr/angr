@@ -341,7 +341,7 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr == 0x410876:
+    #         if block.addr == 0x400000:
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
@@ -1809,6 +1809,16 @@ class Clinic(Analysis):
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
+        for old, new in ssailification.resized_func_args.items():
+            if self.func_args is not None:
+                self.func_args.discard(old)
+                self.func_args.add(new)
+            if self.arg_vvars is not None:
+                for k, (v1, v2) in self.arg_vvars.items():
+                    if v1 == old:
+                        newvar = v2.copy()
+                        newvar.size = new.size
+                        self.arg_vvars[k] = (new, newvar)
         assert ssailification.out_graph is not None
         return ssailification.out_graph
 
