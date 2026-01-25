@@ -255,9 +255,13 @@ class InlinedStringTransformationAILEngine(
         if off is None or not off.concrete or v is None or base is None:
             return None
         return claripy.Concat(
-            base[len(base) - 1 : len(base) - off.concrete_value * 8],
+            base[len(base) - 1 : len(base) - off.concrete_value * 8] if off.concrete_value != 0 else claripy.BVV(b""),
             v,
-            base[len(base) - off.concrete_value * 8 - len(v) : 0],
+            (
+                base[len(base) - off.concrete_value * 8 - len(v) - 1 : 0]
+                if off.concrete_value * 8 - len(v) != len(base)
+                else claripy.BVV(b"")
+            ),
         )
 
     def _handle_expr_Load(self, expr):
