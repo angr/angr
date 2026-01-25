@@ -2814,7 +2814,8 @@ class TestDecompiler(unittest.TestCase):
         # 1. Condition: (!a0)
         # 2. Has a scope ending in a return
         # 3. Has no else scope after the return
-        good_if_pattern = r"if \(!a0\)\s*\{[^}]*return 1;\s*\}(?!\s*else)"
+        a0_name = d.clinic.variable_kb.variables[d.func.addr].unified_variable(d.clinic.arg_list[0]).name
+        good_if_pattern = r"if \(!" + a0_name + r"\)\s*\{[^}]*return 1;\s*\}(?!\s*else)"
         good_if = re.search(good_if_pattern, text)
         assert good_if is not None
 
