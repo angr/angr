@@ -543,30 +543,37 @@ class AILSimplifier(Analysis):
 
     @staticmethod
     def _compute_narrowables_once(
-        rd, narrowing_candidates: dict, vvar_to_narrowing_size: dict[int, int], blacklist_varids: set
-    ):
+        rd: SRDAModel,
+        narrowing_candidates: dict[int, tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]],
+        vvar_to_narrowing_size: dict[int, int],
+        blacklist_varids: set[int],
+    ) -> tuple[bool, list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]]]:
         repeat = False
-        narrowable_phivarids = set()
+        narrowable_phivarids: set[int] = set()
         for def_vvarid in narrowing_candidates:
             if def_vvarid in blacklist_varids:
                 continue
             if def_vvarid in rd.phi_vvar_ids:
-                narrowing_sizes = set()
                 src_vvarids = rd.phivarid_to_varids[def_vvarid]
+                narrowed_size = 0
                 for vvarid in src_vvarids:
                     if vvarid in blacklist_varids:
-                        narrowing_sizes.add(None)
-                    else:
-                        narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid))
-                if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
-                    # we can narrow this phi vvar!
-                    narrowable_phivarids.add(def_vvarid)
+                        break
+                    new_size = vvar_to_narrowing_size.get(vvarid)
+                    if new_size is None:
+                        blacklist_varids.add(vvarid)
+                        break
+                    narrowed_size = max(narrowed_size, new_size)
                 else:
-                    # blacklist it for now
-                    blacklist_varids.add(def_vvarid)
+                    if narrowed_size < rd.varid_to_vvar[def_vvarid].size:
+                        # we can narrow this phi vvar!
+                        narrowable_phivarids.add(def_vvarid)
+                    else:
+                        # blacklist it for now
+                        blacklist_varids.add(def_vvarid)
 
         # now determine what to narrow!
-        narrowables = []
+        narrowables: list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]] = []
 
         for def_, narrow_info in narrowing_candidates.values():
             if def_.atom.varid in blacklist_varids:
