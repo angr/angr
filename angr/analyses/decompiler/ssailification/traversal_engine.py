@@ -65,7 +65,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.stackvars = stackvars
         self.use_tmps = use_tmps
         self.functions = functions
-        self.def_info: dict[Def, tuple[Kind, AILCodeLocation, int, int, int]] = {}
+        self.def_info: dict[Def, tuple[Kind, AILCodeLocation, int, int, int, int]] = {}
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
         ] = {}
@@ -95,13 +95,21 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 full_offset = min(full_offset, suggested_offset)
                 full_endoffset = max(full_endoffset, suggested_endoffset)
 
-            self.perform_def("stack", def_, full_offset, full_endoffset - full_offset, stack_offset - full_offset, loc)
+            self.perform_def(
+                "stack",
+                def_,
+                full_offset,
+                full_endoffset - full_offset,
+                stack_offset - full_offset,
+                full_endoffset - full_offset,
+                loc,
+            )
 
         # sketchy situation. we want to make sure everything in the extern set
         # has exactly the same extents if they overlap at all. this is sorta a redo
         # of the unify code.
         mapping: defaultdict[int, set[Def]] = defaultdict(set)
-        for def_, (kind, loc, offset, size, _) in self.def_info.items():
+        for def_, (kind, loc, offset, size, _, _) in self.def_info.items():
             if kind != "stack" or not loc.is_extern:
                 continue
             for suboffset in range(offset, offset + size):
@@ -112,13 +120,20 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         def flush():
             for def2 in current_defs:
-                kind2, loc2, offset2, size2, extra_offset2 = self.def_info[def2]
+                kind2, loc2, offset2, size2, extra_offset2, store_size = self.def_info[def2]
                 size2 = current_extent[1] - current_extent[0]
-                self.def_info[def2] = kind2, loc2, current_extent[0], size2, extra_offset2 + offset2 - current_extent[0]
+                self.def_info[def2] = (
+                    kind2,
+                    loc2,
+                    current_extent[0],
+                    size2,
+                    extra_offset2 + offset2 - current_extent[0],
+                    store_size,
+                )
 
         for offset in sorted(mapping):
             for def_ in mapping[offset]:
-                _, loc, offset, size, _ = self.def_info[def_]
+                _, loc, offset, size, _, _ = self.def_info[def_]
 
                 if offset >= current_extent[1] or current_extent[0] == current_extent[1]:
                     flush()
@@ -144,6 +159,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         cell_offset: int,
         cell_size: int,
         var_offset: int,
+        store_size: int,
         loc: AILCodeLocation | None = None,
     ):
         loc = loc or self._acodeloc()
@@ -151,7 +167,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         assert (
             def_ not in self.def_info or self.def_info[def_][1] == loc or self.def_info[def_][1].is_extern
         ), "claiming an expression defines at two different locs"
-        self.def_info[def_] = (kind, loc, cell_offset, cell_size, var_offset)
+        self.def_info[def_] = (kind, loc, cell_offset, cell_size, var_offset, store_size)
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         offset = base_offset + min(extra_offset, 0)
@@ -169,7 +185,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 for def2 in self.state.stackvar_defs.pop(popped_offset, set()) | secret_stash[popped_offset]:
                     secret_stash[popped_offset].add(def2)
                     self.state.stackvar_defs[full_offset].add(def2)
-                    kind, other_loc, other_off, other_size, other_off2 = self.def_info[def2]
+                    kind, other_loc, other_off, other_size, other_off2, store_size = self.def_info[def2]
                     if other_off < full_offset or other_off + other_size > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
                         full_offset, full_size, popped2 = self.state.stackvar_unify(other_off, other_size)
@@ -181,6 +197,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                         full_offset,
                         full_size,
                         other_off + other_off2 - full_offset,
+                        store_size,
                     )
                 else:
                     continue
@@ -194,7 +211,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # if this assert trips maybe consider gating all the redef stuff on the cond?
             # maybe also consider making def nullable in case of externs
             self.perform_def(
-                "stack", pending_def, full_offset, full_size, offset - full_offset, AILCodeLocation.make_extern(0)
+                "stack",
+                pending_def,
+                full_offset,
+                full_size,
+                offset - full_offset,
+                base_size,
+                AILCodeLocation.make_extern(0),
             )
             self.state.stackvar_defs[full_offset] = {pending_def}
 
@@ -220,15 +243,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
                 old_defs = self.state.stackvar_defs.pop(suboff, set())
                 for old_def in old_defs:
-                    kind, loc, cell_offset, _, var_offset = self.def_info[old_def]
+                    kind, loc, cell_offset, _, var_offset, store_size = self.def_info[old_def]
                     # TODO consider that we actually have to do unification...
-                    self.def_info[old_def] = (kind, loc, offset, size, var_offset + cell_offset - offset)
+                    self.def_info[old_def] = (kind, loc, offset, size, var_offset + cell_offset - offset, store_size)
                     other_defs.add(old_def)
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:
             assert def2 is not None
-            self.perform_def("stack", def2, offset, size, var_offset, loc2)
+            self.perform_def("stack", def2, offset, size, var_offset, base_size, loc2)
             self.state.stackvar_defs[offset] = {def2} | other_defs
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
@@ -246,6 +269,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 base_off,
                 base_size,
                 offset - base_off,
+                base_size,
                 AILCodeLocation.make_extern(0) if base_off not in self.state.register_blackout else None,
             )
 
@@ -259,7 +283,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         else:
             base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
 
-        self.perform_def("reg", def_, base_off, base_size, offset - base_off)
+        self.perform_def("reg", def_, base_off, base_size, offset - base_off, base_size)
         self.state.live_registers[base_off] = value
         self.state.register_blackout.discard(base_off)
 

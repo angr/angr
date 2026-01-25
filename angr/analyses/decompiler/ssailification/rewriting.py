@@ -48,6 +48,7 @@ class RewritingAnalysis:
         func_args: set[VirtualVariable],
         def_to_udef: MutableMapping[Def, UDef],
         extern_defs: set[UDef],
+        incomplete_defs: set[Def],
         vvar_id_start: int = 0,
         stackvars: bool = False,
     ):
@@ -64,6 +65,7 @@ class RewritingAnalysis:
         self._engine_ail = SimEngineSSARewriting(
             self.project,
             rewrite_tmps=self._rewrite_tmps,
+            incomplete_defs=incomplete_defs,
             ail_manager=ail_manager,
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,

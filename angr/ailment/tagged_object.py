@@ -21,6 +21,8 @@ class TagDict(TypedDict, total=False):
     block_idx: int
     custom_string: bool
     deref_src_addr: int
+    extra_def: bool
+    extra_defs: list[int]
     ins_addr: int
     is_prototype_guessed: bool
     keep_in_slice: bool
