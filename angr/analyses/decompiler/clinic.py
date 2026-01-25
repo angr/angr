@@ -1828,14 +1828,14 @@ class Clinic(Analysis):
             args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
             arg_vars: list[SimVariable] = []
             if args:
-                arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
+                arg_names = self.function.prototype.arg_names or ()
                 for idx, arg in enumerate(args):
                     if isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStackArg):
@@ -1844,13 +1844,13 @@ class Clinic(Analysis):
                             arg.size,
                             base="bp",
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
                     else:
                         argvar = SimVariable(
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                             size=arg.size,
                         )
