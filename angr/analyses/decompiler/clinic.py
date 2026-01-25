@@ -2346,8 +2346,13 @@ class Clinic(Analysis):
         elif type(expr) in {ailment.Expr.Convert, ailment.Expr.Reinterpret}:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.operand)
 
-        elif type(expr) is ailment.Expr.Extract or type(expr) is ailment.Expr.Insert:
+        elif type(expr) is ailment.Expr.Extract:
             self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
+        elif type(expr) is ailment.Expr.Insert:
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.base)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.offset)
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, expr.value)
 
         elif type(expr) is ailment.Expr.ITE:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
