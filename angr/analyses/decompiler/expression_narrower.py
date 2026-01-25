@@ -97,7 +97,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        # self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 

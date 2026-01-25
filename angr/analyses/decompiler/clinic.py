@@ -341,7 +341,7 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr == 0x400000:
+    #         if block.addr == 0x100003A5D:
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
@@ -754,7 +754,7 @@ class Clinic(Analysis):
         self._ail_graph = self._rewrite_windows_chkstk_call(self._ail_graph)
 
         # Run simplification passes
-        self._update_progress(53.0, text="Running simplifications 2")
+        self._update_progress(53.0, text="Running simplifications 2.5")
         self._ail_graph = self._run_simplification_passes(
             self._ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES
         )
