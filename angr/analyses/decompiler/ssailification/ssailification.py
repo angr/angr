@@ -125,8 +125,12 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 if udef[0] == "stack" and (state := traversal.start_states.get(block, None)) is not None:
                     if udef[1] not in state.stackvar_defs:
                         continue
-                    defs = state.stackvar_defs[udef[1]]
-                    if not any(traversal.def_info[def_][3] == udef[2] for def_ in defs):
+                    defs = set(state.stackvar_defs[udef[1]])
+                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
+                        defs.update(state.stackvar_defs.get(suboffset, ()))
+                    # if we see this phi actually being used later in the program,
+                    # all the related defs will be adjusted to be the right size
+                    if not all(traversal.def_info[def_][3] == udef[2] for def_ in defs):
                         continue
                 phi_id = next(phi_id_ctr)
                 udef_to_phiid[udef].add(phi_id)
