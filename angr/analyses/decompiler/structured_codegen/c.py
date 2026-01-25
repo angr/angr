@@ -3554,6 +3554,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         else:
             csrc = self._handle(stmt.src, lvalue=False)
             cdst = self._handle(stmt.dst, lvalue=True)
+            if cdst.type != csrc.type:
+                csrc = CTypeCast(csrc.type, cdst.type, csrc, codegen=self)
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
