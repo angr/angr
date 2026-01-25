@@ -64,6 +64,7 @@ class SimEngineSSARewriting(
         *,
         ail_manager: Manager,
         def_to_udef: MutableMapping[Def, UDef],
+        incomplete_defs: set[Def],
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
         stackvars: bool = False,
@@ -78,6 +79,7 @@ class SimEngineSSARewriting(
         self.out_block: Block | None = None
         self.def_to_udef = def_to_udef
         self.stackvars = stackvars
+        self.incomplete_defs = incomplete_defs
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
@@ -502,6 +504,12 @@ class SimEngineSSARewriting(
     def _handle_expr_StackBaseOffset(self, expr):
         if not self.stackvars:
             return None
+
+        # if we get here, it means it's NOT through a Load or Store
+        # so we won't get the opportunity to lift this into an appropriate Assignment
+        # so if we don't completely redefine the value we should not create a new vvar
+        if expr in self.incomplete_defs:
+            self.def_to_udef.pop(expr, None)
 
         vvar = self._expr_to_vvar(expr, True)
         refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)

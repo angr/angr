@@ -97,7 +97,10 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
         def_to_udef: dict[Def, UDef] = {}
         extern_defs: set[UDef] = set()
-        for def_, (kind, loc, offset, size, _) in traversal.def_info.items():
+        incomplete_defs: set[Def] = set()
+        for def_, (kind, loc, offset, size, _, store_size) in traversal.def_info.items():
+            if store_size != size:
+                incomplete_defs.add(def_)
             udef = (kind, offset, size)
             udef_to_defs[udef].add(def_)
             if loc.is_extern:
@@ -153,6 +156,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._func_args,
             self._def_to_udef,
             self._extern_defs,
+            incomplete_defs=incomplete_defs,
             vvar_id_start=vvar_id_start,
             stackvars=self._ssa_stackvars,
         )
