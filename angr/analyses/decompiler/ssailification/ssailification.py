@@ -117,8 +117,8 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
 
         phi_id_ctr = count()
 
-        udef_to_phiid = defaultdict(set)
-        phiid_to_loc = {}
+        phiid_to_udef: dict[int, UDef] = {}
+        block_to_phiids: defaultdict[Block, list[int]] = defaultdict(list)
         for udef, block_keys in udef_to_blockkeys.items():
             blocks = {self._entry if block_key[0] == -1 else blockkey_to_block[block_key] for block_key in block_keys}
             frontier_plus = calculate_iterated_dominace_frontier_set(frontiers, blocks)
@@ -136,26 +136,21 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     if not all(traversal.def_info[def_][3] == udef[2] for def_ in defs):
                         continue
                 phi_id = next(phi_id_ctr)
-                udef_to_phiid[udef].add(phi_id)
-                phiid_to_loc[phi_id] = block.addr, block.idx
-
-        self._udef_to_phiid = udef_to_phiid
-        self._phiid_to_loc = phiid_to_loc
-        self._def_to_udef = def_to_udef
-        self._extern_defs = extern_defs
+                phiid_to_udef[phi_id] = udef
+                block_to_phiids[block].append(phi_id)
 
         # insert phi variables and rewrite uses
         rewriter = RewritingAnalysis(
             self.project,
             self._function,
             ail_graph,
-            self._udef_to_phiid,
-            self._phiid_to_loc,
+            phiid_to_udef,
+            block_to_phiids,
             self._ssa_tmps,
             self._ail_manager,
             self._func_args,
-            self._def_to_udef,
-            self._extern_defs,
+            def_to_udef,
+            extern_defs,
             incomplete_defs=incomplete_defs,
             vvar_id_start=vvar_id_start,
             stackvars=self._ssa_stackvars,

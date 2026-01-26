@@ -508,7 +508,7 @@ class SimEngineSSARewriting(
         # if we get here, it means it's NOT through a Load or Store
         # so we won't get the opportunity to lift this into an appropriate Assignment
         # so if we don't completely redefine the value we should not create a new vvar
-        if expr in self.incomplete_defs:
+        if expr in self.incomplete_defs and expr.offset in self.state.stackvars:
             self.def_to_udef.pop(expr, None)
 
         vvar = self._expr_to_vvar(expr, True)

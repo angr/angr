@@ -1,7 +1,7 @@
 from __future__ import annotations
 from itertools import chain
 from typing import TYPE_CHECKING, Any, TypeVar
-from collections.abc import MutableMapping
+from collections.abc import Iterable, MutableMapping
 from collections.abc import Callable
 from functools import partial
 import logging
@@ -41,8 +41,8 @@ class RewritingAnalysis:
         project: Project,
         func: Function,
         ail_graph: networkx.DiGraph[Block],
-        udef_to_phiid: dict[tuple, set[int]],
-        phiid_to_loc: dict[int, tuple[int, int | None]],
+        phiid_to_udef: dict[int, UDef],
+        block_to_phiids: dict[Block, list[int]],
         rewrite_tmps: bool,
         ail_manager,
         func_args: set[VirtualVariable],
@@ -56,8 +56,8 @@ class RewritingAnalysis:
         self._function = func
 
         self._graph = ail_graph
-        self._udef_to_phiid = udef_to_phiid
-        self._phiid_to_loc = phiid_to_loc
+        self._phiid_to_udef = phiid_to_udef
+        self._block_to_phiids = block_to_phiids
         self._rewrite_tmps = rewrite_tmps
         self._ail_manager = ail_manager
         self._func_args = func_args
@@ -116,8 +116,10 @@ class RewritingAnalysis:
 
         return new_graph
 
-    def create_phi_statements(self, node, phiid_to_udef: dict, phi_ids: list[int]) -> list[Assignment]:
-        phi_stmts = []
+    def create_phi_statements(
+        self, node: Block, phiid_to_udef: dict[int, UDef], phi_ids: Iterable[int]
+    ) -> list[Assignment]:
+        phi_stmts: list[Assignment] = []
         seen: set[tuple[str, int]] = set()
         for phi_id in phi_ids:
             udef = phiid_to_udef[phi_id]
@@ -229,7 +231,7 @@ class RewritingAnalysis:
 
     def _pre_analysis(self):
         for node in self._graph:
-            phi_stmts = self.create_phi_statements(node, self._udef_to_phiid, self._phiid_to_loc)
+            phi_stmts = self.create_phi_statements(node, self._phiid_to_udef, self._block_to_phiids[node])
             if phi_stmts:
                 self.insert_phi_statements(node, phi_stmts)
 
