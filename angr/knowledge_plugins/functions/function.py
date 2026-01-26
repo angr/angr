@@ -355,14 +355,18 @@ class Function(Serializable):
         self._calling_convention = cc
 
     @property
-    def prototype(self):
+    def prototype(self) -> SimTypeFunction | None:
         return self._prototype
 
     @prototype.setter
     @dirty_func
-    def prototype(self, proto: SimTypeFunction):
+    def prototype(self, proto: SimTypeFunction | None):
         # if an argument does not have a name, assign it with the name of the exiting argument or a default name
-        if proto.args and (len(proto.arg_names) < len(proto.args) or any(not arg_name for arg_name in proto.arg_names)):
+        if (
+            proto is not None
+            and proto.args
+            and (len(proto.arg_names) < len(proto.args) or any(not arg_name for arg_name in proto.arg_names))
+        ):
             proto = proto.copy()
             arg_names = list(proto.arg_names)
             for i in range(len(proto.args)):

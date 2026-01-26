@@ -124,6 +124,12 @@ class TestFunction(TestCase):
         # the original argument name should be kept
         assert function.prototype.arg_names[1] == "a3"
 
+    def test_function_set_prototype_none(self):
+        # you can set Function.prototype to None to clear it
+        function = makeFunction(self.function_manager, 0x42, "function")
+        function.prototype = None
+        assert function.prototype is None
+
 
 if __name__ == "__main__":
     main()
