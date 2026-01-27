@@ -1,5 +1,5 @@
 from __future__ import annotations
-from ailment import Expr
+from angr.ailment.expression import VEXCCallExpression, Const, BinaryOp, Convert, Expression
 
 from angr.engines.vex.claripy.ccall import (
     ARMCondNE,
@@ -23,11 +23,11 @@ class ARMCCallRewriter(CCallRewriterBase):
 
     __slots__ = ()
 
-    def _rewrite(self, ccall: Expr.VEXCCallExpression) -> Expr.Expression | None:
+    def _rewrite(self, ccall: VEXCCallExpression) -> Expression | None:
         if ccall.cee_name == "armg_calculate_condition":
             cond_n_op = ccall.operands[0]
 
-            if isinstance(cond_n_op, Expr.Const) and isinstance(cond_n_op, Expr.Const):
+            if isinstance(cond_n_op, Const) and isinstance(cond_n_op, Const):
                 concrete_cond_n_op = cond_n_op.value
                 cond_v = concrete_cond_n_op >> 4
                 op_v = concrete_cond_n_op & 0xF
@@ -43,36 +43,36 @@ class ARMCCallRewriter(CCallRewriterBase):
                         # dep_1 >= dep_2 if dep_3 == 0 else dep_1 > dep_2,
                         #   and then negate the result if inv == 1
                         if dep_3.value == 0:
-                            r = Expr.BinaryOp(
+                            r = BinaryOp(
                                 ccall.idx, "CmpGE" if inv == 0 else "CmpLT", (dep_1, dep_2), False, **ccall.tags
                             )
                         else:
-                            r = Expr.BinaryOp(
+                            r = BinaryOp(
                                 ccall.idx, "CmpGT" if inv == 0 else "CmpLE", (dep_1, dep_2), False, **ccall.tags
                             )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
                 elif cond_v in {ARMCondMI, ARMCondPL}:
                     # armg_calculate_flag_n
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 < dep_2,
                         #   and then negate the result if inv == 1
-                        r = Expr.BinaryOp(
+                        r = BinaryOp(
                             ccall.idx, "CmpLT" if inv == 0 else "CmpGE", (dep_1, dep_2), False, **ccall.tags
                         )
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        return Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v in {ARMCondLE}:
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 <= dep_2,
                         #   and then negate the result if inv == 1
-                        r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        r = BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags)
+                        return Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
                 elif cond_v in {ARMCondNE}:
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 != dep_2,
                         #   and then negate the result if inv == 1
-                        r = Expr.BinaryOp(ccall.idx, "CmpNE", (dep_1, dep_2), False, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        r = BinaryOp(ccall.idx, "CmpNE", (dep_1, dep_2), False, **ccall.tags)
+                        return Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
         return None
