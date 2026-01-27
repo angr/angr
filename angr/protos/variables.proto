@@ -17,6 +17,14 @@ message VariableBase {
 message TemporaryVariable {
     VariableBase    base = 1;
     uint32          tmp_id = 2;
+    uint32          size = 3;
+}
+
+message ConstantVariable {
+    VariableBase    base = 1;
+    uint32          size = 2;
+    uint64          value = 3;
+    optional bytes  long_value = 4;  // for large constants over 64 bits
 }
 
 
@@ -82,6 +90,7 @@ message VariableManagerInternal {
     repeated RegisterVariable regvars = 2;
     repeated MemoryVariable memvars = 3;
     repeated StackVariable stackvars = 4;
+    repeated ConstantVariable constvars = 13;
     // Variable accesses
     repeated VariableAccess accesses = 5;
     // Unified variables

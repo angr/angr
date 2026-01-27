@@ -309,6 +309,28 @@ class TestDb(unittest.TestCase):
             print_decompilation_result(dec_2)
             assert dec_2.codegen.text.count("0x8") == 1
 
+    def test_angrdb_decompilation_load_variables(self):
+        # https://github.com/angr/angr/issues/5990
+
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_db = os.path.join(td, "out.sqlite")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(
+                normalize=True,
+                resolve_indirect_jumps=True,
+                detect_tail_calls=True,
+            )
+            dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model, regen_clinic=False)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+            adb = AngrDB(proj, nullpool=True)
+            adb.dump(out_db, extra_info={"binary_path": bin_path})
+
+            _proj = AngrDB(nullpool=True).load(out_db)
+
 
 if __name__ == "__main__":
     unittest.main()
