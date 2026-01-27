@@ -30,6 +30,8 @@ class SimVariable(Serializable):
         "size",
     ]
 
+    _hash: int | None
+
     def __init__(
         self, size: int, ident: str | None = None, name: str | None = None, region: int | None = None, category=None
     ):
@@ -156,6 +158,8 @@ class SimConstantVariable(SimVariable):
         self._set_base(obj)
         obj.size = self.size
         if self.bits > 64:
+            assert isinstance(self.value, int)
+            # TODO: Handle float
             obj.long_value = int.to_bytes(self.value, byteorder="little")
         else:
             obj.value = self.value

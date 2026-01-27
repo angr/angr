@@ -99,12 +99,12 @@ class VariableManagerInternal(Serializable):
 
         self._variable_accesses: dict[SimVariable, set[VariableAccess]] = defaultdict(set)
         self._insn_to_variable: dict[int, set[tuple[SimVariable, int | None]]] = defaultdict(set)
-        self._stmt_to_variable: dict[tuple[int, int] | tuple[int, int, int], set[tuple[SimVariable, int]]] = (
+        self._stmt_to_variable: dict[tuple[int, int] | tuple[int, int, int], set[tuple[SimVariable, int | None]]] = (
             defaultdict(set)
         )
         self._variable_to_stmt: dict[SimVariable, set[tuple[int, int] | tuple[int, int, int]]] = defaultdict(set)
         self._atom_to_variable: dict[
-            tuple[int, int] | tuple[int, int, int], dict[int, set[tuple[SimVariable, int]]]
+            tuple[int, int] | tuple[int, int, int], dict[int, set[tuple[SimVariable, int | None]]]
         ] = defaultdict(_defaultdict_set)
         self._ident_to_variable: dict[str, SimVariable] = {}
         self._vvarid_to_variable: dict[int, SimVariable] = {}
@@ -528,7 +528,7 @@ class VariableManagerInternal(Serializable):
         if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
             self._variables_without_writes.discard(variable)
 
-    def record_variable(self, location: CodeLocation, variable, offset, overwrite=False, atom=None):
+    def record_variable(self, location: CodeLocation, variable, offset: int | None, overwrite=False, atom=None):
         if variable.ident not in self._ident_to_variable:
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
@@ -679,7 +679,7 @@ class VariableManagerInternal(Serializable):
 
     def find_variables_by_stmt(
         self, block_addr: int, stmt_idx: int, sort: str, block_idx: int | None = None
-    ) -> list[tuple[SimVariable, int]]:
+    ) -> list[tuple[SimVariable, int | None]]:
         key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
         if key not in self._stmt_to_variable:
@@ -689,7 +689,7 @@ class VariableManagerInternal(Serializable):
         if not variables:
             return []
 
-        var_and_offsets: list[tuple[SimVariable, int]]
+        var_and_offsets: list[tuple[SimVariable, int | None]]
         if sort == "memory":
             var_and_offsets = [
                 (var, offset)
@@ -721,7 +721,7 @@ class VariableManagerInternal(Serializable):
 
     def find_variables_by_atom(
         self, block_addr, stmt_idx, atom, block_idx: int | None = None
-    ) -> set[tuple[SimVariable, int]]:
+    ) -> set[tuple[SimVariable, int | None]]:
         key = (block_addr, stmt_idx) if block_idx is None else (block_addr, block_idx, stmt_idx)
 
         if key not in self._atom_to_variable:
