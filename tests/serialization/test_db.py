@@ -329,7 +329,7 @@ class TestDb(unittest.TestCase):
             adb = AngrDB(proj, nullpool=True)
             adb.dump(out_db, extra_info={"binary_path": bin_path})
 
-            _proj = AngrDB(nullpool=True).load("out.sqlite")
+            _proj = AngrDB(nullpool=True).load(out_db)
 
 
 if __name__ == "__main__":
