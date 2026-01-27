@@ -276,6 +276,7 @@ def do_it(in_dir):
                 libname = "ntoskrnl"
                 suffix = "exe"
             ret_type = handle_json_type(f["ReturnType"], create_missing=True)
+            variadic = f["CallingConvention"] == "VarArgs"
             args = []
             arg_names = []
             for idx, param in enumerate(f["Params"]):
@@ -296,7 +297,7 @@ def do_it(in_dir):
                     elif "In" in attrset:
                         new_param.disposition = PointerDisposition.IN
 
-            new_func = angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names)
+            new_func = angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names, variadic=variadic)
             new_func_name = f["Name"]
             parsed_cprotos[(prefix, libname, suffix)].append((new_func_name, new_func, ""))
             func_count += 1

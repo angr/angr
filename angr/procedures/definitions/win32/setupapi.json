@@ -1005,10 +1005,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SP_ALTPLATFORM_INFO_V2', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SP_INF_SIGNER_INFO_V2_W', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['InfName', 'AltPlatformInfo', 'InfSignerInfo']}"
 		},
 		"SetupWriteTextLog": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogToken', 'Category', 'Flags', 'MessageStr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogToken', 'Category', 'Flags', 'MessageStr'], 'variadic': true}"
 		},
 		"SetupWriteTextLogError": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogToken', 'Category', 'LogFlags', 'Error', 'MessageStr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogToken', 'Category', 'LogFlags', 'Error', 'MessageStr'], 'variadic': true}"
 		},
 		"SetupWriteTextLogInfLine": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INFCONTEXT', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['LogToken', 'Flags', 'InfHandle', 'Context']}"

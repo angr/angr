@@ -990,7 +990,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['msg']}"
 		},
 		"alljoyn_message_parseargs": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['msg', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_message', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['msg', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_message_setendianess": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': true, 'label': 'SByte'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['endian']}"
@@ -1005,13 +1005,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg', 'index']}"
 		},
 		"alljoyn_msgarg_array_get": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'numArgs', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'numArgs', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_array_set": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 0}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'numArgs', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 0}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'numArgs', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_array_set_offset": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 0}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'argOffset', 'numArgs', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 0}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['args', 'argOffset', 'numArgs', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_array_signature": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'arg_names': ['values', 'numValues', 'str', 'buf']}"
@@ -1032,7 +1032,7 @@
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': []}"
 		},
 		"alljoyn_msgarg_create_and_set": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_destroy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg']}"
@@ -1041,7 +1041,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['lhv', 'rhv']}"
 		},
 		"alljoyn_msgarg_get": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_get_array_element": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['arg', 'index', 'element']}"
@@ -1122,7 +1122,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature', 'length', 'av']}"
 		},
 		"alljoyn_msgarg_getdictelement": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'elemSig']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'elemSig'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_getkey": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, 'arg_names': ['arg']}"
@@ -1143,10 +1143,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['arg', 'signature']}"
 		},
 		"alljoyn_msgarg_set": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_set_and_stabilize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'signature'], 'variadic': true}"
 		},
 		"alljoyn_msgarg_set_bool": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'alljoyn_msgarg', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'QStatus', 'ot': 'enum'}, 'arg_names': ['arg', 'b']}"

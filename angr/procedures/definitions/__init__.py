@@ -316,9 +316,9 @@ class SimLibrary:
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
-        if proc.cc is None and arch.name in self.default_ccs:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-        if proc.cc is None and arch.name in self.fallback_cc:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
             proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type: ignore

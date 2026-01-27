@@ -27,7 +27,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAny']}"
 		},
 		"SnmpUtilDbgPrint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel', 'szFormat']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel', 'szFormat'], 'variadic': true}"
 		},
 		"SnmpUtilIdsToA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Ids', 'IdLength']}"
