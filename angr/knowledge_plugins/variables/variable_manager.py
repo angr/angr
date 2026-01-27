@@ -196,6 +196,7 @@ class VariableManagerInternal(Serializable):
         register_variables = []
         stack_variables = []
         memory_variables = []
+        const_variables = []
 
         for variable in self._variables:
             vc = variable.serialize_to_cmessage()
@@ -205,6 +206,8 @@ class VariableManagerInternal(Serializable):
                 stack_variables.append(vc)
             elif isinstance(variable, SimMemoryVariable):
                 memory_variables.append(vc)
+            elif isinstance(variable, SimConstantVariable):
+                const_variables.append(vc)
             else:
                 raise NotImplementedError
         for variable in self._phi_variables:
@@ -222,6 +225,7 @@ class VariableManagerInternal(Serializable):
         cmsg.regvars.extend(register_variables)
         cmsg.stackvars.extend(stack_variables)
         cmsg.memvars.extend(memory_variables)
+        cmsg.constvars.extend(const_variables)
 
         # accesses
         accesses = []
@@ -319,6 +323,13 @@ class VariableManagerInternal(Serializable):
                     SimMemoryVariable.parse_from_cmessage(memvar_pb2),
                 )
             )
+        for constvar_pb2 in cmsg.constvars:
+            all_vars.append(
+                (
+                    False,
+                    SimConstantVariable.parse_from_cmessage(constvar_pb2),
+                )
+            )
         for is_phi, var in all_vars:
             variable_by_ident[var.ident] = var
             if is_phi:
@@ -332,7 +343,7 @@ class VariableManagerInternal(Serializable):
             variable_access = VariableAccess.parse_from_cmessage(varaccess_pb2, variable_by_ident=variable_by_ident)
             variable = variable_access.variable
             offset = variable_access.offset
-            assert variable is not None and offset is not None
+            assert variable is not None
             tpl = (variable, offset)
 
             model._variable_accesses[variable_access.variable].add(variable_access)
@@ -405,6 +416,8 @@ class VariableManagerInternal(Serializable):
             elif isinstance(var, SimMemoryVariable):
                 region = model._global_region
                 offset = var.addr
+            elif isinstance(var, SimConstantVariable):
+                continue
             else:
                 raise ValueError(f"Unsupported sort {type(var)} in parse_from_cmessage().")
 
