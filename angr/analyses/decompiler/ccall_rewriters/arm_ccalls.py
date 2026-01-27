@@ -57,9 +57,7 @@ class ARMCCallRewriter(CCallRewriterBase):
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 < dep_2,
                         #   and then negate the result if inv == 1
-                        r = BinaryOp(
-                            ccall.idx, "CmpLT" if inv == 0 else "CmpGE", (dep_1, dep_2), False, **ccall.tags
-                        )
+                        r = BinaryOp(ccall.idx, "CmpLT" if inv == 0 else "CmpGE", (dep_1, dep_2), False, **ccall.tags)
                         return Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v in {ARMCondLE}:
                     if op_v == ARMG_CC_OP_SUB:
