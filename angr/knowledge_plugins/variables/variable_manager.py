@@ -523,7 +523,14 @@ class VariableManagerInternal(Serializable):
         if sort == VariableAccessSort.WRITE and variable in self._variables_without_writes:
             self._variables_without_writes.discard(variable)
 
-    def record_variable(self, location: CodeLocation, variable, offset: int | None, overwrite=False, atom: ailment.expression.Atom | None = None):
+    def record_variable(
+        self,
+        location: CodeLocation,
+        variable,
+        offset: int | None,
+        overwrite=False,
+        atom: ailment.expression.Atom | None = None,
+    ):
         if variable.ident not in self._ident_to_variable:
             self._ident_to_variable[variable.ident] = variable
             self._variables.add(variable)
