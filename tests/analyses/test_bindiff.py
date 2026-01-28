@@ -52,7 +52,7 @@ class TestBindiff(unittest.TestCase):
     def test_normalized_block_and_func_x86_64(self):
         binary_path_1 = os.path.join(test_location, "x86_64", "df.o")
         b = angr.Project(binary_path_1, load_options={"auto_load_libs": False})
-        cfg = b.analyses.CFGFast(normalize=True, data_references=True)  # pylint: disable=unused-variable
+        cfg = b.analyses.CFGFast(normalize=True, data_references=True)  # noqa: F841  # pylint: disable=unused-variable
 
         func = b.kb.functions.get_by_addr(0x40054B)
         assert func is not None

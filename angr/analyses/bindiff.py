@@ -29,11 +29,19 @@ DIFF_VALUE = "value"
 
 # exception for trying find basic block changes
 class UnmatchedStatementsException(Exception):
-    pass
+    """
+    Exception raised when statements between two blocks cannot be matched.
+    """
 
 
 # statement difference classes
 class Difference:
+    """
+    :param type:     The type of difference.
+    :param value_a:  The value from the first statement.
+    :param value_b:  The value from the second statement.
+    """
+
     def __init__(self, diff_type, value_a, value_b):
         self.type = diff_type
         self.value_a = value_a
@@ -41,6 +49,12 @@ class Difference:
 
 
 class ConstantChange:
+    """
+    :param offset:   The offset in the block where the constant differs.
+    :param value_a:  The constant value from the first block.
+    :param value_b:  The constant value from the second block.
+    """
+
     def __init__(self, offset, value_a, value_b):
         self.offset = offset
         self.value_a = value_a
@@ -254,7 +268,13 @@ def compare_statement_dict(statement_1, statement_2):
 
 
 class NormalizedBlock:
-    # block may span multiple calls
+    """
+    A normalized basic block that may span multiple calls.
+
+    :param block:       The block to normalize.
+    :param function:    The function containing the block.
+    """
+
     def __init__(self, block, function):
         addresses = [block.addr]
         if block.addr in function.merged_blocks:
@@ -285,15 +305,20 @@ class NormalizedBlock:
             self.operations += irsb.operations
             self.jumpkind = irsb.jumpkind
 
-        self.size = sum([b.size for b in self.blocks])
+        self.size = sum(b.size for b in self.blocks)
 
     def __repr__(self):
-        size = sum([b.size for b in self.blocks])
+        size = sum(b.size for b in self.blocks)
         return f"<Normalized Block for {self.addr:#x}, {size} bytes>"
 
 
 class NormalizedFunction:
-    # a more normalized function
+    """
+    A normalized function representation for diffing.
+
+    :param function:    The function to normalize.
+    """
+
     def __init__(self, function: Function):
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
@@ -1042,7 +1067,9 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(self._p2.loader.main_object, "plt"):  # type: ignore[attr-defined]
+        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(
+            self._p2.loader.main_object, "plt"
+        ):  # type: ignore[attr-defined]
             return []
         for name, addr in self.project.loader.main_object.plt.items():
             if name in self._p2.loader.main_object.plt:
