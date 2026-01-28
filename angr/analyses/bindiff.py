@@ -239,7 +239,7 @@ def compare_statement_dict(statement_1, statement_2):
     # tuples/lists
     if isinstance(statement_1, (tuple, list)):
         if len(statement_1) != len(statement_2):
-            return Difference(DIFF_TYPE, None, None)
+            return [Difference(DIFF_TYPE, None, None)]
 
         differences = []
         for s1, s2 in zip(statement_1, statement_2):
@@ -322,7 +322,7 @@ class NormalizedFunction:
     def __init__(self, function: Function):
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
-        self.project = function._function_manager._kb._project
+        self.project = function._function_manager._kb._project  # type: ignore[union-attr]
         self.call_sites = {}
         self.startpoint = function.startpoint
         self.merged_blocks = {}
@@ -368,11 +368,15 @@ class NormalizedFunction:
         for n in self.graph.nodes():
             call_targets = []
             if n.addr in self.orig_function.get_call_sites():
-                call_targets.extend(self.orig_function.get_call_target(n.addr))
+                targets = self.orig_function.get_call_target(n.addr)
+                if targets is not None:
+                    call_targets.extend(targets)
             if n.addr in self.merged_blocks:
                 for block in self.merged_blocks[n]:
                     if block.addr in self.orig_function.get_call_sites():
-                        call_targets.extend(self.orig_function.get_call_target(block.addr))
+                        targets = self.orig_function.get_call_target(block.addr)
+                        if targets is not None:
+                            call_targets.extend(targets)
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -1012,7 +1016,7 @@ class BinDiff(Analysis):
         if pair not in self._function_diffs:
             function_a = self.funcs_a.function(function_addr_a)
             function_b = self.funcs_b.function(function_addr_b)
-            self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)
+            self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)  # type: ignore[arg-type]
         return self._function_diffs[pair]
 
     @staticmethod
@@ -1046,7 +1050,7 @@ class BinDiff(Analysis):
         # Make sure those functions are not SimProcedures
         f_a = self.funcs_a.function(func_a)
         f_b = self.funcs_b.function(func_b)
-        if f_a.startpoint is None or f_b.startpoint is None:
+        if f_a is None or f_b is None or f_a.startpoint is None or f_b.startpoint is None:
             return possible_matches
 
         fd = self.get_function_diff(func_a, func_b)
@@ -1071,9 +1075,9 @@ class BinDiff(Analysis):
             self._p2.loader.main_object, "plt"
         ):  # type: ignore[attr-defined]
             return []
-        for name, addr in self.project.loader.main_object.plt.items():
-            if name in self._p2.loader.main_object.plt:
-                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
+        for name, addr in self.project.loader.main_object.plt.items():  # type: ignore[attr-defined]
+            if name in self._p2.loader.main_object.plt:  # type: ignore[attr-defined]
+                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))  # type: ignore[attr-defined]
 
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = {}
