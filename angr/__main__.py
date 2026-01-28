@@ -161,7 +161,7 @@ def main():
     decompile_cmd_parser.add_argument(
         "--theme",
         help="The syntax highlighting theme to use (only if rich is installed and colors are enabled).",
-        default="dracula",
+        default="ansi_dark",
     )
 
     disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
