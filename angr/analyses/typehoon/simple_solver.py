@@ -1012,13 +1012,16 @@ class SimpleSolver:
             cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
             existing_elements = cls0_elems | cls1_elems
             # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, DerivedTypeVariable):
+            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls0
-            elif not isinstance(cls1, DerivedTypeVariable):
+            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
                 rep_cls = next(
-                    iter(elem for elem in existing_elements if not isinstance(elem, DerivedTypeVariable)), cls0
+                    iter(
+                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    cls0,
                 )
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
