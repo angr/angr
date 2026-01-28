@@ -99,17 +99,17 @@ class NewFunctionHandler(FunctionHandler):
                 ),
             )
             # setting the values pointed by rax to zero
-            memory_location = MemoryLocation(self.max_addr, size)
+            memory_location = MemoryLocation(self.max_addr, size)  # type: ignore[arg-type]
             offset_to_values = {}
 
-            for offset in range(0, size, word_size):
+            for offset in range(0, size, word_size):  # type: ignore[arg-type]
                 offset_to_values[offset] = {claripy.BVV(0, word_size * state.arch.byte_width)}
             data.depends(memory_location, value=MultiValues(offset_to_values=offset_to_values))
-            self.max_addr += size
+            self.max_addr += size  # type: ignore[operator]
 
         else:
-            if self.project.kb.functions.contains_addr(function_address):
-                func = self.project.kb.functions.get_by_addr(function_address)
+            if self.project.kb.functions.contains_addr(function_address):  # type: ignore[union-attr]
+                func = self.project.kb.functions.get_by_addr(function_address)  # type: ignore[union-attr]
                 if func is not None and is_cpp_funcname_ctor(func.demangled_name):
                     # check if rdi has a possible this pointer/ object address, if so then we can assign this object
                     # this class
