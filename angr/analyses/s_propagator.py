@@ -217,6 +217,7 @@ class SPropagatorAnalysis(Analysis):
                                 self.replace(replacements, useloc, vvar_at_use, const_value)
                             changed = True
 
+            ret_or_jump_sites = retsites | jumpsites
             for vvar_id, (vvar, defloc) in vvar_deflocs.items():
                 if vvar_id not in vvar_uselocs:
                     continue
@@ -301,12 +302,12 @@ class SPropagatorAnalysis(Analysis):
                             continue
 
                     else:
-                        non_exitsite_uselocs = [
-                            loc
-                            for _, loc in vvar_uselocs_set
-                            if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in (retsites | jumpsites)
-                        ]
                         if is_const_and_vvar_assignment(stmt):
+                            non_exitsite_uselocs = [
+                                loc
+                                for _, loc in vvar_uselocs_set
+                                if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in ret_or_jump_sites
+                            ]
                             if len(non_exitsite_uselocs) == 1:
                                 # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
                                 # propagate it
