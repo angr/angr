@@ -293,6 +293,16 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Show void for empty parameter list",
+        "Display (void) instead of () for functions with no parameters, following the C standard convention.",
+        bool,
+        "codegen",
+        "cstyle_void_param",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,
