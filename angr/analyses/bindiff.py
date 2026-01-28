@@ -1042,7 +1042,7 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(self._p2.loader.main_object, "plt"):
+        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(self._p2.loader.main_object, "plt"):  # type: ignore[attr-defined]
             return []
         for name, addr in self.project.loader.main_object.plt.items():
             if name in self._p2.loader.main_object.plt:

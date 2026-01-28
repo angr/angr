@@ -70,7 +70,7 @@ class NewFunctionHandler(FunctionHandler):
             word_size = self.project.arch.bits // self.project.arch.byte_width
             # check if this is a call to new()
             # reading from rdi for the size argument passed to new()
-            cc = self.project.kb.functions[function_address].calling_convention
+            cc = self.project.kb.functions[function_address].calling_convention  # type: ignore[union-attr]
             if cc is not None:
                 size_arg_reg_offset = self.project.arch.registers[cc.args[0].reg_name][0]
                 size_arg_reg_size = cc.args[0].size

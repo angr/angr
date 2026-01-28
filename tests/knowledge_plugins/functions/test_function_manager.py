@@ -73,6 +73,8 @@ class TestFunctionManager(unittest.TestCase):
         assert {k for k in self.project.kb.functions if k < 0x500000} == expected_functions
 
         main = self.project.kb.functions.function(name="main")
+        assert main is not None
+        assert main.startpoint is not None
         assert main.startpoint.addr == 0x40071D
         assert set(main.block_addrs) == expected_blocks
         assert [bl.addr for bl in main.endpoints] == [0x4007D3]
@@ -87,6 +89,7 @@ class TestFunctionManager(unittest.TestCase):
         assert main.has_return
 
         rejected = self.project.kb.functions.function(name="rejected")
+        assert rejected is not None
         assert rejected.returning is False
 
         # transition graph
@@ -114,11 +117,10 @@ class TestFunctionManager(unittest.TestCase):
         # test function renaming
         rejected.name = "renamed_rejected"
         assert self.project.kb.functions.function(name="rejected") is None
-        assert self.project.kb.functions.function(name="rejected", check_previous_names=True) is rejected
-        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).name == "renamed_rejected"
-        assert self.project.kb.functions.function(name="rejected", check_previous_names=True).previous_names == [
-            "rejected"
-        ]
+        rejected_by_prev_name = self.project.kb.functions.function(name="rejected", check_previous_names=True)
+        assert rejected_by_prev_name is rejected
+        assert rejected_by_prev_name.name == "renamed_rejected"
+        assert rejected_by_prev_name.previous_names == ["rejected"]
 
         # These tests fail for reasons of fastpath, probably
         # assert main.bp_on_stack
