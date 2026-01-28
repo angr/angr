@@ -141,6 +141,7 @@ class SimEngineSSARewriting(
                 rstmt.tags["extra_defs"] = self._extra_defs
             else:
                 rstmt.tags.pop("extra_defs", None)
+
         return result
 
     def _handle_expr_VirtualVariable(self, expr):
@@ -326,7 +327,7 @@ class SimEngineSSARewriting(
             expr.bits,
             VirtualVariableCategory.TMP,
             oident=expr.tmp_idx,
-            **expr.tags,
+            **(expr.tags | {"ins_addr": self.ins_addr}),
         )
 
     def _handle_expr_Load(self, expr: Load) -> Expression | None:
@@ -602,7 +603,7 @@ class SimEngineSSARewriting(
             oident = offset
         else:
             raise TypeError(expr)
-        vvar = VirtualVariable(idx, varid, size * 8, category, oident, **expr.tags)
+        vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":
                 for suboff in range(offset, offset + size):
@@ -634,8 +635,14 @@ class SimEngineSSARewriting(
             else:
                 raise TypeError(vvar.category)
             if base is None:
-                # hack
                 base = Const(None, None, 0, vvar.bits, uninitialized=True)
+            if base.bits < vvar.bits:
+                base = BinaryOp(
+                    self.ail_manager.next_atom(),
+                    "Concat",
+                    [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
+                    bits=vvar.bits,
+                )
             combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value)
 
         if vvar.category == VirtualVariableCategory.STACK:
