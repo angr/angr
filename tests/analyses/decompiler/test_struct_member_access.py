@@ -7,6 +7,7 @@ import os.path
 import unittest
 
 import angr
+from angr.sim_type import PointerDisposition
 from angr import default_cc
 
 from tests.common import bin_location, print_decompilation_result
@@ -33,6 +34,7 @@ class TestStructMemberAccess(unittest.TestCase):
             proj.arch.name, platform=proj.simos.name if proj.simos is not None else None
         )(proj.arch)
         foo_func.prototype = angr.types.parse_type("void (struct Outer *a)").with_arch(proj.arch)
+        foo_func.prototype.args[0].disposition = PointerDisposition.IN
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg)
         assert dec.codegen is not None and dec.codegen.text is not None
