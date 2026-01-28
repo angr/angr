@@ -140,3 +140,16 @@ message Edge {
 message BlockGraph {
     repeated Edge   edges = 1; // All edges inside this graph
 }
+
+enum EndpointType {
+    CALL = 0;
+    RETURN = 1;
+    TRANSITION = 2;
+}
+
+// Function endpoints
+message Endpoint {
+    EndpointType type = 1; // Type of the endpoint
+    uint64       ea = 2; // Address of the endpoint
+    uint32       size = 3; // Size of the endpoint - so that we do not have to load blocks
+}

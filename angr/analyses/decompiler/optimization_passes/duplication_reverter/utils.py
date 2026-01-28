@@ -11,7 +11,6 @@ from angr.ailment.statement import Statement, ConditionalJump, Jump
 from angr.analyses.decompiler.structuring.structurer_nodes import IncompleteSwitchCaseHeadStatement
 from .errors import UnsupportedAILNodeError
 
-
 _l = logging.getLogger(name=__name__)
 
 

@@ -11,7 +11,6 @@ from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

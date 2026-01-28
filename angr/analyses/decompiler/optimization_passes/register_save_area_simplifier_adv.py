@@ -26,7 +26,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_MAKING_CALLSITES
     NAME = "Simplify register save areas (advanced)"
-    DESCRIPTION = __doc__.strip()  # type:ignore
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

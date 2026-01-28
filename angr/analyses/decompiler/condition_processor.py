@@ -35,7 +35,6 @@ from .structuring.structurer_nodes import (
 from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
 
-
 l = logging.getLogger(__name__)
 l.addFilter(UniqueLogFilter())
 
@@ -67,6 +66,21 @@ _INVERSE_OPERATIONS = {
     "SLE": "SGT",
     "SGT": "SLE",
 }
+
+
+class AILExprIdAnnotation(claripy.Annotation):
+    """
+    An annotation that we use to annotate BVVs so that they are differentiable between other BVVs with the same value
+    and size.
+    """
+
+    @property
+    def eliminatable(self):
+        return True
+
+    @property
+    def relocateable(self):
+        return False
 
 
 #
@@ -276,7 +290,9 @@ class ConditionProcessor:
         # fallback
         edge_cond_left = self.recover_edge_condition(graph, src, dst0)
         edge_cond_right = self.recover_edge_condition(graph, src, dst1)
-        return claripy.is_true(claripy.Not(edge_cond_left) == edge_cond_right)  # type: ignore
+        cond = claripy.Not(edge_cond_left) == edge_cond_right
+        # call claripy.simplify() just in case there are annotations
+        return claripy.is_true(claripy.simplify(cond))  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
 
@@ -797,7 +813,7 @@ class ConditionProcessor:
         if isinstance(cond, ailment.Expr.Expression):
             return cond
 
-        if cond.op in {"BoolS", "BoolV"} and claripy.is_true(cond):
+        if cond.op in {"BoolS", "BoolV"} and claripy.is_true(claripy.simplify(cond)):
             return ailment.Expr.Const(None, None, True, 1)
         if cond in self._condition_mapping:
             return self._condition_mapping[cond]
@@ -923,6 +939,10 @@ class ConditionProcessor:
                 var = claripy.BoolV(condition.value)
             else:
                 var = claripy.BVV(condition.value, condition.bits)
+                if condition.idx is not None:
+                    # we do not want to lose track of this constant when it has idx
+                    var = var.annotate(AILExprIdAnnotation())
+                    self._condition_mapping[var] = condition
             if isinstance(var, claripy.ast.Bits) and var.size() == 1:
                 var = claripy.true() if var.concrete_value == 1 else claripy.false()
             return var

@@ -7,7 +7,6 @@ from angr.ailment.statement import CAS, ConditionalJump, Statement, Assignment, 
 
 from .base import PeepholeOptimizationMultiStmtBase
 
-
 _INTRINSICS_NAMES = {
     "xchg8": {"Win32": "InterlockedExchange8", "Linux": "atomic_exchange"},
     "xchg16": {"Win32": "InterlockedExchange16", "Linux": "atomic_exchange"},
@@ -134,7 +133,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                     )
 
                 assignment_dst = cas_stmt.old_lo
-                stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
+                stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type: ignore
                 return [stmt]
 
         if next_stmt.tags["ins_addr"] <= cas_stmt.tags["ins_addr"]:
@@ -156,7 +155,7 @@ class CASIntrinsics(PeepholeOptimizationMultiStmtBase):
                 ins_addr=cas_stmt.tags["ins_addr"],
             )
             assignment_dst = cas_stmt.old_lo
-            stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type:ignore
+            stmt = Assignment(cas_stmt.idx, assignment_dst, call_expr, **cas_stmt.tags)  # type: ignore
             return [stmt, next_stmt]
 
         return None

@@ -12,7 +12,6 @@ from angr.sim_type import SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
-
 ASCII_PRINTABLES = {ord(x) for x in string.printable}
 ASCII_DIGITS = {ord(x) for x in string.digits}
 

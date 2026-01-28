@@ -20,17 +20,18 @@ class HashLookupAPIDeobfuscator(Analysis):
     """
 
     def __init__(
-        self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], functions: Sequence[Function] | None = None
+        self, lifter: Callable[[Function], angr.analyses.decompiler.Clinic], func_addrs: Sequence[int] | None = None
     ):
         self.lifter = lifter
         self.results: dict[int, tuple[str, str]] = {}
 
         candidates_l0 = set()
-        functions = list(functions or self.kb.functions.values())
-        for idx, func in enumerate(functions):
-            self._update_progress(0.0 + 20.0 * idx / len(functions), "Finding l0 candidates")
+        func_addrs = list(func_addrs or sorted(self.kb.functions))
+        for idx, func_addr in enumerate(func_addrs):
+            self._update_progress(0.0 + 20.0 * idx / len(func_addrs), "Finding l0 candidates")
+            func = self.kb.functions.get_by_addr(func_addr)
             if self._is_metadata_accessor_candidate(func):
-                candidates_l0.add(func.addr)
+                candidates_l0.add(func_addr)
 
         # Consider predecessors to handle metadata loader wrappers
         # TODO: Constrain this more efficiently
@@ -41,7 +42,7 @@ class HashLookupAPIDeobfuscator(Analysis):
             self._update_progress(
                 20.0 + 20.0 * idx / len(working), f"Finding execution candidates [{idx + 1}/{len(working)}]"
             )
-            candidates_exec.extend(self._analyze1(self.kb.functions[func_addr]))
+            candidates_exec.extend(self._analyze1(self.kb.functions.get_by_addr(func_addr)))
 
         for idx, (a, b, c) in enumerate(candidates_exec):
             self._update_progress(

@@ -13,7 +13,6 @@ from angr.state_plugins import SimSystemPosix
 from angr.errors import AngrCallableMultistateError, AngrCallableError, AngrError, SimError
 from .custom_callable import IdentifierCallable
 
-
 l = logging.getLogger(name=__name__)
 
 flag_loc = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../example_flag_page"))

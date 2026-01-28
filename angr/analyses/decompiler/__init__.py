@@ -15,7 +15,6 @@ from .presets import DECOMPILATION_PRESETS
 from . import structuring
 from . import optimization_passes
 
-
 StructuredCodeGenerator = CStructuredCodeGenerator
 
 

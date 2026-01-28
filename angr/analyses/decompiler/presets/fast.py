@@ -29,7 +29,6 @@ from angr.analyses.decompiler.optimization_passes import (
     EagerStdStringConcatenationPass,
 )
 
-
 preset_fast = DecompilationPreset(
     "fast",
     [

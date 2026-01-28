@@ -39,7 +39,7 @@ class IncrementalDominators:
         _pred = self.graph.predecessors if self._pre else self.graph.successors
         df: dict = {}
         for u in self._doms:
-            _preds = list(_pred(u))  # type:ignore
+            _preds = list(_pred(u))  # type: ignore
             if len(_preds) >= 2:
                 for v in _preds:
                     if v in self._doms:

@@ -13,7 +13,6 @@ from angr.storage.memory_mixins.paged_memory.page_backer_mixins import NotMemory
 from .base import PageBase
 from .cooperation import MemoryObjectMixin, SimMemoryObject
 
-
 l = logging.getLogger(name=__name__)
 
 

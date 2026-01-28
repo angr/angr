@@ -5,7 +5,6 @@ from angr.calling_conventions import SimCCUsercall
 from angr.engines.vex.claripy.ccall import data
 from .rewriter_base import CCallRewriterBase
 
-
 AMD64_CondTypes = data["AMD64"]["CondTypes"]
 AMD64_OpTypes = data["AMD64"]["OpTypes"]
 AMD64_CondBitMasks = data["AMD64"]["CondBitMasks"]

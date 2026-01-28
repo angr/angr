@@ -34,7 +34,6 @@ from angr.analyses.decompiler.optimization_passes import (
     EagerStdStringConcatenationPass,
 )
 
-
 preset_full = DecompilationPreset(
     "full",
     [

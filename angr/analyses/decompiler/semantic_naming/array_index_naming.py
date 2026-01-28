@@ -4,6 +4,7 @@ Semantic variable naming for array indices.
 
 This module detects variables used as array indices and names them appropriately.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging

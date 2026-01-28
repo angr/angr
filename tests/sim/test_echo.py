@@ -11,16 +11,17 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
 class TestEcho(unittest.TestCase):
     def _run_echo_haha(self, arch):
         # auto_load_libs can't be disabled as the test fails
-        p = angr.Project(os.path.join(test_location, arch, "echo"), use_sim_procedures=False)
+        p = angr.Project(os.path.join(test_location, arch, "echo"), use_sim_procedures=False, auto_load_libs=True)
         s = p.factory.full_init_state(
-            mode="symbolic_approximating", args=["echo", "haha"], add_options={angr.options.STRICT_PAGE_ACCESS}
+            mode="symbolic_approximating",
+            args=["echo", "haha"],
+            add_options={angr.options.STRICT_PAGE_ACCESS},
         )
         pg = p.factory.simulation_manager(s)
         pg.run(until=lambda lpg: len(lpg.active) != 1)

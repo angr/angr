@@ -7,6 +7,7 @@ using the LoopNode structure from the region simplifier. It operates on
 structured regions after the structuring phase, allowing it to reuse
 existing loop analysis results instead of re-analyzing the graph.
 """
+
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging

@@ -11,7 +11,7 @@ from angr.block import Block
 from angr.analyses.analysis import Analysis
 from angr.analyses import AnalysesHub
 from angr.knowledge_plugins.functions import Function
-from angr.codenode import BlockNode, HookNode
+from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight, SpOffset, RegisterOffset
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
 from angr.sim_type import SimTypeBottom, SimTypeFunction
@@ -257,7 +257,7 @@ class FactCollector(Analysis):
         # as read from, until max_depth is reached
 
         end_states = self._analyze_startpoint()
-        self._analyze_endpoints_for_retval_size()
+        self._analyze_endpoints_for_retval_size(end_states)
         callee_restored_regs = self._analyze_endpoints_for_restored_regs()
         self._determine_input_args(end_states, callee_restored_regs)
 
@@ -276,7 +276,12 @@ class FactCollector(Analysis):
 
         traversed = set()
         queue: list[
-            tuple[int, FactCollectorState, CodeNode | BlockNode | HookNode | Function, BlockNode | HookNode | None]
+            tuple[
+                int,
+                FactCollectorState,
+                CodeNode | BlockNode | HookNode | FuncNode,
+                BlockNode | HookNode | FuncNode | None,
+            ]
         ] = [(0, init_state, startpoint, None)]
         end_states: list[FactCollectorState] = []
         while queue:
@@ -291,17 +296,18 @@ class FactCollector(Analysis):
 
             if isinstance(node, BlockNode) and node.size == 0:
                 continue
-            if isinstance(node, HookNode):
+            func: Function | None = None
+            if isinstance(node, (HookNode, FuncNode)):
                 # attempt to convert it into a function
                 if self.kb.functions.contains_addr(node.addr):
-                    node = self.kb.functions.get_by_addr(node.addr)
+                    func = self.kb.functions.get_by_addr(node.addr)
                 else:
                     continue
-            if isinstance(node, Function):
-                if node.calling_convention is not None and node.prototype is not None:
+            if func is not None:
+                if func.calling_convention is not None and func.prototype is not None:
                     # consume args and overwrite the return register
-                    self._handle_function(state, node)
-                if node.returning is False or retnode is None:
+                    self._handle_function(state, func)
+                if func.returning is False or retnode is None:
                     # the function call does not return
                     end_states.append(state)
                 else:
@@ -331,12 +337,9 @@ class FactCollector(Analysis):
                     elif edge_type == "call" or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
-                        if not isinstance(succ, Function):
-                            if self.kb.functions.contains_addr(succ.addr):
-                                succ = self.kb.functions.get_by_addr(succ.addr)
-                            else:
-                                # not sure who we are calling
-                                continue
+                        if not isinstance(succ, FuncNode) and not self.kb.functions.contains_addr(succ.addr):
+                            # not sure who we are calling
+                            continue
                         call_succ = succ
             if call_succ is not None:
                 successor_added = True
@@ -373,7 +376,7 @@ class FactCollector(Analysis):
             offset = self.project.arch.registers[reg_name][0]
             state.register_written(offset, self.project.arch.registers[reg_name][1])
 
-    def _analyze_endpoints_for_retval_size(self):
+    def _analyze_endpoints_for_retval_size(self, end_states):
         """
         Analyze all endpoints to determine the return value size.
         """
@@ -393,7 +396,7 @@ class FactCollector(Analysis):
         retval_sizes = []
         for endpoint in self.function.endpoints:
             traversed = set()
-            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
                 if isinstance(node, BlockNode) and node in traversed:
@@ -406,21 +409,22 @@ class FactCollector(Analysis):
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
 
-                if isinstance(node, HookNode):
+                func = None
+                if isinstance(node, (FuncNode, HookNode)):
                     # attempt to convert it into a function
                     if self.kb.functions.contains_addr(node.addr):
-                        node = self.kb.functions.get_by_addr(node.addr)
+                        func = self.kb.functions.get_by_addr(node.addr)
                     else:
                         continue
-                if isinstance(node, Function):
+                if func is not None:
                     if (
-                        node.calling_convention is not None
-                        and node.prototype is not None
-                        and node.prototype.returnty is not None
-                        and not isinstance(node.prototype.returnty, SimTypeBottom)
+                        func.calling_convention is not None
+                        and func.prototype is not None
+                        and func.prototype.returnty is not None
+                        and not isinstance(func.prototype.returnty, SimTypeBottom)
                     ):
                         # assume the function overwrites the return variable
-                        returnty_size = node.prototype.returnty.with_arch(self.project.arch).size
+                        returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
                         retval_sizes.append(retval_size)
@@ -430,16 +434,15 @@ class FactCollector(Analysis):
                 func_succs = [
                     succ
                     for succ in func_graph.successors(node)
-                    if isinstance(succ, (Function, HookNode)) or self.kb.functions.contains_addr(succ.addr)
+                    if isinstance(succ, (FuncNode, HookNode)) or self.kb.functions.contains_addr(succ.addr)
                 ]
                 if len(func_succs) == 1:
-                    func_succ = func_succs[0]
-                    if isinstance(func_succ, (BlockNode, HookNode)) and self.kb.functions.contains_addr(func_succ.addr):
+                    succ = func_succs[0]
+                    func_succ: Function | None = None
+                    if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
-                        func_succ = self.kb.functions.get_by_addr(func_succ.addr)
-                    if isinstance(func_succ, Function) and func_succ.name not in {  # noqa:SIM102
-                        "_security_check_cookie"
-                    }:
+                        func_succ = self.kb.functions.get_by_addr(succ.addr)
+                    if func_succ is not None and func_succ.name not in {"_security_check_cookie"}:  # noqa:SIM102
                         if (
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None
@@ -464,12 +467,30 @@ class FactCollector(Analysis):
                             continue
 
                 block = self.project.factory.block(node.addr, size=node.size)
+
+                # collect tmps so we can trace back through RdTmp
+                tmp_definitions = {}
+                for stmt in block.vex.statements:
+                    if isinstance(stmt, pyvex.IRStmt.WrTmp):
+                        tmp_definitions[stmt.tmp] = stmt.data
+
                 # scan the block statements backwards to find writes to the return value register
                 retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
                         size = stmt.data.result_size(block.vex.tyenv) // self.project.arch.byte_width
+
+                        # check if this 64-bit write is actually a sign/zero-extended 32-bit value.
+                        if size == 8 and self.project.arch.bits == 64:
+                            expr = stmt.data
+
+                            if isinstance(expr, pyvex.IRExpr.RdTmp):
+                                expr = tmp_definitions.get(expr.tmp, expr)
+
+                            if isinstance(expr, pyvex.IRExpr.Unop) and expr.op in {"Iop_32Sto64", "Iop_32Uto64"}:
+                                size = 4
+
                         if stmt.offset == retreg_offset:
                             retval_size = max(size, 1)
 
@@ -484,6 +505,24 @@ class FactCollector(Analysis):
                             continue
                         if edge_type in {"transition", "fake_return"}:
                             queue.append((depth + 1, pred))
+
+        # ARM/AArch64: R0/X0 used for both arg0 and return
+        if not retval_sizes:
+            first_arg_offset = None
+            if cc.ARG_REGS:
+                arg0_name = cc.ARG_REGS[0]
+                if arg0_name in self.project.arch.registers:
+                    first_arg_offset = self.project.arch.registers[arg0_name][0]
+
+            if first_arg_offset is not None and first_arg_offset == retreg_offset:
+                is_written = False
+                for state in end_states:
+                    if retreg_offset in state.reg_writes:
+                        is_written = True
+                        break
+
+                if not is_written:
+                    retval_sizes.append(self.project.arch.bytes)
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
 
@@ -506,7 +545,7 @@ class FactCollector(Analysis):
         }
         for endpoint in self.function.endpoints:
             traversed = set()
-            queue: list[tuple[int, BlockNode | HookNode]] = [(0, endpoint)]
+            queue: list[tuple[int, CodeNode]] = [(0, endpoint)]
             while queue:
                 depth, node = queue.pop(0)
                 traversed.add(node)
@@ -516,7 +555,7 @@ class FactCollector(Analysis):
 
                 if isinstance(node, BlockNode) and node.size == 0:
                     continue
-                if isinstance(node, (HookNode, Function)):
+                if isinstance(node, (HookNode, FuncNode)):
                     continue
 
                 block = self.project.factory.block(node.addr, size=node.size)

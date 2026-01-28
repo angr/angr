@@ -86,6 +86,13 @@ class Decompiler(Analysis):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
+        if self.func.evicted:
+            l.warning(
+                "The Function instance %r has been evicted. Pass in a non-evicted Function instance or the "
+                "function address instead to avoid unexpected decompilation output caused by using out-dated "
+                "data.",
+                func,
+            )
 
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
@@ -613,7 +620,7 @@ class Decompiler(Analysis):
                 global_variables.set_variable(
                     "global",
                     symbol.rebased_addr,
-                    SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
+                    SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident),
                 )
 
     def reflow_variable_types(self, cache: DecompilationCache):

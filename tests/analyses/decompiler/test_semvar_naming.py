@@ -11,6 +11,7 @@ This module tests all semantic variable naming patterns including:
 - Size parameter naming (size, count for size parameters)
 - Boolean flag naming (flag, found for boolean variables)
 """
+
 from __future__ import annotations
 
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin

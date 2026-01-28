@@ -15,7 +15,6 @@ from angr import SimState, sim_options as o, Project
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 log = logging.getLogger(__name__)

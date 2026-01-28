@@ -7,8 +7,10 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
+import archinfo
+
 import angr
-from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct
+from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -22,8 +24,7 @@ from angr.analyses.typehoon.typevars import (
 from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32, Float64
 from angr.analyses.typehoon.translator import TypeTranslator
 
-from tests.common import bin_location
-
+from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -201,7 +202,11 @@ class TestTypehoon(unittest.TestCase):
         #     struct struct_0 *field_8;
         # };
         sols = dec.clinic.typehoon.simtypes_solution
-        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
+        tvs = [
+            tv
+            for tv in sols
+            if not isinstance(tv, DerivedTypeVariable) and tv.name is None and isinstance(sols[tv], SimTypePointer)
+        ]
         assert len(tvs) == 3
         assert sols[tvs[1]] == sols[tvs[2]]
         sol = sols[tvs[1]]
@@ -230,12 +235,21 @@ class TestTypehoon(unittest.TestCase):
             and dec.clinic is not None
             and dec.clinic.typehoon is not None
         )
+        print_decompilation_result(dec)
+        assert "->field_0 = NULL;\n" in dec.codegen.text
+        assert "->field_8 = NULL;\n" in dec.codegen.text
 
-        # it has three struct classes (I would love to have one, but we don't have enough information to force that):
+        # it has five struct classes (I would love to have one, but we don't have enough information to force that):
+        #
         # typedef struct struct_2 {
         #     struct struct_0 *field_0;
         #     struct struct_1 *field_8;
         # } struct_2;
+        #
+        # typedef struct struct_3 {
+        #     char padding_0[8];
+        #     struct struct_4 *field_8;
+        # } struct_3;
         #
         # typedef struct struct_0 {
         #     char padding_0[8];
@@ -245,9 +259,20 @@ class TestTypehoon(unittest.TestCase):
         # typedef struct struct_1 {
         #     struct struct_0 *field_0;
         # } struct_1;
+        #
+        # typedef struct struct_4 {
+        #     struct struct_3 *field_0;
+        # } struct_4;
         sols = dec.clinic.typehoon.simtypes_solution
-        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
-        assert len(tvs) == 2
+        tvs = sorted(
+            [
+                tv
+                for tv in sols
+                if not isinstance(tv, DerivedTypeVariable) and tv.name is None and isinstance(sols[tv], SimTypePointer)
+            ],
+            key=lambda x: x.idx,
+        )
+        assert len(tvs) == 4  # the last two tvs are for the NULL pointers
         sol = sols[tvs[1]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
@@ -271,6 +296,37 @@ class TestTypehoon(unittest.TestCase):
         assert isinstance(field_8_field_0.pts_to, SimStruct)
         assert field_0.pts_to == field_8_field_0.pts_to
         assert field_8.pts_to == field_0_field_8.pts_to
+
+    def test_global_variable_type(self):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG(data_references=True, normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        # Test bodyqueslot from G_CheckSpot
+        func = cfg.kb.functions["G_CheckSpot"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        bodyqueslot_addr = proj.loader.find_symbol("bodyqueslot").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[bodyqueslot_addr], SimTypeInt)
+
+        # Test displayplayer from G_Responder
+        func = cfg.kb.functions["G_Responder"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        displayplayer_addr = proj.loader.find_symbol("displayplayer").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[displayplayer_addr], SimTypeInt)
+
+        # Test joyxmove, mousex, and gametic from G_DoLoadLevel
+        func = cfg.kb.functions["G_DoLoadLevel"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg.model)
+        joyxmove_addr = proj.loader.find_symbol("joyxmove").rebased_addr
+        mousex_addr = proj.loader.find_symbol("mousex").rebased_addr
+        gametic_addr = proj.loader.find_symbol("gametic").rebased_addr
+        cexterns = {cvar.variable.addr: cvar.variable_type for cvar in dec.codegen.cexterns}
+        assert isinstance(cexterns[joyxmove_addr], SimTypeInt)
+        assert isinstance(cexterns[mousex_addr], SimTypeInt)
+        assert isinstance(cexterns[gametic_addr], SimTypeInt)
 
     def test_type_inference_with_custom_label(self):
         bin_path = os.path.join(test_location, "x86_64", "windows", "ipnathlp.dll")
@@ -297,13 +353,13 @@ class TestTypehoon(unittest.TestCase):
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         tc = Float32()
-        (st, _) = tx.tc2simtype(tc)
+        st, _ = tx.tc2simtype(tc)
         assert isinstance(st, SimTypeFloat)
 
     def test_simtype2tc(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)

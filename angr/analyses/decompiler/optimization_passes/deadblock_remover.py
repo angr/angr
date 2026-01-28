@@ -12,7 +12,6 @@ from angr.utils.graph import to_acyclic_graph
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

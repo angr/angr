@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from .knowledge_plugins import TypesStore
     from .knowledge_plugins import PropagationManager
     from .knowledge_plugins import XRefManager
+    from .knowledge_plugins import RuntimeDb
 
 
 l = logging.getLogger(name=__name__)
@@ -45,14 +46,14 @@ class KnowledgeBase:
     xrefs: XRefManager
     decompilations: StructuredCodeManager
     obfuscations: Obfuscations
+    rtdb: RuntimeDb
 
     def __init__(self, project, obj=None, name=None):
         if obj is not None:
             l.warning("The obj parameter in KnowledgeBase.__init__() has been deprecated.")
         object.__setattr__(self, "_project", project)
         object.__setattr__(self, "_plugins", {})
-
-        self.name = name if name else f"kb_{next(kb_ctr)}"
+        object.__setattr__(self, "name", name if name else f"kb_{next(kb_ctr)}")
 
     @property
     def callgraph(self):
@@ -69,6 +70,9 @@ class KnowledgeBase:
     def __setstate__(self, state):
         object.__setattr__(self, "_project", state["project"])
         object.__setattr__(self, "_plugins", state["plugins"])
+
+        for plugin in self._plugins.values():
+            plugin.set_kb(self)
 
     def __getstate__(self):
         return {

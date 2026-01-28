@@ -10,7 +10,6 @@ from angr.utils.funcid import is_function_security_check_cookie
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 
@@ -29,7 +28,7 @@ class WinStackCanarySimplifier(OptimizationPass):
     PLATFORMS = ["windows"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify stack canaries in Windows PE files"
-    DESCRIPTION = __doc__.strip()  # type:ignore
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, func, **kwargs):
         super().__init__(func, **kwargs)

@@ -547,8 +547,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
     def full_c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
-            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             name_to_structtypes = {}
+            local_types = [unpack_typeref(ty) for ty in self.variable_manager.types.iter_own()]
             for ty in local_types:
                 if isinstance(ty, SimStruct):
                     name_to_structtypes[ty.name] = ty
@@ -570,6 +570,45 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
 
         if self.codegen.show_externs and self.codegen.cexterns:
+            # Emit struct definitions for types used by externs
+            extern_types = []
+            defined_struct_names = (
+                set(name_to_structtypes.keys())  # type: ignore[possibly-undefined]
+                if self.codegen.show_local_types
+                else set()
+            )
+            for v in self.codegen.cexterns:
+                if v.variable not in self.variables_in_use or v.type is None:
+                    continue
+                ty = unpack_typeref(v.type)
+                # Unwrap all pointer/array
+                while isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                    ty = unpack_typeref(ty.pts_to) if isinstance(ty, SimTypePointer) else unpack_typeref(ty.elem_type)
+                if isinstance(ty, SimStruct) and ty not in extern_types:
+                    extern_types.append(ty)
+
+            # Discover all nested structs
+            for ty in extern_types:
+                for field in ty.fields.values():
+                    field = unpack_typeref(field)
+                    while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                        if isinstance(field, SimTypePointer):
+                            field = unpack_typeref(field.pts_to)
+                        else:
+                            field = unpack_typeref(field.elem_type)
+                    if isinstance(field, SimStruct) and field not in extern_types:
+                        if field.name and not field.fields and field.name in defined_struct_names:
+                            continue
+                        extern_types.append(field)
+
+            # Emit in reverse order: nested structs first
+            for ty in reversed(extern_types):
+                if ty.name in defined_struct_names:
+                    continue
+                defined_struct_names.add(ty.name)
+                yield from type_to_c_repr_chunks(ty, full=True, indent_str=indent_str)
+
+            # Emit extern declarations
             for v in sorted(self.codegen.cexterns, key=lambda v: str(v.variable.name)):
                 if v.variable not in self.variables_in_use:
                     continue
@@ -608,6 +647,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         paren = CClosingObject("(")
         brace = CClosingObject("{")
         yield "(", paren
+        if not self.functy.args and self.codegen.cstyle_void_param:
+            yield "void", None
         for i, (arg_type, cvariable) in enumerate(zip(self.functy.args, self.arg_list)):
             if i:
                 yield ", ", None
@@ -1300,7 +1341,6 @@ class CFunctionCall(CStatement, CExpression):
         "callee_func",
         "callee_target",
         "is_expr",
-        "prettify_thiscall",
         "ret_expr",
         "returning",
         "show_demangled_name",
@@ -1317,7 +1357,6 @@ class CFunctionCall(CStatement, CExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
-        prettify_thiscall: bool = True,
         tags=None,
         codegen=None,
         **kwargs,
@@ -1333,7 +1372,12 @@ class CFunctionCall(CStatement, CExpression):
         self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
-        self.prettify_thiscall = prettify_thiscall
+
+    @property
+    def prettify_thiscall(self) -> bool:
+        if self.codegen is None:
+            return False
+        return self.codegen.prettify_thiscall
 
     @property
     def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
@@ -1368,9 +1412,12 @@ class CFunctionCall(CStatement, CExpression):
 
         # FIXME: Handle name mangle
         if callee is not None:
-            for func in self.codegen.kb.functions.get_by_name(callee.name):
-                if func is not callee and (caller.binary is not callee.binary or func.binary is callee.binary):
-                    return True
+            func_addrs = self.codegen.kb.functions.get_addrs_by_name(callee.name)
+            for func_addr in func_addrs:
+                if func_addr != callee.addr:
+                    func = self.codegen.kb.functions.get_by_addr(func_addr, meta_only=True)
+                    if caller.binary is not callee.binary or func.binary is callee.binary:
+                        return True
 
         return False
 
@@ -1904,7 +1951,7 @@ class CBinaryOp(CExpression):
             return rhs_ty
 
         if lhs_signed == rhs_signed:
-            if lhs_ty.size > rhs_ty.size:
+            if lhs_ty.size > rhs_ty.size:  # type: ignore[operator]
                 return lhs_ty
             return rhs_ty
 
@@ -1915,9 +1962,9 @@ class CBinaryOp(CExpression):
             signed_ty = rhs_ty
             unsigned_ty = lhs_ty
 
-        if unsigned_ty.size >= signed_ty.size:
+        if unsigned_ty.size >= signed_ty.size:  # type: ignore[operator]
             return unsigned_ty
-        if signed_ty.size > unsigned_ty.size:
+        if signed_ty.size > unsigned_ty.size:  # type: ignore[operator]
             return signed_ty
         # uh oh!!
         return signed_ty
@@ -2600,6 +2647,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         notes=None,
         display_notes: bool = True,
         max_str_len: int | None = None,
+        prettify_thiscall: bool = False,
+        cstyle_void_param: bool = True,
     ):
         super().__init__(
             flavor=flavor,
@@ -2689,6 +2738,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cexterns: set[CVariable] | None = None
         self.display_notes = display_notes
         self.max_str_len = max_str_len
+        self.prettify_thiscall = prettify_thiscall
+        self.cstyle_void_param = cstyle_void_param
 
         self._analyze()
 
@@ -2714,6 +2765,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 self.simplify_else_scope = value
             elif option.param == "cstyle_ifs":
                 self.cstyle_ifs = value
+            elif option.param == "cstyle_void_param":
+                self.cstyle_void_param = value
 
     def _analyze(self):
         self._variables_in_use = {}
@@ -3103,8 +3156,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         def bail_out():
             if len(o_terms) == 0:
-                # probably a plain integer, return as is
-                return expr
+                # probably a plain integer, return as *(int_type*)expr
+                return CUnaryOp(
+                    "Dereference", CTypeCast(expr.type, SimTypePointer(data_type), expr, codegen=self), codegen=self
+                )
             result = None
             pointer_length_int_type = (
                 SimTypeLongLong(signed=False) if self.project.arch.bits == 64 else SimTypeInt(signed=False)
@@ -3170,7 +3225,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             i += 1
 
         if kernel is None:
-            l.warning("Dereferencing a plain integer. Uh oh!")
+            # Dereferencing a plain integer
             return bail_out()
 
         terms.sort(key=lambda x: x[0])
@@ -3727,6 +3782,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if type_ is None and "type" in expr.tags:
             type_ = expr.tags["type"]
+
+        if type_ is None and expr.variable is not None:
+            type_ = self._get_variable_type(expr.variable)
 
         if reference_values is None and "reference_values" in expr.tags:
             reference_values = expr.tags["reference_values"].copy()

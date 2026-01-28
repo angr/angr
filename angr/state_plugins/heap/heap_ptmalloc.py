@@ -8,7 +8,6 @@ from .heap_freelist import SimHeapFreelist, Chunk
 from .utils import concretize
 from angr.errors import SimHeapError, SimMergeError, SimSolverError
 
-
 l = logging.getLogger("angr.state_plugins.heap.heap_ptmalloc")
 
 CHUNK_FLAGS_MASK = 0x07

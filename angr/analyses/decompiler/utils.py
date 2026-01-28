@@ -379,12 +379,12 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
                 masks = {0x1, 0x3, 0x7, 0xF, 0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF}
                 if isinstance(expr.operands[1], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[1].value  # type:ignore
+                    ub = expr.operands[1].value  # type: ignore
                     index_expr = expr
                     break
                 if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[0].value  # type:ignore
+                    ub = expr.operands[0].value  # type: ignore
                     index_expr = expr
                     break
                 return None

@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 from angr.protos import primitives_pb2 as angr_dot_protos_dot_primitives__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1a\x61ngr/protos/function.proto\x12\x0b\x61ngr.protos\x1a\x1c\x61ngr/protos/primitives.proto\"\x81\x04\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x11\n\treturning\x18\n \x01(\x08\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x04\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x12;\n\x0cmatched_from\x18\x10 \x01(\x0e\x32%.angr.protos.Function.SignatureSource\x12\x11\n\tprototype\x18\x11 \x01(\x0c\x12\x1a\n\x12\x63\x61lling_convention\x18\x12 \x01(\x0c\x12\x19\n\x11prototype_libname\x18\x13 \x01(\t\x12\x1c\n\x14is_prototype_guessed\x18\x14 \x01(\x08\"+\n\x0fSignatureSource\x12\r\n\tUNMATCHED\x10\x00\x12\t\n\x05\x46LIRT\x10\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1a\x61ngr/protos/function.proto\x12\x0b\x61ngr.protos\x1a\x1c\x61ngr/protos/primitives.proto\"\xbb\x05\n\x08\x46unction\x12\n\n\x02\x65\x61\x18\x01 \x01(\x04\x12\x15\n\ris_entrypoint\x18\x03 \x01(\x08\x12\"\n\x06\x62locks\x18\x02 \x03(\x0b\x32\x12.angr.protos.Block\x12\x0c\n\x04name\x18\x04 \x01(\t\x12\x0e\n\x06is_plt\x18\x07 \x01(\x08\x12\x12\n\nis_syscall\x18\x08 \x01(\x08\x12\x17\n\x0fis_simprocedure\x18\t \x01(\x08\x12\x16\n\treturning\x18\n \x01(\x08H\x00\x88\x01\x01\x12\x13\n\x0b\x62inary_name\x18\x0b \x01(\t\x12&\n\x05graph\x18\x0c \x01(\x0b\x32\x17.angr.protos.BlockGraph\x12\x1a\n\x12\x65xternal_functions\x18\r \x03(\x04\x12\x11\n\talignment\x18\x0e \x01(\x08\x12\x12\n\nnormalized\x18\x0f \x01(\x08\x12;\n\x0cmatched_from\x18\x10 \x01(\x0e\x32%.angr.protos.Function.SignatureSource\x12\x11\n\tprototype\x18\x11 \x01(\x0c\x12\x1a\n\x12\x63\x61lling_convention\x18\x12 \x01(\x0c\x12\x19\n\x11prototype_libname\x18\x13 \x01(\t\x12\x1c\n\x14is_prototype_guessed\x18\x14 \x01(\x08\x12\x0c\n\x04info\x18\x15 \x01(\x0c\x12(\n\tendpoints\x18\x16 \x03(\x0b\x32\x15.angr.protos.Endpoint\x12+\n\x0f\x65xternal_blocks\x18\x18 \x03(\x0b\x32\x12.angr.protos.Block\x12\x17\n\x0fis_default_name\x18\x19 \x01(\x08\x12\x0f\n\x07ran_cca\x18\x1a \x01(\x08\x12\x16\n\x0eprevious_names\x18\x1b \x03(\t\"+\n\x0fSignatureSource\x12\r\n\tUNMATCHED\x10\x00\x12\t\n\x05\x46LIRT\x10\x01\x42\x0c\n\n_returningb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,7 +32,7 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'angr.protos.function_pb2', 
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_FUNCTION']._serialized_start=74
-  _globals['_FUNCTION']._serialized_end=587
-  _globals['_FUNCTION_SIGNATURESOURCE']._serialized_start=544
-  _globals['_FUNCTION_SIGNATURESOURCE']._serialized_end=587
+  _globals['_FUNCTION']._serialized_end=773
+  _globals['_FUNCTION_SIGNATURESOURCE']._serialized_start=716
+  _globals['_FUNCTION_SIGNATURESOURCE']._serialized_end=759
 # @@protoc_insertion_point(module_scope)

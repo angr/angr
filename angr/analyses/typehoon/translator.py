@@ -1,11 +1,15 @@
 # pylint:disable=unused-argument,no-self-use
 from __future__ import annotations
+from typing import TYPE_CHECKING
 from itertools import count
 
 from angr import sim_type
 from angr.sim_type import SimType
 from . import typeconsts
 from .typeconsts import TypeConstant
+
+if TYPE_CHECKING:
+    import archinfo
 
 
 class SimTypeTempRef(sim_type.SimType):
@@ -26,8 +30,8 @@ class TypeTranslator:
     Translate type variables to SimType equivalence.
     """
 
-    def __init__(self, arch=None):
-        self.arch = arch
+    def __init__(self, arch: archinfo.Arch):
+        self.arch: archinfo.Arch = arch
 
         self.translated: dict[TypeConstant, SimType] = {}
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
@@ -140,6 +144,8 @@ class TypeTranslator:
         return sim_type.SimTypeChar(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int16(self, tc):
+        if tc.name in {"WCHAR"}:
+            return sim_type.SimTypeWideChar(label=tc.name).with_arch(self.arch)
         return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int32(self, tc):
@@ -169,6 +175,17 @@ class TypeTranslator:
 
     def _translate_Float64(self, tc: typeconsts.Float64) -> sim_type.SimTypeDouble:
         return sim_type.SimTypeDouble(label=tc.name).with_arch(self.arch)
+
+    def _translate_Enum(self, tc: typeconsts.Enum) -> sim_type.SimTypeEnum:
+        """Convert Enum type constant to SimTypeEnum."""
+        base_simtype = None
+        if tc.base_type is not None:
+            base_simtype = self._tc2simtype(tc.base_type)
+        return sim_type.SimTypeEnum(
+            members=dict(tc.members),
+            name=tc.name,
+            base_type=base_simtype,
+        ).with_arch(self.arch)
 
     #
     # Backpatching
@@ -220,6 +237,9 @@ class TypeTranslator:
     def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
         return typeconsts.Int8(name=st.label)
 
+    def _translate_SimTypeWideChar(self, st: sim_type.SimTypeWideChar) -> typeconsts.Int16:
+        return typeconsts.Int16(name=st.label)
+
     def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
         fields = {}
         offsets = st.offsets
@@ -247,12 +267,24 @@ class TypeTranslator:
     def _translate_SimTypeDouble(self, st: sim_type.SimTypeDouble) -> typeconsts.Float64:
         return typeconsts.Float64(name=st.label)
 
+    def _translate_SimTypeEnum(self, st: sim_type.SimTypeEnum) -> typeconsts.Enum:
+        """Convert SimTypeEnum to Enum type constant."""
+        base_tc = None
+        if st._base_type is not None:
+            base_tc = self._simtype2tc(st._base_type)
+        return typeconsts.Enum(
+            members=dict(st.members),
+            base_type=base_tc,
+            name=st.name,
+        )
+
 
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
     typeconsts.Pointer32: TypeTranslator._translate_Pointer32,
     typeconsts.Array: TypeTranslator._translate_Array,
     typeconsts.Struct: TypeTranslator._translate_Struct,
+    typeconsts.Enum: TypeTranslator._translate_Enum,
     typeconsts.Int8: TypeTranslator._translate_Int8,
     typeconsts.Int16: TypeTranslator._translate_Int16,
     typeconsts.Int32: TypeTranslator._translate_Int32,
@@ -269,6 +301,7 @@ TypeConstHandlers = {
 SimTypeHandlers = {
     sim_type.SimTypePointer: TypeTranslator._translate_SimTypePointer,
     sim_type.SimTypeChar: TypeTranslator._translate_SimTypeChar,
+    sim_type.SimTypeWideChar: TypeTranslator._translate_SimTypeWideChar,
     sim_type.SimTypeInt: TypeTranslator._translate_SimTypeInt,
     sim_type.SimTypeShort: TypeTranslator._translate_SimTypeShort,
     sim_type.SimTypeLong: TypeTranslator._translate_SimTypeLong,
@@ -280,4 +313,5 @@ SimTypeHandlers = {
     sim_type.SimTypeArray: TypeTranslator._translate_SimTypeArray,
     sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
     sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
+    sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
 }

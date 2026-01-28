@@ -12,7 +12,6 @@ from angr.knowledge_plugins.key_definitions.atoms import Atom, MemoryLocation, R
 from angr.knowledge_plugins.key_definitions.definition import Definition
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
 
-
 _PAST_N = set()
 
 

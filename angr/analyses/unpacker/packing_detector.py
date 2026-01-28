@@ -6,7 +6,6 @@ import logging
 from angr.analyses.analysis import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import CFGModel
 
-
 if TYPE_CHECKING:
     from cle import Section
 

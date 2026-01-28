@@ -13,6 +13,7 @@ from collections.abc import Sequence
 
 import angr
 from angr.analyses import CFGFast
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.cfg import MemoryData, MemoryDataSort
 
 if TYPE_CHECKING:
@@ -20,7 +21,6 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function, FunctionManager
 
 from tests.common import bin_location
-
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -77,8 +77,12 @@ class TestCfgCombination(unittest.TestCase):
         cfg = proj.analyses[CFGFast].prep()()
         accepted_addr = cfg.functions["accepted"].addr
         rejected_addr = cfg.functions["rejected"].addr
-        accepted_regions = [(n.addr, n.addr + n.size) for n in cfg.functions["accepted"].nodes]
-        rejected_regions = [(n.addr, n.addr + n.size) for n in cfg.functions["rejected"].nodes]
+        accepted_regions = [
+            (n.addr, n.addr + (n.size if not isinstance(n, FuncNode) else 1)) for n in cfg.functions["accepted"].nodes
+        ]
+        rejected_regions = [
+            (n.addr, n.addr + (n.size if not isinstance(n, FuncNode) else 1)) for n in cfg.functions["rejected"].nodes
+        ]
 
         # Run partial analysis on the nodes we care about
         proj = angr.Project(FAUXWARE_PATH, auto_load_libs=False)

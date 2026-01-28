@@ -780,7 +780,7 @@ class JumpTableResolver(IndirectJumpResolver):
         self._find_bss_region()
 
     def filter(self, cfg, addr, func_addr, block, jumpkind):
-        if pcode is not None and isinstance(block.vex, pcode.lifter.IRSB):  # type:ignore
+        if pcode is not None and isinstance(block.vex, pcode.lifter.IRSB):  # type: ignore
             if once("pcode__indirect_jump_resolver"):
                 l.warning("JumpTableResolver does not support P-Code IR yet; CFG may be incomplete.")
             return False

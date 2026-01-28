@@ -59,7 +59,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
                 type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)  # type:ignore
+            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
         return None
 
     def _optimize_operator_add(self, stmt: Call) -> WeakAssignment | None:

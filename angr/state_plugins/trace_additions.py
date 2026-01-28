@@ -20,7 +20,6 @@ import string
 import angr
 import claripy
 
-
 l = logging.getLogger(name=__name__)
 
 

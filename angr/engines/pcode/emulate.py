@@ -12,7 +12,6 @@ from .behavior import OpBehavior
 from angr.errors import AngrError
 from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 
-
 l = logging.getLogger(__name__)
 
 

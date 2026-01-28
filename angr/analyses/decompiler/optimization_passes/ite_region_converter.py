@@ -11,7 +11,6 @@ from angr.utils.graph import subgraph_between_nodes
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(__name__)
 
 

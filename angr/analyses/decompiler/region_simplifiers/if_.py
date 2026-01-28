@@ -14,7 +14,6 @@ from angr.analyses.decompiler.structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 
-
 l = logging.getLogger(name=__name__)
 
 

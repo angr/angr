@@ -14,7 +14,6 @@ from .expression import Expression, DirtyExpression, Const, Register, Tmp, Unary
 from .manager import Manager
 from .converter_common import Converter
 
-
 log = logging.getLogger(name=__name__)
 
 # FIXME: Not all ops are mapped to AIL expressions!

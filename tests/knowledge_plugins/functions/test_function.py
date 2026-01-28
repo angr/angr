@@ -3,8 +3,10 @@ from __future__ import annotations
 from unittest import main, TestCase
 
 import networkx
+import archinfo
 
 from angr.knowledge_plugins.functions import Function
+from angr.sim_type import parse_defns
 
 
 def makeFunction(function_manager, function_address, function_name):
@@ -30,6 +32,17 @@ class MockFunctionManager:
 
     def function(self, address):
         return self._function_map[address]
+
+    def noop(self, *args, **kwargs):
+        pass
+
+    def contains_addr(self, addr):
+        return addr in self._function_map
+
+    def get_by_addr(self, addr):
+        return self._function_map[addr]
+
+    set_function_returning = noop
 
 
 class TestFunction(TestCase):
@@ -86,6 +99,36 @@ class TestFunction(TestCase):
         )
 
         self.assertEqual(function.functions_reachable(), {function, C})
+
+    def test_function_set_prototype_without_parameter_names(self):
+        function = makeFunction(self.function_manager, 0x42, "function")
+        parsed_proto = parse_defns("int func(int, char*);")["func"]
+        function.prototype = parsed_proto.with_arch(archinfo.arch_from_id("AMD64"))
+
+        assert len(function.prototype.args) == 2
+        assert len(function.prototype.arg_names) == 2
+        # default function argument names apply
+        assert function.prototype.arg_names[0] == "a0"
+        assert function.prototype.arg_names[1] == "a1"
+
+    def test_function_set_prototype_missing_a_parameter_name(self):
+        function = makeFunction(self.function_manager, 0x42, "function")
+        parsed_proto = parse_defns("int func(int, char*);")["func"]
+        parsed_proto.arg_names = ["", "a3"]
+        function.prototype = parsed_proto.with_arch(archinfo.arch_from_id("AMD64"))
+
+        assert len(function.prototype.args) == 2
+        assert len(function.prototype.arg_names) == 2
+        # default function argument names apply
+        assert function.prototype.arg_names[0] == "a0"
+        # the original argument name should be kept
+        assert function.prototype.arg_names[1] == "a3"
+
+    def test_function_set_prototype_none(self):
+        # you can set Function.prototype to None to clear it
+        function = makeFunction(self.function_manager, 0x42, "function")
+        function.prototype = None
+        assert function.prototype is None
 
 
 if __name__ == "__main__":
