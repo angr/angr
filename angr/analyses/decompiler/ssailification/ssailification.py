@@ -98,16 +98,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         def_to_udef: dict[Def, UDef] = {}
         extern_defs: set[UDef] = set()
         incomplete_defs: set[Def] = set()
-        for def_, (kind, loc, offset, size, _, store_size) in traversal.def_info.items():
-            if store_size != size:
+        for def_, definfo in traversal.def_info.items():
+            if definfo.store_size != definfo.variable_size:
                 incomplete_defs.add(def_)
-            udef = (kind, offset, size)
+            udef = (definfo.kind, definfo.variable_offset, definfo.variable_size)
             udef_to_defs[udef].add(def_)
-            if loc.is_extern:
+            if definfo.loc.is_extern:
                 extern_defs.add(udef)
                 udef_to_blockkeys[udef].add((-1, None))
             else:
-                blockkey = (loc.addr, loc.block_idx)
+                blockkey = (definfo.loc.addr, definfo.loc.block_idx)
                 def_to_udef[def_] = udef
                 udef_to_blockkeys[udef].add(blockkey)
 
@@ -133,7 +133,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                         defs.update(state.stackvar_defs.get(suboffset, ()))
                     # if we see this phi actually being used later in the program,
                     # all the related defs will be adjusted to be the right size
-                    if not all(traversal.def_info[def_][3] == udef[2] for def_ in defs):
+                    if not all(traversal.def_info[def_].variable_size == udef[2] for def_ in defs):
                         continue
                 phi_id = next(phi_id_ctr)
                 phiid_to_udef[phi_id] = udef

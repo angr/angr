@@ -302,7 +302,7 @@ class Sketch:
                 if (
                     max_size not in {0, None}
                     and basetype.size > 0
-                    and max_size // basetype.size > 0
+                    and max_size // basetype.size > 1
                     and basetype.size <= 8
                 ):  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore

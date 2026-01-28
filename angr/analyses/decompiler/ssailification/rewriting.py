@@ -384,6 +384,7 @@ class RewritingAnalysis:
                             # requested register out of the base register
                             # here we rely on the fact that the larger register vvar must be created in this block when
                             # the smaller register has been created
+                            assert False, "Should be unreachable now"
                             base_reg_offset, max_reg_size = get_reg_offset_base_and_size(
                                 stmt.dst.reg_offset, self.project.arch, size=stmt.dst.size
                             )

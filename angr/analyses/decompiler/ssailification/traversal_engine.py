@@ -1,6 +1,8 @@
 from __future__ import annotations
 from collections import defaultdict
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from collections.abc import Iterable
 from collections.abc import Callable
 
 from archinfo.arch_arm import is_arm_arch
@@ -43,6 +45,26 @@ def offset_sort_key(v: tuple[int | None, int]) -> tuple[int, int, int, int]:
     return (v[1], 0 if v[0] is not None else 1, abs(v[0] or 0), 0 if v[0] is None or v[0] < 0 else 1)
 
 
+@dataclass
+class DefInfo:
+    def_: Def
+    kind: Kind
+    loc: AILCodeLocation
+    variable_offset: int  # offset from beginning of region to beginning of variable
+    variable_size: int
+    store_offset: int  # offset from beginning of region to beginning of store
+    store_size: int
+    supercedes: set[Def]
+
+    @property
+    def variable_range(self):
+        return range(self.variable_offset, self.variable_offset + self.variable_size)
+
+    @property
+    def variable_endoffset(self):
+        return self.variable_offset + self.variable_size
+
+
 class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]):
     """
     This engine collects all register and stack variable locations and links them to the block of their creation.
@@ -65,10 +87,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.stackvars = stackvars
         self.use_tmps = use_tmps
         self.functions = functions
-        self.def_info: dict[Def, tuple[Kind, AILCodeLocation, int, int, int, int]] = {}
+        self.def_info: dict[Def, DefInfo] = {}
         self.pending_ptr_defines_nonlocal: dict[
             int, tuple[AILCodeLocation, StackBaseOffset, set[tuple[int, int]], bool]
         ] = {}
+        # the state which skipped the last few statements; the state that breaks the loop
         self.hclb_side_exit_state: TraversalState | None = None
 
     def _is_top(self, expr):
@@ -100,8 +123,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_,
                 full_offset,
                 full_endoffset - full_offset,
-                stack_offset - full_offset,
-                full_endoffset - full_offset,
+                stack_offset,
+                0,
                 loc,
             )
 
@@ -109,10 +132,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # has exactly the same extents if they overlap at all. this is sorta a redo
         # of the unify code.
         mapping: defaultdict[int, set[Def]] = defaultdict(set)
-        for def_, (kind, loc, offset, size, _, _) in self.def_info.items():
-            if kind != "stack" or not loc.is_extern:
+        for def_, definfo in self.def_info.items():
+            if definfo.kind != "stack" or not definfo.loc.is_extern:
                 continue
-            for suboffset in range(offset, offset + size):
+            for suboffset in definfo.variable_range:
                 mapping[suboffset].add(def_)
 
         current_extent = (0, 0)
@@ -120,28 +143,24 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         def flush():
             for def2 in current_defs:
-                kind2, loc2, offset2, size2, extra_offset2, store_size = self.def_info[def2]
+                definfo = self.def_info[def2]
                 size2 = current_extent[1] - current_extent[0]
-                self.def_info[def2] = (
-                    kind2,
-                    loc2,
-                    current_extent[0],
-                    size2,
-                    extra_offset2 + offset2 - current_extent[0],
-                    store_size,
-                )
+                definfo.variable_offset = current_extent[0]
+                definfo.variable_size = size2
 
         for offset in sorted(mapping):
             for def_ in mapping[offset]:
-                _, loc, offset, size, _, _ = self.def_info[def_]
+                definfo = self.def_info[def_]
 
-                if offset >= current_extent[1] or current_extent[0] == current_extent[1]:
+                if definfo.variable_offset >= current_extent[1] or current_extent[0] == current_extent[1]:
                     flush()
                     current_defs.clear()
-                    current_extent = offset, offset + size
+                    current_extent = definfo.variable_offset, definfo.variable_endoffset
 
                 current_defs.add(def_)
-                current_extent = min(current_extent[0], offset), max(current_extent[1], offset + size)
+                current_extent = min(current_extent[0], definfo.variable_offset), max(
+                    current_extent[1], definfo.variable_endoffset
+                )
         flush()
 
     def _acodeloc(self):
@@ -156,18 +175,32 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self,
         kind: Kind,
         def_: Def,
-        cell_offset: int,
-        cell_size: int,
-        var_offset: int,
+        variable_offset: int,
+        variable_size: int,
+        store_offset: int,
         store_size: int,
         loc: AILCodeLocation | None = None,
+        supercedes: Iterable[Def] | None = None,
     ):
         loc = loc or self._acodeloc()
-        assert def_ not in self.def_info or self.def_info[def_][3] <= cell_size, "redefinining a variable as smaller"
         assert (
-            def_ not in self.def_info or self.def_info[def_][1] == loc or self.def_info[def_][1].is_extern
+            def_ not in self.def_info or self.def_info[def_].variable_size <= variable_size
+        ), "redefinining a variable as smaller"
+        assert (
+            def_ not in self.def_info or self.def_info[def_].loc == loc or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        self.def_info[def_] = (kind, loc, cell_offset, cell_size, var_offset, store_size)
+        definfo = DefInfo(
+            def_,
+            kind,
+            loc,
+            variable_offset,
+            variable_size,
+            store_offset,
+            store_size,
+            set(supercedes or ()),
+        )
+        self.def_info[def_] = definfo
+        return definfo
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         offset = base_offset + min(extra_offset, 0)
@@ -182,44 +215,42 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         secret_stash = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
             for popped_offset in popped:
-                for def2 in self.state.stackvar_defs.pop(popped_offset, set()) | secret_stash[popped_offset]:
-                    secret_stash[popped_offset].add(def2)
+                secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
+                for def2 in secret_stash[popped_offset]:
                     self.state.stackvar_defs[full_offset].add(def2)
-                    kind, other_loc, other_off, other_size, other_off2, store_size = self.def_info[def2]
-                    if other_off < full_offset or other_off + other_size > full_offset + full_size:
+                    definfo = self.def_info[def2]
+                    if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
-                        full_offset, full_size, popped2 = self.state.stackvar_unify(other_off, other_size)
+                        full_offset, full_size, popped2 = self.state.stackvar_unify(
+                            definfo.variable_offset, definfo.variable_size
+                        )
                         popped.update(popped2)
                         break
-                    self.def_info[def2] = (
-                        kind,
-                        other_loc,
-                        full_offset,
-                        full_size,
-                        other_off + other_off2 - full_offset,
-                        store_size,
-                    )
+                    definfo.variable_offset = full_offset
+                    definfo.variable_size = full_size
                 else:
                     continue
-                    self.hclb_side_exit_state: TraversalState | None = None
                 break
             else:
                 break
 
-        if full_offset not in self.state.live_stackvars:
-            assert pending_def is not None  # SKETCHY
-            # if this assert trips maybe consider gating all the redef stuff on the cond?
-            # maybe also consider making def nullable in case of externs
-            self.perform_def(
-                "stack",
-                pending_def,
-                full_offset,
-                full_size,
-                offset - full_offset,
-                base_size,
-                AILCodeLocation.make_extern(0),
-            )
-            self.state.stackvar_defs[full_offset] = {pending_def}
+        defs = secret_stash.get(full_offset, set())
+        if not defs:
+            if pending_def is not None:
+                # if this assert trips maybe consider gating all the redef stuff on the cond?
+                # maybe also consider making def nullable in case of externs
+                self.perform_def(
+                    "stack",
+                    pending_def,
+                    full_offset,
+                    full_size,
+                    base_offset + extra_offset,
+                    base_size,
+                    AILCodeLocation.make_extern(0),
+                )
+                self.state.stackvar_defs[full_offset] = {pending_def}
+        else:
+            self.state.stackvar_defs[full_offset] = defs
 
         return self.state.live_stackvars[offset]
 
@@ -235,24 +266,27 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self.state.live_stackvars[offset] = value
 
         other_defs: set[Def] = set()
+        liveish_defs: set[Def] = set()
         for suboff in range(offset, offset + size):
             # set up current var mapping
             self.state.stackvar_bases[suboff] = (offset, size)
             # additional consideration: if we have only partially overwritten some def, make sure the other defs
             # in range know of the updated size
+            old_defs = self.state.stackvar_defs.pop(suboff, set())
+            other_defs.update(old_defs)
             if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
-                old_defs = self.state.stackvar_defs.pop(suboff, set())
+                liveish_defs.update(old_defs)
                 for old_def in old_defs:
-                    kind, loc, cell_offset, _, var_offset, store_size = self.def_info[old_def]
                     # TODO consider that we actually have to do unification...
-                    self.def_info[old_def] = (kind, loc, offset, size, var_offset + cell_offset - offset, store_size)
-                    other_defs.add(old_def)
+                    definfo = self.def_info[old_def]
+                    definfo.variable_offset = offset
+                    definfo.variable_size = size
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:
             assert def2 is not None
-            self.perform_def("stack", def2, offset, size, var_offset, base_size, loc2)
-            self.state.stackvar_defs[offset] = {def2} | other_defs
+            self.perform_def("stack", def2, offset, size, base_offset + extra_offset, base_size, loc2, other_defs)
+            self.state.stackvar_defs[offset] = {def2} | liveish_defs
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
@@ -268,8 +302,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_,
                 base_off,
                 base_size,
-                offset - base_off,
-                base_size,
+                offset,
+                size,
                 AILCodeLocation.make_extern(0) if base_off not in self.state.register_blackout else None,
             )
 
@@ -283,7 +317,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         else:
             base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
 
-        self.perform_def("reg", def_, base_off, base_size, offset - base_off, base_size)
+        self.perform_def("reg", def_, base_off, base_size, offset, size)
         self.state.live_registers[base_off] = value
         self.state.register_blackout.discard(base_off)
 
@@ -329,9 +363,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
 
-        if isinstance(stmt.true_target, Const) and stmt.true_target.value == self.ins_addr:
+        if isinstance(stmt.true_target, Const) and stmt.true_target.value != self.ins_addr:
             self.hclb_side_exit_state = self.state.copy()
-        if isinstance(stmt.false_target, Const) and stmt.false_target.value == self.ins_addr:
+        if isinstance(stmt.false_target, Const) and stmt.false_target.value != self.ins_addr:
             self.hclb_side_exit_state = self.state.copy()
 
     def _handle_stmt_Call(self, stmt: Call):
@@ -344,6 +378,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_Call(self, expr):
         target = expr.target
+
+        def_size = None
+        def_size_arg = None
+        if target == "memset":
+            # TODO other intrinsics that do a def
+            assert expr.args is not None
+            def_size_values = self._expr(expr.args[2])
+            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
+                def_size = max(def_size_values)[1]
+                def_size_arg = expr.args[2]
+
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
         target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
@@ -356,7 +401,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         if proto is not None:
             for ty, argexpr in zip(proto.args, expr.args or []):
-                value = self._expr(argexpr)
+                if argexpr is def_size_arg:
+                    assert def_size is not None
+                    value = {(None, def_size)}
+                else:
+                    value = self._expr(argexpr)
 
                 if not value:
                     continue
@@ -370,12 +419,15 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 else:
                     outptr = False
 
-                if ty.pts_to is None:
-                    size = 1
+                if outptr and def_size is not None:
+                    size = def_size
                 else:
-                    size = (ty.pts_to.size or 8) // 8
-                    if not size:
-                        continue
+                    if ty.pts_to is None:
+                        size = 1
+                    else:
+                        size = (ty.pts_to.size or 8) // 8
+                        if not size:
+                            continue
 
                 for stackref, extra in value:
                     if stackref is not None:

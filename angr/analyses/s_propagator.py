@@ -200,7 +200,8 @@ class SPropagatorAnalysis(Analysis):
         if self.mode == "function":
             assert self.func_graph is not None
 
-            # find phi assignments whose source vvars are all constants; iterate until it reaches a fixed point
+            # find phi assignments whose source vvars are all constants/stackptrs
+            # iterate until it reaches a fixed point
             changed = True
             while changed:
                 changed = False
@@ -223,11 +224,7 @@ class SPropagatorAnalysis(Analysis):
                     if None not in expanded_src_varids and all(varid in const_vvars for varid in expanded_src_varids):
                         all_int_src_varids: set[int] = {varid for varid in expanded_src_varids if varid is not None}
                         src_values = {
-                            (
-                                (const_vvars[varid].value, const_vvars[varid].bits)
-                                if isinstance(const_vvars[varid], Const)
-                                else const_vvars[varid]
-                            )
+                            (True, v.value) if isinstance((v := const_vvars[varid]), Const) else (False, v.offset)
                             for varid in all_int_src_varids
                         }
                         if len(src_values) == 1:

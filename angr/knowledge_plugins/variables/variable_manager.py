@@ -1128,7 +1128,7 @@ class VariableManagerInternal(Serializable):
         congruence_classes = {
             v: {v}
             for v in self.get_variables() + list(self._phi_variables)
-            if v not in self._variables_to_unified_variables
+            # if v not in self._variables_to_unified_variables
         }
 
         def unify(v1: SimVariable, v2: SimVariable):

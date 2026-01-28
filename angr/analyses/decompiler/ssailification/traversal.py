@@ -108,7 +108,7 @@ class TraversalAnalysis:
 
         succ_count = len(self._ail_graph.succ[node])
         for i, succ in enumerate(self._ail_graph.succ[node]):
-            if self._engine_ail.hclb_side_exit_state is not None and succ is not node:
+            if succ is not node and self._engine_ail.hclb_side_exit_state is not None:
                 succ_state = self._engine_ail.hclb_side_exit_state
                 self._engine_ail.hclb_side_exit_state = None
             else:
