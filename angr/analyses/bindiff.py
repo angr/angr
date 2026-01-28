@@ -1346,14 +1346,7 @@ class BinDiff(Analysis):
                 for f in secondary_funcs
                 if not f.is_syscall and not f.is_simprocedure and not f.is_alignment and not f.is_plt
             ]
-            if (
-                main_funcs
-                and secondary_funcs
-                and len(main_funcs) > 0
-                and len(secondary_funcs) > 0
-                and len(main_funcs) < 100
-                and len(secondary_funcs) < 100
-            ):
+            if 0 < len(main_funcs) < 100 and 0 < len(secondary_funcs) < 100:
                 # more checks
                 matcher(main_funcs, secondary_funcs, new_matches)
 
