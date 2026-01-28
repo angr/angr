@@ -7,7 +7,6 @@ import angr
 from angr.storage.memory_mixins.address_concretization_mixin import MultiwriteAnnotation
 from angr.sim_options import MEMORY_CHUNK_INDIVIDUAL_READS
 
-
 l = logging.getLogger(name=__name__)
 
 

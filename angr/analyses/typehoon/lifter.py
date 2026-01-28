@@ -15,8 +15,23 @@ from angr.sim_type import (
     SimTypeFloat,
     SimTypeDouble,
     SimCppClass,
+    SimTypeEnum,
+    SimTypeWideChar,
 )
-from .typeconsts import BottomType, Int8, Int16, Int32, Int64, Pointer32, Pointer64, Struct, Array, Float32, Float64
+from .typeconsts import (
+    BottomType,
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Pointer32,
+    Pointer64,
+    Struct,
+    Array,
+    Float32,
+    Float64,
+    Enum,
+)
 
 if TYPE_CHECKING:
     from .typeconsts import TypeConstant
@@ -46,6 +61,9 @@ class TypeLifter:
 
     def _lift_SimTypeChar(self, ty):  # pylint:disable=no-self-use
         return Int8(name=ty.label)
+
+    def _lift_SimTypeWideChar(self, ty):  # pylint:disable=no-self-use
+        return Int16(name=ty.label)
 
     def _lift_SimTypeShort(self, ty):  # pylint:disable=no-self-use
         return Int16(name=ty.label)
@@ -117,9 +135,21 @@ class TypeLifter:
     def _lift_SimTypeDouble(self, ty: SimTypeDouble) -> Float64:  # pylint:disable=no-self-use
         return Float64(name=ty.label)
 
+    def _lift_SimTypeEnum(self, ty: SimTypeEnum) -> Enum:
+        """Lift SimTypeEnum to Enum type constant."""
+        base_tc = None
+        if ty._base_type is not None:
+            base_tc = self.lift(ty._base_type)
+        return Enum(
+            members=dict(ty.members),
+            base_type=base_tc,
+            name=ty.name,
+        )
+
 
 _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
+    SimTypeWideChar: TypeLifter._lift_SimTypeWideChar,
     SimTypeShort: TypeLifter._lift_SimTypeShort,
     SimTypeInt: TypeLifter._lift_SimTypeInt,
     SimTypeLong: TypeLifter._lift_SimTypeInt,
@@ -130,4 +160,5 @@ _mapping = {
     SimTypeArray: TypeLifter._lift_SimTypeArray,
     SimTypeFloat: TypeLifter._lift_SimTypeFloat,
     SimTypeDouble: TypeLifter._lift_SimTypeDouble,
+    SimTypeEnum: TypeLifter._lift_SimTypeEnum,
 }

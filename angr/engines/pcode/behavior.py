@@ -8,7 +8,6 @@ from pypcode import OpCode
 
 from angr.errors import AngrError
 
-
 # pylint:disable=abstract-method
 
 

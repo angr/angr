@@ -11,7 +11,6 @@ from angr.code_location import CodeLocation
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

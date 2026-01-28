@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"CoCreateActivity": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIUnknown', 'riid', 'ppObj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIUnknown', 'riid', 'ppObj']}"
 		},
 		"CoEnterServiceDomain": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pConfigObject']}"
@@ -24,13 +24,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwExts']}"
 		},
 		"MTSCreateActivity": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppobj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppobj']}"
 		},
 		"RecycleSurrogate": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['lReasonCode']}"
 		},
 		"SafeRef": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['rid', 'pUnk']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['rid', 'pUnk']}"
 		}
 	}
 }

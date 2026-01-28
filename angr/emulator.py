@@ -6,7 +6,6 @@ from enum import Enum
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.errors import AngrError
 
-
 log = logging.getLogger(name=__name__)
 
 

@@ -31,7 +31,6 @@ from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
 
-
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
 

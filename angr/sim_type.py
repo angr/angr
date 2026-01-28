@@ -5,7 +5,7 @@ import contextlib
 import copy
 import re
 import logging
-from typing import Literal, Any, cast, overload
+from typing import Literal, Any, cast, overload, TYPE_CHECKING
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
 from collections.abc import MutableMapping
@@ -18,7 +18,7 @@ import cxxheaderparser.types
 import pycparser
 from pycparser import c_ast
 
-from angr.errors import AngrTypeError
+from angr.errors import AngrTypeError, AngrMissingTypeError
 from angr.sim_state import SimState
 
 StoreType = int | claripy.ast.BV
@@ -28,6 +28,10 @@ l = logging.getLogger(name=__name__)
 # pycparser hack to parse type expressions
 errorlog = logging.getLogger(name=__name__ + ".yacc")
 errorlog.setLevel(logging.ERROR)
+
+
+if TYPE_CHECKING:
+    from angr.procedures.definitions import SimTypeCollection
 
 
 class SimType:
@@ -199,17 +203,27 @@ class SimType:
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]):
+    def from_json(d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None):
         """
         Deserialize a type class from a JSON-compatible dictionary.
         """
+        if memo is None:
+            memo = set()
+
         assert "_t" in d
         cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
-            return cls.from_json(d)
+            t = cls.from_json(d)
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
+                # attempt to resolve the type ref
+                with contextlib.suppress(AngrMissingTypeError):
+                    return type_collection.get(t.name, memo=memo)
+            return t
 
         kwargs = {}
+        if "name" in d:
+            memo.add(d["name"])
         for field in cls._args:
             field_key = "q" if field == "qualifier" else field
             if field_key not in d:
@@ -217,12 +231,12 @@ class SimType:
             value = d[field_key]
             if isinstance(value, dict):
                 if "_t" in value:
-                    value = SimType.from_json(value)
+                    value = SimType.from_json(value, type_collection=type_collection, memo=memo)
                 else:
                     new_value = {}
                     for k, v in value.items():
                         if isinstance(v, dict) and "_t" in v:
-                            new_value[k] = SimType.from_json(v)
+                            new_value[k] = SimType.from_json(v, type_collection=type_collection, memo=memo)
                         else:
                             new_value[k] = v
                     value = new_value
@@ -230,7 +244,7 @@ class SimType:
                 new_value = []
                 for v in value:
                     if isinstance(v, dict) and "_t" in v:
-                        new_value.append(SimType.from_json(v))
+                        new_value.append(SimType.from_json(v, type_collection=type_collection, memo=memo))
                     else:
                         new_value.append(v)
                 value = new_value
@@ -1357,15 +1371,16 @@ class SimTypeFunction(SimType):
             argstrs.append("...")
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True, show_void: bool = True):  # type: ignore[override]
         formatted_args = [
-            a.c_repr(n, full - 1, memo, indent)
+            a.c_repr(n, max(full - 1, 0), memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
         ]
         if self.variadic:
             formatted_args.append("...")
         name_str = f"({name or ''})" if name_parens else name or ""
-        proto = f"{name_str}({', '.join(formatted_args)})"
+        args_str = ", ".join(formatted_args) if formatted_args else "void" if show_void else ""
+        proto = f"{name_str}({args_str})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property
@@ -1730,7 +1745,7 @@ class SimStruct(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
         out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
@@ -1961,7 +1976,7 @@ class SimUnion(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.members.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.members.items()
         )
         out = f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
@@ -2042,7 +2057,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "members")
-    _args = ("members", "base_type", "name", "label", "qualifier")
+    _args = ("members", "base_type", "name", "qualifier")
     _ident = "enum"
 
     def __init__(
@@ -2050,10 +2065,9 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         members: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(name=name if name is not None else "<anon>")
         self.members: dict[str, int] = dict(members)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
@@ -2086,7 +2100,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=self.members,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2132,7 +2145,6 @@ class SimTypeEnum(NamedTypeMixin, SimType):
             members=dict(self.members),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2156,7 +2168,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
     """
 
     _fields = ("name", "flags")
-    _args = ("flags", "base_type", "name", "label", "qualifier")
+    _args = ("flags", "base_type", "name", "qualifier")
     _ident = "bitfield"
 
     def __init__(
@@ -2164,10 +2176,9 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
         flags: dict[str, int],
         base_type: SimType | None = None,
         name: str | None = None,
-        label: str | None = None,
         qualifier: Iterable[str] | None = None,
     ):
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(None, name=name if name is not None else "<anon>")
         self.flags: dict[str, int] = dict(flags)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         # Sort flags by value (descending) to prefer higher-value flags when resolving
@@ -2254,7 +2265,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=self.flags,
             base_type=self._base_type.with_arch(arch),
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
         out._arch = arch
@@ -2301,7 +2311,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
             flags=dict(self.flags),
             base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
             name=self._name,
-            label=self.label,
             qualifier=self.qualifier,
         )
 
@@ -2563,6 +2572,9 @@ class SimTypeRef(SimType):
         self.original_type = original_type
         self.qualifier = qualifier
 
+        if isinstance(original_type, SimTypeRef):
+            raise TypeError("SimTypeRef cannot reference another SimTypeRef")
+
     @property
     def name(self) -> str | None:
         return self.label
@@ -2602,7 +2614,9 @@ class SimTypeRef(SimType):
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]) -> SimTypeRef:
+    def from_json(
+        d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None
+    ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
         original_type = IDENT_TO_CLS.get(d["ot"], None)
@@ -3738,45 +3752,29 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def do_preprocess(defn, include_path=()):
-    """
-    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
-    """
-    from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
-
-    lexer = lex.lex(cpp)
-    p = cpp.Preprocessor(lexer)
-    for included in include_path:
-        p.add_path(included)
-    p.parse(defn)
-    return "".join(tok.value for tok in p.parser if tok.type not in p.ignore)
-
-
-def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_signature(defn, predefined_types=None, arch=None):
     """
     Parse a single function prototype and return its type
     """
     try:
-        parsed = parse_file(
-            defn.strip(" \n\t;") + ";", preprocess=preprocess, predefined_types=predefined_types, arch=arch
-        )
+        parsed = parse_file(defn.strip(" \n\t;") + ";", predefined_types=predefined_types, arch=arch)
         return next(iter(parsed[0].values()))
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
 
-def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_defns(defn, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_types(defn, predefined_types=None, arch=None):
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[1]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[1]
 
 
 _include_re = re.compile(r"^\s*#include")
@@ -3784,7 +3782,6 @@ _include_re = re.compile(r"^\s*#include")
 
 def parse_file(
     defn,
-    preprocess=True,
     predefined_types: dict[Any, SimType] | None = None,
     arch=None,
     side_effect_types: dict[Any, SimType] | None = None,
@@ -3798,8 +3795,9 @@ def parse_file(
         raise ImportError("Please install pycparser in order to parse C definitions")
 
     defn = "\n".join(x for x in defn.split("\n") if _include_re.match(x) is None)
-    if preprocess:
-        defn = do_preprocess(defn)
+    # remove comments
+    defn = re.sub(r"/\*.*?\*/", r"", defn, flags=re.DOTALL)
+    defn = re.sub(r"//.*?$", r"", defn, flags=re.MULTILINE)
 
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
@@ -3845,24 +3843,17 @@ def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None and _type_parser_singleton is None:
         _type_parser_singleton = pycparser.CParser()
-        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
-            module=_type_parser_singleton,
-            start="parameter_declaration",
-            debug=False,
-            optimize=False,
-            errorlog=errorlog,
-        )
     assert _type_parser_singleton is not None
     return _type_parser_singleton
 
 
-def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
+def parse_type(defn, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_type_with_name(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
 def parse_type_with_name(
@@ -3885,7 +3876,7 @@ def parse_type_with_name(
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
     # pylint: disable=unexpected-keyword-arg
-    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse_type_with_name(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.Typename) and not isinstance(node, c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
@@ -3899,14 +3890,34 @@ def _accepts_scope_stack():
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
 
-    def parse(self, text, filename="", debug=False, scope_stack=None):
-        self.clex.filename = filename
-        self.clex.reset_lineno()
+    def parse(self, text, filename="", debug=False, scope_stack=None):  # pylint:disable=unused-argument
+        # debug is not used and only kept for backward compatibility as in pycparser >= 3.0
+
+        self.clex._filename = filename
+        self.clex._lineno = 1
         self._scope_stack = [{}] if scope_stack is None else scope_stack
-        self._last_yielded_token = None
-        return self.cparser.parse(input=text, lexer=self.clex, debug=debug)
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        ast = self._parse_translation_unit_or_empty()
+        tok = self._peek()
+        if tok is not None:
+            self._parse_error(f"before: {tok.value}", self._tok_coord(tok))
+        return ast
+
+    def parse_type_with_name(self, text, filename="", scope_stack=None) -> c_ast.Typename:
+        self.clex._filename = filename
+        self.clex._lineno = 1
+        self._scope_stack = [{}] if scope_stack is None else scope_stack
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        return self._parse_type_name()  # ignore all tokens that follow the type name
 
     pycparser.CParser.parse = parse
+    pycparser.CParser.parse_type_with_name = parse_type_with_name
 
 
 def _decl_to_type(
@@ -3980,7 +3991,7 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -3996,7 +4007,7 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.Struct):
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -4056,7 +4067,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
-        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.name is not None:
             key = "union " + decl.name
@@ -4104,7 +4115,41 @@ def _decl_to_type(
 
     if isinstance(decl, c_ast.Enum):
         # See C99 at 6.7.2.2
-        return ALL_TYPES["int"].with_arch(arch)
+        # Parse enum members if present
+        members: dict[str, int] = {}
+        if decl.values is not None:
+            next_value = 0
+            for enumerator in decl.values.enumerators:
+                if enumerator.value is not None:
+                    with contextlib.suppress(ValueError):
+                        # Keep the auto-incremented value
+                        next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
+                assert isinstance(next_value, int)
+                members[enumerator.name] = next_value
+                next_value += 1
+
+        enum_name = decl.name
+        if enum_name is not None:
+            key = "enum " + enum_name
+            existing = extra_types.get(key) if extra_types else None
+            if existing is None:
+                existing = ALL_TYPES.get(key)
+            if existing is not None and isinstance(existing, SimTypeEnum):
+                # Update existing enum with members if it was forward-declared
+                if not existing.members and members:
+                    existing.members = members
+                return existing.with_arch(arch)
+
+            enum_type = SimTypeEnum(members, name=enum_name)
+            enum_type._arch = arch
+            if extra_types is not None:
+                extra_types[key] = enum_type
+            return enum_type
+
+        # Anonymous enum
+        enum_type = SimTypeEnum(members)
+        enum_type._arch = arch
+        return enum_type
 
     raise ValueError("Unknown type!")
 
@@ -4141,6 +4186,12 @@ def _parse_const(c, arch=None, extra_types=None):
     if type(c) is c_ast.UnaryOp:
         if c.op == "sizeof":
             return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
+        if c.op == "-":
+            return -_parse_const(c.expr, arch, extra_types)
+        if c.op == "+":
+            return _parse_const(c.expr, arch, extra_types)
+        if c.op == "~":
+            return ~_parse_const(c.expr, arch, extra_types)
         raise ValueError(f"Unary op {c.op}")
     if type(c) is c_ast.Cast:
         return _parse_const(c.expr, arch, extra_types)
@@ -4157,6 +4208,14 @@ CPP_DECL_TYPES = (
     | cxxheaderparser.types.Function
     | cxxheaderparser.types.Type
 )
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[int]) -> int | None: ...
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[str]) -> str | None: ...
 
 
 def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type) -> int | str | None:
@@ -4273,7 +4332,7 @@ def _cpp_decl_to_type(
         if isinstance(t, NamedTypeMixin):
             t = t.copy()
             t.name = lbl  # pylint:disable=attribute-defined-outside-init
-        return t  # type:ignore
+        return t  # type: ignore
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
@@ -4299,7 +4358,7 @@ def _cpp_decl_to_type(
             _cpp_decl_to_type(param.type, extra_types, opaque_classes=opaque_classes) for param in decl.parameters
         )
         param_names = (
-            tuple(param.name.format() for param in decl.parameters)  # type:ignore
+            tuple(param.name.format() for param in decl.parameters)  # type: ignore
             if all(param.name is not None for param in decl.parameters)
             else None
         )
@@ -4399,9 +4458,7 @@ if pycparser is not None:
     _accepts_scope_stack()
 
 with contextlib.suppress(ImportError):
-    register_types(
-        parse_types(
-            """
+    register_types(parse_types("""
 typedef long time_t;
 
 struct timespec {
@@ -4413,8 +4470,6 @@ struct timeval {
     time_t tv_sec;
     long tv_usec;
 };
-"""
-        )
-    )
+"""))
 
 from .state_plugins.view import SimMemView

@@ -7,7 +7,6 @@ import gc
 import ctypes
 import sysconfig
 
-
 have_gitpython = False
 try:
     from git import Repo, InvalidGitRepositoryError

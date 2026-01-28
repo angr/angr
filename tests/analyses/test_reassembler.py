@@ -16,7 +16,6 @@ import angr
 
 from tests.common import bin_location, has_32_bit_compiler_support
 
-
 test_location = os.path.join(bin_location, "tests")
 
 # Note: Reassembler is intensively tested by Patcherex test cases on CGC binaries.

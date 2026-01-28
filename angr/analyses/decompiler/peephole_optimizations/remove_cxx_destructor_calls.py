@@ -17,7 +17,7 @@ class RemoveCxxDestructorCalls(PeepholeOptimizationStmtBase):
     NAME = "Remove C++ destructor function calls"
     stmt_classes = (Call,)
 
-    def optimize(self, stmt: Call, **kwargs) -> tuple | None:  # type:ignore
+    def optimize(self, stmt: Call, **kwargs) -> tuple | None:  # type: ignore
         # are we calling a function that we deem as a C++ destructor?
         assert self.project is not None
 

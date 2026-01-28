@@ -15,19 +15,19 @@
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
 		},
 		"SnmpSvcSetLogLevel": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'int'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel']}"
 		},
 		"SnmpSvcSetLogType": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogType']}"
 		},
 		"SnmpUtilAsnAnyCpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAnyDst', 'pAnySrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pAnyDst', 'pAnySrc']}"
 		},
 		"SnmpUtilAsnAnyFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAny']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAny']}"
 		},
 		"SnmpUtilDbgPrint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel', 'szFormat']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SNMP_LOG', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['nLogLevel', 'szFormat']}"
 		},
 		"SnmpUtilIdsToA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Ids', 'IdLength']}"
@@ -42,52 +42,52 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['pMem', 'nBytes']}"
 		},
 		"SnmpUtilOctetsCmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctets1', 'pOctets2']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctets1', 'pOctets2']}"
 		},
 		"SnmpUtilOctetsCpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctetsDst', 'pOctetsSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctetsDst', 'pOctetsSrc']}"
 		},
 		"SnmpUtilOctetsFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pOctets']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pOctets']}"
 		},
 		"SnmpUtilOctetsNCmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctets1', 'pOctets2', 'nChars']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnOctetString', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOctets1', 'pOctets2', 'nChars']}"
 		},
 		"SnmpUtilOidAppend": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOidDst', 'pOidSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOidDst', 'pOidSrc']}"
 		},
 		"SnmpUtilOidCmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOid1', 'pOid2']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOid1', 'pOid2']}"
 		},
 		"SnmpUtilOidCpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOidDst', 'pOidSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOidDst', 'pOidSrc']}"
 		},
 		"SnmpUtilOidFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pOid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pOid']}"
 		},
 		"SnmpUtilOidNCmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOid1', 'pOid2', 'nSubIds']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pOid1', 'pOid2', 'nSubIds']}"
 		},
 		"SnmpUtilOidToA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Oid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['Oid']}"
 		},
 		"SnmpUtilPrintAsnAny": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAny']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnAny', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pAny']}"
 		},
 		"SnmpUtilPrintOid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Oid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AsnObjectIdentifier', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Oid']}"
 		},
 		"SnmpUtilVarBindCpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pVbDst', 'pVbSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pVbDst', 'pVbSrc']}"
 		},
 		"SnmpUtilVarBindFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pVb']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBind', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pVb']}"
 		},
 		"SnmpUtilVarBindListCpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pVblDst', 'pVblSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pVblDst', 'pVblSrc']}"
 		},
 		"SnmpUtilVarBindListFree": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pVbl']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SnmpVarBindList', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pVbl']}"
 		}
 	}
 }

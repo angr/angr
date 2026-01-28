@@ -10,7 +10,6 @@ from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .base import PageBase
 from .cooperation import MemoryObjectSetMixin
 
-
 l = logging.getLogger(name=__name__)
 
 _MOTYPE = SimMemoryObject | SimLabeledMemoryObject

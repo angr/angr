@@ -21,7 +21,6 @@ if TYPE_CHECKING:
 
 from tests.common import bin_location
 
-
 TESTS_LOCATION = os.path.join(bin_location, "tests")
 
 

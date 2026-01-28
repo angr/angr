@@ -9,7 +9,6 @@ from .plugin import SimStatePlugin
 from .sim_event import SimEvent
 from .sim_action import SimAction, SimActionConstraint
 
-
 l = logging.getLogger(name=__name__)
 
 

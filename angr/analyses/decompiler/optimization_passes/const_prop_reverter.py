@@ -15,7 +15,6 @@ from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructure
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
-
 _l = logging.getLogger(__name__)
 
 

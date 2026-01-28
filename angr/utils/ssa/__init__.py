@@ -26,7 +26,6 @@ from angr.code_location import AILCodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
 
-
 DEPHI_VVAR_REG_OFFSET = 4096
 
 

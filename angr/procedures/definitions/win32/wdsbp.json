@@ -21,13 +21,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hHandle', 'uBufferLen', 'pBuffer', 'puBytes']}"
 		},
 		"WdsBpInitialize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['bPacketType', 'phHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'char', 'signed': false, 'label': 'Byte'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['bPacketType', 'phHandle']}"
 		},
 		"WdsBpParseInitialize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPacket', 'uPacketLen', 'pbPacketType', 'phHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPacket', 'uPacketLen', 'pbPacketType', 'phHandle']}"
 		},
 		"WdsBpParseInitializev6": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPacket', 'uPacketLen', 'pbPacketType', 'phHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pPacket', 'uPacketLen', 'pbPacketType', 'phHandle']}"
 		},
 		"WdsBpQueryOption": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hHandle', 'uOption', 'uValueLen', 'pValue', 'puBytes']}"

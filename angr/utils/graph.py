@@ -826,7 +826,7 @@ class GraphUtils:
             graph_copy.add_edge(src, dst)
 
         # add loners
-        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]  # type:ignore
+        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]  # type: ignore
         for node in out_degree_zero_nodes:
             if graph.in_degree(node) == 0:
                 graph_copy.add_node(node)

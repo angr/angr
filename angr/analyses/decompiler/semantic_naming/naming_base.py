@@ -6,6 +6,7 @@ This module provides two base classes for semantic naming:
 - ClinicNamingBase: For passes running in Clinic on AIL graphs
 - RegionNamingBase: For passes running in RegionSimplifier on structured regions
 """
+
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING

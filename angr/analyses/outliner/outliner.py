@@ -15,7 +15,6 @@ from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import subgraph_between_nodes, Dominators, compute_dominance_frontier
 
-
 _l = logging.getLogger(__name__)
 
 T = TypeVar("T")

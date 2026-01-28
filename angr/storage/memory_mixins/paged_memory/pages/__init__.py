@@ -10,7 +10,6 @@ from .list_page import ListPage
 from .mv_list_page import MVListPage
 from .ultra_page import UltraPage
 
-
 __all__ = (
     "CooperationBase",
     "HistoryTrackingMixin",

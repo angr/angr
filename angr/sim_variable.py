@@ -30,6 +30,8 @@ class SimVariable(Serializable):
         "size",
     ]
 
+    _hash: int | None
+
     def __init__(
         self, size: int, ident: str | None = None, name: str | None = None, region: int | None = None, category=None
     ):
@@ -147,6 +149,29 @@ class SimConstantVariable(SimVariable):
     def key(self) -> tuple[str | int | None, ...]:
         return ("const", self.value, self.size, self.ident)
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.ConstantVariable()  # type: ignore, pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.size = self.size
+        if self.bits > 64:
+            assert isinstance(self.value, int)
+            # TODO: Handle float
+            obj.long_value = int.to_bytes(self.value, byteorder="little")
+        else:
+            obj.value = self.value
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        value = int.from_bytes(cmsg.long_value, byteorder="little") if cmsg.size > 64 else cmsg.value
+        obj = cls(cmsg.size, value=value)
+        obj._from_base(cmsg)
+        return obj
+
 
 class SimTemporaryVariable(SimVariable):
     """
@@ -188,17 +213,18 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.TemporaryVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.TemporaryVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
         self._set_base(obj)
+        obj.size = self.size
         obj.tmp_id = self.tmp_id
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.tmp_id, cmsg.base.size)
+        obj = cls(cmsg.tmp_id, cmsg.size)
         obj._from_base(cmsg)
         return obj
 
@@ -254,7 +280,7 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.RegisterVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.RegisterVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -329,7 +355,7 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.MemoryVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.MemoryVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -441,7 +467,7 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.StackVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.StackVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()

@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

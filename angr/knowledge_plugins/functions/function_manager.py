@@ -148,11 +148,11 @@ class FunctionDict(SortedDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
-    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type:ignore #pylint:disable=unused-argument
+    def get(self, addr: K, default=_missing, /, meta_only: bool = False):  # type: ignore #pylint:disable=unused-argument
         try:
             return super().__getitem__(addr)
         except KeyError:
@@ -234,7 +234,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._meta_func_cache: LRUCache[K, Function] = SmartLRUCache(
             maxsize=cache_limit, evict=self._meta_func_cache_evicted
         )
-        self._funcsdb = None
+        self._funcsdb: str | None = None
         self._db_batch_size: int = max(cache_limit - 1, db_batch_size)
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
@@ -290,7 +290,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         self._cache_limit = state["cache_limit"]
         self._db_batch_size = state["db_batch_size"]
         self.data = {}
-        self.rtdb = None  # type:ignore
+        self.rtdb = None  # type: ignore
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
         self._list = SortedList()
@@ -369,11 +369,11 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
     @overload
     def get(self, key: K, default: None = None, /, meta_only: bool = False) -> Function: ...
     @overload
-    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type:ignore
+    def get(self, key: K, default: Function, /, meta_only: bool = False) -> Function: ...  # type: ignore
     @overload
-    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type:ignore
+    def get(self, key: K, default: T, /, meta_only: bool = False) -> Function | T: ...  # type: ignore
 
-    def get(self, addr, default=_missing, /, meta_only: bool = False):  # type:ignore
+    def get(self, addr, default=_missing, /, meta_only: bool = False):  # type: ignore
         # First check in-memory
         if self.is_cached(addr):
             try:
@@ -544,7 +544,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         Lazily initialize the LMDB database for spilling functions.
         """
         if self._funcsdb is None:
-            self._funcsdb = self.rtdb.get_db("functions")
+            self._funcsdb = self.rtdb.open_db("functions")
         l.debug("Initialized LRU cache LMDB.")
 
     def _cleanup_lmdb(self):
@@ -560,6 +560,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         Save multiple functions to LMDB.
         """
         self._init_lmdb()
+        assert self._funcsdb is not None
 
         while True:
             try:
@@ -577,6 +578,9 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
         """
         Delete a function from LMDB.
         """
+        if self._funcsdb is None:
+            return
+
         key = str(addr).encode("utf-8")
 
         with self.rtdb.begin_txn(self._funcsdb, write=True) as txn:
@@ -606,7 +610,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
                 if value is None:
                     return None
 
-                cmsg = function_pb2.Function()  # type:ignore  # pylint:disable=no-member
+                cmsg = function_pb2.Function()  # type: ignore  # pylint:disable=no-member
                 cmsg.ParseFromString(value)
 
                 # Reconstruct function
@@ -1329,7 +1333,11 @@ class FunctionManager(Generic[K], KnowledgeBasePlugin, collections.abc.Mapping[K
                     else:
                         inedges = func.transition_graph.in_edges(node, data=True)
                         for _, _, data in inedges:
-                            if data.get("type") == "transition" and data.get("outside") is True:
+                            if (
+                                data.get("type") == "transition"
+                                and data.get("outside") is True
+                                and self.contains_addr(node.addr)
+                            ):
                                 self.callgraph.add_edge(func.addr, node.addr)
 
     #

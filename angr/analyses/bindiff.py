@@ -12,7 +12,6 @@ from angr.analyses import AnalysesHub, Analysis, CFGFast
 from angr.errors import SimEngineError, SimMemoryError
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins import Function
 
@@ -670,7 +669,7 @@ class FunctionDiff:
 
         # while queue is not empty
         while to_process:
-            (block_a, block_b) = to_process.pop()
+            block_a, block_b = to_process.pop()
             l.debug("FunctionDiff: Processing (%#x, %#x)", block_a.addr, block_b.addr)
 
             # we could find new matches in the successors or predecessors of functions
@@ -1402,7 +1401,7 @@ class BinDiff(Analysis):
 
         # while queue is not empty
         while to_process:
-            (func_a, func_b) = to_process.pop()
+            func_a, func_b = to_process.pop()
             l.debug("Processing (%#x, %#x)", func_a, func_b)
 
             # we could find new matches in the successors or predecessors of functions

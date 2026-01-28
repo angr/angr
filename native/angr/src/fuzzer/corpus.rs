@@ -158,15 +158,22 @@ impl PyOnDiskCorpus {
 
     fn __getitem__(&self, id: usize) -> PyResult<Vec<u8>> {
         let corpus_id = CorpusId::from(id);
-        let testcase_ref = self
+        let mut testcase = self
             .inner
             .get(corpus_id)
-            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-        let testcase = testcase_ref.borrow();
-        match testcase.input() {
-            Some(input) => Ok(input.as_ref().to_vec()),
-            None => Err(PyRuntimeError::new_err("Testcase input is None")),
-        }
+            .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+            .borrow_mut();
+        let input = testcase.input().clone().unwrap_or({
+            testcase
+                .load_input(&self.inner)
+                .map_err(|e| {
+                    PyRuntimeError::new_err(format!(
+                        "Failed to load input for corpus id {corpus_id}: {e}"
+                    ))
+                })?
+                .clone()
+        });
+        Ok(input.as_ref().clone())
     }
 
     fn __len__(&self) -> usize {

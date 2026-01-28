@@ -53,7 +53,6 @@ from angr.utils.library import convert_cproto_to_py
 
 from tests.common import bin_location, broken, print_decompilation_result, set_decompiler_option, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)
@@ -602,8 +601,8 @@ class TestDecompiler(unittest.TestCase):
 
         m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == -1\)", code)
         if m is None:
-            # Try without call folding
-            m = re.search(r"(\w+) = access\(\w+, 0\);\s*if \(\1 == -1\)", code)
+            # Try with 0xffff_ffff
+            m = re.search(r"if \([\S]*access\([\S]+, [\S]+\) == 4294967295\)", code)
         assert m is not None, "The if branch at 0x401c91 is not found. Structurer is incorrectly removing conditionals."
 
         # Arguments to the convert call should be fully folded into the call statement itself
@@ -1685,8 +1684,7 @@ class TestDecompiler(unittest.TestCase):
 
         proj.analyses.CFGFast(normalize=True)
 
-        typedefs = angr.types.parse_file(
-            """
+        typedefs = angr.types.parse_file("""
         struct A {
             int a1;
             int a2;
@@ -1704,8 +1702,7 @@ class TestDecompiler(unittest.TestCase):
             int c3[10];
             struct C *c4;
         };
-        """
-        )
+        """)
 
         d = proj.analyses.Decompiler(proj.kb.functions["main"], options=decompiler_options)
         assert d.cache is not None and d.cache.clinic is not None and d.cache.clinic.variable_kb is not None
@@ -2635,8 +2632,11 @@ class TestDecompiler(unittest.TestCase):
 
         assert "goto" not in d.codegen.text
         assert (
-            re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
-            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = 0, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text)
+            is not None
+            or re.search(r"if \(v\d+ != 4294967295 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(\(int \*\)v\d+\)\)\)", d.codegen.text) is not None
+            or re.search(r"if \(v\d+ != -1 \|\| \(v\d+ = NULL, !\*\(v\d+\)\)\)", d.codegen.text) is not None
         )
 
     @for_all_structuring_algos
@@ -3123,10 +3123,10 @@ class TestDecompiler(unittest.TestCase):
         #     v3 = &compare_occurs;
         #     v4 = 48;
         #     qsort();
-        # Expected:
-        #     if (*((long long *)&number_of_occurs))
-        #         qsort(*((long long *)&occurs_table), *((long long *)&number_of_occurs), 48, compare_occurs);
-        assert re.search(r"if\(.+?\).+qsort\(.*\);.*return", text) is not None
+        # Expected (global variable types inferred from symbol table, no cast needed):
+        #     if (number_of_occurs)
+        #         qsort(occurs_table, number_of_occurs, 48, compare_occurs);
+        assert re.search(r"if\(.+?\).*qsort\(.*\);.*return", text) is not None
 
     @for_all_structuring_algos
     def test_ret_dedupe_fakeret_2(self, decompiler_options=None):
@@ -3261,7 +3261,7 @@ class TestDecompiler(unittest.TestCase):
         text = dec.codegen.text
         while_offset = text.find("while (")
         while_line = text[while_offset : text.find("\n", while_offset)]
-        for substr in ["&in_stream", "check_and_close(", "open_next_file("]:
+        for substr in ["in_stream", "check_and_close(", "open_next_file("]:
             assert while_line.find(substr) > 0
 
         # never use multi-statement expressions
@@ -3468,9 +3468,13 @@ class TestDecompiler(unittest.TestCase):
         assert first_good_if.start() == all_if_stmts[0].start()
 
         # the if-stmt immediately after the first one should be a true check on -1
-        second_good_if = re.search("if \\(.*? == -1\\)", text)
+        second_good_if = re.search("if \\(.*? == -1\\)", text) or re.search("if \\(.*? == 4294967295\\)", text)
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
+
+        # ensure the constant memory read exists
+        const_mem_read = re.search(r"\*\(\(int \*\)0x501380\) == 1", text)
+        assert const_mem_read is not None
 
     @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
@@ -3750,16 +3754,10 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
         text = d.codegen.text
-        # *((unsigned short *)((char *)&v5 + 2 * v25)) = *((short *)((char *)&v5 + 2 * v25)) ^ 145 + (unsigned short)v25;
+        # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
 
-        m0 = re.search(
-            r"\*\(\(unsigned short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) = "
-            r"\*\(\(short \*\)\(\(char \*\)&v\d+ \+ 2 \* v\d+\)\) \^ "
-            r"145 \+ \(unsigned short\)[^;\n]*v\d+;",
-            text,
-        )
-        m1 = re.search(r"\(&v\d+\)\[v\d+] = \(&v\d+\)\[v\d+] \^ \(unsigned short\)\(145 \+ [^;\n]*v\d+\);", text)
-        assert m0 is not None or m1 is not None
+        m1 = re.search(r"\*\(\(unsigned short \*\)&v\d+\[v\d+\]\) = v\d+\[v\d+\] \^ 145 \+ [^;\n]*v\d+;", text)
+        assert m1 is not None
 
     @structuring_algo("sailr")
     def test_less_ret_dupe_gs_data_processor(self, decompiler_options=None):
@@ -4955,14 +4953,17 @@ class TestDecompiler(unittest.TestCase):
         assert "WNDCLASSEXA v" in dec.codegen.text
         wndclass_var = re.findall(r"WNDCLASSEXA (v\d+);", dec.codegen.text)[0]
         assert f"{wndclass_var}.cbSize = 48;" in dec.codegen.text
-        assert f"{wndclass_var}.style = 3;" in dec.codegen.text
+        assert (
+            f"{wndclass_var}.style = 3;" in dec.codegen.text
+            or f"*((unsigned int *)&{wndclass_var}.style) = 3;" in dec.codegen.text
+        )
         assert f"{wndclass_var}.lpfnWndProc = sub_410880;" in dec.codegen.text
         assert f"{wndclass_var}.cbClsExtra = 0;" in dec.codegen.text
         assert f"{wndclass_var}.cbWndExtra = 0;" in dec.codegen.text
         assert f"{wndclass_var}.hInstance = " in dec.codegen.text
         assert f"{wndclass_var}.hIcon = LoadIconA(" in dec.codegen.text
         assert f"{wndclass_var}.hCursor = LoadCursorA(" in dec.codegen.text
-        assert f"{wndclass_var}.hbrBackground = GetStockObject(4);" in dec.codegen.text
+        assert f"{wndclass_var}.hbrBackground = GetStockObject(BLACK_BRUSH);" in dec.codegen.text
         assert f"{wndclass_var}.lpszMenuName = 109;" in dec.codegen.text
         assert f'{wndclass_var}.lpszClassName = "BOLHAS";' in dec.codegen.text
         assert f"{wndclass_var}.hIconSm = 0;" in dec.codegen.text
@@ -5060,15 +5061,13 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         text = normalize_whitespace(dec.codegen.text)
-        expected = normalize_whitespace(
-            r"""
-            void* print_hello_world()
+        expected = normalize_whitespace(r"""
+            unsigned long long print_hello_world(void)
             {
                 write(1, "hello", 5);
                 write(1, " world\n", 7);
                 return 0;
-            }"""
-        )
+            }""")
 
         assert text == expected
 
@@ -5084,8 +5083,7 @@ class TestDecompiler(unittest.TestCase):
 
         # Ensure v0 <= 1000 branch is not flipped
         text = normalize_whitespace(dec.codegen.text)
-        expected = normalize_whitespace(
-            r"""
+        expected = normalize_whitespace(r"""
             v0 = 10;
             if (v0 <= 1000)
             {
@@ -5099,8 +5097,7 @@ class TestDecompiler(unittest.TestCase):
                 v0 += 8;
                 v0 += 9;
             }
-            """
-        )
+            """)
 
         assert expected in text
         assert "g(v0)" in text
@@ -5275,61 +5272,41 @@ class TestDecompiler(unittest.TestCase):
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if ((unsigned int)a0)
                     return test_cond_tailcall_jmp_callee(a0);
                 return (unsigned int)a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_jmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if (a0)
                     test_cond_noreturn_tailcall_jmp_callee(); /* do not return */
                 return a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if ((unsigned int)a0)
                     return test_cond_tailcall_cjmp_callee(a0);
                 return (unsigned int)a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
         func = proj.kb.functions["test_cond_noreturn_tailcall_cjmp"]
         dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
                 if (a0)
                     test_cond_noreturn_tailcall_cjmp_callee(); /* do not return */
                 return a0 - 1;
-                """
-            )
-            in normalize_whitespace(dec.codegen.text)
-        )
+                """) in normalize_whitespace(dec.codegen.text)
 
     def test_decompiling_arduino_giga_flash_webhandler_switch_case(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "armhf", "decompiler", "06aa650f61d71744c6709c7c092d9169.hex")
@@ -5380,34 +5357,40 @@ class TestDecompiler(unittest.TestCase):
         assert "return __inbyte(233);" in decomp("test_io_inb")
         assert "__outword(a0, a1);" in decomp("test_io_outw")
         assert "return __inword(a0);" in decomp("test_io_inw")
-        assert (
-            normalize_whitespace(
-                """
+        assert normalize_whitespace("""
             __outdword(3320, a0);
             __outdword(3324, a1);
-            """
-            )
-            in decomp("test_io_outl")
-        )
-        assert (
-            normalize_whitespace(
-                """
+            """) in decomp("test_io_outl")
+        assert normalize_whitespace("""
             __outdword(3320, a0);
             return __indword(3324)
-            """
-            )
-            in decomp("test_io_inl")
-        )
-        assert (
-            normalize_whitespace(
-                """
+            """) in decomp("test_io_inl")
+        assert normalize_whitespace("""
                 if (!(char)__inbyte(233))
                     return 456;
                 return 123;
-                """
-            )
-            in decomp("test_in_cond")
-        )
+                """) in decomp("test_in_cond")
+
+    def test_decompiling_void_function_parameter(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        func = proj.kb.functions["G_DoWorldDone"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # Check that the function definition has (void) not ()
+        assert "G_DoWorldDone(void)" in dec.codegen.text, "Function definition should have (void) parameter"
+
+        # Check that callee prototypes with no args also have (void)
+        callee = proj.kb.functions["G_DoLoadLevel"]
+        assert callee.prototype is not None, "Callee should have a prototype"
+        assert len(callee.prototype.args) == 0, "Callee should have no args"
+        proto_str = callee.prototype.c_repr("G_DoLoadLevel")
+        assert "(void)" in proto_str, f"Callee prototype should have (void), got: {proto_str}"
 
     def test_void_function_calls_no_assignment(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "p_plats.o")

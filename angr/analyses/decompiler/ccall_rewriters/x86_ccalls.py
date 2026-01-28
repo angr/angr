@@ -8,7 +8,6 @@ from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 from .rewriter_base import CCallRewriterBase
 
-
 X86_CondTypes = data["X86"]["CondTypes"]
 X86_OpTypes = data["X86"]["OpTypes"]
 X86_CondBitMasks = data["X86"]["CondBitMasks"]

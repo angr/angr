@@ -39,7 +39,6 @@ from .structurer_nodes import (
 )
 from .structurer_base import StructurerBase
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 

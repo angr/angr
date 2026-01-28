@@ -12,31 +12,31 @@
 	},
 	"functions": {
 		"AssocCreate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['clsid', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['clsid', 'riid', 'ppv']}"
 		},
 		"AssocGetPerceivedType": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PERCEIVED', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszExt', 'ptype', 'pflag', 'ppszType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PERCEIVED', 'ot': 'enum'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszExt', 'ptype', 'pflag', 'ppszType']}"
 		},
 		"AssocIsDangerous": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszAssoc']}"
 		},
 		"AssocQueryKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCKEY', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'key', 'pszAssoc', 'pszExtra', 'phkeyOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCKEY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'key', 'pszAssoc', 'pszExtra', 'phkeyOut']}"
 		},
 		"AssocQueryKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCKEY', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'key', 'pszAssoc', 'pszExtra', 'phkeyOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCKEY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'key', 'pszAssoc', 'pszExtra', 'phkeyOut']}"
 		},
 		"AssocQueryStringA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'int'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'pszAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'pszAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
 		},
 		"AssocQueryStringByKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'int'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'hkAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'enum'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'hkAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
 		},
 		"AssocQueryStringByKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'int'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'hkAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'enum'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'hkAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
 		},
 		"AssocQueryStringW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'int'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'pszAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ASSOCF', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ASSOCSTR', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['flags', 'str', 'pszAssoc', 'pszExtra', 'pszOut', 'pcchOut']}"
 		},
 		"ChrCmpIA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['w1', 'w2']}"
@@ -54,7 +54,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'COLORREF', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['clrRGB', 'pwHue', 'pwLuminance', 'pwSaturation']}"
 		},
 		"ConnectToConnectionPoint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IConnectionPoint', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riidEvent', 'fConnect', 'punkTarget', 'pdwCookie', 'ppcpOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IConnectionPoint', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riidEvent', 'fConnect', 'punkTarget', 'pdwCookie', 'ppcpOut']}"
 		},
 		"GetAcceptLanguagesA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszLanguages', 'pcchLanguages']}"
@@ -75,10 +75,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'pv', 'cb']}"
 		},
 		"IStream_ReadPidl": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'ppidlOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'ppidlOut']}"
 		},
 		"IStream_ReadStr": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'ppsz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'ppsz']}"
 		},
 		"IStream_Reset": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm']}"
@@ -90,7 +90,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'pv', 'cb']}"
 		},
 		"IStream_WritePidl": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'pidlWrite']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'pidlWrite']}"
 		},
 		"IStream_WriteStr": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstm', 'psz']}"
@@ -99,16 +99,16 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ppunk']}"
 		},
 		"IUnknown_GetSite": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'riid', 'ppv']}"
 		},
 		"IUnknown_GetWindow": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWND', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'phwnd']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'phwnd']}"
 		},
 		"IUnknown_QueryService": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'guidService', 'riid', 'ppvOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'guidService', 'riid', 'ppvOut']}"
 		},
 		"IUnknown_Set": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ppunk', 'punk']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ppunk', 'punk']}"
 		},
 		"IUnknown_SetSite": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punk', 'punkSite']}"
@@ -129,13 +129,13 @@
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': []}"
 		},
 		"IsOS": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'OS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwOS']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'OS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwOS']}"
 		},
 		"ParseURLA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PARSEDURLA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcszURL', 'ppu']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PARSEDURLA', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcszURL', 'ppu']}"
 		},
 		"ParseURLW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PARSEDURLW', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcszURL', 'ppu']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PARSEDURLW', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcszURL', 'ppu']}"
 		},
 		"PathAddBackslashA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath']}"
@@ -195,7 +195,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszUrl', 'pszPath', 'pcchPath', 'dwFlags']}"
 		},
 		"PathCreateFromUrlAlloc": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszIn', 'ppszOut', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszIn', 'ppszOut', 'dwFlags']}"
 		},
 		"PathCreateFromUrlW": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszUrl', 'pszPath', 'pcchPath', 'dwFlags']}"
@@ -231,10 +231,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszPath', 'ppszOtherDirs']}"
 		},
 		"PathFindSuffixArrayA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath', 'apszSuffix', 'iArraySize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath', 'apszSuffix', 'iArraySize']}"
 		},
 		"PathFindSuffixArrayW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath', 'apszSuffix', 'iArraySize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath', 'apszSuffix', 'iArraySize']}"
 		},
 		"PathGetArgsA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['pszPath']}"
@@ -477,7 +477,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['lpsz']}"
 		},
 		"QISearch": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'QITAB', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['that', 'pqit', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'QITAB', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['that', 'pqit', 'riid', 'ppv']}"
 		},
 		"SHAllocShared": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': ['pvData', 'dwSize', 'dwProcessId']}"
@@ -489,13 +489,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszSrc', 'pwszDst', 'cwchBuf']}"
 		},
 		"SHAutoComplete": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHELL_AUTOCOMPLETE_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndEdit', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHELL_AUTOCOMPLETE_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndEdit', 'dwFlags']}"
 		},
 		"SHCopyKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkeySrc', 'pszSrcSubKey', 'hkeyDest', 'fReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkeySrc', 'pszSrcSubKey', 'hkeyDest', 'fReserved']}"
 		},
 		"SHCopyKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkeySrc', 'pszSrcSubKey', 'hkeyDest', 'fReserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkeySrc', 'pszSrcSubKey', 'hkeyDest', 'fReserved']}"
 		},
 		"SHCreateMemStream": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, 'arg_names': ['pInit', 'cbInit']}"
@@ -504,58 +504,58 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HDC', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HPALETTE', 'ot': 'ptr'}, 'arg_names': ['hdc']}"
 		},
 		"SHCreateStreamOnFileA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'ppstm']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'ppstm']}"
 		},
 		"SHCreateStreamOnFileEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'dwAttributes', 'fCreate', 'pstmTemplate', 'ppstm']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'dwAttributes', 'fCreate', 'pstmTemplate', 'ppstm']}"
 		},
 		"SHCreateStreamOnFileW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'ppstm']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszFile', 'grfMode', 'ppstm']}"
 		},
 		"SHCreateThread": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pfnThreadProc', 'pData', 'flags', 'pfnCallback']}"
 		},
 		"SHCreateThreadRef": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcRef', 'ppunk']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pcRef', 'ppunk']}"
 		},
 		"SHCreateThreadWithHandle": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pfnThreadProc', 'pData', 'flags', 'pfnCallback', 'pHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['lpThreadParameter']}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pfnThreadProc', 'pData', 'flags', 'pfnCallback', 'pHandle']}"
 		},
 		"SHDeleteEmptyKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey']}"
 		},
 		"SHDeleteEmptyKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey']}"
 		},
 		"SHDeleteKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey']}"
 		},
 		"SHDeleteKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey']}"
 		},
 		"SHDeleteValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue']}"
 		},
 		"SHDeleteValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue']}"
 		},
 		"SHEnumKeyExA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'dwIndex', 'pszName', 'pcchName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'dwIndex', 'pszName', 'pcchName']}"
 		},
 		"SHEnumKeyExW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'dwIndex', 'pszName', 'pcchName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'dwIndex', 'pszName', 'pcchName']}"
 		},
 		"SHEnumValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHEnumValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHFormatDateTimeA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pft', 'pdwFlags', 'pszBuf', 'cchBuf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pft', 'pdwFlags', 'pszBuf', 'cchBuf']}"
 		},
 		"SHFormatDateTimeW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pft', 'pdwFlags', 'pszBuf', 'cchBuf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FILETIME', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pft', 'pdwFlags', 'pszBuf', 'cchBuf']}"
 		},
 		"SHFreeShared": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hData', 'dwProcessId']}"
@@ -564,25 +564,25 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pbMap', 'cbMap']}"
 		},
 		"SHGetThreadRef": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppunk']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppunk']}"
 		},
 		"SHGetValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHGetValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHGetViewStatePropertyBag": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'pszBagName', 'dwFlags', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pidl', 'pszBagName', 'dwFlags', 'riid', 'ppv']}"
 		},
 		"SHGlobalCounterDecrement": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
 		},
 		"SHGlobalCounterGetValue": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
 		},
 		"SHGlobalCounterIncrement": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SHGLOBALCOUNTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['id']}"
 		},
 		"SHIsLowMemoryMachine": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['dwType']}"
@@ -612,52 +612,52 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, 'arg_names': ['hkey', 'pszSubkey', 'pszValue', 'grfMode']}"
 		},
 		"SHQueryInfoKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen']}"
 		},
 		"SHQueryInfoKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen']}"
 		},
 		"SHQueryValueExA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszValue', 'pdwReserved', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszValue', 'pdwReserved', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHQueryValueExW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszValue', 'pdwReserved', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszValue', 'pdwReserved', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHRegCloseUSKey": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey']}"
 		},
 		"SHRegCreateUSKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'dwFlags']}"
 		},
 		"SHRegCreateUSKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pwzPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pwzPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'dwFlags']}"
 		},
 		"SHRegDeleteEmptyUSKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pszSubKey', 'delRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pszSubKey', 'delRegFlags']}"
 		},
 		"SHRegDeleteEmptyUSKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pwzSubKey', 'delRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pwzSubKey', 'delRegFlags']}"
 		},
 		"SHRegDeleteUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pszValue', 'delRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pszValue', 'delRegFlags']}"
 		},
 		"SHRegDeleteUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pwzValue', 'delRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SHREGDEL_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pwzValue', 'delRegFlags']}"
 		},
 		"SHRegDuplicateHKey": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, 'arg_names': ['hkey']}"
 		},
 		"SHRegEnumUSKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'dwIndex', 'pszName', 'pcchName', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'dwIndex', 'pszName', 'pcchName', 'enumRegFlags']}"
 		},
 		"SHRegEnumUSKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'dwIndex', 'pwzName', 'pcchName', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'dwIndex', 'pwzName', 'pcchName', 'enumRegFlags']}"
 		},
 		"SHRegEnumUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData', 'enumRegFlags']}"
 		},
 		"SHRegEnumUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSkey', 'dwIndex', 'pszValueName', 'pcchValueName', 'pdwType', 'pvData', 'pcbData', 'enumRegFlags']}"
 		},
 		"SHRegGetBoolUSValueA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszSubKey', 'pszValue', 'fIgnoreHKCU', 'fDefault']}"
@@ -669,61 +669,61 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hk', 'pwzKey', 'iDefault']}"
 		},
 		"SHRegGetPathA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pszPath', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pszPath', 'dwFlags']}"
 		},
 		"SHRegGetPathW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pszPath', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pszPath', 'dwFlags']}"
 		},
 		"SHRegGetUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
 		},
 		"SHRegGetUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszSubKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
 		},
 		"SHRegGetValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHRegGetValueFromHKCUHKLM": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pwszKey', 'pwszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pwszKey', 'pwszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHRegGetValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'srrfFlags', 'pdwType', 'pvData', 'pcbData']}"
 		},
 		"SHRegOpenUSKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'fIgnoreHKCU']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'fIgnoreHKCU']}"
 		},
 		"SHRegOpenUSKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pwzPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'fIgnoreHKCU']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pwzPath', 'samDesired', 'hRelativeUSKey', 'phNewUSKey', 'fIgnoreHKCU']}"
 		},
 		"SHRegQueryInfoUSKeyA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen', 'enumRegFlags']}"
 		},
 		"SHRegQueryInfoUSKeyW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen', 'enumRegFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'SHREGENUM_FLAGS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pcSubKeys', 'pcchMaxSubKeyLen', 'pcValues', 'pcchMaxValueNameLen', 'enumRegFlags']}"
 		},
 		"SHRegQueryUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
 		},
 		"SHRegQueryUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pszValue', 'pdwType', 'pvData', 'pcbData', 'fIgnoreHKCU', 'pvDefaultData', 'dwDefaultDataSize']}"
 		},
 		"SHRegSetPathA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pcszPath', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pcszPath', 'dwFlags']}"
 		},
 		"SHRegSetPathW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pcszPath', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hKey', 'pcszSubKey', 'pcszValue', 'pcszPath', 'dwFlags']}"
 		},
 		"SHRegSetUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pszSubKey', 'pszValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pszSubKey', 'pszValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
 		},
 		"SHRegSetUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['pwzSubKey', 'pwzValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pwzSubKey', 'pwzValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
 		},
 		"SHRegWriteUSValueA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pszValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pszValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
 		},
 		"SHRegWriteUSValueW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'int'}, 'arg_names': ['hUSKey', 'pwzValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'label': 'Int'}, 'label': 'IntPtr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['hUSKey', 'pwzValue', 'dwType', 'pvData', 'cbData', 'dwFlags']}"
 		},
 		"SHReleaseThreadRef": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
@@ -744,13 +744,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HKEY', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hkey', 'pszSubKey', 'pszValue', 'dwType', 'pvData', 'cbData']}"
 		},
 		"SHSkipJunction": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbc', 'pclsid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IBindCtx', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pbc', 'pclsid']}"
 		},
 		"SHStrDupA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'ppwsz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'ppwsz']}"
 		},
 		"SHStrDupW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'ppwsz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['psz', 'ppwsz']}"
 		},
 		"SHStripMneumonicA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'CHAR', 'ot': 'char'}, 'arg_names': ['pszMenu']}"
@@ -768,10 +768,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pvData']}"
 		},
 		"ShellMessageBoxA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MESSAGEBOX_STYLE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hAppInst', 'hWnd', 'lpcText', 'lpcTitle', 'fuStyle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MESSAGEBOX_STYLE', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hAppInst', 'hWnd', 'lpcText', 'lpcTitle', 'fuStyle']}"
 		},
 		"ShellMessageBoxW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MESSAGEBOX_STYLE', 'ot': 'int'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hAppInst', 'hWnd', 'lpcText', 'lpcTitle', 'fuStyle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HINSTANCE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MESSAGEBOX_STYLE', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['hAppInst', 'hWnd', 'lpcText', 'lpcTitle', 'fuStyle']}"
 		},
 		"StrCSpnA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['pszStr', 'pszSet']}"
@@ -879,7 +879,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['dw', 'pszBuf', 'cchBuf']}"
 		},
 		"StrFormatByteSizeEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'SFBS_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ull', 'flags', 'pszBuf', 'cchBuf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': '_ref', 'name': 'SFBS_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ull', 'flags', 'pszBuf', 'cchBuf']}"
 		},
 		"StrFormatByteSizeW": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['qdw', 'pszBuf', 'cchBuf']}"
@@ -933,19 +933,19 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'arg_names': ['pszSource', 'pszLast', 'pszSrch']}"
 		},
 		"StrRetToBSTR": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pbstr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pbstr']}"
 		},
 		"StrRetToBufA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pszBuf', 'cchBuf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pszBuf', 'cchBuf']}"
 		},
 		"StrRetToBufW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pszBuf', 'cchBuf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'pszBuf', 'cchBuf']}"
 		},
 		"StrRetToStrA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'ppsz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'ppsz']}"
 		},
 		"StrRetToStrW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'ppsz']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'STRRET', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ITEMIDLIST', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pstr', 'pidl', 'ppsz']}"
 		},
 		"StrSpnA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['psz', 'pszSet']}"
@@ -1053,7 +1053,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszUrl', 'pbHash', 'cbHash']}"
 		},
 		"UrlIsA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'URLIS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszUrl', 'UrlIs']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'URLIS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszUrl', 'UrlIs']}"
 		},
 		"UrlIsNoHistoryA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszURL']}"
@@ -1068,7 +1068,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszURL']}"
 		},
 		"UrlIsW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'URLIS', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszUrl', 'UrlIs']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'URLIS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pszUrl', 'UrlIs']}"
 		},
 		"UrlUnescapeA": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszUrl', 'pszUnescaped', 'pcchUnescaped', 'dwFlags']}"

@@ -1,11 +1,12 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 import os
 import logging
 import tempfile
 import uuid
 import contextlib
 import shutil
+import weakref
 from collections import defaultdict
 
 import lmdb
@@ -22,6 +23,27 @@ RTDB_BASEDIR: str | None = os.environ.get("RTDB_BASE")
 l = logging.getLogger(__name__)
 
 
+class RuntimeDbForkCondom:
+    """
+    A class that invokes RuntimeDb.reopen_lmdb() upon forking. This is necessary to ensure that lmdb does not raise
+    ReaderFullError in forked child processes. The reopen_rtdb() method is not called on Windows because
+    os.register_at_fork does not exist on Windows.
+    """
+
+    def __init__(self, rtdb: RuntimeDb):
+        self.rtdb = weakref.proxy(rtdb)
+        if hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=self.reopen_rtdb)
+
+    def reopen_rtdb(self):
+        if self.rtdb is None:
+            return
+        try:
+            self.rtdb.reopen_lmdb()
+        except ReferenceError:
+            self.rtdb = None
+
+
 class RuntimeDb(KnowledgeBasePlugin):
     """
     External storage-backed database for angr knowledge base plugins.
@@ -34,6 +56,8 @@ class RuntimeDb(KnowledgeBasePlugin):
         self._lmdb_env: lmdb.Environment | None = None
         self._lmdb_mapsize: int = 1024 * 1024 * 10
         self._dbnames: defaultdict[str, int] = defaultdict(int)
+        self._dbs: dict[str, Any] = {}
+        self._condom = RuntimeDbForkCondom(self)
 
     def __del__(self):
         self._cleanup_lmdb()
@@ -159,22 +183,48 @@ class RuntimeDb(KnowledgeBasePlugin):
         self._lmdb_mapsize += delta
         self._lmdb_env.set_mapsize(self._lmdb_mapsize)
 
-    def get_db(self, db_name: str, unique: bool = True):
+    def reopen_lmdb(self):
+        """
+        Reopen the existing LMDB environment and all open databases in self._dbs.
+        """
+
+        if self._lmdb_path is None:
+            # we've never opened any LMDB before
+            return
+
+        if self._lmdb_env is not None:
+            self._lmdb_env.close()
+            self._lmdb_env = None
+
+        self._init_lmdb()
+        assert self._lmdb_env is not None
+
+        for db_name in list(self._dbs):
+            self._dbs[db_name] = self._lmdb_env.open_db(db_name.encode())
+
+    def open_db(self, db_name: str, unique: bool = True) -> str:
         self._init_lmdb()
         assert self._lmdb_env is not None
         if unique:
             db_name = self._get_unique_dbname(db_name)
-        return self._lmdb_env.open_db(db_name.encode())
+        if db_name in self._dbs:
+            return db_name
+        db = self._lmdb_env.open_db(db_name.encode())
+        self._dbs[db_name] = db
+        return db_name
 
-    def begin_txn(self, db, write: bool = False):
+    def begin_txn(self, db_name: str, write: bool = False):
+        db = self._dbs[db_name]
         assert self._lmdb_env is not None
         return self._lmdb_env.begin(db=db, write=write)
 
-    def drop_db(self, db) -> None:
+    def drop_db(self, db_name: str) -> None:
+        db = self._dbs[db_name]
         if self._lmdb_env is None:
             return
         with self._lmdb_env.begin(write=True) as txn:
             txn.drop(db)
+        del self._dbs[db_name]
 
 
 KnowledgeBasePlugin.register_default("rtdb", RuntimeDb)

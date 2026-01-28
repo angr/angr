@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"GetScaleFactorForDevice": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'DEVICE_SCALE_FACTOR', 'ot': 'int'}, 'arg_names': ['deviceType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'DEVICE_SCALE_FACTOR', 'ot': 'enum'}, 'arg_names': ['deviceType']}"
 		},
 		"RegisterScaleChangeNotifications": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'int'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['displayDevice', 'hwndNotify', 'uMsgNotify', 'pdwCookie']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'enum'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['displayDevice', 'hwndNotify', 'uMsgNotify', 'pdwCookie']}"
 		},
 		"RevokeScaleChangeNotifications": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['displayDevice', 'dwCookie']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'DISPLAY_DEVICE_TYPE', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['displayDevice', 'dwCookie']}"
 		}
 	}
 }

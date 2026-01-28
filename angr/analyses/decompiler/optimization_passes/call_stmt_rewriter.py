@@ -5,7 +5,6 @@ from angr.ailment.statement import Call, Assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

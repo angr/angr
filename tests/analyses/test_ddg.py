@@ -15,7 +15,6 @@ from angr.sim_variable import SimRegisterVariable
 
 from tests.common import bin_location
 
-
 l = logging.getLogger("angr.tests.test_ddg")
 test_location = os.path.join(bin_location, "tests")
 

@@ -13,7 +13,6 @@ import angr
 
 from tests.common import bin_location, print_decompilation_result, set_decompiler_option, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)

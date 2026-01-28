@@ -5,7 +5,6 @@ from .phoenix import PhoenixStructurer
 from .sailr import SAILRStructurer
 from .recursive_structurer import RecursiveStructurer
 
-
 STRUCTURER_CLASSES = {
     SAILRStructurer.NAME: SAILRStructurer,
     PhoenixStructurer.NAME: PhoenixStructurer,

@@ -12,25 +12,25 @@
 	},
 	"functions": {
 		"AddPrintDeviceObject": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hPrinter', 'phDeviceObject']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hPrinter', 'phDeviceObject']}"
 		},
 		"AppendPrinterNotifyInfoData": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO_DATA', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfoDest', 'pDataSrc', 'fdwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO_DATA', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfoDest', 'pDataSrc', 'fdwFlags']}"
 		},
 		"CallRouterFindFirstPrinterChangeNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_OPTIONS', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hPrinterRPC', 'fdwFilterFlags', 'fdwOptions', 'hNotify', 'pPrinterNotifyOptions']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_OPTIONS', 'ot': 'struct'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hPrinterRPC', 'fdwFilterFlags', 'fdwOptions', 'hNotify', 'pPrinterNotifyOptions']}"
 		},
 		"GetJobAttributes": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEW', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ATTRIBUTE_INFO_3', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPrinterName', 'pDevmode', 'pAttributeInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEW', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'ATTRIBUTE_INFO_3', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPrinterName', 'pDevmode', 'pAttributeInfo']}"
 		},
 		"GetJobAttributesEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEW', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPrinterName', 'pDevmode', 'dwLevel', 'pAttributeInfo', 'nSize', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVMODEW', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pPrinterName', 'pDevmode', 'dwLevel', 'pAttributeInfo', 'nSize', 'dwFlags']}"
 		},
 		"ImpersonatePrinterClient": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hToken']}"
 		},
 		"PartialReplyPrinterChangeNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO_DATA', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'pDataSrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO_DATA', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'pDataSrc']}"
 		},
 		"ProvidorFindClosePrinterChangeNotification": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter']}"
@@ -54,37 +54,37 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'arg_names': ['NumBytes']}"
 		},
 		"RouterAllocBidiResponseContainer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BIDI_RESPONSE_CONTAINER', 'ot': '_ref'}}, 'arg_names': ['Count']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BIDI_RESPONSE_CONTAINER', 'ot': 'struct'}}, 'arg_names': ['Count']}"
 		},
 		"RouterAllocPrinterNotifyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': '_ref'}}, 'arg_names': ['cPrinterNotifyInfoData']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': 'struct'}}, 'arg_names': ['cPrinterNotifyInfoData']}"
 		},
 		"RouterFreeBidiMem": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pMemPointer']}"
 		},
 		"RouterFreePrinterNotifyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['pInfo']}"
 		},
 		"SplIsSessionZero": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hPrinter', 'JobId', 'pIsSessionZero']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hPrinter', 'JobId', 'pIsSessionZero']}"
 		},
 		"SplPromptUIInUsersSession": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SHOWUIPARAMS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'JobId', 'pUIParams', 'pResponse']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SHOWUIPARAMS', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'JobId', 'pUIParams', 'pResponse']}"
 		},
 		"SpoolerFindClosePrinterChangeNotification": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter']}"
 		},
 		"SpoolerFindFirstPrinterChangeNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'fdwFilterFlags', 'fdwOptions', 'pPrinterNotifyOptions', 'pvReserved', 'pNotificationConfig', 'phNotify', 'phEvent']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'fdwFilterFlags', 'fdwOptions', 'pPrinterNotifyOptions', 'pvReserved', 'pNotificationConfig', 'phNotify', 'phEvent']}"
 		},
 		"SpoolerFindNextPrinterChangeNotification": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'pfdwChange', 'pPrinterNotifyOptions', 'ppPrinterNotifyInfo']}"
 		},
 		"SpoolerFreePrinterNotifyInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': '_ref'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['pInfo']}"
 		},
 		"SpoolerRefreshPrinterChangeNotification": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_OPTIONS', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'dwColor', 'pOptions', 'ppInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_OPTIONS', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PRINTER_NOTIFY_INFO', 'ot': 'struct'}}}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hPrinter', 'dwColor', 'pOptions', 'ppInfo']}"
 		},
 		"UpdatePrintDeviceObject": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hPrinter', 'hDeviceObject']}"

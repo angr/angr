@@ -10,7 +10,6 @@ import angr
 
 from tests.common import bin_location, broken
 
-
 test_location = os.path.join(bin_location, "tests")
 
 target_addrs = {"i386": [0x080485C9], "x86_64": [0x4006ED], "ppc": [0x1000060C], "armel": [0x85F0], "mips": [0x4009FC]}

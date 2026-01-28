@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# pylint: disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 
 import os
+import struct
 from unittest import TestCase, main
 
 import archinfo
@@ -17,9 +19,10 @@ from angr.calling_conventions import (
     SimTypeFunction,
     SimRegArg,
     SimCCMicrosoftAMD64,
+    SimCCRISCV64,
 )
 from angr.sim_type import parse_file, SimStructValue
-from angr import Project, load_shellcode
+from angr import Project, load_shellcode, types
 
 from .common import bin_location
 
@@ -61,7 +64,7 @@ class TestCallingConvention(TestCase):
         cc.arg_locs(proto)
 
     def test_struct_ffi(self):
-        with open(os.path.join(test_location, "../tests_src/test_structs.c")) as fp:
+        with open(os.path.join(test_location, "../tests_src/test_structs.c"), encoding="utf-8") as fp:
             decls = parse_file(fp.read())
 
         p = Project(os.path.join(test_location, "x86_64/test_structs.o"), auto_load_libs=False)
@@ -112,6 +115,87 @@ class TestCallingConvention(TestCase):
         assert isinstance(loc4, SimReferenceArgument)
         assert loc4.ptr_loc == SimRegArg("rcx", 8)
         assert loc4.main_loc.get_footprint() == {SimStackArg(0, 2), SimStackArg(4, 4), SimStackArg(8, 2)}
+
+    def test_riscv64_args_actual_values(self):
+        bin_path = os.path.join(test_location, "riscv64", "sim_args_riscv64.so")
+        src_location = os.path.join(bin_location, "tests_src")
+
+        proj = Project(bin_path, auto_load_libs=False)
+
+        symbol = proj.loader.find_symbol("complex_func")
+        func_addr = symbol.rebased_addr
+        cc = SimCCRISCV64(proj.arch)
+
+        c_decl = os.path.join(src_location, "arch", "riscv", "sim_args_riscv64.c")
+        with open(c_decl, encoding="utf-8") as f:
+            raw_content = f.read()
+        defns, _ = types.parse_file(raw_content)
+        proto = defns["complex_func"].with_arch(proj.arch)
+
+        args = [100, {"f": 1.0, "i": 2}, 3.0, {"x": 10.0, "y": 20.0, "z": 30.0}, 4, 5, 6, 7, 8, 9.0, 10, 11, 12.0]
+
+        state = proj.factory.call_state(func_addr, *args, cc=cc, prototype=proto)
+
+        assert state.solver.eval(state.regs.a0) == 100
+
+        fa0_val = state.solver.eval(state.regs.fa0[31:0].raw_to_fp())
+        a1_val = state.solver.eval(state.regs.a1[31:0])
+        assert fa0_val == 1.0
+        assert a1_val == 2
+
+        fa1_val = state.solver.eval(state.regs.fa1.raw_to_fp())
+        assert fa1_val == 3.0
+
+        s2_ptr = state.solver.eval(state.regs.a2)
+        s2_x = state.solver.eval(state.memory.load(s2_ptr, 8, endness="Iend_LE").raw_to_fp())
+        assert s2_x == 10.0
+
+        sp_val = state.solver.eval(state.regs.sp)
+        r9_on_stack = state.solver.eval(state.memory.load(sp_val, 8, endness="Iend_LE"))
+        assert r9_on_stack == 10
+
+        fa3_val = state.solver.eval(state.regs.fa3[31:0].raw_to_fp())
+        assert fa3_val == 12.0
+
+    def test_riscv64_args_flatten_actual_values(self):
+        bin_path = os.path.join(test_location, "riscv64", "sim_args_flatten_riscv64.so")
+        src_location = os.path.join(bin_location, "tests_src")
+
+        proj = Project(bin_path, auto_load_libs=False)
+
+        symbol = proj.loader.find_symbol("complex_func")
+        func_addr = symbol.rebased_addr
+
+        cc = SimCCRISCV64(proj.arch)
+
+        c_decl = os.path.join(src_location, "arch", "riscv", "sim_args_flatten_riscv64.c")
+        with open(c_decl, encoding="utf-8") as f:
+            raw_content = f.read()
+        defns, _ = types.parse_file(raw_content)
+        proto = defns["complex_func"].with_arch(proj.arch)
+
+        args = [{"f": 1.0, "i": 2}, {"x": 10, "y": 20}, {"a": 101.3, "c": 102.3, "d": 60}]
+        state = proj.factory.call_state(func_addr, *args, cc=cc, prototype=proto)
+
+        fa0_val = state.solver.eval(state.regs.fa0[31:0].raw_to_fp())
+        a0_val = state.solver.eval(state.regs.a0[31:0])
+        assert fa0_val == 1.0
+        assert a0_val == 2
+
+        a1_val = state.solver.eval(state.regs.a1)
+        assert (a1_val & 0xFFFFFFFF) == 10
+        assert (a1_val >> 32) == 20
+
+        a2_bits = state.solver.eval(state.regs.a2)
+        a3_val = state.solver.eval(state.regs.a3)
+
+        a2_float = struct.unpack("<d", struct.pack("<Q", a2_bits))[0]
+        assert abs(a2_float - 101.3) < 0.00001
+
+        c_bits = a3_val & 0xFFFFFFFF
+        c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
+        assert abs(c_float - 102.3) < 0.00001
+        assert (a3_val >> 32) == 60
 
 
 if __name__ == "__main__":

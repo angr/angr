@@ -100,16 +100,12 @@ class TestMemView(unittest.TestCase):
     def test_structs(self):
         s = SimState(arch="AMD64")
 
-        register_types(
-            parse_types(
-                """
+        register_types(parse_types("""
     struct test_structs {
       int a;
       long b;
     };
-    """
-            )
-        )
+    """))
 
         s.memory.store(0x8000, bytes(16))
         s.mem[0x8000].struct.test_structs = {"a": 10, "b": 20}
@@ -181,16 +177,14 @@ class TestMemView(unittest.TestCase):
             assert v.c.concrete == result[2], f"Field c was {v.c.concrete}, expected {result[2]}, from bytes {b}"
 
     def test_struct_bitfield_complex(self):
-        bitfield_struct2 = angr.types.parse_type(
-            """struct bitfield_struct2
+        bitfield_struct2 = angr.types.parse_type("""struct bitfield_struct2
         {
             uint64_t    target    : 36,
                         high8     :  8,
                         reserved  :  7,
                         next      : 12,
                         bind      :  1;
-        }"""
-        )
+        }""")
 
         angr.types.register_types(bitfield_struct2)
         state = SimState(arch="AMD64")

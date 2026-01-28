@@ -6,7 +6,6 @@ from enum import Enum, IntEnum
 from abc import abstractmethod
 from typing_extensions import Self
 
-
 try:
     import claripy
 except ImportError:

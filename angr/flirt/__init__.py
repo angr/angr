@@ -14,7 +14,6 @@ from angr.analyses.flirt import (
     flirt_os_type_to_os_name,
 )
 
-
 _l = logging.getLogger(__name__)
 
 

@@ -13,7 +13,6 @@ from angr.knowledge_plugins.variables import VariableType
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.getLogger("test_variablerecovery")

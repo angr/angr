@@ -15,7 +15,6 @@ import angr
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
 from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
 
-
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
 

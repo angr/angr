@@ -12,7 +12,6 @@ import angr
 
 from tests.common import bin_location, skip_if_not_linux
 
-
 test_location = os.path.join(bin_location, "tests")
 
 

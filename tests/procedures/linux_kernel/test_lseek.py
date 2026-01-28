@@ -7,7 +7,6 @@ import claripy
 from angr import SIM_PROCEDURES
 from angr import SimState, SimPosixError, SimFile
 
-
 FAKE_ADDR = 0x100000
 
 

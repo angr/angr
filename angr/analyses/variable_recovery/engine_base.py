@@ -11,7 +11,7 @@ from angr.engines.light.engine import BlockType
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
@@ -217,9 +217,11 @@ class SimEngineVRBase(
             existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
 
             if not existing_vars:
+                sym = self.project.loader.find_symbol(global_var_addr)
+                var_size = sym.size if sym and sym.size else 1
                 variable = SimMemoryVariable(
                     global_var_addr,
-                    1,
+                    var_size,
                     ident=variable_manager.next_variable_ident("global"),
                 )
                 variable_manager.set_variable("global", global_var_addr, variable)
@@ -474,7 +476,10 @@ class SimEngineVRBase(
 
             # create constraints accordingly
             if richr.typevar is not typevar:
-                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+                if richr.data.concrete:
+                    self.state.add_type_constraint(typevars.Equivalence(richr.typevar, typevar))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
@@ -724,7 +729,10 @@ class SimEngineVRBase(
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
-            self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
+            if data.data.concrete:
+                self.state.add_type_constraint(typevars.Equivalence(store_typevar, data_typevar))
+            else:
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
     def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
         """
@@ -1211,6 +1219,46 @@ class SimEngineVRBase(
             self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
 
         return RichR(value, variable=var, typevar=typevar)
+
+    def _get_const(self, value, bits: int, expr=None) -> RichR:
+        codeloc = self._codeloc()
+
+        if isinstance(value, float):
+            v = claripy.FPV(value, claripy.FSORT_DOUBLE if bits == 64 else claripy.FSORT_FLOAT).to_bv()
+            ty = typeconsts.float_type(bits)
+        else:
+            if self.project.loader.find_segment_containing(value) is not None:
+                r = self._load_from_global(value, 1, expr=expr)
+                ty = r.typevar
+            else:
+                # this allows us to type integer constants if necessary
+                var_candidates: set[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_atom(
+                    self.block.addr,
+                    self.stmt_idx,
+                    expr,
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                if not var_candidates:
+                    var = SimConstantVariable(
+                        bits // self.state.arch.byte_width,
+                        ident=self.state.variable_manager[self.func_addr].next_variable_ident("constant"),
+                        value=value,
+                    )
+                    self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
+                else:
+                    var = next(iter(var_candidates))[0]
+                ty = typevars.TypeVariable()
+                ty_const = typeconsts.int_type(bits)
+                if not self.state.typevars.has_type_variable_for(var):
+                    self.state.typevars.add_type_variable(var, ty)
+                self.state.add_type_constraint(typevars.Subtype(ty, ty_const))
+            v = claripy.BVV(value, bits)
+        r = RichR(v, typevar=ty)
+        self._ensure_variable_existence(r, codeloc)
+        self._reference(r, codeloc)
+        return r
 
     def _create_access_typevar(
         self,

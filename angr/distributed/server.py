@@ -7,7 +7,6 @@ import multiprocessing
 
 from .worker import Worker
 
-
 _l = logging.getLogger(__name__)
 
 

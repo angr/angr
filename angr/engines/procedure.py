@@ -6,7 +6,6 @@ from angr import errors
 from angr.state_plugins.inspect import BP_BEFORE, BP_AFTER
 from .successors import SuccessorsEngine
 
-
 l = logging.getLogger(name=__name__)
 # pylint: disable=arguments-differ
 

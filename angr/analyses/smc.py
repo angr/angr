@@ -12,7 +12,6 @@ from angr.sim_state import SimState
 
 from angr.utils.tagged_interval_map import TaggedIntervalMap
 
-
 log = logging.getLogger(__name__)
 log.setLevel(logging.INFO)
 

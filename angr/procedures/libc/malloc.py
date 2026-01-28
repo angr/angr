@@ -2,7 +2,6 @@ from __future__ import annotations
 import angr
 import itertools
 
-
 malloc_mem_counter = itertools.count()
 
 

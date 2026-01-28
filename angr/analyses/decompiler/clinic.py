@@ -40,7 +40,7 @@ from angr.sim_type import (
     SimCppClass,
 )
 from angr.analyses.stack_pointer_tracker import Register, OffsetVal
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
 from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.analyses import Analysis, register_analysis
@@ -227,7 +227,7 @@ class Clinic(Analysis):
         # intermediate variables used during decompilation
         #
 
-        self._ail_graph: networkx.DiGraph = None  # type:ignore
+        self._ail_graph: networkx.DiGraph = None  # type: ignore
         self._spt = None
         # cached block-level reaching definition analysis results and propagator results
         self._block_simplification_cache: dict[ailment.Block, NamedTuple] | None = {}
@@ -989,7 +989,7 @@ class Clinic(Analysis):
         return graph_copy
 
     def copy_graph(self, graph=None) -> networkx.DiGraph:
-        return self._copy_graph(graph or self.graph)  # type:ignore
+        return self._copy_graph(graph or self.graph)  # type: ignore
 
     @timethis
     def _set_function_graph(self):
@@ -1112,7 +1112,7 @@ class Clinic(Analysis):
                     callsite_block_addr=callsite.addr,
                     callsite_insn_addr=callsite_ins_addr,
                     func_graph=func_graph,
-                    fail_fast=self._fail_fast,  # type:ignore
+                    fail_fast=self._fail_fast,  # type: ignore
                 )
 
                 if cc.cc is not None and cc.prototype is not None:
@@ -1828,14 +1828,14 @@ class Clinic(Analysis):
             args: list[SimFunctionArgument] = self.function.calling_convention.arg_locs(proto)
             arg_vars: list[SimVariable] = []
             if args:
-                arg_names = self.function.prototype.arg_names or [f"a{i}" for i in range(len(args))]
+                arg_names = self.function.prototype.arg_names or ()
                 for idx, arg in enumerate(args):
                     if isinstance(arg, SimRegArg):
                         argvar = SimRegisterVariable(
                             self.project.arch.registers[arg.reg_name][0],
                             arg.size,
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStackArg):
@@ -1844,13 +1844,13 @@ class Clinic(Analysis):
                             arg.size,
                             base="bp",
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                         )
                     else:
                         argvar = SimVariable(
                             ident=f"arg_{idx}",
-                            name=arg_names[idx],
+                            name=arg_names[idx] if idx < len(arg_names) and arg_names[idx] else f"a{idx}",
                             region=self.function.addr,
                             size=arg.size,
                         )
@@ -1988,10 +1988,10 @@ class Clinic(Analysis):
         tmp_kb.functions = self.kb.functions
         vr = self.project.analyses.VariableRecoveryFast(
             self.function,  # pylint:disable=unused-variable
-            fail_fast=self._fail_fast,  # type:ignore
+            fail_fast=self._fail_fast,  # type: ignore
             func_graph=ail_graph,
             entry_node_addr=self.entry_node_addr,
-            kb=tmp_kb,  # type:ignore
+            kb=tmp_kb,  # type: ignore
             track_sp=False,
             func_args=arg_list,
             func_ret_var=self.func_ret_var,
@@ -2064,7 +2064,8 @@ class Clinic(Analysis):
                     {
                         v: t
                         for v, t in vr.var_to_typevars.items()
-                        if isinstance(v, (SimRegisterVariable, SimStackVariable)) or v is self.func_ret_var
+                        if isinstance(v, (SimRegisterVariable, SimStackVariable, SimConstantVariable))
+                        or v is self.func_ret_var
                     },
                     vr.stack_offset_typevars,
                 )
@@ -2340,8 +2341,8 @@ class Clinic(Analysis):
             else:
                 # global variable?
                 global_vars = global_variables.get_global_variables(expr.value_int)
-                # detect if there is a related symbol
                 if not global_vars and self.project.loader.find_object_containing(expr.value_int):
+                    # detect if there is a related symbol
                     symbol = self.project.loader.find_symbol(expr.value)
                     if symbol is not None:
                         # Create a new global variable if there isn't one already
@@ -2354,6 +2355,13 @@ class Clinic(Analysis):
                     global_var = next(iter(global_vars))
                     expr.tags["reference_variable"] = global_var
                     expr.tags["reference_variable_offset"] = 0
+                else:
+                    # is there a related constant variable?
+                    variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
+                    if len(variables) >= 1:
+                        var, offset = next(iter(variables))
+                        expr.variable = var
+                        expr.variable_offset = offset
 
         elif isinstance(expr, ailment.Stmt.Call):
             self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
@@ -2383,8 +2391,8 @@ class Clinic(Analysis):
     ) -> bool:
         any_struct_found = False
         off = the_stack_offset
-        for stack_off in variable_manager.stack_offset_to_struct.irange(maximum=off, reverse=True):
-            the_var, vartype = variable_manager.stack_offset_to_struct[stack_off]
+        for stack_off in variable_manager.stack_offset_to_complex_types.irange(maximum=off, reverse=True):
+            the_var, vartype = variable_manager.stack_offset_to_complex_types[stack_off]
             if stack_off <= off < stack_off + vartype.size // self.project.arch.byte_width:
                 expr_or_stmt.tags["struct_member_info"] = off - stack_off, the_var, vartype
                 any_struct_found = True

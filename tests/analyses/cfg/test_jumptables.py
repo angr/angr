@@ -20,7 +20,6 @@ if TYPE_CHECKING:
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 l = logging.getLogger("angr.tests.test_jumptables")
 

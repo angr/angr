@@ -10,7 +10,6 @@ from .api_obf_peephole_optimizer import APIObfType1PeepholeOptimizer, APIObfType
 from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
 from .data_transformation_embedder import DataTransformationEmbedder
 
-
 __all__ = (
     "APIObfType1PeepholeOptimizer",
     "APIObfType3PeepholeOptimizer",

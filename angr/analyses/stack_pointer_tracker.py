@@ -24,7 +24,6 @@ from angr.codenode import FuncNode
 
 from .analysis import Analysis
 
-
 if TYPE_CHECKING:
     from angr.block import Block
 

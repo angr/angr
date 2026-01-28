@@ -27,7 +27,6 @@ from .function_handler import FunctionHandler, FunctionCallRelationships
 from .dep_graph import DepGraph
 import contextlib
 
-
 l = logging.getLogger(name=__name__)
 
 

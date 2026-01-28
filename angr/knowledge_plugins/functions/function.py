@@ -69,7 +69,7 @@ class FunctionInfo(UserDict):
         self._func._dirty = True
         super().__delitem__(key)
 
-    def copy(self, owner: Function) -> FunctionInfo:  # type:ignore[reportIncompatibleMethodOverride]
+    def copy(self, owner: Function) -> FunctionInfo:  # type: ignore[reportIncompatibleMethodOverride]
         new_info = FunctionInfo(owner)
         new_info.data = self.data.copy()
         return new_info
@@ -355,12 +355,33 @@ class Function(Serializable):
         self._calling_convention = cc
 
     @property
-    def prototype(self):
+    def prototype(self) -> SimTypeFunction | None:
         return self._prototype
 
     @prototype.setter
     @dirty_func
-    def prototype(self, proto: SimTypeFunction):
+    def prototype(self, proto: SimTypeFunction | None):
+        # if an argument does not have a name, assign it with the name of the exiting argument or a default name
+        if (
+            proto is not None
+            and proto.args
+            and (len(proto.arg_names) < len(proto.args) or any(not arg_name for arg_name in proto.arg_names))
+        ):
+            proto = proto.copy()
+            arg_names = list(proto.arg_names)
+            for i in range(len(proto.args)):
+                if i < len(arg_names):
+                    if not arg_names[i]:
+                        if self._prototype is not None and i < len(self._prototype.arg_names):
+                            arg_names[i] = self._prototype.arg_names[i]
+                        else:
+                            arg_names[i] = f"a{i}"
+                else:
+                    if self._prototype is not None and i < len(self._prototype.arg_names):
+                        arg_names.append(self._prototype.arg_names[i])
+                    else:
+                        arg_names.append(f"a{i}")
+            proto.arg_names = arg_names
         self._prototype = proto
 
     @property
@@ -575,7 +596,7 @@ class Function(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return function_pb2.Function()  # type:ignore  # pylint:disable=no-member
+        return function_pb2.Function()  # type: ignore  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         return FunctionParser.serialize(self)

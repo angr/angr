@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 bina = os.path.join(test_location, "x86_64", "test_project_resolve_simproc")
 

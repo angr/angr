@@ -7,7 +7,6 @@ from angr.ailment.statement import Assignment, WeakAssignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 

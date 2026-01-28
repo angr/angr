@@ -6,7 +6,6 @@ import claripy
 
 from .base import ExplorationTechnique
 
-
 l = logging.getLogger(name=__name__)
 
 
