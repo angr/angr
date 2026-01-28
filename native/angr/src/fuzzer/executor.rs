@@ -191,4 +191,8 @@ impl<S> HasTimeout for PyExecutorInner<S> {
     fn timeout(&self) -> Duration {
         self.timeout.unwrap_or(Duration::ZERO)
     }
+
+    fn set_timeout(&mut self, timeout: Duration) {
+        self.timeout = Some(timeout);
+    }
 }
