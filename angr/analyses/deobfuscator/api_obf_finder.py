@@ -119,6 +119,7 @@ class APIObfuscationFinder(Analysis):
 
     def _hash_lookup_api_deobfuscator_lifter(self, func):
         d = self.project.analyses.Decompiler(func)
+        assert d.clinic is not None
         return d.clinic
 
     def _find_type1(self):

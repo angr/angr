@@ -41,7 +41,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
         ):
             inlined_strcpy_candidate = True
             src = stmt.src
-            strcpy_dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+            strcpy_dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
         elif (
             isinstance(stmt, Store)
             and isinstance(stmt.addr, UnaryOp)
@@ -74,7 +74,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                         Const(None, None, len(s), self.project.arch.bits),
                     ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                     **stmt.tags,
                 )
 
@@ -128,7 +128,7 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                                 Const(None, None, str_id, self.project.arch.bits, custom_string=True),
                                 Const(None, None, len(s), self.project.arch.bits),
                             ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy"),
+                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
                             **stmt.tags,
                         )
 

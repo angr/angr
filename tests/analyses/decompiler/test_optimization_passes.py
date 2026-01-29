@@ -2,6 +2,8 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+from angr.ailment.manager import Manager
+
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import logging
@@ -95,7 +97,8 @@ class TestFlipBooleanCmp(unittest.TestCase):
         pre_transform_seq_repr = seq.dbg_repr()
         log.debug("Before:\n%s", pre_transform_seq_repr)
 
-        FlipBooleanCmp(func, flip_size=flip_size, seq=seq, graph=graph)
+        manager = Manager()
+        FlipBooleanCmp(func, manager, flip_size=flip_size, seq=seq, graph=graph)
 
         post_transform_seq_repr = seq.dbg_repr()
         log.debug("After:\n%s", post_transform_seq_repr)
@@ -163,7 +166,8 @@ class TestFlipBooleanCmp(unittest.TestCase):
         pre_transform_seq_repr = seq.dbg_repr()
         log.debug("Before:\n%s", pre_transform_seq_repr)
 
-        FlipBooleanCmp(func, flip_size=flip_size, seq=seq, graph=graph)
+        manager = Manager()
+        FlipBooleanCmp(func, manager, flip_size=flip_size, seq=seq, graph=graph)
 
         post_transform_seq_repr = seq.dbg_repr()
         log.debug("After:\n%s", post_transform_seq_repr)

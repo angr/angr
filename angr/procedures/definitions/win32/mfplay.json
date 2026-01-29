@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"MFPCreateMediaPlayer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'MFP_CREATION_OPTIONS', 'ot': 'enum'}, {'_t': '_ref', 'name': 'IMFPMediaPlayerCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPMediaPlayer', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszURL', 'fStartPlayback', 'creationOptions', 'pCallback', 'hWnd', 'ppMediaPlayer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'MFP_CREATION_OPTIONS', 'ot': 'enum'}, {'_t': '_ref', 'name': 'IMFPMediaPlayerCallback', 'ot': 'bot'}, {'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPMediaPlayer', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszURL', 'fStartPlayback', 'creationOptions', 'pCallback', 'hWnd', 'ppMediaPlayer']}"
 		}
 	}
 }

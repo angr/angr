@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
+from angr.ailment.manager import Manager
 from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
 from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
@@ -56,6 +57,7 @@ class BlockSimplifier(Analysis):
     def __init__(
         self,
         block: Block | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
         peephole_optimizations: None | (
@@ -81,18 +83,19 @@ class BlockSimplifier(Analysis):
         self._stack_pointer_tracker = stack_pointer_tracker
         self._preserve_vvar_ids = preserve_vvar_ids
         self._type_hints = type_hints
+        self._ail_manager = ail_manager
 
         if peephole_optimizations is None:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in EXPR_OPTS
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in STMT_OPTS
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in MULTI_STMT_OPTS
             ]
         else:
@@ -135,10 +138,10 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # print(str(block))
+            # block.pp()
             new_block = self._simplify_block_once(block)
             # print()
-            # print(str(new_block))
+            # new_block.pp()
             if new_block == block:
                 break
             self._clear_cache()
@@ -159,6 +162,7 @@ class BlockSimplifier(Analysis):
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
+                ail_manager=self._ail_manager,
             )
         return self._propagator
 
@@ -200,7 +204,9 @@ class BlockSimplifier(Analysis):
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
+                    _, new_block = self._replace_and_build(
+                        block, replacements, self._ail_manager, replace_registers=True
+                    )
                     new_block = self._eliminate_self_assignments(new_block)
                     self._clear_cache()
         else:
@@ -216,6 +222,7 @@ class BlockSimplifier(Analysis):
     def _replace_and_build(
         block: Block,
         replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
+        ail_manager: Manager,
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
         gp: int | None = None,
@@ -226,6 +233,7 @@ class BlockSimplifier(Analysis):
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                new = new.deep_copy(ail_manager)
                 assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (

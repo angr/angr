@@ -28,8 +28,8 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
     NAME = "Simplify register save areas (advanced)"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._srda = None
 
         self.analyze()

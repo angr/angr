@@ -25,19 +25,18 @@ class ReturnDuplicatorHigh(OptimizationPass, ReturnDuplicatorBase):
 
     def __init__(
         self,
-        func,
+        *args,
         # settings
-        *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
         minimize_copies_for_regions: bool = True,
         scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
-        OptimizationPass.__init__(self, func, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
+        OptimizationPass.__init__(self, *args, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
         ReturnDuplicatorBase.__init__(
             self,
-            func,
+            *args,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
             vvar_id_start=vvar_id_start,

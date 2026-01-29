@@ -76,7 +76,7 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if expr == self._target_expr:
+        if expr.likes(self._target_expr):
             # we are done!
             return True
         has_target_expr = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
@@ -84,6 +84,17 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
             # record the current operation
             self.operations.append(expr)
         return has_target_expr
+
+    def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        # r = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        r = self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        r |= self._handle_expr(2, expr.value, stmt_idx, stmt, block)
+        return r
+
+    def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        r = self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        r |= self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
+        return r
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
