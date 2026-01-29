@@ -78,7 +78,7 @@ def traverse_in_order(
     entry_blocks: Sequence[ailment.Block],
     visitor: Callable[[ailment.Block], Any],
 ):
-    seen = set(entry_blocks)
+    seen = set()
     pending = list(entry_blocks)
     last_pending = set(pending)
     forcing = set()
@@ -90,14 +90,16 @@ def traverse_in_order(
 
         while stack:
             block = stack.pop()
+            if block in seen:
+                continue
             if block in forcing or all(pred in seen for pred in ail_graph.pred[block]):
                 # process it!
                 visitor(block)
+                seen.add(block)
 
                 news = set(ail_graph.succ[block])
                 news -= seen
                 stack.extend(sorted(news))
-                seen.update(news)
             else:
                 pending.add(block)
 

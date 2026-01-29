@@ -135,6 +135,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     # all the related defs will be adjusted to be the right size
                     if not all(traversal.def_info[def_].variable_size == udef[2] for def_ in defs):
                         continue
+                if udef[0] == "reg" and (state := traversal.start_states.get(block, None)) is not None:
+                    if udef[1] not in state.register_defs:
+                        continue
+                    defs = set(state.register_defs[udef[1]])
+                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
+                        defs.update(state.register_defs.get(suboffset, ()))
+                    # if we see this phi actually being used later in the program,
+                    # all the related defs will be adjusted to be the right size
+                    if not all(traversal.def_info[def_].variable_size == udef[2] for def_ in defs):
+                        continue
                 phi_id = next(phi_id_ctr)
                 phiid_to_udef[phi_id] = udef
                 block_to_phiids[block].append(phi_id)

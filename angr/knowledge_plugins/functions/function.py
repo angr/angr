@@ -2008,7 +2008,7 @@ class Function(Serializable):
                 _find_called(s)
 
         _find_called(self.addr)
-        return {self._function_manager.get_by_addr(a) for a in called if self._function_manager.contains_addr(a)}
+        return called
 
     def holes(self, min_size: int = 8) -> int:
         """
