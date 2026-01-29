@@ -1684,6 +1684,7 @@ class StackBaseOffset(BasePointerOffset):
 
     def __init__(self, idx: int | None, bits: int, offset: int, **kwargs):
         # stack base offset is always signed
+        assert idx is not None
         if offset >= (1 << (bits - 1)):
             offset -= 1 << bits
         super().__init__(idx, bits, "stack_base", offset, **kwargs)

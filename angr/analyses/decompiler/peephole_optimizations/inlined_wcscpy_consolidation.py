@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Call, Store, Assignment
 
-from angr.sim_type import SimTypePointer, SimTypeWideChar
+from angr.ailment.tagged_object import TagDict
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from .base import PeepholeOptimizationMultiStmtBase
 from .inlined_wcscpy import InlinedWcscpy
 
@@ -244,6 +245,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             if new_str is not None:
                 assert self.project is not None
                 wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
+                wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+                prototype = SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
+                    self.project.arch
+                )
                 if new_str.endswith(b"\x00\x00"):
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
@@ -251,7 +256,6 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         last_stmt.args[0],
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
                     ]
-                    prototype = None
                 else:
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
@@ -260,9 +264,16 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
                         Const(None, None, len(new_str) // 2, self.project.arch.bits),
                     ]
-                    prototype = None
 
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
+                tags = TagDict(stmt.tags)
+                if args[0].tags.get("extra_def", False):
+                    assert isinstance(args[0], UnaryOp)
+                    assert args[0].op == "Reference"
+                    assert isinstance(args[0].operand, VirtualVariable)
+                    tags["extra_defs"] = [args[0].operand.varid]
+                else:
+                    tags.pop("extra_defs", None)
+                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **tags)]
 
         return None
 

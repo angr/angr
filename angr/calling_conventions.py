@@ -1960,7 +1960,7 @@ class SimCCARMHF(SimCCARM):
     ARCH = archinfo.ArchARMHF
     EXTRA_ARCHES = (archinfo.ArchARMCortexM,)
 
-    def next_arg(self, session, arg_type):
+    def next_arg(self, session: ArgSession, arg_type):
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         state = session.getstate()

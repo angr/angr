@@ -242,7 +242,7 @@ class Clinic(Analysis):
         self._max_stack_depth = 0
         self._inline_functions = inline_functions if inline_functions else set()
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
-        self._inlining_parents = inlining_parents or ()
+        self._inlining_parents = inlining_parents or set()
         self._desired_variables = desired_variables
         self._force_loop_single_exit = force_loop_single_exit
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
@@ -341,7 +341,7 @@ class Clinic(Analysis):
     # def _update_progress(self, *args, **kwargs):
     #     # use this in order to insert periodic checks to determine when in the pipeline some property changes
     #     for block in self._ail_graph or []:
-    #         if block.addr == 0x100003A5D:
+    #         if block.addr == 0x14000FB60:
     #             block.pp()
     #     print(kwargs)
     #     return super()._update_progress(*args, **kwargs)
@@ -461,16 +461,17 @@ class Clinic(Analysis):
                 block.statements[idx] = new_stmt
 
     def _inline_call(self, ail_graph: networkx.DiGraph, caller_block: ailment.Block, call_idx: int, callee: Function):
-        callee_clinic = self.project.analyses.Clinic(
+        callee_clinic = self.project.analyses[Clinic].prep(
+            fail_fast=self._fail_fast,
+        )(
             callee,
             mode=ClinicMode.DECOMPILE,
             inline_functions=self._inline_functions,
-            inlining_parents=(*self._inlining_parents, self.function.addr),
+            inlining_parents={*self._inlining_parents, self.function.addr},
             inlined_counts=self._inlined_counts,
             optimization_passes=[StackCanarySimplifier],
             sp_shift=self._max_stack_depth,
             vvar_id_start=self.vvar_id_start,
-            fail_fast=self._fail_fast,  # type: ignore
         )
         self.vvar_id_start = callee_clinic.vvar_id_start + 1
         self._max_stack_depth = callee_clinic._max_stack_depth

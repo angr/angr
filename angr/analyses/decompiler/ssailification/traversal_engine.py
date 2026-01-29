@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 from collections.abc import Iterable
 from collections.abc import Callable
 
-from archinfo.arch_arm import is_arm_arch
 
 from angr.ailment.statement import Call, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
@@ -27,7 +26,7 @@ from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
-from angr.utils.ssa import get_reg_offset_base, get_reg_offset_base_and_size
+from angr.utils.ssa import get_reg_offset_base
 from angr.calling_conventions import default_cc
 from .traversal_state import TraversalState, Value
 
@@ -289,37 +288,58 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.state.stackvar_defs[offset] = {def2} | liveish_defs
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
-        if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
-            # hack: assume the s and d registers do not alias since we cannot narrow them properly
-            # If you want to fix this, please implement proper unification support for regs
-            base_off, base_size = offset, size
-        else:
-            base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+        full_offset, full_size, popped = self.state.register_unify(offset, size)
 
-        if base_off not in self.state.live_registers or base_off in self.state.register_blackout:
+        secret_stash = defaultdict(set)
+        while True:  # this loop should run until the UH OH is never reached
+            for popped_offset in popped:
+                secret_stash[popped_offset].update(self.state.register_defs.pop(popped_offset, set()))
+                for def2 in secret_stash[popped_offset]:
+                    self.state.register_defs[full_offset].add(def2)
+                    definfo = self.def_info[def2]
+                    if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
+                        # UH OH. We have information from a parallel timeline about how big this var actually is...
+                        full_offset, full_size, popped2 = self.state.register_unify(
+                            definfo.variable_offset, definfo.variable_size
+                        )
+                        popped.update(popped2)
+                        break
+                    definfo.variable_offset = full_offset
+                    definfo.variable_size = full_size
+                else:
+                    continue
+                break
+            else:
+                break
+
+        defs = secret_stash.get(full_offset, set())
+        if not defs or full_offset in self.state.register_blackout:
             self.perform_def(
                 "reg",
                 def_,
-                base_off,
-                base_size,
+                full_offset,
+                full_size,
                 offset,
                 size,
-                AILCodeLocation.make_extern(0) if base_off not in self.state.register_blackout else None,
+                AILCodeLocation.make_extern(0) if full_offset not in self.state.register_blackout else None,
             )
+            self.state.register_defs[full_offset] = {def_}
+            self.state.register_blackout.discard(full_offset)
+        else:
+            self.state.register_defs[full_offset] = defs
 
         return self.state.live_registers[offset]
 
     def register_set(self, offset: int, size: int, value: Value, def_: Def):
-        if is_arm_arch(self.arch) and self.arch.register_size_names.get((offset, size), "").startswith("s"):
-            # hack: assume the s and d registers do not alias since we cannot narrow them properly
-            # If you want to fix this, please implement proper unification support for regs
-            base_off, base_size = offset, size
-        else:
-            base_off, base_size = get_reg_offset_base_and_size(offset, self.arch)
+        self.state.live_registers[offset] = value
 
-        self.perform_def("reg", def_, base_off, base_size, offset, size)
-        self.state.live_registers[base_off] = value
-        self.state.register_blackout.discard(base_off)
+        for suboff in range(offset, offset + size):
+            self.state.register_defs.pop(suboff, None)
+            self.state.register_bases[suboff] = (offset, size)
+
+        self.state.register_defs[offset] = {def_}
+        self.perform_def("reg", def_, offset, size, offset, size)
+        self.state.register_blackout.discard(offset)
 
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -450,9 +470,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             reg_offset = self.arch.registers[reg_name][0]
             base_off = get_reg_offset_base(reg_offset, self.arch)
             self.state.live_registers.pop(base_off, None)
+            self.state.register_defs.pop(base_off, None)
             self.state.register_blackout.add(base_off)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
+            self.state.register_defs.pop(reg.vex_offset, None)
             self.state.register_blackout.add(reg.vex_offset)
 
         return set()

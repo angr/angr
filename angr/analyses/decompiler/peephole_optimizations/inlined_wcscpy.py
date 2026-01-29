@@ -8,7 +8,7 @@ from angr.ailment import BinaryOp
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
 from angr.ailment.statement import Call, Assignment, Statement, Store
 
-from angr.sim_type import SimTypePointer, SimTypeWideChar
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
 
@@ -47,12 +47,13 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
         else:
             return None
 
-        r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness)
+        r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness, min_length=2)
         if r:
             # replace it with a call to strncpy
             assert s is not None
             str_id = self.kb.custom_strings.allocate(s)
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
+            wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
             return Call(
                 stmt.idx,
                 "wcsncpy",
@@ -61,6 +62,9 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
                     Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
                     Const(None, None, len(s) // 2, self.project.arch.bits),
                 ],
+                prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
+                    self.project.arch
+                ),
                 **stmt.tags,
             )
 
@@ -84,7 +88,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
                         stride = []
 
                 integer, size = self.stride_to_int(stride)
-                r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=3)
+                r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=2)
                 if r:
                     assert s is not None
                     # we remove all involved statements whose statement IDs are greater than the current one
@@ -96,6 +100,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
 
                     str_id = self.kb.custom_strings.allocate(s)
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
+                    wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
                     return Call(
                         stmt.idx,
                         "wcsncpy",
@@ -104,6 +109,9 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
                             Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
                             Const(None, None, len(s) // 2, self.project.arch.bits),
                         ],
+                        prototype=SimTypeFunction(
+                            [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
+                        ).with_arch(self.project.arch),
                         **stmt.tags,
                     )
 
