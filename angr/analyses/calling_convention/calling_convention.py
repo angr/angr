@@ -903,6 +903,11 @@ class CallingConventionAnalysis(Analysis):
                             len(accesses) == 1
                             and accesses[0].access_type == VariableAccessSort.READ
                             and accesses[0].location.block_addr == self._function.addr
+                            and (
+                                (block := self.project.factory.block(self._function.addr)).vex.jumpkind != "Ijk_Call"
+                                or accesses[0].location.ins_addr
+                                != block.instruction_addrs[-1 - bool(self.project.arch.branch_delay_slot)]
+                            )
                         ):
                             # check if there is only a store to the stack which is never used
                             dests = var_manager.find_variables_by_insn(
