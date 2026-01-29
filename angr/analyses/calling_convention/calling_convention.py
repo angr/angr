@@ -23,6 +23,7 @@ from angr.calling_conventions import (
     SimCCMicrosoftThiscall,
 )
 from angr.errors import SimTranslationError
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal, VariableType
 from angr.sim_type import (
     PointerDisposition,
     SimTypeCppFunction,
@@ -823,7 +824,7 @@ class CallingConventionAnalysis(Analysis):
 
         return proto
 
-    def _args_from_vars(self, variables: list, var_manager):
+    def _args_from_vars(self, variables: list, var_manager: VariableManagerInternal):
         """
         Derive function arguments from input variables.
 
@@ -898,6 +899,21 @@ class CallingConventionAnalysis(Analysis):
                             if found:
                                 reg_name = self.project.arch.translate_register_name(var_.reg, size=var_.size)
                                 restored_reg_vars.add(SimRegArg(reg_name, var_.size))
+                        if (
+                            len(accesses) == 1
+                            and accesses[0].access_type == VariableAccessSort.READ
+                            and accesses[0].location.block_addr == self._function.addr
+                        ):
+                            # check if there is only a store to the stack which is never used
+                            dests = var_manager.find_variables_by_insn(
+                                accesses[0].location.ins_addr, VariableType.MEMORY
+                            )
+                            if dests is not None and len(dests) == 1 and isinstance(dests[0][0], SimStackVariable):
+                                accesses2 = var_manager.get_variable_accesses(dests[0][0])
+                                if len(accesses2) == 1:
+                                    reg_name = self.project.arch.translate_register_name(var_.reg, size=var_.size)
+                                    restored_reg_vars.add(SimRegArg(reg_name, var_.size))
+                                    break
 
         return args.difference(restored_reg_vars)
 
