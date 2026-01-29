@@ -9,6 +9,7 @@ from collections.abc import Callable
 from angr.ailment.statement import Call, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
     Const,
+    Convert,
     Extract,
     Insert,
     Register,
@@ -202,6 +203,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         return definfo
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
+        if extra_offset > 1 << (self.project.arch.bits - 1):
+            extra_offset -= 1 << self.project.arch.bits
         offset = base_offset + min(extra_offset, 0)
         size = max(extra_offset, 0) + base_size
         full_offset, full_size, popped = self.state.stackvar_unify(offset, size)
@@ -254,6 +257,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         return self.state.live_stackvars[offset]
 
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
+        if extra_offset > 1 << (self.project.arch.bits - 1):
+            extra_offset -= 1 << self.project.arch.bits
         offset = base_offset + min(extra_offset, 0)
         var_offset = max(extra_offset, 0)
         size = var_offset + base_size
@@ -540,9 +545,16 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             return {(None, expr.value)}
         return set()
 
-    def _handle_expr_Convert(self, expr) -> Value:
+    def _handle_expr_Convert(self, expr: Convert) -> Value:
         val = self._expr(expr.operand)
-        return {(None, v) for off, v in val if off is None}
+        result = set()
+        for off, v in val:
+            if off is not None:
+                continue
+            if expr.is_signed and v > 1 << (expr.from_bits - 1):
+                v -= 1 << expr.from_bits
+            result.add((None, v))
+        return result
 
     def _handle_expr_Reinterpret(self, expr) -> Value:
         self._expr(expr.operand)
