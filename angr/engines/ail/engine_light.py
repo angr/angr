@@ -528,6 +528,32 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         else:
             assert False
 
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType:
+        child = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        assert offset.concrete
+        # does this need adjustment for big endian?
+        offset_bits = offset.concrete_value * self.arch.byte_width
+        return child[expr.bits + offset_bits - 1 : offset_bits]
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType:
+        value = self._expr_bv(expr.value)
+        offset = self._expr_bv(expr.offset)
+        base = self._expr_bv(expr.base)
+        assert offset.concrete
+
+        # as above
+        offset_bits = offset.concrete_value * self.arch.byte_width
+        return claripy.Concat(
+            (
+                base[len(base) - 1 : offset_bits + len(value)]
+                if offset_bits + len(value) != len(base)
+                else claripy.BVV(b"")
+            ),
+            value,
+            base[offset_bits - 1 : 0] if offset_bits != 0 else claripy.BVV(b""),
+        )
+
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType:
         cond = self._expr_bool(expr.cond)
         if cond.is_true():
