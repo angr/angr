@@ -101,17 +101,17 @@ class BlockSimplifier(Analysis):
             ]
         else:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationExprBase)
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationStmtBase)
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
