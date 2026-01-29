@@ -251,6 +251,12 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> StmtDataType:
         pass
 
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.base) if x.constant_value is not None)
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.value) if x.constant_value is not None)
+
     def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType_co:
         if isinstance(expr.value, int):
             return frozenset((DataSource(constant_value=expr.value),))
