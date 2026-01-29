@@ -455,6 +455,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             self.stackvar_set(stackref, extra, size, set())
                         else:
                             self.stackvar_get(stackref, extra, size)
+        else:
+            for argexpr in expr.args or []:
+                self._expr(argexpr)
 
         # kill caller-saved registers
         if expr.calling_convention is not None:
