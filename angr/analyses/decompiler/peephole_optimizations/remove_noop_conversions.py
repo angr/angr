@@ -40,7 +40,7 @@ class RemoveNoopConversions(PeepholeOptimizationExprBase):
                 and ints
                 and inner.from_type == inner.to_type == Convert.TYPE_INT
             ):
-                # merging two truncations into one
+                # merge extend and then bigtruncate into just truncate
                 return Convert(
                     expr.idx,
                     inner.from_bits,
