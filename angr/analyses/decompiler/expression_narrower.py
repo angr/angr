@@ -3,7 +3,7 @@ from typing import Any, TYPE_CHECKING
 from collections import defaultdict
 import logging
 
-from angr.ailment import AILBlockRewriter, AILBlockWalker
+from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.statement import Assignment, Call
 from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
 
@@ -48,7 +48,7 @@ class ExprNarrowingInfo:
         self.phi_vars = phi_vars
 
 
-class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
+class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     """
     Walks a statement or an expression and extracts the operations that are applied on the given expression.
 
@@ -62,7 +62,7 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
     def __init__(self, target_expr: Expression):
         super().__init__()
         self._target_expr = target_expr
-        self.operations = []
+        self.expr_to_effective_bits: dict[Expression, tuple[int, int]] = {}
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return False
@@ -76,60 +76,61 @@ class NarrowingInfoExtractor(AILBlockWalker[bool, None, None]):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if expr == self._target_expr:
+        if expr.likes(self._target_expr):
             # we are done!
-            return True
-        has_target_expr = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
-        if has_target_expr:
-            # record the current operation
-            self.operations.append(expr)
-        return has_target_expr
+            return
+        super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        return self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
+        self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        r = False
         if expr.args:
             for i, arg in enumerate(expr.args):
-                r |= self._handle_expr(i, arg, stmt_idx, stmt, block)
-        return r
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        r = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
-        r |= self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
-        return r
+        effective_bits = self.expr_to_effective_bits.get(expr)
+        if effective_bits is None:
+            effective_bits = 0, expr.bits
+        if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0xFFFF_FFFF:
+            lo_bits = max(0, effective_bits[0])
+            hi_bits = min(32, effective_bits[1])
+            self.expr_to_effective_bits[expr.operands[0]] = lo_bits, hi_bits
+
+        self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
+        self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        return self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
+        self.expr_to_effective_bits[expr] = 0, expr.bits
+        self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        return self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
+        effective_bits = self.expr_to_effective_bits.get(expr)
+        if effective_bits is None:
+            effective_bits = 0, expr.to_bits
+        self.expr_to_effective_bits[expr.operand] = effective_bits
+        self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
     def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        r = self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
-        r |= self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
-        r |= self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
-        return r
+        self._handle_expr(0, expr.cond, stmt_idx, stmt, block)
+        self._handle_expr(1, expr.iftrue, stmt_idx, stmt, block)
+        self._handle_expr(2, expr.iffalse, stmt_idx, stmt, block)
 
     def _handle_DirtyExpression(
         self, expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        r = False
         if expr.operands:
             for i, op in enumerate(expr.operands):
-                r |= self._handle_expr(i, op, stmt_idx, stmt, block)
-        return r
+                self._handle_expr(i, op, stmt_idx, stmt, block)
 
     def _handle_VEXCCallExpression(
         self, expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
-        r = False
         for idx, operand in enumerate(expr.operands):
-            r |= self._handle_expr(idx, operand, stmt_idx, stmt, block)
-        return r
+            self._handle_expr(idx, operand, stmt_idx, stmt, block)
 
 
 class ExpressionNarrower(AILBlockRewriter):

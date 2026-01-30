@@ -135,10 +135,10 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # print(str(block))
+            # block.pp()
             new_block = self._simplify_block_once(block)
             # print()
-            # print(str(new_block))
+            # new_block.pp()
             if new_block == block:
                 break
             self._clear_cache()

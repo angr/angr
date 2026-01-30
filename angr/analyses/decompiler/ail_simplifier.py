@@ -55,7 +55,7 @@ from angr.errors import AngrRuntimeError
 from angr.analyses import Analysis, AnalysesHub
 from angr.utils.timing import timethis
 from .ailgraph_walker import AILGraphWalker
-from .expression_narrower import ExprNarrowingInfo, NarrowingInfoExtractor, ExpressionNarrower
+from .expression_narrower import ExprNarrowingInfo, EffectiveSizeExtractor, ExpressionNarrower
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
 from .dirty_rewriters import DIRTY_REWRITERS
@@ -746,69 +746,20 @@ class AILSimplifier(Analysis):
         Determine the effective size of an expression when it's used.
         """
 
-        walker = NarrowingInfoExtractor(expr)
+        walker = EffectiveSizeExtractor(expr)
         walker.walk_statement(statement)
-        if not walker.operations:
-            if expr is None:
-                return None, None
-            return expr.size, ("expr", (expr,))
 
-        ops = walker.operations
-        first_op = ops[0]
-        if isinstance(first_op, BinaryOp) and first_op.op in {"Add", "Sub"}:
-            # expr + x
-            ops = ops[1:]
-            if not ops:
-                if expr is None:
-                    return None, None
-                return expr.size, ("expr", (expr,))
-            first_op = ops[0]
-        if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
-            # we need at least one byte!
-            if (
-                len({(op.from_bits, op.to_bits) for op in ops if isinstance(op, Convert) and op.operand.likes(expr)})
-                > 1
-            ):
-                # there are more Convert operations; it's probably because there are multiple expressions involving the
-                # same core expr. just give up (for now)
-                return None, None
-            if any(op for op in ops if isinstance(op, BinaryOp) and op.op == "Shr" and op.operands[0].likes(expr)):
-                # the expression is right-shifted, which means higher bits might be used.
-                return None, None
-            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
-        if isinstance(first_op, BinaryOp):
-            second_op = None
-            if len(ops) >= 2:
-                second_op = ops[1]
-            if (
-                first_op.op == "And"
-                and isinstance(first_op.operands[1], Const)
-                and (
-                    second_op is None or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
-                )
-            ):
-                mask = first_op.operands[1].value
-                if mask == 0xFF:
-                    return 1, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-                if mask == 0xFFFF:
-                    return 2, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-                if mask == 0xFFFF_FFFF:
-                    return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-            if (
-                (first_op.operands[0] is expr or first_op.operands[1] is expr)
-                and first_op.op not in {"Shr", "Sar"}
-                and isinstance(second_op, Convert)
-                and second_op.from_bits == expr.bits
-                and second_op.to_bits >= self.project.arch.byte_width  # we need at least one byte!
-            ):
-                return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
-                    "binop-convert",
-                    (expr, first_op, second_op),
-                )
+        effective_bit_ranges = set()
+        for expr_, (lo_bits, hi_bits) in walker.expr_to_effective_bits.items():
+            if expr.likes(expr_):
+                effective_bit_ranges.add((lo_bits, hi_bits))
 
-        if expr is None:
-            return None, None
-        return expr.size, ("expr", (expr,))
+        if len(effective_bit_ranges) == 1:
+            lo_bits, hi_bits = effective_bit_ranges.pop()
+            if lo_bits == 0:
+                return hi_bits // self.project.arch.byte_width, ("expr", (expr,))
+
+        return None, None
 
     #
     # Expression folding
