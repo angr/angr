@@ -6,13 +6,12 @@ __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=re
 
 import logging
 import os
-import platform
 import sys
 import unittest
 
 import angr
 
-from tests.common import broken, bin_location, do_trace, load_cgc_pov, skip_if_not_linux
+from tests.common import broken, bin_location, do_trace, load_cgc_pov
 
 
 def tracer_cgc(
@@ -129,7 +128,6 @@ def tracer_linux(filename, test_name, stdin, add_options=None, remove_options=No
 
 @unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestTracer(unittest.TestCase):
-    @unittest.skipIf(platform.system() == "Darwin" and platform.machine() == "arm64", "Broken on apple silicon")
     @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_recursion(self):
         blob = bytes.fromhex(
@@ -172,7 +170,6 @@ class TestTracer(unittest.TestCase):
         assert crash_path is not None
         assert crash_state is not None
 
-    @skip_if_not_linux
     def test_manual_recursion(self):
         b = os.path.join(bin_location, "tests", "cgc", "CROMU_00071")
         with open(os.path.join(bin_location, "tests_data", "crash2731"), "rb") as fh:
@@ -329,7 +326,6 @@ class TestTracer(unittest.TestCase):
             syscall_data=rand_syscall_data,
         )
 
-    @unittest.skipIf(platform.system() == "Darwin" and platform.machine() == "arm64", "Broken on apple silicon")
     @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_cgc_se1_palindrome_raw(self):
         b = os.path.join(bin_location, "tests", "cgc", "sc1_0b32aa01_01")
@@ -475,7 +471,6 @@ class TestTracer(unittest.TestCase):
             add_options=add_options,
         )
 
-    @unittest.skipIf(platform.system() == "Darwin" and platform.machine() == "arm64", "Broken on apple silicon")
     @unittest.skipIf(sys.platform == "win32", "broken on windows")
     def test_symbolic_sized_receives(self):
         b = os.path.join(bin_location, "tests", "cgc", "CROMU_00070")
@@ -518,7 +513,6 @@ class TestTracer(unittest.TestCase):
         assert simgr.crashed
         assert simgr.crashed[0].solver.symbolic(simgr.crashed[0].regs.ip)
 
-    @skip_if_not_linux
     def test_fauxware(self):
         b = os.path.join(bin_location, "tests", "x86_64", "fauxware")
         simgr, _ = tracer_linux(b, "tracer_fauxware", b"A" * 18, remove_options={angr.options.CPUID_SYMBOLIC})
