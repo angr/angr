@@ -29,11 +29,19 @@ DIFF_VALUE = "value"
 
 # exception for trying find basic block changes
 class UnmatchedStatementsException(Exception):
-    pass
+    """
+    Exception raised when statements between two blocks cannot be matched.
+    """
 
 
 # statement difference classes
 class Difference:
+    """
+    :param type:     The type of difference.
+    :param value_a:  The value from the first statement.
+    :param value_b:  The value from the second statement.
+    """
+
     def __init__(self, diff_type, value_a, value_b):
         self.type = diff_type
         self.value_a = value_a
@@ -41,6 +49,12 @@ class Difference:
 
 
 class ConstantChange:
+    """
+    :param offset:   The offset in the block where the constant differs.
+    :param value_a:  The constant value from the first block.
+    :param value_b:  The constant value from the second block.
+    """
+
     def __init__(self, offset, value_a, value_b):
         self.offset = offset
         self.value_a = value_a
@@ -225,7 +239,7 @@ def compare_statement_dict(statement_1, statement_2):
     # tuples/lists
     if isinstance(statement_1, (tuple, list)):
         if len(statement_1) != len(statement_2):
-            return Difference(DIFF_TYPE, None, None)
+            return [Difference(DIFF_TYPE, None, None)]
 
         differences = []
         for s1, s2 in zip(statement_1, statement_2):
@@ -254,7 +268,13 @@ def compare_statement_dict(statement_1, statement_2):
 
 
 class NormalizedBlock:
-    # block may span multiple calls
+    """
+    A normalized basic block that may span multiple calls.
+
+    :param block:       The block to normalize.
+    :param function:    The function containing the block.
+    """
+
     def __init__(self, block, function):
         addresses = [block.addr]
         if block.addr in function.merged_blocks:
@@ -270,8 +290,8 @@ class NormalizedBlock:
         self.blocks = []
         self.instruction_addrs = []
 
-        if block.addr in function.call_sites:
-            self.call_targets = function.call_sites[block.addr]
+        if block in function.call_sites:
+            self.call_targets = function.call_sites[block]
 
         self.jumpkind = None
 
@@ -285,19 +305,24 @@ class NormalizedBlock:
             self.operations += irsb.operations
             self.jumpkind = irsb.jumpkind
 
-        self.size = sum([b.size for b in self.blocks])
+        self.size = sum(b.size for b in self.blocks)
 
     def __repr__(self):
-        size = sum([b.size for b in self.blocks])
+        size = sum(b.size for b in self.blocks)
         return f"<Normalized Block for {self.addr:#x}, {size} bytes>"
 
 
 class NormalizedFunction:
-    # a more normalized function
+    """
+    A normalized function representation for diffing.
+
+    :param function:    The function to normalize.
+    """
+
     def __init__(self, function: Function):
         # start by copying the graph
         self.graph: networkx.DiGraph = function.graph.copy()
-        self.project = function._function_manager._kb._project
+        self.project = function._function_manager._kb._project  # type: ignore[union-attr]
         self.call_sites = {}
         self.startpoint = function.startpoint
         self.merged_blocks = {}
@@ -343,11 +368,15 @@ class NormalizedFunction:
         for n in self.graph.nodes():
             call_targets = []
             if n.addr in self.orig_function.get_call_sites():
-                call_targets.append(self.orig_function.get_call_target(n.addr))
+                targets = self.orig_function.get_call_target(n.addr)
+                if targets is not None:
+                    call_targets.extend(targets)
             if n.addr in self.merged_blocks:
                 for block in self.merged_blocks[n]:
                     if block.addr in self.orig_function.get_call_sites():
-                        call_targets.append(self.orig_function.get_call_target(block.addr))
+                        targets = self.orig_function.get_call_target(block.addr)
+                        if targets is not None:
+                            call_targets.extend(targets)
             if len(call_targets) > 0:
                 self.call_sites[n] = call_targets
 
@@ -987,7 +1016,7 @@ class BinDiff(Analysis):
         if pair not in self._function_diffs:
             function_a = self.funcs_a.function(function_addr_a)
             function_b = self.funcs_b.function(function_addr_b)
-            self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)
+            self._function_diffs[pair] = FunctionDiff(function_a, function_b, self)  # type: ignore[arg-type]
         return self._function_diffs[pair]
 
     @staticmethod
@@ -1021,7 +1050,7 @@ class BinDiff(Analysis):
         # Make sure those functions are not SimProcedures
         f_a = self.funcs_a.function(func_a)
         f_b = self.funcs_b.function(func_b)
-        if f_a.startpoint is None or f_b.startpoint is None:
+        if f_a is None or f_b is None or f_a.startpoint is None or f_b.startpoint is None:
             return possible_matches
 
         fd = self.get_function_diff(func_a, func_b)
@@ -1042,11 +1071,13 @@ class BinDiff(Analysis):
 
     def _get_plt_matches(self):
         plt_matches = []
-        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(self._p2.loader.main_object, "plt"):
+        if not hasattr(self.project.loader.main_object, "plt") or not hasattr(
+            self._p2.loader.main_object, "plt"
+        ):  # type: ignore[attr-defined]
             return []
-        for name, addr in self.project.loader.main_object.plt.items():
-            if name in self._p2.loader.main_object.plt:
-                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))
+        for name, addr in self.project.loader.main_object.plt.items():  # type: ignore[attr-defined]
+            if name in self._p2.loader.main_object.plt:  # type: ignore[attr-defined]
+                plt_matches.append((addr, self._p2.loader.main_object.plt[name]))  # type: ignore[attr-defined]
 
         # in the case of sim procedures the actual sim procedure might be in the interfunction graph, not the plt entry
         func_to_addr_a = {}
@@ -1319,14 +1350,7 @@ class BinDiff(Analysis):
                 for f in secondary_funcs
                 if not f.is_syscall and not f.is_simprocedure and not f.is_alignment and not f.is_plt
             ]
-            if (
-                main_funcs
-                and secondary_funcs
-                and len(main_funcs) > 0
-                and len(secondary_funcs) > 0
-                and len(main_funcs) < 100
-                and len(secondary_funcs) < 100
-            ):
+            if 0 < len(main_funcs) < 100 and 0 < len(secondary_funcs) < 100:
                 # more checks
                 matcher(main_funcs, secondary_funcs, new_matches)
 
