@@ -115,6 +115,15 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(sf == 0)
         assert s.solver.is_true(of == 1)
 
+        l.debug("Testing amd64g_calculate_RCR")
+        l.debug("(64-bit) RCR E6 3E...")
+        arg = claripy.BVV(0xE6, 8)
+        rot_amt = claripy.BVV(0x3E, 8)
+        eflags = claripy.BVV(1, 8)
+        sz = claripy.BVV(1, 8)
+        res = s_ccall.amd64g_calculate_RCR(s, arg, rot_amt, eflags, sz)
+        assert s.solver.is_true(res == claripy.BVV(0xBC, 8))
+
         l.debug("Testing pc_actions_ROR")
         l.debug("(32-bit) ROR -1 1...")
         result = claripy.BVV(-1, 32)  # the result of ror(0xffffffff, 1)
