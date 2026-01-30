@@ -61,7 +61,7 @@ typedef enum uc_cpu_mips64 {
 } uc_cpu_mips64;
 
 //> MIPS registers
-typedef enum UC_MIPS_REG {
+typedef enum uc_mips_reg {
     UC_MIPS_REG_INVALID = 0,
     //> General purpose registers
     UC_MIPS_REG_PC,
@@ -220,6 +220,11 @@ typedef enum UC_MIPS_REG {
     UC_MIPS_REG_CP0_USERLOCAL,
     UC_MIPS_REG_CP0_STATUS,
 
+    // FCR(s) Ref:
+    // https://s3-eu-west-1.amazonaws.com/downloads-mips/documents/MD00083-2B-MIPS64INT-AFP-06.01.pdf
+    UC_MIPS_REG_FIR,
+    UC_MIPS_REG_FCSR,
+
     UC_MIPS_REG_ENDING, // <-- mark the end of the list or registers
 
     // alias registers
@@ -266,7 +271,10 @@ typedef enum UC_MIPS_REG {
     UC_MIPS_REG_LO1 = UC_MIPS_REG_HI1,
     UC_MIPS_REG_LO2 = UC_MIPS_REG_HI2,
     UC_MIPS_REG_LO3 = UC_MIPS_REG_HI3,
-} UC_MIPS_REG;
+} uc_mips_reg;
+
+// This is only for backwards compatibility
+typedef uc_mips_reg UC_MIPS_REG;
 
 #ifdef __cplusplus
 }
