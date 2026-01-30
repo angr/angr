@@ -157,7 +157,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         # check args
         expected_args = {
-            "main": ["r_r0", "r_r1"],
+            # main args are not used
+            # "main": ["r_r0", "r_r1"],
             "accepted": [],
             "rejected": [],
             "authenticate": ["r_r0", "r_r1"],

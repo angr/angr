@@ -2,6 +2,8 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
+from angr.ailment.manager import Manager
+
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
@@ -32,7 +34,8 @@ class TestPeepholeOptimizations(unittest.TestCase):
             archinfo.Endness.LE,
             ins_addr=0x400100,
         )
-        opt = ConstantDereferences(proj, proj.kb, 0)
+        manager = Manager()
+        opt = ConstantDereferences(proj, proj.kb, manager, 0)
         optimized = opt.optimize(expr)
         assert isinstance(optimized, ailment.Const)
         assert optimized.value == 0x183F8
@@ -41,14 +44,15 @@ class TestPeepholeOptimizations(unittest.TestCase):
         # multiple cases that no optimization should happen
         # a. Loading a pointer from a writable location
         expr = ailment.Expr.Load(None, ailment.Expr.Const(None, None, 0x21DF4, proj.arch.bits), 1, archinfo.Endness.LE)
-        opt = ConstantDereferences(proj, proj.kb, 0)
+        opt = ConstantDereferences(proj, proj.kb, manager, 0)
         optimized = opt.optimize(expr)
         assert optimized is None
 
     def test_eager_eval_mod(self):
         proj = angr.load_shellcode(b"\x90", "AMD64")
 
-        opt = EagerEvaluation(proj, proj.kb)
+        manager = Manager()
+        opt = EagerEvaluation(proj, proj.kb, manager)
 
         # Optimize 12 % 5 --> 2
         expr = BinaryOp(None, "Mod", [Const(None, None, 12, 32), Const(None, None, 5, 32)])

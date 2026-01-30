@@ -5,6 +5,7 @@ from angr.ailment.expression import Expression, BinaryOp, Const, Register, Stack
 from angr.ailment.statement import Call, Store
 
 from angr import SIM_LIBRARIES
+from angr.ailment.tagged_object import TagDict
 from .base import PeepholeOptimizationMultiStmtBase
 from .inlined_strcpy import InlinedStrcpy
 
@@ -70,7 +71,16 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     ]
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
 
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
+                tags = TagDict(stmt.tags)
+                if args[0].tags.get("extra_def", False):
+                    assert isinstance(args[0], UnaryOp)
+                    assert args[0].op == "Reference"
+                    assert isinstance(args[0].operand, VirtualVariable)
+                    tags["extra_defs"] = [args[0].operand.varid]
+                else:
+                    tags.pop("extra_defs", None)
+
+                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **tags)]
 
         return None
 
@@ -79,14 +89,14 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
-            return StackBaseOffset(None, addr.bits, 0), addr.offset
+            return StackBaseOffset(-1, addr.bits, 0), addr.offset
         if (
             isinstance(addr, UnaryOp)
             and addr.op == "Reference"
             and isinstance(addr.operand, VirtualVariable)
             and addr.operand.was_stack
         ):
-            return StackBaseOffset(None, addr.bits, 0), addr.operand.stack_offset
+            return StackBaseOffset(-1, addr.bits, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const):
                 base_0, offset_0 = InlinedStrcpyConsolidation._parse_addr(addr.operands[0])

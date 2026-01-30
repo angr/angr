@@ -399,8 +399,8 @@ class DivSimplifier(OptimizationPass):
     NAME = "Simplify arithmetic division"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
         self.engine = DivSimplifierAILEngine(self.project)

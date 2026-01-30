@@ -20,8 +20,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
     NAME = "Simplify getpc()"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -52,8 +52,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
             old_stmt = block.statements[stmt_idx]
             block.statements[stmt_idx] = ailment.Stmt.Assignment(
                 old_stmt.idx,
-                ailment.Expr.Register(None, None, pcreg_offset, 32, reg_name=getpc_reg),
-                ailment.Expr.Const(None, None, getpc_reg_value, 32),
+                ailment.Expr.Register(self.manager.next_atom(), None, pcreg_offset, 32, reg_name=getpc_reg),
+                ailment.Expr.Const(self.manager.next_atom(), None, getpc_reg_value, 32),
                 **old_stmt.tags,
             )
             # remove the statement that pushes return address onto the stack

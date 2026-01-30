@@ -87,6 +87,9 @@ class SemanticNamingBase(ABC):
             if unified_var in renamed_vars:
                 continue
 
+            if target_var.renamed:
+                continue
+
             l.debug("Renaming %s -> %s (pattern: %s)", target_var.name, new_name, self.__class__.__name__)
             target_var.name = new_name
             target_var.renamed = True

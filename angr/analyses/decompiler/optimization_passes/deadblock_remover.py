@@ -26,8 +26,8 @@ class DeadblockRemover(OptimizationPass):
     NAME = "Remove blocks with unsatisfiable conditions"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, node_cutoff: int = 200, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, node_cutoff: int = 200, **kwargs):
+        super().__init__(*args, **kwargs)
         self._node_cutoff = node_cutoff
         self.analyze()
 

@@ -14,7 +14,7 @@ import archinfo
 
 from angr.errors import AngrMissingTypeError
 from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
-from angr.calling_conventions import DEFAULT_CC, CC_NAMES
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
@@ -147,7 +147,7 @@ class SimLibrary:
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
         self.prototypes_json: dict[str, Any] = {}
-        self.default_ccs = {}
+        self.default_ccs: dict[str, type[SimCC]] = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
@@ -316,9 +316,9 @@ class SimLibrary:
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
-        if proc.cc is None and arch.name in self.default_ccs:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-        if proc.cc is None and arch.name in self.fallback_cc:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
             proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type: ignore

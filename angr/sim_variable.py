@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from typing_extensions import Self
 
 import claripy
 
@@ -48,7 +49,7 @@ class SimVariable(Serializable):
         self.size = size
         self._hash = None
 
-    def copy(self):
+    def copy(self) -> Self:
         raise NotImplementedError
 
     def loc_repr(self, arch: archinfo.Arch):

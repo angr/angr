@@ -3,6 +3,7 @@ from __future__ import annotations
 from angr.ailment.statement import DirtyStatement, Statement, Call
 from angr.ailment.expression import Const, DirtyExpression, Expression
 from .rewriter_base import DirtyRewriterBase
+from angr import sim_type
 
 
 class AMD64DirtyRewriter(DirtyRewriterBase):
@@ -32,7 +33,9 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     idx=dirty.idx,
                     target=f"__in{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
-                    prototype=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
+                    ).with_arch(self.arch),
                     args=(portno,),
                     ret_expr=None,
                     bits=dirty.bits,
@@ -49,7 +52,9 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                     dirty.idx,
                     target=f"__out{self._inout_intrinsic_suffix(bits)}",
                     calling_convention=None,
-                    prototype=None,
+                    prototype=sim_type.SimTypeFunction(
+                        [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
+                    ).with_arch(self.arch),
                     args=(portno, data),
                     ret_expr=None,
                     bits=None,
@@ -72,3 +77,7 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                 return "dword"
             case _:
                 return f"_{bits}"
+
+    @staticmethod
+    def _inout_intrinsic_type(bits: int) -> sim_type.SimType:
+        return sim_type.SimTypeNum(bits, signed=False)

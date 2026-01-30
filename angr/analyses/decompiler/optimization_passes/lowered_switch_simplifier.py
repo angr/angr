@@ -156,9 +156,9 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
         "algorithm is in use."
     )
 
-    def __init__(self, func, min_distinct_cases=2, **kwargs):
+    def __init__(self, *args, min_distinct_cases=2, **kwargs):
         super().__init__(
-            func,
+            *args,
             require_structurable_graph=False,
             require_gotos=False,
             prevent_new_gotos=False,
@@ -308,7 +308,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                             self._block_copies[case.original_node] = [case.original_node.copy(statements=statements)]
                         else:
                             self._block_copies[case.original_node].append(
-                                case.original_node.copy(statements=statements)
+                                case.original_node.copy(statements=statements).deep_copy(self.manager)
                             )
                             self._block_copies[case.original_node][-1].idx = (
                                 len(self._block_copies[case.original_node]) + 1000
@@ -384,7 +384,7 @@ class LoweredSwitchSimplifier(StructuringOptimizationPass):
                 next_id = 0 if succ_node.idx is None else succ_node.idx + 1
                 graph_copy.remove_node(succ_node)
                 for head in heads:
-                    node_copy = succ_node.copy()
+                    node_copy = succ_node.deep_copy(self.manager)
                     node_copy.idx = next_id
                     next_id += 1
 

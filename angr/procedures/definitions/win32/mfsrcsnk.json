@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"MFCreateAVIMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
 		},
 		"MFCreateWAVEMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
 		}
 	}
 }

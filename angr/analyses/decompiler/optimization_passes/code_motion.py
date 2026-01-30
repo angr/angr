@@ -49,8 +49,8 @@ class CodeMotionOptimization(OptimizationPass):
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     DESCRIPTION = __doc__
 
-    def __init__(self, func, *args, max_iters=10, node_idx_start: int = 0, **kwargs):
-        super().__init__(func, *args, **kwargs)
+    def __init__(self, *args, max_iters=10, node_idx_start: int = 0, **kwargs):
+        super().__init__(*args, **kwargs)
         self._node_idx_start = node_idx_start
         self._max_optimization_runs = max_iters
         self.analyze()

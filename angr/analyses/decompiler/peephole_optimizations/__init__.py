@@ -34,6 +34,7 @@ from .remove_redundant_shifts_around_comparators import RemoveRedundantShiftsAro
 from .simplify_pc_relative_loads import SimplifyPcRelativeLoads
 from .basepointeroffset_add_n import BasePointerOffsetAddN
 from .basepointeroffset_and_mask import BasePointerOffsetAndMask
+from .remove_const_insert import RemoveConstInsert
 from .remove_redundant_conversions import RemoveRedundantConversions
 from .remove_cascading_conversions import RemoveCascadingConversions
 from .conv_shl_shr import ConvShlShr
@@ -58,6 +59,7 @@ from .a_mul_const_sub_a import AMulConstSubA
 from .rewrite_cxx_operator_calls import RewriteCxxOperatorCalls
 from .remove_cxx_destructor_calls import RemoveCxxDestructorCalls
 from .rewrite_conv_mul import RewriteConvMul
+from .evaluate_const_conversions import EvaluateConstConversions
 from .base import PeepholeOptimizationExprBase, PeepholeOptimizationStmtBase, PeepholeOptimizationMultiStmtBase
 
 ALL_PEEPHOLE_OPTS: list[Any] = [
@@ -85,6 +87,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     OneSubBool,
     BoolExprXor1,
     BitwiseOrToLogicalOr,
+    RemoveConstInsert,
     RemoveRedundantBitmasks,
     RemoveRedundantDerefs,
     RemoveRedundantNots,
@@ -118,6 +121,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RewriteCxxOperatorCalls,
     RemoveCxxDestructorCalls,
     RewriteConvMul,
+    EvaluateConstConversions,
 ]
 
 MULTI_STMT_OPTS: list[type[PeepholeOptimizationMultiStmtBase]] = [

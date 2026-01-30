@@ -33,8 +33,8 @@ class StringObfType3Rewriter(OptimizationPass):
     DESCRIPTION = "Simplify Type 3 string deobfuscation calls"
     stmt_classes = ()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
