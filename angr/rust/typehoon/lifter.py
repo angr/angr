@@ -21,7 +21,7 @@ from ...analyses.typehoon.typeconsts import (
     Int128,
     TypeConstant,
     Struct,
-    Enum,
+    RustEnum,
     EnumVariant,
     IntVar,
 )
@@ -89,7 +89,7 @@ class RustTypeLifter(TypeLifter):
         )
 
     def _lift_SimEnum(self, ty: RustSimEnum):
-        obj = Enum(ty.name, [self._lift_EnumVariant(variant) for variant in ty.variants])
+        obj = RustEnum(ty.name, [self._lift_EnumVariant(variant) for variant in ty.variants])
         self.memo[ty] = obj
         return obj
 
