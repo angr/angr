@@ -1,6 +1,6 @@
 from angr.ailment.expression import ComboRegister, VirtualVariable, VirtualVariableCategory, UnaryOp
 from angr.ailment.statement import Call
-from .utils import CallReplacer
+from .utils import CallRewriter
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import SRDAMixin
 from angr.ailment import AILBlockWalker, Statement, Block
@@ -61,7 +61,7 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 new_call = call.copy()
                 new_call.args = new_args
                 return new_call
-            return None
+            return call
 
         def _handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
             if (
@@ -75,12 +75,12 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 result = expr.copy()
                 result.operand = vvar
                 return result
-            return None
+            return expr
 
-        replacer = CallReplacer(callback)
-        replacer.expr_handlers[UnaryOp] = _handle_UnaryOp
+        rewriter = CallRewriter(callback)
+        rewriter.expr_handlers[UnaryOp] = _handle_UnaryOp
 
         for block in self._graph.nodes:
-            replacer.walk(block)
+            rewriter.walk(block)
 
         self.out_graph = self._graph

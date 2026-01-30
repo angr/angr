@@ -1,4 +1,4 @@
-from angr.ailment import AILBlockWalker, Block
+from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Struct, StringLiteral
 from angr.ailment.statement import Assignment, Call
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
@@ -38,15 +38,15 @@ class StringOutliner(OptimizationPass):
                     new_stmt.src = call
                     block.statements[stmt_idx] = new_stmt
                     return new_stmt
-            return None
+            return stmt
 
-        class StringStructWalker(AILBlockWalker):
+        class AssignmentRewriter(AILBlockRewriter):
 
             def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
                 return callback(stmt_idx, stmt, block)
 
-        walker = StringStructWalker()
+        rewriter = AssignmentRewriter()
         for block in self._graph.nodes:
-            walker.walk(block)
+            rewriter.walk(block)
 
         self.out_graph = self._graph

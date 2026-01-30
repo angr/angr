@@ -3,7 +3,7 @@ from angr.rust.mixins import SRDAMixin
 from angr.ailment import Block, Const
 from angr.ailment.statement import Call
 from angr.ailment.expression import StringLiteral, VirtualVariable, Load
-from angr.rust.optimization_passes.utils import extract_str, CallReplacer
+from angr.rust.optimization_passes.utils import extract_str, CallRewriter
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.utils.ail import deref_vvar_and_offset
 from angr.sim_type import TypeRef
@@ -103,9 +103,9 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
             new_call = call.copy()
             new_call.args = new_args
             return new_call
-        return None
+        return call
 
     def _analyze(self, cache=None):
-        walker = CallReplacer(self.replace_call)
+        walker = CallRewriter(self.replace_call)
         for block in self._graph.nodes:
             walker.walk(block)

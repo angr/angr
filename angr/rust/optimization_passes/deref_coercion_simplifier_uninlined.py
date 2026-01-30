@@ -1,6 +1,6 @@
 from collections import defaultdict
 
-from angr.ailment import AILBlockWalker
+from angr.ailment import AILBlockRewriter
 from angr.ailment.expression import VirtualVariable
 from angr.rust.mixins import SRDAMixin, CFAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -13,7 +13,7 @@ DEREF_COERCION_FUNCTIONS = [
 ]
 
 
-class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AILBlockWalker):
+class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AILBlockRewriter):
     """
     Simplify explicit deref coercion operations that have not been inlined.
     1. Identify assignments where a VirtualVariable is assigned the result of a deref coercion function call.
@@ -32,7 +32,7 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
         super().__init__(func, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFAMixin.__init__(self, self._graph, self.project)
-        AILBlockWalker.__init__(self)
+        AILBlockRewriter.__init__(self)
 
         self._vvar_replacements = {}
         self._stmts_to_remove = defaultdict(list)
@@ -48,7 +48,7 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
             return None
         if expr.varid in self._vvar_replacements:
             return self._vvar_replacements[expr.varid]
-        return None
+        return expr
 
     def _analyze(self, cache=None):
         for block in self._graph.nodes:

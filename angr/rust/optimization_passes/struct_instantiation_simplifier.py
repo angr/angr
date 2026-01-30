@@ -3,7 +3,7 @@ from collections import defaultdict, OrderedDict
 import claripy
 from archinfo import Endness
 
-from angr.rust.optimization_passes.utils import CallReplacer
+from angr.rust.optimization_passes.utils import CallRewriter
 from angr.ailment import UnaryOp
 from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load, BinaryOp
 from angr.ailment.statement import Assignment, Call
@@ -371,7 +371,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     return expr
             return None
 
-        walker = CallReplacer(callback)
+        walker = CallRewriter(callback)
         for block in self._graph.nodes:
             walker.walk(block)
 

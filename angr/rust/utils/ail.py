@@ -1,11 +1,11 @@
 from typing import Any, Tuple, Union
 
-from angr.ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const
+from angr.ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
 
-class CallFinder(AILBlockWalker):
+class CallFinder(AILBlockViewer):
     def __init__(self, include_macro=False):
         super().__init__()
         self.call = None

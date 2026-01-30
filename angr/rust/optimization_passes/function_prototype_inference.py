@@ -4,7 +4,7 @@ from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.optimization_passes.cleanup_code_remover import CLEANUP_FUNCTIONS
-from angr.rust.optimization_passes.utils import CallReplacer
+from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 
 
@@ -26,10 +26,6 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         return self.project.is_rust_binary, None
 
     def _analyze_and_replace_call(self, call, block, stmt, is_expr):
-        # For debug purpose
-        if self.match_call(call, CLEANUP_FUNCTIONS):
-            return
-
         # Perform calling convention analysis on target function if it's never analyzed
         if (
             call
@@ -80,14 +76,14 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                     if is_expr:
                         if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
                             stmt.dst.tags["type"] = returnty
-        return None
+        return call
 
     def _analyze(self, cache=None):
         rcc = self.project.analyses.RustCallingConvention(self._func)
         self._func.prototype = rcc.model.inferred_prototype
 
-        walker = CallReplacer(callback=self._analyze_and_replace_call)
+        rewriter = CallRewriter(callback=self._analyze_and_replace_call)
         for block in self._graph.nodes:
-            walker.walk(block)
+            rewriter.walk(block)
         self.fix_stack_vvar_uses()
         self.out_graph = self._graph

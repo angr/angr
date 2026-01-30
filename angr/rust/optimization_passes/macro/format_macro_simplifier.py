@@ -9,7 +9,7 @@ from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_offset
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
-from angr.rust.optimization_passes.utils import CallReplacer
+from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimType, RustSimTypeSize
 from angr.rust.utils.library import demangle, normalize
 
@@ -667,11 +667,11 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             **call.tags,
                         )
                         return macro
-        return None
+        return call
 
     def _analyze(self, cache=None):
         for block in self._graph.nodes:
-            CallReplacer(self.replace_call).walk(block)
+            CallRewriter(self.replace_call).walk(block)
         for block, stmts in self._stmts_to_remove.items():
             for stmt in stmts:
                 if stmt in block.statements:

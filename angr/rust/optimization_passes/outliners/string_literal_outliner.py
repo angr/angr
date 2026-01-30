@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from angr.rust.mixins import DFAMixin, SSAVariableMixin
-from angr.ailment import AILBlockWalker, Block
+from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Struct, Const, StringLiteral, VirtualVariable
 from angr.ailment.statement import Statement, Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
@@ -57,11 +57,11 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
                 field = expr.fields.get(offset, None)
                 new_fields[offset] = field
                 new_field_offsets[field_name] = offset
-            return (
-                Struct(expr.idx, expr.name, new_fields, new_field_offsets, expr.bits, **expr.tags) if changed else None
-            )
+            if changed:
+                return Struct(expr.idx, expr.name, new_fields, new_field_offsets, expr.bits, **expr.tags)
+            return expr
 
-        class StructWalker(AILBlockWalker):
+        class StructWalker(AILBlockRewriter):
 
             def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
                 return callback(expr)

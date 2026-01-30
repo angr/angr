@@ -1,5 +1,5 @@
 import angr.ailment as ailment
-from angr.ailment import AILBlockWalker, Block
+from angr.ailment import Block, AILBlockRewriter
 from angr.ailment.statement import *
 from angr.ailment.expression import *
 from angr.calling_conventions import (
@@ -59,14 +59,12 @@ def extract_str_from_addr(project, addr):
     return None
 
 
-class CallReplacer(AILBlockWalker):
+class CallRewriter(AILBlockRewriter):
     def __init__(self, callback):
         super().__init__()
         self.callback = callback
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if block is None:
-            return None
         new_stmt = self.callback(stmt, block, stmt, is_expr=False)
         if new_stmt:
             block.statements[stmt_idx] = new_stmt
