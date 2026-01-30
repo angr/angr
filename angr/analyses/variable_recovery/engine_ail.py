@@ -7,7 +7,6 @@ import angr.ailment as ailment
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
-from unique_log_filter import UniqueLogFilter
 
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction
@@ -21,7 +20,6 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-l.addFilter(UniqueLogFilter())
 
 
 class SimEngineVRAIL(

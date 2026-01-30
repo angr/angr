@@ -2,13 +2,11 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Expr
-from unique_log_filter import UniqueLogFilter
 
 from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
-_l.addFilter(UniqueLogFilter())
 
 
 class ModSimplifierAILEngine(SimplifierAILEngine):

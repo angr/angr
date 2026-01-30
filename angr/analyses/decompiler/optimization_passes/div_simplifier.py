@@ -4,13 +4,11 @@ import logging
 import math
 
 from angr.ailment import Expr
-from unique_log_filter import UniqueLogFilter
 
 from .engine_base import SimplifierAILEngine, SimplifierAILState
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
-_l.addFilter(UniqueLogFilter())
 
 
 class DivSimplifierAILEngine(SimplifierAILEngine):

@@ -10,7 +10,6 @@ import contextlib
 import claripy
 import archinfo
 from archinfo import RegisterName
-from unique_log_filter import UniqueLogFilter
 
 import angr
 from .errors import AngrTypeError
@@ -43,7 +42,6 @@ from .sim_type import (
 from .state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
-l.addFilter(UniqueLogFilter())
 
 T = TypeVar("T", bound="SimFunctionArgument")
 
