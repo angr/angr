@@ -6,6 +6,7 @@ import logging
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.statement import Assignment, Call
 from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.utils import is_none_or_likeable
 
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
@@ -76,7 +77,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_expr(
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None
     ) -> Any:
-        if expr.likes(self._target_expr):
+        if is_none_or_likeable(expr, self._target_expr):
             # we are done!
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
