@@ -1,7 +1,7 @@
 from angr.ailment import Const, Register
 from angr.ailment.expression import ComboRegister
 from angr.ailment.statement import Call
-from .utils import CallReplacer
+from .utils import CallRewriter
 
 from ...calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -56,10 +56,10 @@ class RetExprRewriter(OptimizationPass):
                         new_call = call.copy()
                         new_call.ret_expr = ret_expr
                         return new_call
-            return None
+            return call
 
-        replacer = CallReplacer(callback)
+        rewriter = CallRewriter(callback)
         for block in self._graph.nodes:
-            replacer.walk(block)
+            rewriter.walk(block)
 
         self.out_graph = self._graph

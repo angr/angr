@@ -1,4 +1,4 @@
-from angr.ailment import Block, Assignment, Const, AILBlockWalkerBase
+from angr.ailment import Block, Assignment, Const, AILBlockViewer
 from angr.ailment.expression import VirtualVariable, Enum
 from angr.ailment.statement import Label, Return, Jump, Call
 from angr.analyses.decompiler.utils import _flatten_structured_node
@@ -169,7 +169,7 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
             ):
                 varid_to_assignment[stmt.dst.varid] = stmt
 
-        walker = AILBlockWalkerBase(stmt_handlers={Assignment: callback})
+        walker = AILBlockViewer(stmt_handlers={Assignment: callback})
 
         for block in self._graph.nodes:
             walker.walk(block)

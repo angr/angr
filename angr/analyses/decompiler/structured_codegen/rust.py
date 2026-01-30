@@ -3716,8 +3716,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return RustReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
-        clabel = RustLabel(stmt.name, stmt.ins_addr, stmt.block_idx, tags=stmt.tags, codegen=self)
-        self.map_addr_to_label[(stmt.ins_addr, stmt.block_idx)] = clabel
+        clabel = RustLabel(stmt.name, stmt.tags["ins_addr"], stmt.tags["block_idx"], tags=stmt.tags, codegen=self)
+        self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags["block_idx"])] = clabel
         return clabel
 
     def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, is_expr, **kwargs):

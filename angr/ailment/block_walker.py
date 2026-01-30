@@ -323,6 +323,47 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
+    def _handle_Enum(self, expr_idx: int, expr: Enum, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, field in enumerate(expr.fields):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, field in enumerate(expr.fields.values()):
+            self._handle_expr(idx, field, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
+        for idx, ele in enumerate(expr.elements):
+            self._handle_expr(idx, ele, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
+        if stmt.args:
+            for i, arg in enumerate(stmt.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+        return self._stmt_top(stmt_idx, stmt, block)
+
+    def _handle_FunctionLikeMacroExpr(
+        self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if expr.args:
+            for i, arg in enumerate(expr.args):
+                self._handle_expr(i, arg, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_ComboRegister(
+        self, expr_idx: int, expr: ComboRegister, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        for idx, reg in enumerate(expr.registers):
+            self._handle_expr(idx, reg, stmt_idx, stmt, block)
+        return self._top(expr_idx, expr, stmt_idx, stmt, block)
+
 
 class AILBlockViewer(AILBlockWalker[None, None, None]):
     """
@@ -799,6 +840,9 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         if changed:
             new_expr = expr.copy()
             new_expr.operands = (operand_0, operand_1)
+            if operand_0 is None:
+                import ipdb
+                ipdb.set_trace()
             new_expr.depth = max(operand_0.depth, operand_1.depth) + 1
             return new_expr
         return expr
@@ -982,7 +1026,12 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr = expr.copy()
             new_expr.fields = tuple(new_fields)
             return new_expr
-        return None
+        return expr
+
+    def _handle_StringLiteral(
+        self, expr_idx: int, expr: StringLiteral, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        return expr
 
     def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
         changed = False
@@ -999,7 +1048,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr = expr.copy()
             new_expr.fields = new_fields
             return new_expr
-        return None
+        return expr
 
     def _handle_Array(self, expr_idx: int, expr: Array, stmt_idx: int, stmt: Statement, block: Block | None):
         changed = False
@@ -1016,7 +1065,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr = expr.copy()
             new_expr.elements = tuple(new_elements)
             return new_expr
-        return None
+        return expr
 
     def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
         changed = False
@@ -1046,7 +1095,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             if self._update_block and block is not None:
                 block.statements[stmt_idx] = new_stmt
             return new_stmt
-        return None
+        return stmt
 
     def _handle_FunctionLikeMacroExpr(
         self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
@@ -1075,4 +1124,4 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             expr = expr.copy()
             expr.args = new_args
             return expr
-        return None
+        return expr

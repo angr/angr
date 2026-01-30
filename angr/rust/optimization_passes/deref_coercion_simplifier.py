@@ -1,11 +1,13 @@
 import logging
 
-from angr.ailment import AILBlockWalker, Block, BinaryOp, Const
-from angr.ailment.expression import VirtualVariable, Load, StringLiteral
+from angr.ailment.block_walker import AILBlockRewriter
+from angr.ailment import Block, BinaryOp, Const
+from angr.ailment.expression import VirtualVariable, StringLiteral
 from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
 from angr.rust.sim_type import RustSimStruct
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.rust.optimization_passes.utils import CallRewriter
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import CFAMixin, SRDAMixin
 
 l = logging.getLogger(__file__)
@@ -14,64 +16,7 @@ STR_CMP_NE_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::ne
 STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq"
 
 
-class DerefCoercionSimplifierWalker(AILBlockWalker):
-    def __init__(self, context: "DerefCoercionSimplifier"):
-        super().__init__()
-        self.context = context
-
-    def handle_Call(self, call: Call, stmt, block):
-        String_ty = self.context.project.kb.known_structs["alloc::string::String"]
-        ptr_offset = (
-            String_ty.get_field_offset("vec.buf.ptr.pointer")
-            or String_ty.get_field_offset("vec.buf.inner.ptr.pointer")
-            or 0
-        )
-        len_offset = String_ty.get_field_offset("vec.len") or self.context.project.arch.bytes
-        if call.args:
-            changed = False
-            args = list(call.args)
-            new_args = []
-            while len(args) >= 2:
-                arg0 = args.pop(0)
-                vvar = arg0
-                if isinstance(arg0, VirtualVariable) and vvar.was_stack:
-                    vvar = self.context.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.ins_addr, block.idx)
-                    if isinstance(vvar, VirtualVariable) and vvar.was_stack:
-                        returnty = None
-                        value = self.context.get_terminal_vvar_value(vvar)
-                        if isinstance(value, FunctionLikeMacro):
-                            returnty = value.returnty
-                        elif isinstance(value, Call):
-                            returnty = value.prototype.returnty
-                        if isinstance(returnty, RustSimStruct) and returnty.name == String_ty.name:
-                            arg1 = args.pop(0)
-                            if (
-                                isinstance(arg1, VirtualVariable)
-                                and arg1.was_stack
-                                and arg1.stack_offset - arg0.stack_offset == len_offset - ptr_offset
-                            ):
-                                new_args.append(vvar)
-                                changed = True
-                                continue
-                new_args.append(arg0)
-
-            new_args.extend(args)
-            if changed:
-                new_stmt = call.copy()
-                new_stmt.args = new_args
-                return new_stmt
-        return None
-
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        final_stmt = self.handle_Call(stmt, stmt, block)
-        if block and final_stmt:
-            block.statements[stmt_idx] = final_stmt
-
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        return self.handle_Call(expr, stmt, block)
-
-
-class StrCmpSimplifierWalker(AILBlockWalker):
+class StrCmpSimplifierWalker(AILBlockRewriter):
     def __init__(self, context: "DerefCoercionSimplifier"):
         super().__init__()
         self.context = context
@@ -97,7 +42,7 @@ class StrCmpSimplifierWalker(AILBlockWalker):
                     operands.append(StringLiteral(None, "", operands[0].bits))
                 if len(operands) == 2:
                     return BinaryOp(None, op, operands, **expr.tags)
-        return None
+        return expr
 
 
 class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
@@ -113,13 +58,57 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
 
         self.analyze()
 
+    def _simplify_str_arguments(self, call: Call, block, stmt, is_expr):
+        string_ty = self.project.kb.known_structs["alloc::string::String"]
+        ptr_offset = (
+                string_ty.get_field_offset("vec.buf.ptr.pointer")
+                or string_ty.get_field_offset("vec.buf.inner.ptr.pointer")
+                or 0
+        )
+        len_offset = string_ty.get_field_offset("vec.len") or self.project.arch.bytes
+        if call.args:
+            changed = False
+            args = list(call.args)
+            new_args = []
+            while len(args) >= 2:
+                arg0 = args.pop(0)
+                vvar = arg0
+                if isinstance(arg0, VirtualVariable) and vvar.was_stack:
+                    vvar = self.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.tags["ins_addr"],
+                                                               block.idx)
+                    if isinstance(vvar, VirtualVariable) and vvar.was_stack:
+                        returnty = None
+                        value = self.get_terminal_vvar_value(vvar)
+                        if isinstance(value, FunctionLikeMacro):
+                            returnty = value.returnty
+                        elif isinstance(value, Call):
+                            returnty = value.prototype.returnty
+                        if isinstance(returnty, RustSimStruct) and returnty.name == string_ty.name:
+                            arg1 = args.pop(0)
+                            if (
+                                    isinstance(arg1, VirtualVariable)
+                                    and arg1.was_stack
+                                    and arg1.stack_offset - arg0.stack_offset == len_offset - ptr_offset
+                            ):
+                                new_args.append(vvar)
+                                changed = True
+                                continue
+                new_args.append(arg0)
+
+            new_args.extend(args)
+            if changed:
+                new_stmt = call.copy()
+                new_stmt.args = new_args
+                return new_stmt
+        return call
+
     def _check(self):
         return self.project.is_rust_binary, None
 
     def _analyze(self, cache=None):
-        walker = DerefCoercionSimplifierWalker(self)
+        rewriter = CallRewriter(self._simplify_str_arguments)
         for block in self._graph.nodes():
-            walker.walk(block)
+            rewriter.walk(block)
         walker = StrCmpSimplifierWalker(self)
         for block in self._graph.nodes():
             walker.walk(block)

@@ -8,13 +8,13 @@ from networkx.exception import NetworkXError
 
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import SimCC
-from angr.ailment import BinaryOp, Const, AILBlockWalker, Block
+from angr.ailment import BinaryOp, Const, AILBlockWalker, Block, AILBlockViewer, AILBlockRewriter
 from angr.ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, VirtualVariableCategory
 from angr.ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
 from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
-from angr.rust.optimization_passes.utils import CallReplacer, expand_argloc, extract_str_from_addr
+from angr.rust.optimization_passes.utils import CallRewriter, expand_argloc, extract_str_from_addr
 from angr.rust.sim_type import (
     RustSimEnum,
     RustSimTypeOption,
@@ -67,7 +67,7 @@ class Pathfinder:
     def _remove_phi(path):
         new_path = [block.copy() for block in path]
 
-        class PhiWalker(AILBlockWalker):
+        class PhiWalker(AILBlockRewriter):
 
             def __init__(self):
                 super().__init__()
@@ -81,7 +81,7 @@ class Pathfinder:
                     for src, vvar in expr.src_and_vvars:
                         if src == pred:
                             return vvar
-                return None
+                return expr
 
         walker = PhiWalker()
         for block in new_path:
@@ -176,7 +176,7 @@ class Pathfinder:
         return path
 
 
-class FunctionBodyFactCollector(AILBlockWalker):
+class FunctionBodyFactCollector(AILBlockViewer):
     def __init__(self, context: "RustCallingConventionAnalysis"):
         super().__init__()
         self.context = context
@@ -682,9 +682,9 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                             combo_arg_types[arg.varid] = arg_ty
                             i += 1
                 i += 1
-            return None
+            return call
 
-        replacer = CallReplacer(callback)
+        replacer = CallRewriter(callback)
         for block in self._graph.nodes:
             replacer.walk(block)
 

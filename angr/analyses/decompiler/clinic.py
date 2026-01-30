@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment import AILBlockWalker, Statement, Block
+from angr.ailment import AILBlockWalker, Statement, Block, AILBlockRewriter
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.code_location import ExternalCodeLocation
@@ -611,7 +611,7 @@ class Clinic(Analysis):
         Fix references to combo registers to load from the combo register.
         """
 
-        class ComboRegReferenceWalker(AILBlockWalker):
+        class ComboRegReferenceWalker(AILBlockRewriter):
 
             def __init__(self, project):
                 super().__init__()
@@ -641,7 +641,7 @@ class Clinic(Analysis):
                             expr.size,
                             self.project.arch.memory_endness,
                         )
-                return None
+                return expr
 
         walker = ComboRegReferenceWalker(self.project)
         for block in GraphUtils.quasi_topological_sort_nodes(ail_graph):
@@ -831,7 +831,7 @@ class Clinic(Analysis):
         # Run simplification passes
         self._update_progress(53.0, text="Running simplifications 2.5")
         self._ail_graph = self._run_simplification_passes(
-            self._ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES
+            self._ail_graph, stage=OptimizationPassStage.AFTER_MAKING_CALLSITES, arg_vvars=self.arg_vvars
         )
 
         # Simplify the entire function for the second time
@@ -1849,7 +1849,6 @@ class Clinic(Analysis):
                 notes=self.notes,
                 static_vvars=self.static_vvars,
                 static_buffers=self.static_buffers,
-                arg_vvars=self.arg_vvars,
                 **kwargs,
             )
             if a.out_graph:

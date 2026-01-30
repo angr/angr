@@ -1,4 +1,4 @@
-from angr.ailment import AILBlockWalker, Statement, Block, Assignment
+from angr.ailment import AILBlockRewriter, Statement, Block, Assignment
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
 from angr.rust.mixins.srda_mixin import SRDAMixin
@@ -34,21 +34,21 @@ class SSAVariableMixin:
                 new_expr = expr.copy()
                 expr = expr.operand
                 if not isinstance(expr, VirtualVariable) or expr.varid in self._new_stack_vvars:
-                    return None
+                    return expr
                 if expr.was_stack:
-                    vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
+                    vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
                     if vvar and vvar.varid in self._new_stack_vvars:
                         new_expr.operand = vvar
                         return new_expr
-            return None
+            return expr
 
         def _handle_VirtualVariable(
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
         ):
             if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
-                return None
+                return expr
             if expr.was_stack:
-                vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.ins_addr, block.idx)
+                vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
                 if vvar and vvar.varid in self._new_stack_vvars:
                     if expr.size < vvar.size:
                         return Load(
@@ -58,9 +58,9 @@ class SSAVariableMixin:
                             self.context.project.arch.memory_endness,
                         )
                     return vvar
-            return None
+            return expr
 
-        walker = AILBlockWalker()
-        walker.expr_handlers.update({UnaryOp: _handle_UnaryOp, VirtualVariable: _handle_VirtualVariable})
+        rewriter = AILBlockRewriter()
+        rewriter.expr_handlers.update({UnaryOp: _handle_UnaryOp, VirtualVariable: _handle_VirtualVariable})
         for block in self.context._graph.nodes:
-            walker.walk(block)
+            rewriter.walk(block)

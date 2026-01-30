@@ -1,6 +1,6 @@
 from archinfo import Endness
 
-from angr.ailment import AILBlockWalker, BinaryOp, Const
+from angr.ailment import AILBlockRewriter, BinaryOp, Const
 from angr.ailment.expression import Load, Convert, StringLiteral
 from angr.ailment.statement import ConditionalJump, Call
 
@@ -108,10 +108,10 @@ class StringCmpOutliner(OptimizationPass):
                 new_stmt.condition = new_cond
                 block.statements[stmt_idx] = new_stmt
                 return new_stmt
-        return None
+        return stmt
 
     def _analyze(self, cache=None):
-        walker = AILBlockWalker(stmt_handlers={ConditionalJump: self._process_condition})
+        walker = AILBlockRewriter(stmt_handlers={ConditionalJump: self._process_condition})
         for block in self._graph.nodes:
             walker.walk(block)
 
