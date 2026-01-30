@@ -3784,7 +3784,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         function_pointer = False
 
         if type_ is None and "type" in expr.tags:
-            type_ = expr.type
+            type_ = expr.tags["type"]
 
         if reference_values is None:
             reference_values = {}

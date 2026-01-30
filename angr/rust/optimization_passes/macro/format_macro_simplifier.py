@@ -253,7 +253,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     for i in range(args_len):
                         arg_vvar = self.get_stack_vvar_by_insn(
                             args_value.stack_offset + i * self.project.arch.bytes * 2,
-                            new_arguments_call.ins_addr,
+                            new_arguments_call.tags["ins_addr"],
                             new_arguments_call_block.idx,
                         )
                         new_argument_call = self.get_terminal_vvar_value(arg_vvar)
@@ -340,7 +340,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     for i in range(args_len):
                         arg_vvar = self.get_stack_vvar_by_insn(
                             args_value.stack_offset + i * self.project.arch.bytes * 2,
-                            new_arguments_call.ins_addr,
+                            new_arguments_call.tags["ins_addr"],
                             new_arguments_call_block.idx,
                         )
                         argument_struct = self.get_terminal_vvar_value(arg_vvar)
@@ -537,7 +537,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         for arg in args.elements:
             arg_vvar = self.get_stack_vvar_by_insn(
                 arg.stack_offset,
-                arguments_def_stmt.ins_addr,
+                arguments_def_stmt.tags["ins_addr"],
                 arguments_def_block.idx,
             )
             arg_vvars.append(arg_vvar)

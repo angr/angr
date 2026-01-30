@@ -31,13 +31,15 @@ class SSAVariableMixin:
 
         def _handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
             if expr.op == "Reference":
-                new_expr = expr.copy()
-                expr = expr.operand
-                if not isinstance(expr, VirtualVariable) or expr.varid in self._new_stack_vvars:
-                    return expr
-                if expr.was_stack:
-                    vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
+                operand = expr.operand
+                if (
+                    isinstance(operand, VirtualVariable)
+                    and operand.was_stack
+                    and operand.varid not in self._new_stack_vvars
+                ):
+                    vvar = srda.get_stack_vvar_by_insn(operand.stack_offset, stmt.tags["ins_addr"], block.idx)
                     if vvar and vvar.varid in self._new_stack_vvars:
+                        new_expr = expr.copy()
                         new_expr.operand = vvar
                         return new_expr
             return expr

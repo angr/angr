@@ -60,7 +60,7 @@ class APIObfType3PeepholeOptimizer(PeepholeOptimizationExprBase):
     expr_classes = (Call,)
 
     def optimize(self, expr: Call, **kwargs):
-        funcbits = self.kb.obfuscations.type3_deobfuscated_apis.get(expr.tags["ins_addr"], None)
+        funcbits = self.kb.obfuscations.type3_deobfuscated_apis.get(expr.tags.get("ins_addr", None), None)
         if funcbits is None:
             return None
         dll, api = funcbits
