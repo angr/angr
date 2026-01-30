@@ -12,8 +12,7 @@ from angr.ailment.statement import Call, Statement, Jump, ConditionalJump, Retur
 from networkx import NetworkXError
 
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...rust.utils.library import normalize
-
+from ...rust.utils.demangler import normalize
 
 l = logging.getLogger(name=__name__)
 

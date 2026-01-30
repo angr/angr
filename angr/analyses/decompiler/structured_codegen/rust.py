@@ -42,7 +42,7 @@ from ....rust.sim_type import (
 from ....knowledge_plugins.functions import Function
 from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
 from ....utils.constants import is_alignment_mask
-from ....rust.utils.library import demangle, normalize
+from ....rust.utils.demangler import demangle, normalize
 from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
 from ..utils import structured_node_is_simple_return
 from ....errors import UnsupportedNodeTypeError

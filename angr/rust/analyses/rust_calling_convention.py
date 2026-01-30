@@ -33,7 +33,7 @@ from angr.rust.sim_type import (
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
-from angr.rust.utils.library import normalize, demangle
+from angr.rust.utils.demangler import normalize, demangle
 from angr.utils.graph import GraphUtils
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins import Function

@@ -1,7 +1,6 @@
-from angr.rust.utils.library import normalize
+from angr.rust.utils.demangler import normalize
 from angr.knowledge_plugins.functions.function import Function
 from ...analyses import Analysis, AnalysesHub
-
 
 CLEANUP_FUNCTIONS = (
     "free",
