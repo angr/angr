@@ -40,7 +40,6 @@ def _compare_trace(trace, expected):
         assert trace_item_str == expected_str
 
 
-@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestUnicorn(unittest.TestCase):
     def test_stops(self):
         p = angr.Project(os.path.join(test_location, "i386", "uc_stop"), auto_load_libs=False)
