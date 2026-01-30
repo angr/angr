@@ -8,7 +8,6 @@ import gc
 import os
 import pickle
 import re
-import sys
 import unittest
 
 import claripy
