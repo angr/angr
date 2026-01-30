@@ -9,7 +9,9 @@ from angr.rust.utils.ail import find_call, get_terminal_call
 CLEANUP_FUNCTIONS = (
     "free",
     "__rust_dealloc",
+    "__rustc::__rust_dealloc",
     "close",
+    "_close",
     "core::ptr::drop_in_place",
     "core::ops::drop::Drop::drop",
     "alloc::raw_vec::RawVecInner::deallocate",

@@ -5,12 +5,11 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from angr.rust.utils.library import demangle
+from angr.rust.utils.demangler import demangle
 from angr.calling_conventions import default_cc
 from angr.rust.definitions.commit_versions import COMMIT_VERSIONS
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import MemoryDataSort
-
 
 l = logging.getLogger(__name__)
 

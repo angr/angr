@@ -5,7 +5,7 @@ from angr.ailment.expression import Convert
 from angr.ailment.statement import Statement, Label, Call, Return, ConditionalJump, Jump
 from angr.rust.utils.ail import CallFinder
 
-from angr.rust.utils.library import normalize
+from angr.rust.utils.demangler import normalize
 
 
 class CFAMixin:

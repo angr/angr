@@ -11,7 +11,7 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 from angr.rust.mixins import CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin
 from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimType, RustSimTypeSize
-from angr.rust.utils.library import demangle, normalize
+from angr.rust.utils.demangler import demangle, normalize
 
 PRINT_FUNCTIONS = (
     "std::io::stdio::_print",
