@@ -1,11 +1,11 @@
 from __future__ import annotations
 import unittest
 
-import angr
 import archinfo
 import pyvex
 
-import angr.ailment as ailment
+import angr
+from angr import ailment
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=line-too-long
