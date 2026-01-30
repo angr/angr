@@ -9,7 +9,6 @@ import logging
 import angr.ailment as ailment
 import claripy
 import networkx
-from unique_log_filter import UniqueLogFilter
 
 
 from angr.utils.graph import GraphUtils
@@ -36,7 +35,6 @@ from .graph_region import GraphRegion
 from .utils import peephole_optimize_expr
 
 l = logging.getLogger(__name__)
-l.addFilter(UniqueLogFilter())
 
 
 _UNIFIABLE_COMPARISONS = {

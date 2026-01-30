@@ -40,7 +40,6 @@ dependencies = [
     "sortedcontainers",
     "sympy",
     "typing-extensions",
-    "unique-log-filter",
     "colorama;platform_system=='Windows'",
 ]
 dynamic = ["version"]
