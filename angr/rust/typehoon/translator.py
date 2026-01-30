@@ -124,7 +124,7 @@ class RustTypeTranslator(TypeTranslator):
 
         return s
 
-    def _translate_Result(self, tc: typeconsts.Enum):
+    def _translate_Result(self, tc: typeconsts.RustEnum):
         ok_variant = tc.get_variant("Ok")
         err_variant = tc.get_variant("Err")
         ok_type = self._tc2simtype(ok_variant.fields[0][0])
@@ -139,7 +139,7 @@ class RustTypeTranslator(TypeTranslator):
             name=tc.name,
         ).with_arch(self.arch)
 
-    def _translate_Option(self, tc: typeconsts.Enum):
+    def _translate_Option(self, tc: typeconsts.RustEnum):
         none_variant = tc.get_variant("None")
         some_variant = tc.get_variant("Some")
         some_type = self._tc2simtype(some_variant.fields[0][0])
@@ -152,7 +152,7 @@ class RustTypeTranslator(TypeTranslator):
             name=tc.name,
         ).with_arch(self.arch)
 
-    def _translate_Enum(self, tc: typeconsts.Enum):
+    def _translate_RustEnum(self, tc: typeconsts.RustEnum):
         if tc.name.startswith("core::result::Result<") or tc.name.startswith("Result<"):
             return self._translate_Result(tc)
         elif tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
@@ -202,5 +202,5 @@ TypeConstHandlers = {
     typeconsts.Int128: RustTypeTranslator._translate_Int128,
     typeconsts.IntVar: RustTypeTranslator._translate_IntVar,
     typeconsts.TypeVariableReference: RustTypeTranslator._translate_TypeVariableReference,
-    typeconsts.Enum: RustTypeTranslator._translate_Enum,
+    typeconsts.RustEnum: RustTypeTranslator._translate_RustEnum,
 }

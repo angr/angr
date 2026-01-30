@@ -273,6 +273,7 @@ class VirtualVariable(Atom):
         "category",
         "oident",
         "varid",
+        "reg_vvars",
     )
 
     def __init__(
@@ -290,6 +291,8 @@ class VirtualVariable(Atom):
         self.category = category
         self.oident = oident
         self.bits = bits
+
+        self.reg_vvars = kwargs.get("reg_vvars", {})
 
     @property
     def was_reg(self) -> bool:

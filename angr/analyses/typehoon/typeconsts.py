@@ -391,7 +391,7 @@ class EnumVariant:
         return hash((type(self), self.name, tuple(self.fields), self.discriminant, self.discriminant_size, self.size))
 
 
-class Enum(TypeConstant):
+class RustEnum(TypeConstant):
 
     def __init__(self, name, variants):
         self.name = name
