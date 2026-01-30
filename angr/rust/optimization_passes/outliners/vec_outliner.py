@@ -34,7 +34,7 @@ class VecOutliner(OptimizationPass):
                         idx=None,
                         target=StringLiteral(None, "Vec::new", self.project.arch.bits),
                         prototype=RustSimTypeFunction(
-                            args=[RustSimTypeReference(stmt.src.type)], returnty=None, is_arg0_retbuf=True
+                            args=[RustSimTypeReference(stmt.src.tags["type"])], returnty=None, is_arg0_retbuf=True
                         )
                         .with_arch(self.project.arch)
                         .normalize(),
@@ -47,7 +47,7 @@ class VecOutliner(OptimizationPass):
                     new_stmt.src = call
                     block.statements[stmt_idx] = new_stmt
                     return new_stmt
-            return None
+            return stmt
 
         class StringStructWalker(AILBlockRewriter):
 

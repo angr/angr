@@ -382,6 +382,10 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         for block in self._graph.nodes:
             # Recover structs by function calls
             call = self.terminal_call(block)
+            # if self.match_call(call, ["std::io::stdio::_eprint"]):
+            #     import ipdb
+            #
+            #     ipdb.set_trace()
             if call and call.args and call.prototype and call.prototype.args:
                 if len(call.args) == len(call.prototype.args):
                     for arg, arg_ty in zip(call.args, call.prototype.args):

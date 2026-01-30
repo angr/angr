@@ -331,7 +331,7 @@ class Clinic(Analysis):
         s = ""
 
         for block in sorted(self.graph.nodes(), key=lambda x: x.addr):
-            s += str(block) + "\n\n"
+            s += block.dbg_repr() + "\n\n"
 
         return s
 
@@ -2269,7 +2269,10 @@ class Clinic(Analysis):
                     {
                         v: t
                         for v, t in vr.var_to_typevars.items()
-                        if isinstance(v, (SimRegisterVariable, SimStackVariable, SimConstantVariable, SimComboRegisterVariable)) or v is self.func_ret_var
+                        if isinstance(
+                            v, (SimRegisterVariable, SimStackVariable, SimConstantVariable, SimComboRegisterVariable)
+                        )
+                        or v is self.func_ret_var
                     },
                     vr.stack_offset_typevars,
                 )
