@@ -3472,9 +3472,9 @@ class TestDecompiler(unittest.TestCase):
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
 
-        # ensure the constant memory read exists
-        const_mem_read = re.search(r"\*\(\(int \*\)0x501380\) == 1", text)
-        assert const_mem_read is not None
+        # ensure the memory read exists
+        mem_read = re.search(r"\*\(\(int \*\)&g_501380\) == 1", text)
+        assert mem_read is not None
 
     @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
