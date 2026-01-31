@@ -1013,7 +1013,19 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
     if bits > len(rot_amt):
         raise SimError("Got a rotate instruction for data larger than the provided word size. Panic.")
 
-    sized_amt = (rot_amt & bits_in - 1).zero_extend(1) if bits == len(rot_amt) else (rot_amt & bits_in - 1)[bits:0]
+    # Mask the rotate amount
+    # https://www.felixcloutier.com/x86/rcl:rcr:rol:ror#---rcl-and-rcr-instructions---
+    if sz == 1:
+        sized_amt = (rot_amt & 0x1F) % 9
+    elif sz == 2:
+        sized_amt = (rot_amt & 0x1F) % 17
+    elif sz == 3:
+        sized_amt = rot_amt & 0x1F
+    elif sz == 4:
+        sized_amt = rot_amt & 0x3F
+
+    # Ajust the BV size
+    sized_amt = sized_amt.zero_extend(1) if bits == len(sized_amt) else sized_amt[bits:0]
 
     assert len(sized_amt) == bits + 1
 
