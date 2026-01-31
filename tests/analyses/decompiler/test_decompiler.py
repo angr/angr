@@ -5392,6 +5392,21 @@ class TestDecompiler(unittest.TestCase):
         proto_str = callee.prototype.c_repr("G_DoLoadLevel")
         assert "(void)" in proto_str, f"Callee prototype should have (void), got: {proto_str}"
 
+    @for_all_structuring_algos
+    def test_decompiling_extern_size_hints(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "f_finale.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        func = proj.kb.functions["F_CastResponder"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # Check that extern variables with proper size hints are resolved
+        assert "g_5000e0" in dec.codegen.text, "Extern variable g_5000e0 should be present"
+
 
 if __name__ == "__main__":
     unittest.main()
