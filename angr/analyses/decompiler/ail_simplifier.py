@@ -611,6 +611,10 @@ class AILSimplifier(Analysis):
             if isinstance(stmt, Call) and expr is None:
                 all_used_sizes.add(atom.size)
                 continue
+            if expr is None:
+                # the statement might be "return Call(...)"
+                # just give up
+                return ExprNarrowingInfo(False)
             # special case: if the statement is a phi statement, we ignore it
             if is_phi_assignment(stmt):
                 continue

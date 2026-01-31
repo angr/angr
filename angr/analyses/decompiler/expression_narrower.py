@@ -96,9 +96,21 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         effective_bits = self.expr_to_effective_bits.get(expr)
         if effective_bits is None:
             effective_bits = 0, expr.bits
-        if expr.op == "And" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0xFFFF_FFFF:
-            lo_bits = max(0, effective_bits[0])
-            hi_bits = min(32, effective_bits[1])
+        if expr.op == "And" and isinstance(expr.operands[1], Const):
+            match expr.operands[1].value:
+                case 0xFF:
+                    lo_bits, hi_bits = 0, 8
+                case 0xFFFF:
+                    lo_bits, hi_bits = 0, 16
+                case 0xFFFF_FFFF:
+                    lo_bits, hi_bits = 0, 32
+                case 0xFFFF_FFFF_FFFF_FFFF:
+                    lo_bits, hi_bits = 0, 64
+                case _:
+                    lo_bits, hi_bits = effective_bits
+
+            lo_bits = max(lo_bits, effective_bits[0])
+            hi_bits = min(hi_bits, effective_bits[1])
             self.expr_to_effective_bits[expr.operands[0]] = lo_bits, hi_bits
 
         self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
