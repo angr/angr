@@ -1415,6 +1415,20 @@ class PhoenixStructurer(StructurerBase):
         if not isinstance(last_stmt, IncompleteSwitchCaseHeadStatement):
             return False
 
+        # sanity check: all case nodes must have at most one common successor at this point
+        # note that we are ignoring AIL blocks with block ID != None
+        nodes = {(nn.addr, nn.idx if isinstance(nn, Block) else None): nn for nn in graph_raw.successors(node)}
+        successors: set[int] = set()
+        case_nodes: set[int] = set()
+        for _, _, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
+            case_nodes.add(case_target_addr)
+            case_node = nodes.get((case_target_addr, case_target_idx), None)
+            if case_node is None:
+                continue
+            successors.update(nn.addr for nn in graph_raw.successors(case_node))
+        if len(successors.difference(case_nodes)) > 1:
+            return False
+
         # make a fake jumptable
         node_default_addr = None
         case_entries: dict[int, int | tuple[int, int | None]] = {}
