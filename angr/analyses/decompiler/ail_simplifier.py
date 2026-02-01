@@ -636,7 +636,12 @@ class AILSimplifier(Analysis):
 
         target_size = None
         if len(all_used_sizes) >= 1 and max(all_used_sizes) < def_size:
-            target_size = max(all_used_sizes)
+            if noncall_used_sizes and max(all_used_sizes) not in noncall_used_sizes:
+                # special case: the variable size is greater when used as call arguments; we use the non-call size
+                # instead.
+                target_size = max(noncall_used_sizes)
+            else:
+                target_size = max(all_used_sizes)
         else:
             effective_size = effective_sizes.get(def_.atom.varid, None)
             if (
