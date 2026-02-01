@@ -590,7 +590,7 @@ class AILSimplifier(Analysis):
 
         all_used_sizes = set()
         noncall_used_sizes = set()
-        used_by: list[tuple[atoms.VirtualVariable, AILCodeLocation, tuple[str, tuple[Expression, ...]]]] = []
+        used_by: list[tuple[atoms.VirtualVariable, AILCodeLocation]] = []
         used_by_loc = defaultdict(list)
 
         for atom, loc, expr in use_and_exprs:
@@ -624,15 +624,15 @@ class AILSimplifier(Analysis):
             if is_expr_used_as_reg_base_value(stmt, expr, rd):
                 continue
 
-            expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
+            expr_size, use_type = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
                 # it's probably used in full width
                 return ExprNarrowingInfo(False)
 
             all_used_sizes.add(expr_size)
-            if not isinstance(stmt, Call):
+            if use_type != "call-arg":
                 noncall_used_sizes.add(expr_size)
-            used_by_loc[loc].append((atom, used_by_exprs))
+            used_by_loc[loc].append(atom)
 
         target_size = None
         if len(all_used_sizes) >= 1 and max(all_used_sizes) < def_size:
@@ -651,30 +651,9 @@ class AILSimplifier(Analysis):
                 target_size = effective_size
 
         if target_size is not None:
-            for loc, atom_expr_pairs in used_by_loc.items():
-                if len(atom_expr_pairs) == 1:
-                    atom, used_by_exprs = atom_expr_pairs[0]
-                    used_by.append((atom, loc, used_by_exprs))
-                else:
-                    # the order matters - we must replace the outer expressions first, then replace the inner
-                    # expressions. replacing in the wrong order will lead to expressions that are not replaced in the
-                    # end.
-                    ordered = []
-                    for atom, used_by_exprs in atom_expr_pairs:
-                        last_inclusion = len(ordered) - 1  # by default we append at the end of the list
-                        for idx in range(len(ordered)):
-                            if self._is_expr0_included_in_expr1(ordered[idx][1], used_by_exprs):
-                                # this element must be inserted before idx
-                                ordered.insert(idx, (atom, used_by_exprs))
-                                break
-                            if self._is_expr0_included_in_expr1(used_by_exprs, ordered[idx][1]):
-                                # this element can be inserted after this element. record the index
-                                last_inclusion = idx
-                        else:
-                            ordered.insert(last_inclusion + 1, (atom, used_by_exprs))
-
-                    for atom, used_by_exprs in ordered:
-                        used_by.append((atom, loc, used_by_exprs))
+            for loc, atoms in used_by_loc.items():
+                for atom in atoms:
+                    used_by.append((atom, loc))
 
             return ExprNarrowingInfo(True, to_size=target_size, use_exprs=used_by, phi_vars=phi_vars)
 
@@ -743,9 +722,7 @@ class AILSimplifier(Analysis):
                     result.append((atom, loc, expr))
         return result, phi_vars
 
-    def _extract_expression_effective_size(
-        self, statement, expr
-    ) -> tuple[int | None, tuple[str, tuple[Expression, ...]] | None]:
+    def _extract_expression_effective_size(self, statement, expr) -> tuple[int | None, str | None]:
         """
         Determine the effective size of an expression when it's used.
         """
@@ -758,10 +735,11 @@ class AILSimplifier(Analysis):
             if expr.likes(expr_):
                 effective_bit_ranges.add((lo_bits, hi_bits))
 
-        if len(effective_bit_ranges) == 1:
-            lo_bits, hi_bits = effective_bit_ranges.pop()
-            if lo_bits == 0:
-                return hi_bits // self.project.arch.byte_width, ("expr", (expr,))
+        if effective_bit_ranges:
+            highest_bit = max(hi_bits for _, hi_bits in effective_bit_ranges)
+            return highest_bit // self.project.arch.byte_width, "expr"
+        if walker.expr_used_as_call_arg_effective_bits is not None:
+            return walker.expr_used_as_call_arg_effective_bits[1] // self.project.arch.byte_width, "call-arg"
 
         return None, None
 

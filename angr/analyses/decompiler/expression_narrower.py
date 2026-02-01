@@ -38,9 +38,7 @@ class ExprNarrowingInfo:
         self,
         narrowable: bool,
         to_size: int | None = None,
-        use_exprs: (
-            list[tuple[atoms.VirtualVariable, AILCodeLocation, tuple[str, tuple[Expression, ...]]]] | None
-        ) = None,
+        use_exprs: list[tuple[atoms.VirtualVariable, AILCodeLocation]] | None = None,
         phi_vars: set[VirtualVariable] | None = None,
     ):
         self.narrowable = narrowable
@@ -48,22 +46,36 @@ class ExprNarrowingInfo:
         self.use_exprs = use_exprs
         self.phi_vars = phi_vars
 
+    def __repr__(self):
+        if self.narrowable:
+            return f"<{self.use_exprs} -> {self.to_size} bytes, phi_vars={self.phi_vars}>"
+        return "<not narrowable>"
+
 
 class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     """
-    Walks a statement or an expression and extracts the operations that are applied on the given expression.
+    Walks a statement or an expression and extracts the effective size (in bits).
 
-    For example, for target expression rax, `(rax & 0xff) + 0x1` means the following operations are applied on `rax`:
-    rax & 0xff
-    (rax & 0xff) + 0x1
+    For example, for target expression rax, `(rax & 0xff) + 0x1` means the effective size of rax is 8 bits, from bit
+    0 to bit 7. We record this information in expr_to_effective_bits as {rax: (0, 8)}.
 
-    The previous expression is always used in the succeeding expression.
+    We pay special consideration to expressions that are used as Call arguments, as they may have been converted to a
+    smaller size because the Call argument needs that size, but the Call prototype may have been incorrectly inferred.
     """
 
-    def __init__(self, target_expr: Expression):
+    def __init__(self, target_expr: Expression, ignore_call_args: bool = True):
         super().__init__()
         self._target_expr = target_expr
+        self._ignore_call_args = ignore_call_args
         self.expr_to_effective_bits: dict[Expression, tuple[int, int]] = {}
+        self.expr_used_as_call_arg_effective_bits: tuple[int, int] | None = None
+
+    def _update_effective_bits(self, expr, lo_bits: int, hi_bits: int):
+        existing = self.expr_to_effective_bits.get(expr)
+        if existing is None:
+            self.expr_to_effective_bits[expr] = lo_bits, hi_bits
+        else:
+            self.expr_to_effective_bits[expr] = max(existing[0], lo_bits), min(existing[1], hi_bits)
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
         return False
@@ -79,6 +91,8 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     ) -> Any:
         if is_none_or_likeable(expr, self._target_expr):
             # we are done!
+            if expr not in self.expr_to_effective_bits:
+                self._update_effective_bits(expr, 0, expr.bits)
             return
         super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
@@ -86,9 +100,33 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(0, expr.addr, stmt_idx, stmt, block)
 
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        if expr.args:
+        if expr.args is not None:
             for i, arg in enumerate(expr.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
+                if (
+                    self._ignore_call_args
+                    and isinstance(arg, Convert)
+                    and arg.to_bits < arg.from_bits
+                    and is_none_or_likeable(arg.operand, self._target_expr)
+                ):
+                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                else:
+                    self._handle_expr(i, arg, stmt_idx, stmt, block)
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+        if stmt.args is not None:
+            for i, arg in enumerate(stmt.args):
+                if (
+                    self._ignore_call_args
+                    and isinstance(arg, Convert)
+                    and arg.to_bits < arg.from_bits
+                    and is_none_or_likeable(arg.operand, self._target_expr)
+                ):
+                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                else:
+                    self._handle_expr(i, arg, stmt_idx, stmt, block)
+
+        if stmt.ret_expr is not None:
+            self._handle_expr(0, stmt.ret_expr, stmt_idx, stmt, block)
 
     def _handle_BinaryOp(
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -109,22 +147,30 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                 case _:
                     lo_bits, hi_bits = effective_bits
 
-            lo_bits = max(lo_bits, effective_bits[0])
-            hi_bits = min(hi_bits, effective_bits[1])
-            self.expr_to_effective_bits[expr.operands[0]] = lo_bits, hi_bits
+            self._update_effective_bits(expr.operands[0], lo_bits, hi_bits)
+
+        elif expr.op in {"Add", "Sub", "Mul", "Div", "Mod", "Xor", "Or", "And"}:
+            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
+            self._update_effective_bits(expr.operands[1], effective_bits[0], effective_bits[1])
+        elif expr.op in {"Shl", "Shr", "Sar"}:
+            self._update_effective_bits(expr.operands[0], effective_bits[0], effective_bits[1])
 
         self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)
         self._handle_expr(1, expr.operands[1], stmt_idx, stmt, block)
 
     def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        self.expr_to_effective_bits[expr] = 0, expr.bits
+        if expr.op == "Reference":
+            # we really only need 1 byte of the target variable :)
+            pass
+        else:
+            self._update_effective_bits(expr, 0, expr.bits)
         self._handle_expr(0, expr.operand, stmt_idx, stmt, block)
 
     def _handle_Convert(self, expr_idx: int, expr: Convert, stmt_idx: int, stmt: Statement | None, block: Block | None):
         effective_bits = self.expr_to_effective_bits.get(expr)
-        if effective_bits is None:
+        if effective_bits is None or effective_bits[1] > expr.to_bits:
             effective_bits = 0, expr.to_bits
-        self.expr_to_effective_bits[expr.operand] = effective_bits
+        self._update_effective_bits(expr.operand, effective_bits[0], effective_bits[1])
         self._handle_expr(expr_idx, expr.operand, stmt_idx, stmt, block)
 
     def _handle_ITE(self, expr_idx: int, expr: ITE, stmt_idx: int, stmt: Statement | None, block: Block | None):
