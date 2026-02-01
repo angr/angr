@@ -2385,6 +2385,31 @@ class TestDecompiler(unittest.TestCase):
         default_index = d.codegen.text.find("default:")
         assert case_92_index < continue_index < default_index
 
+        # ensure the logic after switch-case remains (incorrect structuring may drop it)
+        lines = [line.strip(" \n") for line in d.codegen.text.split("\n")]
+        default_line = next((i for i, line in enumerate(lines) if line == "default:"), None)
+        assert default_line is not None, "default case not found"
+        end_switch_line = next((i for i, line in enumerate(lines[default_line:]) if line == "}"), None)
+        assert end_switch_line is not None, "end of switch-case not found"
+        end_switch_line += default_line
+        following_logic = lines[end_switch_line + 1 : end_switch_line + 6]
+        assert len(following_logic) == 5, "Unexpected number of lines after switch-case"
+        # expected:
+        #     v1 = p[1];
+        #     ptr = &p[1];
+        #     if (!p[1])
+        #         return;
+        # }
+        expected = [
+            r"[a-zA-Z0-9]+ = [a-zA-Z0-9\[\]]+;",
+            r"[a-zA-Z0-9]+ = &[a-zA-Z0-9\[\]]+;",
+            r"if \(![a-zA-Z0-9\[\]]+\)",
+            r"return;",
+            r"}",
+        ]
+        for line, exp in zip(following_logic, expected):
+            assert re.fullmatch(exp, line) is not None, f"Expected line matching '{exp}', found '{line}'"
+
     @structuring_algo("sailr")
     def disabled_test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
         # FIXME: Fish does not think this test case is supposed to pass at all. Will spend more time.
