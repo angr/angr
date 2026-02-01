@@ -166,6 +166,7 @@ class AILSimplifier(Analysis):
         ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
+        fold_expressions=True,
         only_consts=False,
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
@@ -188,6 +189,7 @@ class AILSimplifier(Analysis):
         self._ail_manager: Manager | None = ail_manager
         self._gp = gp
         self._narrow_expressions = narrow_expressions
+        self._fold_expressions = fold_expressions
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
@@ -223,14 +225,15 @@ class AILSimplifier(Analysis):
                 self._rebuild_func_graph()
                 self._clear_cache()
 
-        _l.debug("Folding expressions")
-        folded_exprs = self._fold_exprs()
-        self.simplified |= folded_exprs
-        if folded_exprs:
-            _l.debug("... expressions folded")
-            self._rebuild_func_graph()
-            # reaching definition analysis results are no longer reliable
-            self._clear_cache()
+        if self._fold_expressions:
+            _l.debug("Folding expressions")
+            folded_exprs = self._fold_exprs()
+            self.simplified |= folded_exprs
+            if folded_exprs:
+                _l.debug("... expressions folded")
+                self._rebuild_func_graph()
+                # reaching definition analysis results are no longer reliable
+                self._clear_cache()
 
         _l.debug("Propagating partial-constant expressions")
         pconst_propagated = self._propagate_partial_constant_exprs()

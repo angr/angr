@@ -139,6 +139,7 @@ class OptimizationPass(BaseOptimizationPass):
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
+        fold_expressions: bool = True,
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         peephole_optimizations=None,
@@ -165,6 +166,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
         self._avoid_vvar_ids = avoid_vvar_ids or set()
+        self._fold_expressions = fold_expressions
         self._peephole_optimizations = peephole_optimizations
         self._stack_pointer_tracker = stack_pointer_tracker
         self.notes = notes if notes is not None else {}
@@ -384,6 +386,7 @@ class OptimizationPass(BaseOptimizationPass):
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,
+                fold_expressions=self._fold_expressions,
                 use_callee_saved_regs_at_return=False,
                 gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
                 avoid_vvar_ids=self._avoid_vvar_ids,
