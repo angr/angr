@@ -56,40 +56,51 @@ class RemoveRedundantShifts(PeepholeOptimizationExprBase):
             and isinstance(expr.operands[0], BinaryOp)
             and expr.operands[0].op == "Or"
         ):
-            op0, op1 = expr.operands[0].operands
-            if (
-                isinstance(op1, Convert)
-                and op1.from_bits == 32
-                and op1.to_bits == 64
-                and op1.from_type == Convert.TYPE_INT
-                and op1.to_type == Convert.TYPE_INT
-                and isinstance(op0, BinaryOp)
-                and op0.op == "And"
-            ):
-                # (expr<64-bits> & 0xffffffff_00000000) | Conv(32->64, expr<32-bits>)) >> 32  ==>  expr<64-bits> >> 32
-                inner_op0, inner_op1 = op0.operands
-                if isinstance(inner_op1, Const) and inner_op1.value == mask_hi32bits:
-                    if (
-                        isinstance(inner_op0, BinaryOp)
-                        and isinstance(inner_op0.operands[1], Const)
-                        and inner_op0.operands[1].value == exp_32bits
-                    ):
-                        return inner_op0.operands[0]
-                    return BinaryOp(expr.idx, "Shr", [inner_op0, expr.operands[1]], expr.signed, **expr.tags)
-                return BinaryOp(expr.idx, "Shr", [op0, expr.operands[1]], expr.signed, **expr.tags)
+            for op0, op1 in [expr.operands[0].operands, expr.operands[0].operands[::-1]]:
+                if (
+                    isinstance(op1, Convert)
+                    and op1.from_bits == 32
+                    and op1.to_bits == 64
+                    and op1.from_type == Convert.TYPE_INT
+                    and op1.to_type == Convert.TYPE_INT
+                    and isinstance(op0, BinaryOp)
+                    and op0.op == "And"
+                ):
+                    # (expr<64-bits> & 0xffffffff_00000000) | Conv(32->64, expr<32-bits>)) >> 32  ==>
+                    #     expr<64-bits> >> 32
+                    inner_op0, inner_op1 = op0.operands
+                    if isinstance(inner_op1, Const) and inner_op1.value == mask_hi32bits:
+                        if (
+                            isinstance(inner_op0, BinaryOp)
+                            and isinstance(inner_op0.operands[1], Const)
+                            and inner_op0.operands[1].value == exp_32bits
+                        ):
+                            return inner_op0.operands[0]
+                        return BinaryOp(expr.idx, "Shr", [inner_op0, expr.operands[1]], expr.signed, **expr.tags)
+                    return BinaryOp(expr.idx, "Shr", [op0, expr.operands[1]], expr.signed, **expr.tags)
 
             for op0, op1 in [expr.operands[0].operands, expr.operands[0].operands[::-1]]:
                 # ((v11 & 0xffff_ffff | 10.0 * 0x1_00000000) >> 32)   ==>   10.0
                 if (
-                    isinstance(op0, BinaryOp)
-                    and op0.op == "And"
-                    and isinstance(op0.operands[1], Const)
-                    and op0.operands[1].value == 0xFFFF_FFFF
-                    and isinstance(op1, BinaryOp)
+                    isinstance(op1, BinaryOp)
                     and op1.op == "Mul"
                     and isinstance(op1.operands[1], Const)
                     and op1.operands[1].value == 0x1_0000_0000
                 ):
-                    return op1.operands[0]
+                    if (
+                        isinstance(op0, BinaryOp)
+                        and op0.op == "And"
+                        and isinstance(op0.operands[1], Const)
+                        and op0.operands[1].value == 0xFFFF_FFFF
+                    ):
+                        return op1.operands[0]
+                    if (
+                        isinstance(op0, Convert)
+                        and op0.from_bits == 32
+                        and op0.to_bits == 64
+                        and op0.from_type == Convert.TYPE_INT
+                        and op0.to_type == Convert.TYPE_INT
+                    ):
+                        return op1.operands[0]
 
         return None
