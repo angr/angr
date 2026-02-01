@@ -656,9 +656,8 @@ class AILSimplifier(Analysis):
                 target_size = effective_size
 
         if target_size is not None:
-            for loc, atoms in used_by_loc.items():
-                for atom in atoms:
-                    used_by.append((atom, loc))
+            for loc, atom_list in used_by_loc.items():
+                used_by += [(atom, loc) for atom in atom_list]
 
             return ExprNarrowingInfo(True, to_size=target_size, use_exprs=used_by, phi_vars=phi_vars)
 

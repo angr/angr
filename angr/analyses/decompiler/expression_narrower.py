@@ -78,7 +78,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
             self.expr_to_effective_bits[expr] = max(existing[0], lo_bits), min(existing[1], hi_bits)
 
     def _top(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        return False
+        pass
 
     def _stmt_top(self, stmt_idx: int, stmt: Statement, block: Block | None):
         pass
