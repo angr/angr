@@ -278,6 +278,12 @@ class JumpTableProcessor(
             return False
         if len(self.block.instruction_addrs) == 1:
             return ins_addr == self.block.instruction_addrs[0]
+        if self.arch.branch_delay_slot and len(self.block.instruction_addrs) >= 3:
+            return (
+                ins_addr == self.block.instruction_addrs[-1]
+                or ins_addr == self.block.instruction_addrs[-2]
+                or ins_addr == self.block.instruction_addrs[-3]
+            )
         return ins_addr == self.block.instruction_addrs[-1] or ins_addr == self.block.instruction_addrs[-2]
 
     @staticmethod
