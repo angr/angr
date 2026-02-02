@@ -853,6 +853,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # exception handling
         self._exception_handling_by_endaddr = SortedDict()
 
+        self._last_percentage = 0.0
+        # record the number of resolved and unresolved indirect jumps *during* _process_unresolved_indirect_jumps()
+        # always clear them after returning from _process_unresolved_indirect_jumps()
+        self._transitory_resolved_indirect_jumps = 0
+        self._transitory_unresolved_indirect_jumps = 0
+
         self.stage: str = ""
 
         #
@@ -944,6 +950,43 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     #
     # Private methods
     #
+
+    # Progress bar management
+
+    def _calculate_progress_and_notify(self, skip_percentage: bool = False) -> None:
+        # Do not calculate progress if the user doesn't care about the progress at all
+        if not (self._show_progressbar or self._progress_callback):
+            return
+
+        max_percentage_stage_1 = 50.0
+        if not skip_percentage:
+            percentage = min(
+                self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
+            )
+            self._last_percentage = percentage
+        else:
+            percentage = self._last_percentage
+        ram_usage = self.ram_usage / (1024 * 1024)
+        transitory = self._transitory_resolved_indirect_jumps + self._transitory_unresolved_indirect_jumps
+        # p - pending
+        # r - resolved
+        # ur - unresolved
+        if transitory > 0:
+            indir_jump_text = (
+                f"{len(self._indirect_jumps_to_resolve) - transitory}p/"
+                + f"{self._transitory_resolved_indirect_jumps}r/"
+                + f"{self._transitory_unresolved_indirect_jumps}ur/"
+                + f"{len(self.indirect_jumps)} IJs"
+            )
+        else:
+            indir_jump_text = f"{len(self._indirect_jumps_to_resolve)}p/{len(self.indirect_jumps)} IJs"
+        text = (
+            f"{self.stage} | {len(self.functions)} funcs, {len(self.graph)} blocks | "
+            + indir_jump_text
+            + " | "
+            + f"{ram_usage:0.2f} MB RAM"
+        )
+        self._update_progress(percentage, text=text, cfg=self)
 
     # Methods for scanning the entire image
 
@@ -1519,19 +1562,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     job.apply_function_edges(self, clear=True)
                 raise AngrSkipJobNotice
 
-        # Do not calculate progress if the user doesn't care about the progress at all
-        if self._show_progressbar or self._progress_callback:
-            max_percentage_stage_1 = 50.0
-            percentage = min(
-                self._seg_list.occupied_size * max_percentage_stage_1 / self._regions_size, max_percentage_stage_1
-            )
-            ram_usage = self.ram_usage / (1024 * 1024)
-            text = (
-                f"{self.stage} | {len(self.functions)} funcs, {len(self.graph)} blocks | "
-                f"{len(self._indirect_jumps_to_resolve)}/{len(self.indirect_jumps)} IJs | "
-                f"{ram_usage:0.2f} MB RAM"
-            )
-            self._update_progress(percentage, text=text, cfg=self)
+        self._calculate_progress_and_notify()
 
     def _intra_analysis(self):
         pass
@@ -1740,7 +1771,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # we need to rely on indirect jump resolving to identify this call to stack_chk_fail before knowing that
         # function 0x100006480 does not return. Hence, we resolve indirect jumps before popping undecided pending jobs.
         if self._resolve_indirect_jumps and self._indirect_jumps_to_resolve:
+
+            self._transitory_resolved_indirect_jumps = self._transitory_unresolved_indirect_jumps = 0
             self._process_unresolved_indirect_jumps()
+            self._transitory_resolved_indirect_jumps = self._transitory_unresolved_indirect_jumps = 0
 
             if self._job_info_queue:
                 return
@@ -3428,6 +3462,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         self._deregister_analysis_job(jump.func_addr, jump)
 
+        self._transitory_resolved_indirect_jumps += 1
+        self._calculate_progress_and_notify(skip_percentage=True)
+
         CFGBase._indirect_jump_resolved(self, jump, jump.addr, resolved_by, targets)
 
     def _indirect_jump_unresolved(self, jump):
@@ -3490,6 +3527,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             )
 
         self._deregister_analysis_job(jump.func_addr, jump)
+
+        self._transitory_unresolved_indirect_jumps += 1
+        self._calculate_progress_and_notify(skip_percentage=True)
 
         CFGBase._indirect_jump_unresolved(self, jump)
 
