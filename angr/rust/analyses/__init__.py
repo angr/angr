@@ -5,3 +5,4 @@ from .flirt_sig_propagation import *
 from .cleanup_function_identification import *
 from .struct_builder import *
 from .rustc_version_identification import *
+from .type_db_loader import *

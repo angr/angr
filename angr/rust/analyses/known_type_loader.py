@@ -1,6 +1,5 @@
 import importlib
 import logging
-import os.path
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -60,6 +59,17 @@ class KnownTypeLoader(Analysis):
                     return match.group(1)
         return None
 
+    def _apply_patches(self):
+        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
+        if argument_ty and "ty" in argument_ty.fields:
+            argument_enum = self.project.kb.known_structs["core::fmt::rt::ArgumentType"]
+            if argument_enum and argument_enum.get_variant_by_name("Placeholder"):
+                placeholder_variant = argument_enum.get_variant_by_name("Placeholder")
+                if placeholder_variant:
+                    new_argument_ty = placeholder_variant.as_struct_ty()
+                    new_argument_ty.name = "core::fmt::rt::Argument"
+                    self.project.kb.known_structs["core::fmt::rt::Argument"] = new_argument_ty
+
     def _analyze(self):
         cc_cls = default_cc(self.project.arch.name)
         cc = cc_cls(self.project.arch) if cc_cls else None
@@ -84,6 +94,8 @@ class KnownTypeLoader(Analysis):
                 spec.loader.exec_module(module)
                 for struct_name, struct_ty in module.default_structs.items():
                     self.project.kb.known_structs[struct_name] = struct_ty.with_arch(self.project.arch)
+                self._apply_patches()
+
             if known_prototypes_path.exists():
                 spec = importlib.util.spec_from_file_location("known_prototypes", known_prototypes_path)
                 module = importlib.util.module_from_spec(spec)

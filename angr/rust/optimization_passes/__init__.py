@@ -40,7 +40,7 @@ def get_rust_optimization_passes():
         StringCmpOutliner,
         StringLiteralOutliner,
         UnwrapOutliner,
-        FormatMacroSimplifier,
+        # FormatMacroSimplifier,
         VecMacroSimplifier,
         # ShowMacroSimplifier,
         DerefCoercionSimplifier,

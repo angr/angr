@@ -8,7 +8,16 @@ from angr.ailment import UnaryOp
 from angr.ailment.expression import Const, VirtualVariable, Struct, Array, Load, BinaryOp
 from angr.ailment.statement import Assignment, Call
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
-from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef, RustSimTypeUnit, RustSimTypeInt
+from angr.rust.sim_type import (
+    RustSimStruct,
+    RustSimTypeReference,
+    RustSimTypeArrayRef,
+    RustSimTypeUnit,
+    RustSimTypeInt,
+    RustSimEnum,
+    RustSimTypeResult,
+    RustSimTypeOption,
+)
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.utils.ssa import VVarUsesCollector
@@ -111,6 +120,10 @@ class StructBuilder:
         return None
 
     def build(self, field_exprs, struct_ty) -> Struct | Array | None:
+        if struct_ty.name == "core::fmt::rt::Argument":
+            import ipdb
+
+            ipdb.set_trace()
         if field_exprs is None:
             return None
         field_exprs = self._fix_field_exprs(field_exprs, struct_ty)
@@ -122,6 +135,9 @@ class StructBuilder:
         fields = {}
         for field_name, field_ty in struct_ty.fields.items():
             field_offset = struct_ty.offsets[field_name]
+            # Workaround: treat enum as struct
+            if isinstance(field_ty, RustSimEnum) and not isinstance(field_ty, (RustSimTypeOption, RustSimTypeResult)):
+                field_ty = field_ty.as_struct_ty()
             if isinstance(field_ty, RustSimStruct):
                 field_struct = self.build(self._rebase_field_exprs(field_exprs, field_offset), field_ty)
                 if field_struct is None:
