@@ -279,12 +279,8 @@ class JumpTableProcessor(
         if len(self.block.instruction_addrs) == 1:
             return ins_addr == self.block.instruction_addrs[0]
         if self.arch.branch_delay_slot and len(self.block.instruction_addrs) >= 3:
-            return (
-                ins_addr == self.block.instruction_addrs[-1]
-                or ins_addr == self.block.instruction_addrs[-2]
-                or ins_addr == self.block.instruction_addrs[-3]
-            )
-        return ins_addr == self.block.instruction_addrs[-1] or ins_addr == self.block.instruction_addrs[-2]
+            return ins_addr in self.block.instruction_addrs[-3:]
+        return ins_addr in self.block.instruction_addrs[-2:]
 
     @staticmethod
     def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> RegisterOffset | None:
