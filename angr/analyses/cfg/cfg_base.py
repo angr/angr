@@ -1949,20 +1949,24 @@ class CFGBase(Analysis):
                 i += 1
                 if f_addr == func_addr:
                     continue
+                if f_addr in functions_to_remove:
+                    # this function has already been merged with other functions before... it cannot be merged with
+                    # this function anymore
+                    should_merge = False
+                    break
+                if f_addr in predetermined_function_addrs:
+                    # this function is a legit one. it shouldn't be removed/merged
+                    should_merge = False
+                    break
+                # check all blocks in this function and make sure they are within the range
                 f = functions[f_addr]
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and all(
                     max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs
                 ):
-                    if f_addr in functions_to_remove:
-                        # this function has already been merged with other functions before... it cannot be merged with
-                        # this function anymore
-                        should_merge = False
-                        break
-                    if f_addr in predetermined_function_addrs:
-                        # this function is a legit one. it shouldn't be removed/merged
-                        should_merge = False
-                        break
                     functions_to_merge.add(f_addr)
+                else:
+                    should_merge = False
+                    break
 
             if not should_merge:
                 # we shouldn't merge...
