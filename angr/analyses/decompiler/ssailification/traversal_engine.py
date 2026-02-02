@@ -262,6 +262,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         offset = base_offset + min(extra_offset, 0)
         var_offset = max(extra_offset, 0)
         size = var_offset + base_size
+        end_offset = offset + size
 
         self.state.pending_ptr_defines_nonlocal_live.discard(base_offset)
         if base_offset in self.pending_ptr_defines_nonlocal:
@@ -271,20 +272,38 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         other_defs: set[Def] = set()
         liveish_defs: set[Def] = set()
-        for suboff in range(offset, offset + size):
-            # set up current var mapping
-            self.state.stackvar_bases[suboff] = (offset, size)
-            # additional consideration: if we have only partially overwritten some def, make sure the other defs
-            # in range know of the updated size
-            old_defs = self.state.stackvar_defs.pop(suboff, set())
-            other_defs.update(old_defs)
-            if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
-                liveish_defs.update(old_defs)
-                for old_def in old_defs:
-                    # TODO consider that we actually have to do unification...
-                    definfo = self.def_info[old_def]
-                    definfo.variable_offset = offset
-                    definfo.variable_size = size
+        secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
+        reached_fixedpoint = False
+        while not reached_fixedpoint:
+            reached_fixedpoint = True
+            for suboff in range(offset, end_offset):
+                secret_stash[suboff].update(self.state.stackvar_defs.pop(suboff, set()))
+                old_defs = secret_stash[suboff]
+                # set up current var mapping
+                self.state.stackvar_bases[suboff] = (offset, size)
+                other_defs.update(old_defs)
+                # additional consideration: if this def only provides values for some bytes,
+                # make sure the implicated but not overwritten defs are unified
+                if not base_offset + extra_offset <= suboff < base_offset + extra_offset + base_size:
+                    liveish_defs.update(old_defs)
+                    for old_def in old_defs:
+                        definfo = self.def_info[old_def]
+                        old_offset = definfo.variable_offset
+                        old_end_offset = definfo.variable_endoffset
+
+                        new_offset = min(old_offset, offset)
+                        new_end_offset = max(old_end_offset, end_offset)
+
+                        definfo.variable_offset = new_offset
+                        definfo.variable_size = new_end_offset - new_offset
+
+                        if offset != new_offset:
+                            offset = new_offset
+                            reached_fixedpoint = False
+                        if end_offset != new_end_offset:
+                            end_offset = new_end_offset
+                            reached_fixedpoint = False
+                        size = offset - end_offset
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:

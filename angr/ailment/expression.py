@@ -1802,6 +1802,7 @@ class Insert(Expression):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
         assert value.bits <= base.bits
+        assert not isinstance(offset, Const) or offset.value * 8 + value.bits <= base.bits
         self.bits = base.bits
         self.base = base
         self.offset = offset
