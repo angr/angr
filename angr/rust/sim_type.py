@@ -442,7 +442,9 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
 
 class RustSimTypeBottom(RustSimType, SimTypeBottom):
-    pass
+    
+    def repr(self, name=None, full=0, memo=None, indent=0):
+        return "BOT"
 
 
 class EnumVariant:
