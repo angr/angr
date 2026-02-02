@@ -1761,10 +1761,10 @@ class Extract(Expression):
         )
 
     def __repr__(self):
-        return f"Extract({self.base}, {self.offset})"
+        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
 
     def __str__(self):
-        return f"Extract({self.base}, {self.offset})"
+        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
 
     def likes(self, other):
         return (
