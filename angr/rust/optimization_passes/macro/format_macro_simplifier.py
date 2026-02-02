@@ -2,9 +2,9 @@ import logging
 from collections import defaultdict
 from typing import Tuple
 
-from angr.ailment import Block, UnaryOp
+from angr.ailment import Block
 from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
-from angr.ailment.statement import Call, FunctionLikeMacro, Store, Assignment
+from angr.ailment.statement import Call, FunctionLikeMacro, Store
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_offset
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
@@ -97,13 +97,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         assert False
 
     def _is_debug_formatter(self, arg: Struct):
-        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-        formatter_offset = (
-            argument_ty.get_field_offset("formatter", self.project.arch.bytes)
-            if argument_ty
-            else self.project.arch.bytes
-        )
-        formatter = arg.fields.get(formatter_offset, None)
+        formatter = arg.get_field("formatter")
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
             if "core::fmt::Display" in name:
@@ -268,9 +262,10 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             "{:?}" if self._is_debug_formatter(macro_arg) else "{}" for macro_arg in macro_args
                         ]
                         placeholders.append("")
-                        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-                        argument_ty_value_offset = argument_ty.get_field_offset("value", 0) if argument_ty else 0
-                        macro_args = [macro_arg.fields[argument_ty_value_offset] for macro_arg in macro_args]
+                        macro_args = [
+                            macro_arg.get_field("value.pointer") or macro_arg.get_field("value")
+                            for macro_arg in macro_args
+                        ]
                         for block, stmts in stmts_to_remove.items():
                             for stmt in stmts:
                                 self._stmts_to_remove[block].append(stmt)
