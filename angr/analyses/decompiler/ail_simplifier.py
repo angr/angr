@@ -22,7 +22,6 @@ from angr.ailment.statement import (
     Return,
 )
 from angr.ailment.expression import (
-    Extract,
     Insert,
     Register,
     Convert,

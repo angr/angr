@@ -5,7 +5,7 @@ import logging
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
 from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi
+from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi, Extract
 from angr.ailment.utils import is_none_or_likeable
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -113,27 +113,47 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
     def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
         if expr.args is not None:
             for i, arg in enumerate(expr.args):
-                if (
-                    self._ignore_call_args
-                    and isinstance(arg, Convert)
-                    and arg.to_bits < arg.from_bits
-                    and is_none_or_likeable(arg.operand, self._target_expr)
-                ):
-                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                else:
+                handled = False
+                if self._ignore_call_args:
+                    if (
+                        isinstance(arg, Convert)
+                        and arg.to_bits < arg.from_bits
+                        and is_none_or_likeable(arg.operand, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                    if (
+                        isinstance(arg, Extract)
+                        and isinstance(arg.offset, Const)
+                        and is_none_or_likeable(arg.base, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+
+                if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
     def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
         if stmt.args is not None:
             for i, arg in enumerate(stmt.args):
-                if (
-                    self._ignore_call_args
-                    and isinstance(arg, Convert)
-                    and arg.to_bits < arg.from_bits
-                    and is_none_or_likeable(arg.operand, self._target_expr)
-                ):
-                    self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
-                else:
+                handled = False
+                if self._ignore_call_args:
+                    if (
+                        isinstance(arg, Convert)
+                        and arg.to_bits < arg.from_bits
+                        and is_none_or_likeable(arg.operand, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = 0, arg.to_bits
+                    if (
+                        isinstance(arg, Extract)
+                        and isinstance(arg.offset, Const)
+                        and is_none_or_likeable(arg.base, self._target_expr)
+                    ):
+                        handled = True
+                        self.expr_used_as_call_arg_effective_bits = arg.offset.value, arg.offset.value + arg.bits
+
+                if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
         if stmt.ret_expr is not None:
