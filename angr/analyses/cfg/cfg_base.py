@@ -1805,7 +1805,11 @@ class CFGBase(Analysis):
             addr = fn_meta.addr - (fn_meta.addr % 16)
             if addr != fn_meta.addr and addr in functions:
                 fn2_meta = functions.get_by_addr(addr, meta_only=True)
-                if fn2_meta.is_plt:
+                if (
+                    functions.get_func_block_count(fn_meta.addr) == 1
+                    and self.functions.callgraph.in_degree[fn_meta.addr] <= 1
+                    and fn2_meta.is_plt
+                ):
                     fn = functions.get_by_addr(fn_addr, meta_only=False)
                     if not _is_function_a_plt_stub(arch, fn):
                         to_remove.add(fn.addr)

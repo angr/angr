@@ -12,7 +12,6 @@ import re
 from angr.ailment import Block, Expr, Stmt, Tmp
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import StackBaseOffset, BinaryOp
-from unique_log_filter import UniqueLogFilter
 
 from angr.sim_type import (
     SimTypeLongLong,
@@ -87,7 +86,6 @@ if TYPE_CHECKING:
 
 
 l = logging.getLogger(name=__name__)
-l.addFilter(UniqueLogFilter())
 
 
 INDENT_DELTA = 4

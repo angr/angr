@@ -2385,6 +2385,31 @@ class TestDecompiler(unittest.TestCase):
         default_index = d.codegen.text.find("default:")
         assert case_92_index < continue_index < default_index
 
+        # ensure the logic after switch-case remains (incorrect structuring may drop it)
+        lines = [line.strip(" \n") for line in d.codegen.text.split("\n")]
+        default_line = next((i for i, line in enumerate(lines) if line == "default:"), None)
+        assert default_line is not None, "default case not found"
+        end_switch_line = next((i for i, line in enumerate(lines[default_line:]) if line == "}"), None)
+        assert end_switch_line is not None, "end of switch-case not found"
+        end_switch_line += default_line
+        following_logic = lines[end_switch_line + 1 : end_switch_line + 6]
+        assert len(following_logic) == 5, "Unexpected number of lines after switch-case"
+        # expected:
+        #     v1 = p[1];
+        #     ptr = &p[1];
+        #     if (!p[1])
+        #         return;
+        # }
+        expected = [
+            r"[a-zA-Z0-9]+ = [a-zA-Z0-9\[\]]+;",
+            r"[a-zA-Z0-9]+ = &[a-zA-Z0-9\[\]]+;",
+            r"if \(![a-zA-Z0-9\[\]]+\)",
+            r"return;",
+            r"}",
+        ]
+        for line, exp in zip(following_logic, expected):
+            assert re.fullmatch(exp, line) is not None, f"Expected line matching '{exp}', found '{line}'"
+
     @structuring_algo("sailr")
     def disabled_test_reverting_switch_lowering_cksum_digest_main(self, decompiler_options=None):
         # FIXME: Fish does not think this test case is supposed to pass at all. Will spend more time.
@@ -3472,9 +3497,9 @@ class TestDecompiler(unittest.TestCase):
         assert second_good_if is not None
         assert second_good_if.start() == all_if_stmts[1].start()
 
-        # ensure the constant memory read exists
-        const_mem_read = re.search(r"\*\(\(int \*\)0x501380\) == 1", text)
-        assert const_mem_read is not None
+        # ensure the memory read exists
+        mem_read = re.search(r"\*\(\(int \*\)&g_501380\) == 1", text)
+        assert mem_read is not None
 
     @structuring_algo("sailr")
     def test_ifelseflatten_certtool_common(self, decompiler_options=None):
@@ -5439,6 +5464,21 @@ class TestDecompiler(unittest.TestCase):
         # F_StartFinale should be called without assignment (it's void)
         assert "F_StartFinale(" in text, "F_StartFinale call not found"
         assert "= F_StartFinale(" not in text, "F_StartFinale should not be assigned (void function)"
+
+    @for_all_structuring_algos
+    def test_decompiling_extern_size_hints(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "f_finale.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+        proj.analyses.CompleteCallingConventions()
+
+        func = proj.kb.functions["F_CastResponder"]
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        # Check that extern variables with proper size hints are resolved
+        assert "g_5000e0" in dec.codegen.text, "Extern variable g_5000e0 should be present"
 
 
 if __name__ == "__main__":

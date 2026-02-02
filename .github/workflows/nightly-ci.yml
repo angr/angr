@@ -57,11 +57,6 @@ jobs:
           repository: angr/binaries
           path: binaries
       - uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b # v6
-      # XXX: Install CMake<4 to build pinned unicorn==2.0.1.post1 for now
-      - name: Install CMake
-        uses: ssrobins/install-cmake@c54bb968401dd4ff9e6c9d697df5b843ee3b783b # v1
-        with:
-          version: 3.31.9
       - name: Sync dependencies
         run: uv --directory angr sync -p 3.10
       - name: Run pytest

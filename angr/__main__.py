@@ -106,6 +106,9 @@ def decompile(args):
 def main():
     parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
     parser.add_argument("--version", action="version", version=angr.__version__)
+    parser.add_argument(
+        "-v", "--verbose", action="count", default=0, help="Increase verbosity level (can be used multiple times)."
+    )
     parser.add_argument("binary", help="The path to the binary to analyze.")
     parser.add_argument(
         "--catch-exceptions",
@@ -161,7 +164,7 @@ def main():
     decompile_cmd_parser.add_argument(
         "--theme",
         help="The syntax highlighting theme to use (only if rich is installed and colors are enabled).",
-        default="dracula",
+        default="ansi_dark",
     )
 
     disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
@@ -175,6 +178,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    log_level = max(logging.ERROR - (10 * args.verbose), logging.DEBUG)
+    logging.getLogger("angr").setLevel(log_level)
+
     args.func(args)
 
 
