@@ -273,6 +273,13 @@ class JumpTableProcessor(
     def _get_spoffset_expr(self, sp_offset: SpOffset) -> claripy.ast.BV:
         return self._SPOFFSET_BASE.annotate(RegOffsetAnnotation(sp_offset))
 
+    def _within_last_two_insns(self, ins_addr: int) -> bool:
+        if not self.block.instruction_addrs:
+            return False
+        if len(self.block.instruction_addrs) == 1:
+            return ins_addr == self.block.instruction_addrs[0]
+        return ins_addr == self.block.instruction_addrs[-1] or ins_addr == self.block.instruction_addrs[-2]
+
     @staticmethod
     def _extract_spoffset_from_expr(expr: claripy.ast.Base) -> RegisterOffset | None:
         if expr.op == "BVS":
@@ -494,7 +501,13 @@ class JumpTableProcessor(
 
         if arg0_src == "const" and arg1_src == "const":
             # comparison of two consts... there is nothing we can do
-            self.state.is_jumptable = True
+            if self._within_last_two_insns(self.ins_addr):  # noqa: SIM102
+                # let's still try to do something - comparison against 0 is probably bad and indicates a `js`
+                # instruction in x86
+                if not (isinstance(arg0, pyvex.IRExpr.Const) and arg0.con.value == 0) and not (
+                    isinstance(arg1, pyvex.IRExpr.Const) and arg1.con.value == 0
+                ):
+                    self.state.is_jumptable = True
             return self._top(1)
         if arg0_src not in {"const", None} and arg1_src not in {"const", None}:
             # this is probably not a jump table
@@ -503,7 +516,8 @@ class JumpTableProcessor(
             # make sure arg0_src is const
             arg0_src, arg1_src = arg1_src, arg0_src
 
-        self.state.is_jumptable = True
+        if self._within_last_two_insns(self.ins_addr):
+            self.state.is_jumptable = True
 
         if arg0_src != "const":
             # we failed during dependency tracking so arg0_src couldn't be determined
@@ -988,6 +1002,14 @@ class JumpTableResolver(IndirectJumpResolver):
         except NotAJumpTableNotification:
             if not potential_call_table and not is_arm:
                 l.debug("Indirect jump at %#x does not look like a jump table. Skip.", addr)
+                return False, None
+            if (
+                potential_call_table
+                and transformations
+                and next(iter(transformations.values())).op != AddressTransformationTypes.Load
+            ):
+                # targets of call tables must be directly loaded from memory
+                l.debug("Indirect jump/call at %#x does not look like an indirect call from a call table. Skip", addr)
                 return False, None
 
         # Debugging output
