@@ -362,15 +362,15 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
 
 
 class RustSimTypeSlice(RustSimStruct, SimType):
-    def __init__(self, element_ty, label=None, arch=None):
-        self.element_ty = element_ty
+    def __init__(self, element_type, label=None, arch=None):
+        self.element_type = element_type
         RustSimStruct.__init__(
             self,
             {
-                "ptr": RustSimTypeReference(pts_to=element_ty).with_arch(arch),
-                "len": RustSimTypeInt(size=64, signed=False).with_arch(arch),
+                "data_ptr": RustSimTypeReference(pts_to=element_type).with_arch(arch),
+                "length": RustSimTypeSize(signed=False).with_arch(arch),
             },
-            name=f"&[{element_ty}]",
+            name=f"&[{element_type}]",
         )
         SimType.__init__(self, label)
 
@@ -378,7 +378,7 @@ class RustSimTypeSlice(RustSimStruct, SimType):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = RustSimTypeSlice(self.element_ty, label=self.label, arch=arch)
+        out = RustSimTypeSlice(self.element_type, label=self.label, arch=arch)
         out._arch = arch
         self._arch_memo[arch.name] = out
 
@@ -390,7 +390,7 @@ class RustSimTypeSlice(RustSimStruct, SimType):
         return f"{name}: {self.__repr__()}"
 
     def copy(self):
-        return RustSimTypeSlice(self.element_ty, self.label).with_arch(self._arch)
+        return RustSimTypeSlice(self.element_type, self.label).with_arch(self._arch)
 
     @property
     def size(self):
@@ -442,7 +442,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
 
 class RustSimTypeBottom(RustSimType, SimTypeBottom):
-    
+
     def repr(self, name=None, full=0, memo=None, indent=0):
         return "BOT"
 

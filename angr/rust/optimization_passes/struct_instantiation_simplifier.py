@@ -17,6 +17,7 @@ from angr.rust.sim_type import (
     RustSimEnum,
     RustSimTypeResult,
     RustSimTypeOption,
+    RustSimTypeSlice,
 )
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
@@ -87,14 +88,14 @@ class StructBuilder:
                 rebased_field_exprs[offset - field_offset] = field_exprs[offset]
         return rebased_field_exprs
 
-    def _build_array(self, field_exprs, struct_ty) -> Array | None:
-        ptr_offset = struct_ty.offsets["ptr"]
-        len_offset = struct_ty.offsets["len"]
+    def _build_array(self, field_exprs, struct_ty: RustSimTypeSlice) -> Array | None:
+        ptr_offset = struct_ty.offsets["data_ptr"]
+        len_offset = struct_ty.offsets["length"]
         if ptr_offset not in field_exprs or len_offset not in field_exprs:
             return None
         elements = []
         ptr_expr = field_exprs[ptr_offset]
-        ele_ty = struct_ty.fields["ptr"].pts_to
+        ele_ty = struct_ty.element_type
         len_expr = field_exprs[len_offset]
         if isinstance(len_expr, Const):
             if isinstance(ptr_expr, Const):
@@ -120,14 +121,10 @@ class StructBuilder:
         return None
 
     def build(self, field_exprs, struct_ty) -> Struct | Array | None:
-        if struct_ty.name == "core::fmt::rt::Argument":
-            import ipdb
-
-            ipdb.set_trace()
         if field_exprs is None:
             return None
         field_exprs = self._fix_field_exprs(field_exprs, struct_ty)
-        if isinstance(struct_ty, RustSimTypeArrayRef):
+        if isinstance(struct_ty, RustSimTypeSlice):
             # Special handling for ArrayReference type
             array = self._build_array(field_exprs, struct_ty)
             if array:
@@ -398,10 +395,6 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         for block in self._graph.nodes:
             # Recover structs by function calls
             call = self.terminal_call(block)
-            # if self.match_call(call, ["std::io::stdio::_eprint"]):
-            #     import ipdb
-            #
-            #     ipdb.set_trace()
             if call and call.args and call.prototype and call.prototype.args:
                 if len(call.args) == len(call.prototype.args):
                     for arg, arg_ty in zip(call.args, call.prototype.args):

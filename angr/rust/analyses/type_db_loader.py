@@ -16,6 +16,7 @@ from angr.rust.sim_type import (
     RustSimTypeOption,
     RustSimTypeResult,
     RustSimTypeFunction,
+    RustSimTypeSlice,
 )
 from angr.rust.utils.demangler import demangle
 from angr.calling_conventions import default_cc
@@ -132,6 +133,45 @@ class TypeDBLoader(Analysis):
             return result.with_arch(self.project.arch)
         return None
 
+    def _to_slice(self, ty: RustSimStruct):
+        if set(ty.fields.keys()) == {"data_ptr", "length"}:
+            data_ptr_ty = ty.fields["data_ptr"]
+            length_ty = ty.fields["length"]
+            if (
+                isinstance(data_ptr_ty, RustSimTypeReference)
+                and isinstance(length_ty, RustSimTypeSize)
+                and length_ty.size == self.project.arch.bits
+            ):
+                return RustSimTypeSlice(data_ptr_ty.pts_to).with_arch(self.project.arch)
+        return ty
+
+    def _unwrap_argument_type(self, ty: RustSimStruct):
+        # Handle wrapper structs in the latest Rust versions
+        # https://doc.rust-lang.org/src/core/fmt/rt.rs.html#14-23
+        # enum ArgumentType<'a> {
+        #     Placeholder {
+        #         value: NonNull<()>,
+        #         formatter: unsafe fn(NonNull<()>, &mut Formatter<'_>) -> Result,
+        #         _lifetime: PhantomData<&'a ()>,
+        #     },
+        #     Count(u16),
+        # }
+        if ty.name == "core::fmt::rt::Argument" and set(ty.fields.keys()) == {"ty"}:
+            inner_ty = ty.fields["ty"]
+            if isinstance(inner_ty, RustSimEnum):
+                placeholder_variant = inner_ty.get_variant_by_name("Placeholder")
+                if placeholder_variant:
+                    new_ty = placeholder_variant.as_struct_ty()
+                    new_ty.name = "core::fmt::rt::Argument"
+                    return new_ty
+        return ty
+
+    def _apply_patches(self, ty: RustSimStruct):
+        patches = [self._to_slice, self._unwrap_argument_type]
+        for patch in patches:
+            ty = patch(ty)
+        return ty
+
     def _parse_Struct(self, data):
         name = data["name"]
         if name in self._structs:
@@ -152,6 +192,7 @@ class TypeDBLoader(Analysis):
                 fields[field_name] = self._parse_type(field_data)
             if None not in fields.values():
                 result = RustSimStruct(fields=fields, name=name).with_arch(self.project.arch)
+                result = self._apply_patches(result)
                 self._structs[name] = result
             self._pending_types.remove(name)
         return result
@@ -177,13 +218,15 @@ class TypeDBLoader(Analysis):
                 discriminant = variant_data[0]
                 fields_data = variant_data[1]
                 fields = []
-                for field_data in fields_data:
+                for field_name, field_data in fields_data:
                     field_ty = self._parse_type(field_data)
                     if field_ty is None:
                         self._pending_types.remove(name)
                         return None
-                    fields.append((field_ty, None))
-                enum_variant = EnumVariant(variant_name, fields, discriminant, discriminant_size)
+                    fields.append((field_ty, field_name))
+                enum_variant = EnumVariant(
+                    variant_name, fields, discriminant, discriminant_size if discriminant is not None else 0
+                )
                 variants.append(enum_variant)
             name_to_variant = {variant.name: variant for variant in variants}
             if name.startswith("core::option::Option") and set(name_to_variant.keys()) == {"Some", "None"}:
@@ -240,12 +283,27 @@ class TypeDBLoader(Analysis):
         l.warning("Unrecognized type: %s", data)
         return None
 
+    def _fit_abi(self, prototype: RustSimTypeFunction):
+        new_args = []
+        for arg_ty in prototype.args:
+            if isinstance(arg_ty, (RustSimEnum, RustSimStruct)) and arg_ty.size > self.project.arch.bits:
+                new_args.append(RustSimTypeReference(arg_ty))
+            else:
+                new_args.append(arg_ty)
+        if (
+            isinstance(prototype.returnty, (RustSimEnum, RustSimStruct))
+            and prototype.returnty.size > self.project.arch.bits
+        ):
+            new_args.insert(0, RustSimTypeReference(prototype.returnty))
+            return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True)
+        return RustSimTypeFunction(new_args, prototype.returnty)
+
     def _parse_Prototype(self, data):
         args = [self._parse_type(arg_data) for arg_data in data["args"]]
         if None in args:
             return None
         ret_ty = self._parse_type(data["returnty"])
-        return RustSimTypeFunction(args, ret_ty)
+        return self._fit_abi(RustSimTypeFunction(args, ret_ty))
 
     def _analyze(self):
         rustc_version = RustVersionIdentifier(self.project).identify_rust_version()
