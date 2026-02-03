@@ -17,6 +17,7 @@ from angr.rust.sim_type import (
     RustSimTypeResult,
     RustSimTypeFunction,
     RustSimTypeSlice,
+    RustSimTypeStrRef,
 )
 from angr.rust.utils.demangler import demangle
 from angr.calling_conventions import default_cc
@@ -142,6 +143,8 @@ class TypeDBLoader(Analysis):
                 and isinstance(length_ty, RustSimTypeSize)
                 and length_ty.size == self.project.arch.bits
             ):
+                if ty.name == "&str" and data_ptr_ty.pts_to == RustSimTypeInt(8, False).with_arch(self.project.arch):
+                    return RustSimTypeStrRef().with_arch(self.project.arch)
                 return RustSimTypeSlice(data_ptr_ty.pts_to).with_arch(self.project.arch)
         return ty
 
@@ -284,9 +287,11 @@ class TypeDBLoader(Analysis):
         return None
 
     def _fit_abi(self, prototype: RustSimTypeFunction):
+        # This is a heuristic to adjust function prototypes to match Rust's ABI conventions
+        # Rust's ABI is stable, but we can make some educated guesses
         new_args = []
         for arg_ty in prototype.args:
-            if isinstance(arg_ty, (RustSimEnum, RustSimStruct)) and arg_ty.size > self.project.arch.bits:
+            if isinstance(arg_ty, (RustSimEnum, RustSimStruct)) and arg_ty.size > self.project.arch.bits * 2:
                 new_args.append(RustSimTypeReference(arg_ty))
             else:
                 new_args.append(arg_ty)
@@ -322,10 +327,12 @@ class TypeDBLoader(Analysis):
         prototype_db = type_db_json["functions"]
         cc_cls = default_cc(self.project.arch.name)
         cc = cc_cls(self.project.arch) if cc_cls else None
-        name_to_func = defaultdict(list)
+        # Store function addresses instead of Function objects to avoid issues with
+        # SpillingFunctionDict's LRU eviction creating new object instances
+        name_to_func_addrs = defaultdict(list)
         for addr in self.kb.functions:
             func = self.kb.functions[addr]
-            name_to_func[demangle(func.name)].append(func)
+            name_to_func_addrs[demangle(func.name)].append(addr)
 
         prototypes = []
         for func_data in prototype_db:
@@ -334,7 +341,9 @@ class TypeDBLoader(Analysis):
                 prototype = prototype.with_arch(self.project.arch)
                 prototypes.append(prototype)
                 func_name = func_data["name"]
-                for func in name_to_func[func_name]:
+                for func_addr in name_to_func_addrs[func_name]:
+                    # Re-fetch the function each time to get the current object from the cache
+                    func = self.kb.functions[func_addr]
                     old_prototype = func.prototype.with_arch(self.project.arch)
                     # Only update the prototype if the argument sizes match
                     if old_prototype and sum(arg_ty.size for arg_ty in old_prototype.args) == sum(
