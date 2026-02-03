@@ -41,7 +41,8 @@ class TraversalAnalysis:
         self._function = func
         self._ail_graph = ail_graph
         self._func_args = func_args
-        self.start_states: dict[ailment.Block, TraversalState | None] = {}
+        self.start_states: dict[ailment.Block, TraversalState] = {}
+        self._pending: set[ailment.Block] = set()
 
         self._engine_ail = SimEngineSSATraversal(
             self.project,
@@ -61,11 +62,14 @@ class TraversalAnalysis:
     # Main analysis routines
 
     def _analyze(self):
-        entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
-        entry_blocks = {n for n in self._ail_graph if not self._ail_graph.pred[n]}
-        if entry_block is not None:
-            entry_blocks.add(entry_block)
-        traverse_in_order(self._ail_graph, sorted(entry_blocks), self._run_on_node)
+        while True:
+            entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
+            entry_blocks = {n for n in self._ail_graph if not self._ail_graph.pred[n]}
+            if entry_block is not None:
+                entry_blocks.add(entry_block)
+            traverse_in_order(self._ail_graph, sorted(entry_blocks), self._run_on_node)
+            if not self._pending:
+                break
         self._engine_ail.finalize()
 
     def _initial_abstract_state(self) -> TraversalState:
@@ -103,6 +107,9 @@ class TraversalAnalysis:
         if state is None:
             state = self.start_states[node] = self._initial_abstract_state()
         else:
+            if node not in self._pending:
+                return
+            self._pending.discard(node)
             state = state.copy()
         self._engine_ail.process(state, block=node)
 
@@ -110,12 +117,14 @@ class TraversalAnalysis:
         for i, succ in enumerate(self._ail_graph.succ[node]):
             if succ is not node and self._engine_ail.hclb_side_exit_state is not None:
                 succ_state = self._engine_ail.hclb_side_exit_state
-                self._engine_ail.hclb_side_exit_state = None
             else:
                 succ_state = state
             if succ not in self.start_states:
                 self.start_states[succ] = succ_state.copy() if i != succ_count - 1 else succ_state
+                merged = True
             else:
                 existing = self.start_states[succ]
-                if existing is not None:
-                    existing.merge(state)
+                merged = existing.merge(state)
+            if merged:
+                self._pending.add(succ)
+        self._engine_ail.hclb_side_exit_state = None

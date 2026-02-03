@@ -110,6 +110,7 @@ class SLivenessAnalysis(Analysis):
                     live.discard(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
                     live.discard(stmt.ret_expr.varid)
+                live.difference_update(stmt.tags.get("extra_defs", ()))
 
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
@@ -183,18 +184,17 @@ class SLivenessAnalysis(Analysis):
                 stmts = block.statements
 
             for stmt in reversed(stmts):
+                def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    def_vvar = stmt.dst.varid
+                    def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvar = stmt.ret_expr.varid
-                else:
-                    def_vvar = None
+                    def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector = VVarUsesCollector()
                 vvar_use_collector.walk_statement(stmt)
 
-                if def_vvar is not None:
+                for def_vvar in def_vvars:
                     for live_vvar in live:
                         graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
@@ -208,7 +208,7 @@ class SLivenessAnalysis(Analysis):
 
         return graph
 
-    def live_vars_by_stmt(self) -> defaultdict[tuple[int, int | None], dict[int, set[int]]]:
+    def live_vars_by_stmt(self) -> defaultdict[Address, dict[int, set[int]]]:
         """
         Get a mapping from statements to live variables at the point of the statement.
 
@@ -233,19 +233,18 @@ class SLivenessAnalysis(Analysis):
 
             for i, stmt in enumerate(reversed(stmts)):
                 stmt_idx = len(stmts) - i - 1
+                def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    def_vvar = stmt.dst.varid
+                    def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvar = stmt.ret_expr.varid
-                else:
-                    def_vvar = None
+                    def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector = VVarUsesCollector()
                 vvar_use_collector.walk_statement(stmt)
 
                 live_vars[block_key][stmt_idx] = live.copy()
-                if def_vvar is not None:
+                for def_vvar in def_vvars:
                     for live_vvar in live:
                         live_vars[block_key][stmt_idx].add(live_vvar)
                     live.discard(def_vvar)

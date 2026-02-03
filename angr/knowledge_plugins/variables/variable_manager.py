@@ -37,7 +37,6 @@ K = TypeVar("K")
 T = TypeVar("T")
 
 if TYPE_CHECKING:
-    from angr.analyses.s_reaching_definitions.s_rda_model import SRDAModel
     from angr.analyses.decompiler.stack_item import StackItem
     from angr.code_location import CodeLocation
 
@@ -1127,7 +1126,7 @@ class VariableManagerInternal(Serializable):
                     return True
         return False
 
-    def unify_variables(self, interference: networkx.Graph[int] | None = None, srda: SRDAModel | None = None) -> None:
+    def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
         """
@@ -1155,22 +1154,7 @@ class VariableManagerInternal(Serializable):
                 return ("stack", v.offset)
             return ("none", 0)
 
-        if srda is not None:
-            if interference is not None:
-                # due to woke (new ssailification) we should never have interfering ssa vars that use the same offset.
-                # assert this.
-                assert all(v == u or key(u) != key(v) for u, v in interference.edges)
-
-                for dvvarid, uses in srda.all_vvar_uses.items():
-                    dvar = self._vvarid_to_variable[dvvarid]
-                    for uvvar, _ in uses:
-                        if uvvar is None:
-                            continue
-                        uvar = self._vvarid_to_variable[uvvar.varid]
-                        if key(uvar) == key(dvar) and uvar.size == dvar.size:
-                            unify(uvar, dvar)
-
-        elif interference is not None:
+        if interference is not None:
             # unify variables based on phi nodes
             for v, subvs in self._phi_variables.items():
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):

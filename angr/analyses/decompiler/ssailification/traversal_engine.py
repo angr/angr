@@ -184,22 +184,26 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     ):
         loc = loc or self._acodeloc()
         assert (
-            def_ not in self.def_info or self.def_info[def_].variable_size <= variable_size
-        ), "redefinining a variable as smaller"
-        assert (
             def_ not in self.def_info or self.def_info[def_].loc == loc or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        definfo = DefInfo(
-            def_,
-            kind,
-            loc,
-            variable_offset,
-            variable_size,
-            store_offset,
-            store_size,
-            set(supercedes or ()),
-        )
-        self.def_info[def_] = definfo
+        if (definfo := self.def_info.get(def_)) is None:
+            definfo = DefInfo(
+                def_,
+                kind,
+                loc,
+                variable_offset,
+                variable_size,
+                store_offset,
+                store_size,
+                set(supercedes or ()),
+            )
+            self.def_info[def_] = definfo
+        else:
+            end_offset = definfo.variable_endoffset
+            definfo.variable_offset = min(definfo.variable_offset, variable_offset)
+            new_end_offset = max(end_offset, variable_offset + variable_size)
+            definfo.variable_size = new_end_offset - definfo.variable_offset
+
         return definfo
 
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
@@ -407,9 +411,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if stmt.false_target is not None:
             self._expr(stmt.false_target)
 
-        if isinstance(stmt.true_target, Const) and stmt.true_target.value != self.ins_addr:
-            self.hclb_side_exit_state = self.state.copy()
-        if isinstance(stmt.false_target, Const) and stmt.false_target.value != self.ins_addr:
+        if (
+            isinstance(stmt.true_target, Const)
+            and isinstance(stmt.false_target, Const)
+            and self.stmt_idx != len(self.block.statements) - 1
+            and (stmt.true_target.value == self.ins_addr or stmt.false_target.value == self.ins_addr)
+        ):
             self.hclb_side_exit_state = self.state.copy()
 
     def _handle_stmt_Call(self, stmt: Call):

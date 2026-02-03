@@ -125,25 +125,17 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             for block in frontier_plus:
                 # Don't generate a phi for this udef if the udef does not correspond to the actual live
                 # varible at this location
-                if udef[0] == "stack" and (state := traversal.start_states.get(block, None)) is not None:
-                    if udef[1] not in state.stackvar_defs:
+                if (state := traversal.start_states.get(block, None)) is not None:
+                    defmap = {"stack": state.stackvar_defs, "reg": state.register_defs}[udef[0]]
+                    if udef[1] not in defmap:
                         continue
-                    defs = set(state.stackvar_defs[udef[1]])
+                    defs = set(defmap[udef[1]])
                     for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
-                        defs.update(state.stackvar_defs.get(suboffset, ()))
-                    # if we see this phi actually being used later in the program,
-                    # all the related defs will be adjusted to be the right size
-                    if not all(traversal.def_info[def_].variable_size == udef[2] for def_ in defs):
-                        continue
-                if udef[0] == "reg" and (state := traversal.start_states.get(block, None)) is not None:
-                    if udef[1] not in state.register_defs:
-                        continue
-                    defs = set(state.register_defs[udef[1]])
-                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
-                        defs.update(state.register_defs.get(suboffset, ()))
-                    # if we see this phi actually being used later in the program,
-                    # all the related defs will be adjusted to be the right size
-                    if not all(traversal.def_info[def_].variable_size == udef[2] for def_ in defs):
+                        defs.update(defmap.get(suboffset, ()))
+
+                    # Generally, we only see multiple sizes if a) the variable is actually unused past this point
+                    # or b) this is the top of a loop with one def at the bottom
+                    if udef[2] != max(traversal.def_info[def_].variable_size for def_ in defs):
                         continue
                 phi_id = next(phi_id_ctr)
                 phiid_to_udef[phi_id] = udef

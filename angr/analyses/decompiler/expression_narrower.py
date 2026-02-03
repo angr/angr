@@ -102,7 +102,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
     def _handle_Extract(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
-        if isinstance(expr.offset, Const):
+        if isinstance(expr.offset, Const) and isinstance(expr.offset.value, int):
             self._update_effective_bits(expr.base, expr.offset.value, expr.offset.value + expr.bits)
         self._handle_expr(0, expr.base, stmt_idx, stmt, block)
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)

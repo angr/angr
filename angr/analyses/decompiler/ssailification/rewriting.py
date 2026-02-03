@@ -10,14 +10,14 @@ import networkx
 
 import angr.ailment as ailment
 from angr.ailment import Block
-from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Const, Extract, Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, Statement
 
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block
-from angr.utils.ssa import is_phi_assignment
+from angr.utils.ssa import get_reg_offset_base_and_size, is_phi_assignment
 from .rewriting_engine import SimEngineSSARewriting
 from .rewriting_state import RewritingState
 
@@ -367,6 +367,9 @@ class RewritingAnalysis:
                     if not is_phi_assignment(stmt):
                         other_stmts.append(stmt)
                         continue
+                    assert isinstance(stmt, Assignment)
+                    assert isinstance(stmt.dst, VirtualVariable)
+                    assert isinstance(stmt.src, Phi)
 
                     src_and_vvars = []
                     if stmt.dst.was_reg:
@@ -388,9 +391,25 @@ class RewritingAnalysis:
                             phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
                             phi_stmts.append(phi_stmt)
                         else:
-                            # different sizes of vvars found
-                            # this means that there is no consensus on what size the src should be
-                            # this means that this var is unused
+                            # different sizes of vvars found; we need to resort to the base register and extract the
+                            # requested register out of the base register
+                            # here we rely on the fact that the larger register vvar must be created in this block when
+                            # the smaller register has been created
+                            base_reg_offset, max_reg_size = get_reg_offset_base_and_size(
+                                stmt.dst.reg_offset, self.project.arch, size=stmt.dst.size
+                            )
+                            # find the phi assignment statement of the larger base register
+                            base_vvar = self._find_phi_vvar_for_reg(base_reg_offset, max_reg_size, node.statements)
+                            assert base_vvar is not None
+                            partial_base_vvar = Extract(
+                                self._ail_manager.next_atom(),
+                                stmt.dst.bits,
+                                base_vvar,
+                                Const(self._ail_manager.next_atom(), None, stmt.dst.reg_offset - base_reg_offset, 64),
+                                endness=self.project.arch.register_endness,
+                            )
+                            new_stmt = Assignment(stmt.idx, stmt.dst, partial_base_vvar, **base_vvar.tags)
+                            phi_extraction_stmts.append(new_stmt)
                             continue
 
                     elif stmt.dst.was_stack:
@@ -439,7 +458,8 @@ class RewritingAnalysis:
     def _find_phi_vvar_for_reg(reg_offset: int, reg_size: int, stmts: list[Statement]) -> VirtualVariable | None:
         for stmt in stmts:
             if (
-                is_phi_assignment(stmt)
+                isinstance(stmt, Assignment)
+                and isinstance(stmt.src, Phi)
                 and isinstance(stmt.dst, VirtualVariable)
                 and stmt.dst.was_reg
                 and stmt.dst.reg_offset == reg_offset
