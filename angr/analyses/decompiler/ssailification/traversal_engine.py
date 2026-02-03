@@ -184,9 +184,12 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     ):
         loc = loc or self._acodeloc()
         assert (
-            def_ not in self.def_info or self.def_info[def_].loc == loc or self.def_info[def_].loc.is_extern
+            loc.is_extern
+            or def_ not in self.def_info
+            or self.def_info[def_].loc == loc
+            or self.def_info[def_].loc.is_extern
         ), "claiming an expression defines at two different locs"
-        if (definfo := self.def_info.get(def_)) is None:
+        if (definfo := self.def_info.get(def_)) is None or definfo.loc.is_extern:
             definfo = DefInfo(
                 def_,
                 kind,

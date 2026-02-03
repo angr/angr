@@ -46,7 +46,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and _MASKS.get(expr.value.bits, 0) << (expr.offset.value * self.project.arch.byte_width) == mask
         ):
             # Insert(v0 & mask, offset, v1) where mask/offset guarantee that the only bits we get from v0 will just be replaced with v1
-            return Insert(expr.idx, Const(None, None, 0, expr.bits), expr.offset, expr.value, **expr.tags)
+            return Insert(expr.idx, Const(None, None, 0, expr.bits), expr.offset, expr.value, expr.endness, **expr.tags)
         return None
 
     def _optimize_Extract(self, expr: Extract):
@@ -57,7 +57,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and isinstance((mask := expr.base.operands[1]), Const)
             and isinstance(mask.value, int)
             and _MASKS.get(expr.bits, None) == mask.value
-            and expr.is_lsb_extract(self.project.arch)
+            and expr.is_lsb_extract()
         ):
             return Convert(expr.idx, expr.base.bits, expr.bits, False, expr.base, **expr.tags)
         return None

@@ -130,12 +130,14 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                     if udef[1] not in defmap:
                         continue
                     defs = set(defmap[udef[1]])
-                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
-                        defs.update(defmap.get(suboffset, ()))
-
                     # Generally, we only see multiple sizes if a) the variable is actually unused past this point
                     # or b) this is the top of a loop with one def at the bottom
                     if udef[2] != max(traversal.def_info[def_].variable_size for def_ in defs):
+                        continue
+                    defs2 = set()
+                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
+                        defs2.update(defmap.get(suboffset, ()))
+                    if (defs & defs2) != defs2:
                         continue
                 phi_id = next(phi_id_ctr)
                 phiid_to_udef[phi_id] = udef

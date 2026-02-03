@@ -158,7 +158,7 @@ class RemoveRedundantConversions(PeepholeOptimizationExprBase):
             expr.from_type == expr.to_type == Convert.TYPE_INT
             and isinstance(operand_expr, Insert)
             and self.project is not None
-            and operand_expr.is_lsb_overwrite(self.project.arch)
+            and operand_expr.is_lsb_overwrite()
             and expr.bits <= operand_expr.value.bits
         ):
             if expr.bits == operand_expr.value.bits:

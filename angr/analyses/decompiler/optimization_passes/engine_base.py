@@ -342,6 +342,7 @@ class SimplifierAILEngine(
             expr.bits,
             self._expr(expr.base),
             self._expr(expr.offset),
+            expr.endness,
             **expr.tags,
         )
 
@@ -351,6 +352,7 @@ class SimplifierAILEngine(
             self._expr(expr.base),
             self._expr(expr.offset),
             self._expr(expr.value),
+            expr.endness,
             **expr.tags,
         )
 

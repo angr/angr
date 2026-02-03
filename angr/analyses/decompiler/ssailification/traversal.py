@@ -62,7 +62,7 @@ class TraversalAnalysis:
     # Main analysis routines
 
     def _analyze(self):
-        while True:
+        for _ in range(2):
             entry_block = next((n for n in self._ail_graph if n.addr == self._function.addr), None)
             entry_blocks = {n for n in self._ail_graph if not self._ail_graph.pred[n]}
             if entry_block is not None:
