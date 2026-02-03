@@ -33,6 +33,7 @@ from angr.sim_type import (
     SimTypeBottom,
     SimTypeFloat,
     SimTypeDouble,
+    SimTypeNum,
     parse_cpp_file,
 )
 from angr.sim_variable import SimStackVariable, SimRegisterVariable
@@ -1033,6 +1034,8 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeInt()
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
+            if 9 <= ret_val_size <= 16:
+                return SimTypeNum(ret_val_size * self.project.arch.byte_width)
 
         return SimTypeBottom(label="void")
 
