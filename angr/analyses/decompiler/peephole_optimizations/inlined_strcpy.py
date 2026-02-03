@@ -50,6 +50,11 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
             and stmt.addr.operand.was_stack
             and isinstance(stmt.data, Const)
             and isinstance(stmt.data.value, int)
+        ) or (
+            isinstance(stmt, Store)
+            and isinstance(stmt.addr, StackBaseOffset)
+            and isinstance(stmt.data, Const)
+            and isinstance(stmt.data.value, int)
         ):
             inlined_strcpy_candidate = True
             src = stmt.data
@@ -163,7 +168,11 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                     r[stmt.dst.stack_offset] = idx, ail_const_to_be(stmt.src, self.project.arch.memory_endness)
                 else:
                     r[stmt.dst.stack_offset] = idx, None
-
+            elif isinstance(stmt, Store) and isinstance(stmt.addr, StackBaseOffset):
+                if isinstance(stmt.data, Const):
+                    r[stmt.addr.offset] = idx, ail_const_to_be(stmt.data, self.project.arch.memory_endness)
+                else:
+                    r[stmt.addr.offset] = idx, None
         return r
 
     @staticmethod

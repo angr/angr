@@ -740,6 +740,15 @@ class Clinic(Analysis):
             self._ail_graph, stage=OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
         )
 
+        self._update_progress(48.0, text="Simplifying blocks 2.5")
+        self._ail_graph = self._simplify_blocks(
+            self._ail_graph,
+            stack_pointer_tracker=self._spt,
+            cache=self._block_simplification_cache,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+            type_hints=self._type_hints,
+        )
+
     def _stage_make_function_callsites(self) -> None:
         # Make call-sites
         self._update_progress(50.0, text="Making callsites")

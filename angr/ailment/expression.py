@@ -1715,49 +1715,35 @@ def negate(expr: Expression) -> Expression:
 
 
 class Extract(Expression):
-    __slots__ = ("base", "offset")
+    __slots__ = ("base", "endness", "offset")
 
-    def __init__(self, idx: int | None, bits: int, base: Expression, offset: Expression, **kwargs):
+    def __init__(self, idx: int | None, bits: int, base: Expression, offset: Expression, endness: str, **kwargs):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
         self.bits = bits
         self.base = base
         self.offset = offset
+        self.endness = endness
         assert self.base.bits >= self.bits
 
-    def is_lsb_extract(self, arch: archinfo.Arch) -> bool:
-        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+    def is_lsb_extract(self) -> bool:
+        if not isinstance(self.offset, Const):
             return False
-        if arch.register_endness == arch.memory_endness or (
-            isinstance(self.base, VirtualVariable)
-            and (
-                self.base.was_reg
-                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
-            )
-        ):
-            endness = arch.register_endness
-        elif isinstance(self.base, VirtualVariable) and (
-            self.base.was_stack
-            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
-        ):
-            endness = arch.memory_endness
-        elif isinstance(self.base, Register):
-            endness = arch.register_endness
-        elif isinstance(self.base, Load):
-            endness = arch.memory_endness
-        else:
-            return False
-
-        if endness == archinfo.Endness.LE:
+        if self.endness == archinfo.Endness.LE:
             return self.offset.value == 0
-        return self.offset.value * arch.byte_width + self.bits == self.base.bits
+        return self.offset.value * 8 + self.bits == self.base.bits
 
     def copy(self) -> Extract:
-        return Extract(self.idx, self.bits, self.base, self.offset, **self.tags)
+        return Extract(self.idx, self.bits, self.base, self.offset, self.endness, **self.tags)
 
     def deep_copy(self, manager) -> Extract:
         return Extract(
-            manager.next_atom(), self.bits, self.base.deep_copy(manager), self.offset.deep_copy(manager), **self.tags
+            manager.next_atom(),
+            self.bits,
+            self.base.deep_copy(manager),
+            self.offset.deep_copy(manager),
+            self.endness,
+            **self.tags,
         )
 
     def __repr__(self):
@@ -1772,12 +1758,13 @@ class Extract(Expression):
             and self.base == other.base
             and self.offset == other.offset
             and self.bits == other.bits
+            and self.endness == other.endness
         )
 
     matches = likes
 
     def _hash_core(self):
-        return stable_hash((self.bits, self.base, self.offset))
+        return stable_hash((self.bits, self.base, self.offset, self.endness))
 
     def replace(self, old_expr, new_expr):
         if self.base == old_expr:
@@ -1791,14 +1778,16 @@ class Extract(Expression):
             offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
 
         if base_replaced or offset_replaced:
-            return True, Extract(self.idx, self.bits, new_base, new_offset, **self.tags)
+            return True, Extract(self.idx, self.bits, new_base, new_offset, self.endness, **self.tags)
         return False, self
 
 
 class Insert(Expression):
-    __slots__ = ("base", "offset", "value")
+    __slots__ = ("base", "endness", "offset", "value")
 
-    def __init__(self, idx: int | None, base: Expression, offset: Expression, value: Expression, **kwargs):
+    def __init__(
+        self, idx: int | None, base: Expression, offset: Expression, value: Expression, endness: str, **kwargs
+    ):
         super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
 
         assert value.bits <= base.bits
@@ -1807,36 +1796,17 @@ class Insert(Expression):
         self.base = base
         self.offset = offset
         self.value = value
+        self.endness = endness
 
-    def is_lsb_overwrite(self, arch: archinfo.Arch) -> bool:
+    def is_lsb_overwrite(self) -> bool:
         if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
             return False
-        if arch.register_endness == arch.memory_endness or (
-            isinstance(self.base, VirtualVariable)
-            and (
-                self.base.was_reg
-                or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.REGISTER)
-            )
-        ):
-            endness = arch.register_endness
-        elif isinstance(self.base, VirtualVariable) and (
-            self.base.was_stack
-            or (self.base.was_parameter and self.base.parameter_category == VirtualVariableCategory.STACK)
-        ):
-            endness = arch.memory_endness
-        elif isinstance(self.base, Register):
-            endness = arch.register_endness
-        elif isinstance(self.base, Load):
-            endness = arch.memory_endness
-        else:
-            return False
-
-        if endness == archinfo.Endness.LE:
+        if self.endness == archinfo.Endness.LE:
             return self.offset.value == 0
-        return self.offset.value * arch.byte_width + self.value.bits == self.bits
+        return self.offset.value * 8 + self.value.bits == self.bits
 
     def copy(self) -> Insert:
-        return Insert(self.idx, self.base, self.offset, self.value, **self.tags)
+        return Insert(self.idx, self.base, self.offset, self.value, self.endness, **self.tags)
 
     def deep_copy(self, manager) -> Insert:
         return Insert(
@@ -1844,6 +1814,7 @@ class Insert(Expression):
             self.base.deep_copy(manager),
             self.offset.deep_copy(manager),
             self.value.deep_copy(manager),
+            self.endness,
             **self.tags,
         )
 
@@ -1859,12 +1830,13 @@ class Insert(Expression):
             and self.base == other.base
             and self.offset == other.offset
             and self.value == other.value
+            and self.endness == other.endness
         )
 
     matches = likes
 
     def _hash_core(self):
-        return stable_hash((self.bits, self.base, self.offset, self.value))
+        return stable_hash((self.bits, self.base, self.offset, self.value, self.endness))
 
     def replace(self, old_expr, new_expr):
         if self.base == old_expr:
@@ -1883,5 +1855,5 @@ class Insert(Expression):
             value_replaced, new_value = self.value.replace(old_expr, new_expr)
 
         if base_replaced or offset_replaced or value_replaced:
-            return True, Insert(self.idx, new_base, new_offset, new_value, **self.tags)
+            return True, Insert(self.idx, new_base, new_offset, new_value, self.endness, **self.tags)
         return False, self

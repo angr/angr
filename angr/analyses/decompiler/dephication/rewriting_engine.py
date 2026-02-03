@@ -373,7 +373,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         offset = self._expr(expr.offset) or expr.offset
 
         if base is not expr.base or offset is not expr.offset:
-            return Extract(expr.idx, expr.bits, base, offset, **expr.tags)
+            return Extract(expr.idx, expr.bits, base, offset, expr.endness, **expr.tags)
         return None
 
     def _handle_expr_Insert(self, expr):
@@ -382,7 +382,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
         value = self._expr(expr.value) or expr.value
 
         if base is not expr.base or offset is not expr.offset or value is not expr.value:
-            return Insert(expr.idx, base, offset, value, **expr.tags)
+            return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
         return None
 
     def _handle_VEXCCallExpression(self, expr: VEXCCallExpression) -> VEXCCallExpression | None:

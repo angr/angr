@@ -527,7 +527,7 @@ class SimEngineSSARewriting(
         offset = self._expr(expr.offset) or expr.offset
 
         if base is not expr.base or offset is not expr.offset:
-            return Extract(expr.idx, expr.bits, base, offset, **expr.tags)
+            return Extract(expr.idx, expr.bits, base, offset, expr.endness, **expr.tags)
         return None
 
     def _handle_expr_Insert(self, expr: Insert):
@@ -536,7 +536,7 @@ class SimEngineSSARewriting(
         value = self._expr(expr.value) or expr.value
 
         if base is not expr.base or offset is not expr.offset or value is not expr.value:
-            return Insert(expr.idx, base, offset, value, **expr.tags)
+            return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
         return None
 
     #
@@ -619,7 +619,14 @@ class SimEngineSSARewriting(
         assert offset >= 0
         if size == vvar.size:
             return vvar
-        return Extract(self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), **orig_tags.tags)
+        endness = (
+            self.project.arch.memory_endness
+            if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+            else self.project.arch.register_endness
+        )
+        return Extract(
+            self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), endness, **orig_tags.tags
+        )
 
     def _vvar_update(
         self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
@@ -643,7 +650,12 @@ class SimEngineSSARewriting(
                     [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
                     bits=vvar.bits,
                 )
-            combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value)
+            endness = (
+                self.project.arch.memory_endness
+                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+                else self.project.arch.register_endness
+            )
+            combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
 
         if vvar.category == VirtualVariableCategory.STACK:
             for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
