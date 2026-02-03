@@ -473,9 +473,9 @@ class FactCollector(Analysis):
                             propagated_retval_sizes.append(retval_size)
                             continue
                         if (
-                                func_succ.prototype is not None
-                                and func_succ.prototype.returnty is not None
-                                and isinstance(func_succ.prototype.returnty, SimTypeBottom)
+                            func_succ.prototype is not None
+                            and func_succ.prototype.returnty is not None
+                            and isinstance(func_succ.prototype.returnty, SimTypeBottom)
                         ):
                             # callee is void - don't scan VEX for return values since the call
                             # just clobbers rax without returning anything meaningful
