@@ -34,6 +34,10 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and call.target.value in self.kb.functions
         ):
             func = self.kb.functions[call.target.value]
+            if func.addr == 0x455EE0:
+                import ipdb
+
+                ipdb.set_trace()
             if isinstance(func.prototype, RustSimTypeFunction):
                 call.prototype = func.prototype
             else:
