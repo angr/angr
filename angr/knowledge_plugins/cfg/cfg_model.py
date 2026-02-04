@@ -21,6 +21,7 @@ from angr.errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
+from .spilling_cfg_graph import SpillingCFGGraph
 
 if TYPE_CHECKING:
     from angr.knowledge_base.knowledge_base import KnowledgeBase
@@ -40,10 +41,12 @@ class CFGModel(Serializable):
     """
 
     __slots__ = (
+        "__weakref__",
+        "_cache_limit",
         "_cfg_manager",
+        "_db_batch_size",
         "_iropt_level",
         "_node_addrs",
-        "_nodes",
         "_nodes_by_addr",
         "edges_to_repair",
         "graph",
@@ -55,16 +58,35 @@ class CFGModel(Serializable):
         "normalized",
     )
 
-    def __init__(self, ident, cfg_manager=None, is_arm=False):
+    def __init__(
+        self,
+        ident,
+        cfg_manager=None,
+        is_arm=False,
+        cache_limit: int | None = None,
+        db_batch_size: int = 1000,
+    ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
+        self._cache_limit = cache_limit
+        self._db_batch_size = db_batch_size
 
         # Necessary settings
         self._iropt_level = None
 
-        # The graph
-        self.graph = networkx.DiGraph()
+        # The graph - uses SpillingCFGGraph which stores nodes internally
+        # When cache_limit is None, spilling is disabled (regular dict for nodes)
+        rtdb = None
+        if cfg_manager is not None and hasattr(cfg_manager, "_kb") and cfg_manager._kb is not None:
+            rtdb = getattr(cfg_manager._kb, "rtdb", None)
+
+        self.graph: SpillingCFGGraph = SpillingCFGGraph(
+            rtdb=rtdb,
+            cfg_model=self,
+            cache_limit=cache_limit,
+            db_batch_size=db_batch_size,
+        )
 
         # Jump tables
         self.jump_tables: dict[int, IndirectJump] = {}
@@ -77,8 +99,6 @@ class CFGModel(Serializable):
 
         # Lists of CFGNodes indexed by the address of each block. Don't serialize
         self._nodes_by_addr: defaultdict[int, list[CFGNode]] = defaultdict(list)
-        # CFGNodes dict indexed by block ID. Don't serialize
-        self._nodes: dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
         self._node_addrs: SortedList[int] | None = None
 
@@ -96,6 +116,11 @@ class CFGModel(Serializable):
             return None
         return self._cfg_manager._kb._project
 
+    @property
+    def _nodes(self):
+        """CFGNodes dict indexed by block ID. Delegates to graph._nodes."""
+        return self.graph._nodes
+
     #
     # Serialization
     #
@@ -107,6 +132,10 @@ class CFGModel(Serializable):
         for attribute, value in state.items():
             self.__setattr__(attribute, value)
 
+        # Restore cfg_model reference in the graph
+        self.graph._cfg_model = self
+
+        # Restore cfg_model reference in all nodes
         for addr in self._nodes:
             node = self._nodes[addr]
             node._cfg_model = self
@@ -216,13 +245,19 @@ class CFGModel(Serializable):
     #
 
     def copy(self):
-        model = CFGModel(self.ident, cfg_manager=self._cfg_manager, is_arm=self.is_arm)
-        model.graph = networkx.DiGraph(self.graph)
+        model = CFGModel(
+            self.ident,
+            cfg_manager=self._cfg_manager,
+            is_arm=self.is_arm,
+            cache_limit=self._cache_limit,
+            db_batch_size=self._db_batch_size,
+        )
+        model.graph = self.graph.copy()
+        model.graph._cfg_model = model
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
         model._nodes_by_addr = self._nodes_by_addr.copy()
-        model._nodes = self._nodes.copy()
         model.edges_to_repair = self.edges_to_repair.copy()
 
         return model
@@ -237,6 +272,8 @@ class CFGModel(Serializable):
     def add_node(self, block_id: int, node: CFGNode) -> None:
         self._nodes[block_id] = node
         self._nodes_by_addr[node.addr].append(node)
+        # Also add to the graph structure
+        self.graph.add_node(node)
 
         if self._node_addrs is not None and isinstance(node.addr, int) and node.addr not in self._node_addrs:
             self._node_addrs.add(node.addr)
@@ -249,7 +286,9 @@ class CFGModel(Serializable):
         :param node:        The CFGNode instance to remove.
         :return:            None
         """
-        if block_id in self._nodes:
+        # Only remove from _nodes if the stored node is the same object
+        # This handles the case where a replacement node was added (e.g., during _shrink_node)
+        if block_id in self._nodes and self._nodes[block_id] is node:
             del self._nodes[block_id]
 
         if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
