@@ -2,7 +2,7 @@ from collections import OrderedDict
 
 import angr.ailment as ailment
 from angr.ailment.expression import VirtualVariable, Load
-from angr.ailment.statement import Label, Assignment, Call
+from angr.ailment.statement import Label, Assignment, Call, Return
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
@@ -135,36 +135,95 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
         result = IfLetNode(pattern, scrutinee, true_node, None, addr)
         return result
 
+    def _is_simple_return(self, node):
+        if isinstance(node, ailment.Block):
+            last_stmt = self._find_first_non_label_stmt(node)
+            if isinstance(last_stmt, Return):
+                return True
+        return False
+
+    def _try_build_if_let(self, body_node, variant, scrutinee, addr, leftover, **kwargs):
+        """Helper to build an IfLetNode and handle it. Returns the new node or None."""
+        if_let = self._build_if_let(body_node, variant, scrutinee, addr, leftover)
+        if if_let:
+            new_node = super()._handle_IfLet(if_let, **kwargs)
+            return new_node or if_let
+        return None
+
+    def _try_build_pattern_match(
+        self, true_node, false_node, true_variant, false_variant, scrutinee, addr, leftover, **kwargs
+    ):
+        """Helper to build a PatternMatchNode and handle it. Returns the new node or None."""
+        pattern_match = self._build_pattern_match(
+            true_node, false_node, true_variant, false_variant, scrutinee, addr, leftover
+        )
+        if pattern_match:
+            new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
+            return new_node or pattern_match
+        return None
+
+    def _get_enum_type(self, scrutinee: VirtualVariable):
+        """Get the enum type from scrutinee's tags or variable manager."""
+        enum_ty = scrutinee.tags.get("type", None)
+        if enum_ty is None:
+            enum_ty = self.var_manager.get_variable_type(scrutinee.variable)
+        if isinstance(enum_ty, (RustSimTypeOption, RustSimTypeResult)):
+            return enum_ty
+        return None
+
     def _handle_Condition(self, node, **kwargs):
         scrutinee, discriminant, cmp_op, leftover = PrePatternMatchSimplifier.extract_scrutinee_and_discriminant(
             node.condition
         )
-        if node.true_node and scrutinee is not None and discriminant is not None:
-            if isinstance(scrutinee, VirtualVariable) and isinstance(
-                (enum_ty := scrutinee.tags.get("type", None) or self.var_manager.get_variable_type(scrutinee.variable)),
-                (RustSimTypeOption, RustSimTypeResult),
-            ):
-                true_node = node.true_node
-                false_node = node.false_node
-                true_variant = enum_ty.get_variant(discriminant)
-                false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
-                if cmp_op == "CmpNE":
-                    true_variant, false_variant = false_variant, true_variant
-                if true_variant and false_variant and false_node:
-                    pattern_match = self._build_pattern_match(
-                        true_node, false_node, true_variant, false_variant, scrutinee, node.addr, leftover
-                    )
-                    if pattern_match:
-                        new_node = super()._handle_PatternMatch(pattern_match, **kwargs)
-                        return new_node or pattern_match
-                elif true_variant:
-                    if_let = self._build_if_let(true_node, true_variant, scrutinee, node.addr, leftover)
-                    if if_let:
-                        new_node = super()._handle_IfLet(if_let, **kwargs)
-                        return new_node or if_let
-            elif isinstance(scrutinee, Call):
-                pass
+
+        # Early return if basic preconditions are not met
+        if not node.true_node or scrutinee is None or discriminant is None:
+            return super()._handle_Condition(node, **kwargs)
+
+        # Handle VirtualVariable scrutinee with Option/Result types
+        if isinstance(scrutinee, VirtualVariable):
+            enum_ty = self._get_enum_type(scrutinee)
+            if enum_ty is not None:
+                result = self._handle_enum_condition(node, scrutinee, enum_ty, discriminant, cmp_op, leftover, **kwargs)
+                if result is not None:
+                    return result
+
+        # TODO: Handle Call scrutinee case
+        # elif isinstance(scrutinee, Call):
+        #     pass
+
         return super()._handle_Condition(node, **kwargs)
+
+    def _handle_enum_condition(self, node, scrutinee, enum_ty, discriminant, cmp_op, leftover, **kwargs):
+        """Handle condition nodes where the scrutinee is an Option or Result type."""
+        true_node = node.true_node
+        false_node = node.false_node
+
+        true_variant = enum_ty.get_variant(discriminant)
+        false_variant = PrePatternMatchSimplifier.inverse_variant(enum_ty, discriminant)
+
+        # Swap variants if comparison is "not equal"
+        if cmp_op == "CmpNE":
+            true_variant, false_variant = false_variant, true_variant
+
+        # Case 1: Both variants exist and we have a false node - can build PatternMatch or IfLet
+        if true_variant and false_variant and false_node:
+            # If false branch is a simple return, build IfLet for the true branch
+            if self._is_simple_return(false_node):
+                return self._try_build_if_let(true_node, true_variant, scrutinee, node.addr, leftover, **kwargs)
+            # If true branch is a simple return, build IfLet for the false branch
+            if self._is_simple_return(true_node):
+                return self._try_build_if_let(false_node, false_variant, scrutinee, node.addr, leftover, **kwargs)
+            # Otherwise, build a full PatternMatch with both arms
+            return self._try_build_pattern_match(
+                true_node, false_node, true_variant, false_variant, scrutinee, node.addr, leftover, **kwargs
+            )
+
+        # Case 2: Only true variant exists (no false node) - build IfLet
+        if true_variant:
+            return self._try_build_if_let(true_node, true_variant, scrutinee, node.addr, leftover, **kwargs)
+
+        return None
 
 
 class PatternMatchSimplifier(SequenceOptimizationPass):
