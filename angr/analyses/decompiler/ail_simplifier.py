@@ -970,78 +970,73 @@ class AILSimplifier(Analysis):
 
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
-            if len(eqs) > 1:
-                continue
-
-            eq = next(iter(eqs))
-            if eq.codeloc in updated_locs:
-                continue
-
-            # Acceptable equivalence classes:
-            #
-            # stack variable == register
-            # register variable == register
-            # stack variable == Conv(register, M->N)
-            # global variable == register
-            #
-            # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
-            # eq.atom1 is the use.
-            the_def = None
-            if (isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack) or (
-                isinstance(eq.atom0, SimMemoryVariable)
-                and not isinstance(eq.atom0, SimStackVariable)
-                and isinstance(eq.atom0.addr, int)
-            ):
-                if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
-                    # stack_var == register or global_var == register
-                    to_replace = eq.atom1
-                    to_replace_is_def = False
-                elif (
-                    isinstance(eq.atom0, VirtualVariable)
-                    and eq.atom0.was_stack
-                    and isinstance(eq.atom1, VirtualVariable)
-                    and eq.atom1.was_parameter
-                ):
-                    # stack_var == parameter
-                    to_replace = eq.atom0
-                    to_replace_is_def = True
-                elif (
-                    isinstance(eq.atom1, Convert)
-                    and isinstance(eq.atom1.operand, VirtualVariable)
-                    and eq.atom1.operand.was_reg
-                ):
-                    # stack_var == Conv(register, M->N)
-                    to_replace = eq.atom1.operand
-                    to_replace_is_def = False
-                else:
+            filtered_eqs: list[tuple[Equivalence, VirtualVariable, bool]] = []
+            for eq in eqs:
+                if eq.codeloc in updated_locs:
                     continue
 
-            elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                if isinstance(eq.atom1, VirtualVariable):
-                    if eq.atom1.was_reg or eq.atom1.was_parameter:
-                        # register == register
-                        if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
-                            to_replace = eq.atom0
-                            to_replace_is_def = True
-                        else:
-                            to_replace = eq.atom1
-                            to_replace_is_def = False
-                    elif eq.atom1.was_stack:
-                        # register == stack (but we try to replace the register vvar with the stack vvar)
-                        to_replace = eq.atom0
-                        to_replace_is_def = True
+                # Acceptable equivalence classes:
+                #
+                # stack variable == register
+                # register variable == register
+                # stack variable == Conv(register, M->N)
+                # global variable == register
+                #
+                # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
+                # eq.atom1 is the use.
+                if (isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack) or (
+                    isinstance(eq.atom0, SimMemoryVariable)
+                    and not isinstance(eq.atom0, SimStackVariable)
+                    and isinstance(eq.atom0.addr, int)
+                ):
+                    if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
+                        # stack_var == register or global_var == register
+                        filtered_eqs.append((eq, eq.atom1, False))
+                    elif (
+                        isinstance(eq.atom0, VirtualVariable)
+                        and eq.atom0.was_stack
+                        and isinstance(eq.atom1, VirtualVariable)
+                        and eq.atom1.was_parameter
+                    ):
+                        # stack_var == parameter
+                        filtered_eqs.append((eq, eq.atom0, True))
+                    elif (
+                        isinstance(eq.atom1, Convert)
+                        and isinstance(eq.atom1.operand, VirtualVariable)
+                        and eq.atom1.operand.was_reg
+                    ):
+                        # stack_var == Conv(register, M->N)
+                        filtered_eqs.append((eq, eq.atom1.operand, False))
                     else:
                         continue
+
+                elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
+                    if isinstance(eq.atom1, VirtualVariable):
+                        if eq.atom1.was_reg or eq.atom1.was_parameter:
+                            # register == register
+                            if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                                filtered_eqs.append((eq, eq.atom0, True))
+                            else:
+                                filtered_eqs.append((eq, eq.atom1, False))
+                        elif eq.atom1.was_stack:
+                            # register == stack (but we try to replace the register vvar with the stack vvar)
+                            filtered_eqs.append((eq, eq.atom0, True))
+                        else:
+                            continue
+                    else:
+                        continue
+
                 else:
                     continue
 
-            else:
+            if len(filtered_eqs) != 1:
                 continue
 
-            assert isinstance(to_replace, VirtualVariable)
+            eq, to_replace, to_replace_is_def = filtered_eqs[0]
 
             # find the definition of this virtual register
             rd = self._compute_reaching_definitions()
+            the_def = None
             if to_replace_is_def:
                 # find defs
                 defs: Container[Definition[atoms.VirtualVariable, AILCodeLocation]] = []
