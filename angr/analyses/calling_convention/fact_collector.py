@@ -353,7 +353,12 @@ class FactCollector(Analysis):
     def _handle_function(self, state: FactCollectorState, func: Function) -> None:
         try:
             if func.calling_convention is not None and func.prototype is not None:
-                arg_locs = func.calling_convention.arg_locs(func.prototype)
+                func_prototype = (
+                    dereference_simtype_by_lib(func.prototype, func.prototype_libname)
+                    if func.prototype_libname is not None
+                    else func.prototype
+                )
+                arg_locs = func.calling_convention.arg_locs(func_prototype)
             else:
                 return
         except (TypeError, ValueError):

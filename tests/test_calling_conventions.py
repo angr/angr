@@ -21,7 +21,8 @@ from angr.calling_conventions import (
     SimCCMicrosoftAMD64,
     SimCCRISCV64,
 )
-from angr.sim_type import parse_file, SimStructValue
+from angr.sim_type import parse_file, SimStructValue, SimTypeRef, SimCppClass
+from angr.calling_conventions import default_cc
 from angr import Project, load_shellcode, types
 
 from .common import bin_location
@@ -196,6 +197,17 @@ class TestCallingConvention(TestCase):
         c_float = struct.unpack("<f", struct.pack("<I", c_bits))[0]
         assert abs(c_float - 102.3) < 0.00001
         assert (a3_val >> 32) == 60
+
+    def test_simcc_arg_locs_returnty_unresolved_simtyperef(self):
+        func_proto = SimTypeFunction([], SimTypeRef("std::wstring_t", SimCppClass))
+
+        for arch in [archinfo.ArchAMD64, archinfo.ArchX86, archinfo.ArchARM]:
+            proto = func_proto.with_arch(arch())
+            cc = default_cc(arch.name)(arch())
+
+            # It should not raise any exception!
+            arg_locs = list(cc.arg_locs(proto))
+            assert arg_locs is not None
 
 
 if __name__ == "__main__":
