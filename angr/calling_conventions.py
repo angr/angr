@@ -1717,7 +1717,8 @@ class SimCCSystemVAMD64(SimCC):
                 for subty in subty_list:
                     if isinstance(subty, RustSimEnum):
                         subty = subty.as_struct_ty()
-                    assert subty.size
+                    if subty.size == 0:
+                        continue
                     # is the smaller chunk size necessary? Genuinely unsure
                     subresult = self._classify(subty, chunksize=1)
                     idx_start = offset // chunksize

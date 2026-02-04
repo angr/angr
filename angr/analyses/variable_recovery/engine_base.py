@@ -11,7 +11,14 @@ from angr.engines.light.engine import BlockProtocol
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable, SimComboRegisterVariable
+from angr.sim_variable import (
+    SimVariable,
+    SimStackVariable,
+    SimRegisterVariable,
+    SimMemoryVariable,
+    SimConstantVariable,
+    SimComboRegisterVariable,
+)
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
@@ -491,7 +498,7 @@ class SimEngineVRBase[VRStateType: VariableRecoveryStateBase, BlockType: BlockPr
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 ty_const = self.vvar_type_hints[vvar.varid]
-                if isinstance(ty_const, (typeconsts.Struct, typeconsts.Enum)):
+                if isinstance(ty_const, (typeconsts.Struct, typeconsts.RustEnum)):
                     constraint = typevars.Equivalence(typevar, ty_const)
                 else:
                     constraint = typevars.Subtype(typevar, ty_const)
