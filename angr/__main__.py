@@ -84,6 +84,9 @@ def decompile(args):
         show_casts=not args.no_casts,
         base_address=args.base_addr,
         preset=args.preset,
+        cca=args.cca,
+        cca_callsites=args.cca_callsites,
+        progressbar=args.progress,
     )
 
     # Determine if we should use syntax highlighting
@@ -147,6 +150,26 @@ def main():
         help="The configuration preset to use for decompilation.",
         choices=DECOMPILATION_PRESETS,
         default="default",
+    )
+    decompile_cmd_parser.add_argument(
+        "--cca",
+        help="Enable full-binary function prototype recovery. Improves decompilation quality but may be slow on "
+        "binaries with many functions.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "--cca-callsites",
+        help="When --cca (full-binary function prototype recovery) is enabled, also analyze call sites for better "
+        "function prototype inference.",
+        action="store_true",
+        default=True,
+    )
+    decompile_cmd_parser.add_argument(
+        "-p",
+        "--progress",
+        help="Show a progress bar during decompilation.",
+        action="store_true",
     )
     decompile_cmd_parser.add_argument(
         "--functions",

@@ -1026,6 +1026,9 @@ def decompile_functions(
     show_casts: bool = True,
     base_address: int | None = None,
     preset: str | None = None,
+    cca: bool = False,
+    cca_callsites: bool = True,
+    progressbar: bool = False,
 ) -> str:
     """
     Decompile a binary into a set of functions.
@@ -1051,8 +1054,9 @@ def decompile_functions(
     if base_address is not None:
         loader_main_opts_kwargs["base_addr"] = base_address
     proj = angr.Project(path, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
-    cfg = proj.analyses.CFG(normalize=True, data_references=True)
-    proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+    cfg = proj.analyses.CFG(normalize=True, data_references=True, show_progressbar=progressbar)
+    if cca:
+        proj.analyses.CompleteCallingConventions(analyze_callsites=cca_callsites, show_progressbar=progressbar)
 
     # collect all functions when None are provided
     if functions is None:
@@ -1090,11 +1094,13 @@ def decompile_functions(
 
         exception_string = ""
         if not catch_errors:
-            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
+            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar)
         else:
             try:
                 # TODO: add a timeout
-                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
+                dec = proj.analyses.Decompiler(
+                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar
+                )
             except Exception as e:
                 exception_string = str(e).replace("\n", " ")
                 dec = None
