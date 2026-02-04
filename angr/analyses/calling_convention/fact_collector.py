@@ -481,7 +481,14 @@ class FactCollector(Analysis):
         else:
             return
 
+        # get the overflow return register offset (e.g., rdx on x64)
+        overflow_retreg_offset: int | None = None
+        if isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
+            overflow_retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
+
         retval_sizes = []
+        propagated_retval_sizes = []
+        overflow_retval_sizes = []
         for endpoint in self.function.endpoints:
             assert isinstance(endpoint, (BlockNode, HookNode))
             traversed = set()
@@ -516,7 +523,7 @@ class FactCollector(Analysis):
                         returnty_size = func.prototype.returnty.with_arch(self.project.arch).size
                         assert returnty_size is not None
                         retval_size = returnty_size // self.project.arch.byte_width
-                        retval_sizes.append(retval_size)
+                        propagated_retval_sizes.append(retval_size)
                     continue
 
                 # if this block ends with a call to a function, we process the function first
@@ -552,7 +559,7 @@ class FactCollector(Analysis):
                                 retval_size = self.project.arch.bytes
                             else:
                                 retval_size = returnty_size // self.project.arch.byte_width
-                            retval_sizes.append(retval_size)
+                            propagated_retval_sizes.append(retval_size)
                             continue
                         if (
                             func_succ.prototype is not None
@@ -572,7 +579,6 @@ class FactCollector(Analysis):
                         tmp_definitions[stmt.tmp] = stmt.data
 
                 # scan the block statements backwards to find writes to the return value register
-                retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
@@ -592,11 +598,9 @@ class FactCollector(Analysis):
                                 size = 4
 
                         if stmt.offset == retreg_offset:
-                            retval_size = max(size, 1)
-
-                if retval_size is not None:
-                    retval_sizes.append(retval_size)
-                    continue
+                            retval_sizes.append(max(size, 1))
+                        elif stmt.offset == overflow_retreg_offset:
+                            overflow_retval_sizes.append(max(size, 1))
 
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
@@ -623,6 +627,9 @@ class FactCollector(Analysis):
 
                 if not is_written:
                     retval_sizes.append(self.project.arch.bytes)
+
+        overflow_retval_size = max(overflow_retval_sizes) if overflow_retval_sizes else 0
+        retval_sizes = [retval_size + overflow_retval_size for retval_size in retval_sizes] + propagated_retval_sizes
 
         self.retval_size = max(retval_sizes) if retval_sizes else None
 
