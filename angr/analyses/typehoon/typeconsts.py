@@ -353,9 +353,9 @@ class EnumVariant:
 
 class RustEnum(TypeConstant):
 
-    def __init__(self, name, variants):
-        self.name = name
-        self.variants = variants
+    def __init__(self, name=None, variants=None):
+        super().__init__(name)
+        self.variants = variants if variants is not None else []
 
     def _hash(self, visited: set[int]):
         if id(self) in visited:

@@ -34,10 +34,6 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             and call.target.value in self.kb.functions
         ):
             func = self.kb.functions[call.target.value]
-            if func.addr == 0x455EE0:
-                import ipdb
-
-                ipdb.set_trace()
             if isinstance(func.prototype, RustSimTypeFunction):
                 call.prototype = func.prototype
             else:
@@ -74,6 +70,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                             return call
                         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
                         dst_vvar.tags["type"] = returnty
+                        self.project.kb.type_hints.add_type_hint(dst_vvar, returnty)
                         assignment = Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
                         return assignment
                 else:
