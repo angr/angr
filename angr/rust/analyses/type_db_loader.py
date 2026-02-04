@@ -24,6 +24,7 @@ from angr.calling_conventions import default_cc
 from angr.rust.definitions.commit_versions import COMMIT_VERSIONS
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.cfg import MemoryDataSort
+from angr.sim_type import SimTypeFunction
 
 l = logging.getLogger(__name__)
 
@@ -288,7 +289,7 @@ class TypeDBLoader(Analysis):
 
     def _fit_abi(self, prototype: RustSimTypeFunction):
         # This is a heuristic to adjust function prototypes to match Rust's ABI conventions
-        # Rust's ABI is stable, but we can make some educated guesses
+        # Rust's ABI is unstable, but we can assume that large structs/enums are passed by reference
         new_args = []
         for arg_ty in prototype.args:
             if isinstance(arg_ty, (RustSimEnum, RustSimStruct)) and arg_ty.size > self.project.arch.bits * 2:
@@ -297,7 +298,7 @@ class TypeDBLoader(Analysis):
                 new_args.append(arg_ty)
         if (
             isinstance(prototype.returnty, (RustSimEnum, RustSimStruct))
-            and prototype.returnty.size > self.project.arch.bits
+            and prototype.returnty.size > self.project.arch.bits * 2
         ):
             new_args.insert(0, RustSimTypeReference(prototype.returnty))
             return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True)
@@ -309,6 +310,32 @@ class TypeDBLoader(Analysis):
             return None
         ret_ty = self._parse_type(data["returnty"])
         return self._fit_abi(RustSimTypeFunction(args, ret_ty))
+
+    def _negotiate_prototype(self, prototype: RustSimTypeFunction, old_prototype: SimTypeFunction):
+        # Negotiate the prototype with the old one to ensure compatibility
+        # This is a heuristic and may not cover all cases
+        if (
+            isinstance(prototype.returnty, (RustSimEnum, RustSimStruct))
+            and prototype.returnty.size == self.project.arch.bits * 2
+        ):
+            # If the return type is a large struct/enum that fits in two registers, assume it's returned directly
+            if (
+                sum(arg_ty.size for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args)
+                and old_prototype.returnty
+                and old_prototype.returnty.size == self.project.arch.bits * 2
+            ):
+                return prototype
+            elif (
+                sum(arg_ty.size for arg_ty in old_prototype.args)
+                == sum(arg_ty.size for arg_ty in prototype.args) + self.project.arch.bits
+            ):
+                new_args = list(prototype.args)
+                new_args.insert(0, RustSimTypeReference(prototype.returnty))
+                return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True)
+        else:
+            if sum(arg_ty.size for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args):
+                return prototype
+        return None
 
     def _analyze(self):
         rustc_version = RustVersionIdentifier(self.project).identify_rust_version()
@@ -325,8 +352,6 @@ class TypeDBLoader(Analysis):
         l.info("Loaded %d structs from type database.", len(self._structs))
 
         prototype_db = type_db_json["functions"]
-        cc_cls = default_cc(self.project.arch.name)
-        cc = cc_cls(self.project.arch) if cc_cls else None
         # Store function addresses instead of Function objects to avoid issues with
         # SpillingFunctionDict's LRU eviction creating new object instances
         name_to_func_addrs = defaultdict(list)
@@ -345,12 +370,10 @@ class TypeDBLoader(Analysis):
                     # Re-fetch the function each time to get the current object from the cache
                     func = self.kb.functions[func_addr]
                     old_prototype = func.prototype.with_arch(self.project.arch)
-                    # Only update the prototype if the argument sizes match
-                    if old_prototype and sum(arg_ty.size for arg_ty in old_prototype.args) == sum(
-                        arg_ty.size for arg_ty in prototype.args
-                    ):
-                        func.prototype = prototype
-                        func.calling_convention = cc
+                    negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
+                    if negotiated_prototype is not None:
+                        func.prototype = negotiated_prototype
+                        func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
                         func.is_prototype_guessed = False
                 self.project.kb.librust.set_prototype(func_name, prototype)
         l.info("Loaded %d functions from type database.", len(prototypes))
