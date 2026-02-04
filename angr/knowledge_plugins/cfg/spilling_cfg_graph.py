@@ -4,6 +4,7 @@ Spilling CFG Graph implementation with LRU caching and LMDB persistence.
 This module provides SpillingCFGNodeDict and SpillingCFGGraph classes that implement
 disk-backed storage for CFGNode instances, following the SpillingFunctionDict pattern.
 """
+
 from __future__ import annotations
 
 import pickle
@@ -645,11 +646,10 @@ class SpillingCFGGraph:
                 (self._get_node_by_id(src_id), self._get_node_by_id(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph.in_edges(nbunch, data=True)
             ]
-        else:
-            return [
-                (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
-                for src_id, dst_id in self._graph.in_edges(nbunch)
-            ]
+        return [
+            (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
+            for src_id, dst_id in self._graph.in_edges(nbunch)
+        ]
 
     def out_edges(
         self, nbunch=None, data: bool = False
@@ -665,11 +665,10 @@ class SpillingCFGGraph:
                 (self._get_node_by_id(src_id), self._get_node_by_id(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph.out_edges(nbunch, data=True)
             ]
-        else:
-            return [
-                (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
-                for src_id, dst_id in self._graph.out_edges(nbunch)
-            ]
+        return [
+            (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
+            for src_id, dst_id in self._graph.out_edges(nbunch)
+        ]
 
     def in_degree(self, node: CFGNode | None = None):
         if node is None:
