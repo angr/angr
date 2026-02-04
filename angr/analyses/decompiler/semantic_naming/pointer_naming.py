@@ -313,7 +313,7 @@ class PointerNaming(ClinicNamingBase):
     def _assign_pointer_names(self) -> None:
         """Assign names to pointer variables."""
         # Sort by score (highest first)
-        sorted_candidates = sorted(self._pointer_candidates.items(), key=lambda x: -x[1]["score"])
+        sorted_candidates = sorted(self._pointer_candidates.items(), key=lambda x: (-x[1]["score"], str(x[0].ident)))
 
         # Threshold for considering a variable as a pointer
         SCORE_THRESHOLD = 20

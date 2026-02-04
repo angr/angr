@@ -76,7 +76,7 @@ class SemanticNamingOrchestrator:
         all_renames: dict[SimVariable, str] = {}
 
         # Sort patterns by priority (lower = higher priority)
-        sorted_patterns = sorted(self._patterns, key=lambda p: p.PRIORITY)
+        sorted_patterns = sorted(self._patterns, key=lambda p: (p.PRIORITY, p.__name__))
 
         for pattern_class in sorted_patterns:
             pattern = pattern_class(
@@ -96,7 +96,7 @@ class SemanticNamingOrchestrator:
             renamed = pattern.apply_names(exclude_vars=self.renamed_variables)
 
             # Track what was renamed
-            for var in renamed:
+            for var in sorted(renamed, key=lambda v: str(v.ident)):
                 if var in var_names:
                     all_renames[var] = var_names[var]
                     self.variable_patterns[var] = pattern_class.__name__
