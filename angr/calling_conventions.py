@@ -1719,7 +1719,11 @@ class SimCCSystemVAMD64(SimCC):
                 if result[i] == "SSEUP" and result[i - 1] not in ("SSE", "SSEUP"):
                     result[i] = "SSE"
             return result
-        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        if isinstance(ty, SimTypeRef):
+            # unresolved type; we must treat it as a native integer
+            return ["INTEGER"]
+        l.error("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        return ["INTEGER"]
 
     def _flatten(self, ty) -> dict[int, list[SimType]] | None:
         result: dict[int, list[SimType]] = defaultdict(list)
@@ -1882,7 +1886,11 @@ class SimCCARM(SimCC):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
             return result
-        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        if isinstance(ty, SimTypeRef):
+            # unresolved type; we must treat it as a native integer
+            return ["INTEGER"]
+        l.error("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        return ["INTEGER"]
 
     def _combine_classes(self, cls1, cls2):
         if cls1 == cls2:
@@ -2322,7 +2330,11 @@ class SimCCO32(SimCC):
                         subclass = subresult[i * chunksize]
                         result[idx] = self._combine_classes(result[idx], subclass)
             return result
-        raise NotImplementedError("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        if isinstance(ty, SimTypeRef):
+            # unresolved type; we must treat it as a native integer
+            return ["INTEGER"]
+        l.error("Ummmmm... not sure what goes here. report bug to @rhelmot")
+        return ["INTEGER"]
 
     def _combine_classes(self, cls1, cls2):
         if cls1 == cls2:
