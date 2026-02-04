@@ -647,6 +647,9 @@ class AILSimplifier(Analysis):
 
             expr_size, use_type = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
+                if use_type == "insert-base":
+                    # don't care
+                    continue
                 # it's probably used in full width
                 return ExprNarrowingInfo(False)
 
@@ -711,7 +714,7 @@ class AILSimplifier(Analysis):
         return False
 
     def _get_vvar_use_and_exprs_recursive(
-        self, initial_atom: atoms.VirtualVariable, rd, block_dict: dict[tuple[int, int | None], Block]
+        self, initial_atom: atoms.VirtualVariable, rd: SRDAModel, block_dict: dict[tuple[int, int | None], Block]
     ) -> tuple[list[tuple[atoms.VirtualVariable, AILCodeLocation, Expression]], set[VirtualVariable]] | None:
         result = []
         atom_queue = [initial_atom]
@@ -765,6 +768,8 @@ class AILSimplifier(Analysis):
             return highest_bit // self.project.arch.byte_width, "expr"
         if walker.expr_used_as_call_arg_effective_bits is not None:
             return walker.expr_used_as_call_arg_effective_bits[1] // self.project.arch.byte_width, "call-arg"
+        if walker.expr_used_as_insert_base:
+            return None, "insert-base"
 
         return None, None
 

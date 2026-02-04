@@ -46,7 +46,7 @@ class TestPartialRegReads(unittest.TestCase):
         unicode_var_name = unicode_var.group("var")
 
         # let's build a graph of assignments
-        g = networkx.DiGraph()
+        g = networkx.MultiDiGraph()
         for match in re.finditer(r"(?P<dst>\S+) = (?P<src>\S+)[;,]", dec.codegen.text):
             dst = match.group("dst")
             src = match.group("src")

@@ -69,6 +69,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
         self._ignore_call_args = ignore_call_args
         self.expr_to_effective_bits: dict[Expression, tuple[int, int]] = {}
         self.expr_used_as_call_arg_effective_bits: tuple[int, int] | None = None
+        self.expr_used_as_insert_base: bool = False
 
     def _update_effective_bits(self, expr, lo_bits: int, hi_bits: int):
         existing = self.expr_to_effective_bits.get(expr)
@@ -98,6 +99,8 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
 
     def _handle_Insert(self, expr_idx: int, expr, stmt_idx: int, stmt: Statement | None, block: Block | None):
         # self._handle_expr(0, expr.base, stmt_idx, stmt, block)
+        if self._target_expr.likes(expr.base):
+            self.expr_used_as_insert_base = True
         self._handle_expr(1, expr.offset, stmt_idx, stmt, block)
         self._handle_expr(2, expr.value, stmt_idx, stmt, block)
 
