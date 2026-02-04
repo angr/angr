@@ -47,6 +47,7 @@ class Emulator:
 
     _engine: ConcreteEngine
     _state: HeavyConcreteState
+    _breakpoints: set[int]
 
     def __init__(self, engine: ConcreteEngine, init_state: HeavyConcreteState):
         """
@@ -55,6 +56,7 @@ class Emulator:
         """
         self._engine = engine
         self._state = init_state
+        self._breakpoints = set()
 
     @property
     def state(self) -> HeavyConcreteState:
@@ -68,7 +70,7 @@ class Emulator:
         """
         The set of currently set breakpoints.
         """
-        return self._engine.get_breakpoints()
+        return self._breakpoints
 
     def add_breakpoint(self, addr: int) -> None:
         """
@@ -76,7 +78,8 @@ class Emulator:
 
         :param addr: The address to set the breakpoint at.
         """
-        self._engine.add_breakpoint(addr)
+        addr = addr & ~1  # Clear thumb bit if set
+        self._breakpoints.add(addr)
 
     def remove_breakpoint(self, addr: int) -> None:
         """
@@ -84,7 +87,8 @@ class Emulator:
 
         :param addr: The address to remove the breakpoint from.
         """
-        self._engine.remove_breakpoint(addr)
+        addr = addr & ~1  # Clear thumb bit if set
+        self._breakpoints.discard(addr)
 
     def run(self, num_inst: int | None = None) -> EmulatorStopReason:
         """
@@ -95,7 +99,7 @@ class Emulator:
         while self._state.history.jumpkind != "Ijk_Exit":
             # Check if there is a breakpoint at the current address
             addr_with_lower_bit_cleared = self._state.addr & ~1
-            if completed_engine_execs > 0 and addr_with_lower_bit_cleared in self._engine.get_breakpoints():
+            if completed_engine_execs > 0 and addr_with_lower_bit_cleared in self._breakpoints:
                 return EmulatorStopReason.BREAKPOINT
 
             # Check if we've already executed the requested number of instructions
@@ -109,7 +113,9 @@ class Emulator:
 
             # Run the engine to get successors
             try:
-                successors = self._engine.process(self._state, num_inst=remaining_inst)
+                successors = self._engine.process(
+                    self._state, num_inst=remaining_inst, extra_stop_points=self._breakpoints
+                )
             except EngineException as e:
                 raise EngineException(f"Engine encountered an error: {e}") from e
 
