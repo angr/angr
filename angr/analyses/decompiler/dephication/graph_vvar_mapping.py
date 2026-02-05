@@ -282,7 +282,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
     @staticmethod
     def _append_stmt(block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
-
         def _handle_VirtualVariable(  # pylint:disable=unused-argument
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
         ):

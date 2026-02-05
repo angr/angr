@@ -299,7 +299,6 @@ class LoopVisitor(CStructuredCodeWalker):
 
                 cond_node: BinOpNode | None = AssignmentToASTVisitor().handle(cond)
                 if cond_node is not None and body_visitor.assignments:
-
                     assignments = body_visitor.assignments
 
                     # case 3:

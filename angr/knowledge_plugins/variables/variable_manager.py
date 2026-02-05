@@ -292,9 +292,7 @@ class VariableManagerInternal(Serializable):
         return cmsg
 
     @classmethod
-    def parse_from_cmessage(
-        cls, cmsg, variable_manager=None, func_addr=None, **kwargs
-    ) -> VariableManagerInternal:  # pylint:disable=arguments-differ
+    def parse_from_cmessage(cls, cmsg, variable_manager=None, func_addr=None, **kwargs) -> VariableManagerInternal:  # pylint:disable=arguments-differ
         model = VariableManagerInternal(variable_manager, func_addr=func_addr)
 
         variable_by_ident = {}

@@ -32,9 +32,9 @@ class TestDdgMemvarAddresses(unittest.TestCase):
 
         for node in ddg._data_graph.nodes():
             if isinstance(node.variable, angr.sim_variable.SimMemoryVariable):
-                assert (
-                    0 <= node.variable.addr < (1 << proj.arch.bits)
-                ), f"Program variable {node.variable} has an invalid address: {node.variable.addr}"
+                assert 0 <= node.variable.addr < (1 << proj.arch.bits), (
+                    f"Program variable {node.variable} has an invalid address: {node.variable.addr}"
+                )
 
 
 if __name__ == "__main__":

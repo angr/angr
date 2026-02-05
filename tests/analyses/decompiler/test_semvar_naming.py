@@ -61,14 +61,14 @@ class TestSemvarNaming(unittest.TestCase):
         _, code = self._decompile_function("sum_matrix")
 
         # Check for outer loop with 'i'
-        assert (
-            re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None
-        ), "Expected outer loop counter 'i' not found"
+        assert re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None, (
+            "Expected outer loop counter 'i' not found"
+        )
 
         # Check for inner loop with 'j'
-        assert (
-            re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None
-        ), "Expected inner loop counter 'j' not found"
+        assert re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None, (
+            "Expected inner loop counter 'j' not found"
+        )
 
     def test_loop_counter_naming_triple_nested(self):
         """Test that triple nested loops get i, j, k naming."""

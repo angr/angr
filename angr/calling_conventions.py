@@ -501,9 +501,9 @@ class SimStructArg(SimFunctionArgument):
 
         if stack_min is not None:
             if regs:
-                assert (
-                    False
-                ), "Unknown CC argument passing structure - why are we passing both regs and stack at the same time?"
+                assert False, (
+                    "Unknown CC argument passing structure - why are we passing both regs and stack at the same time?"
+                )
             return SimStackArg(stack_min, self.struct.size // self.struct._arch.byte_width)
         if not regs:
             assert False, "huh??????"
@@ -821,8 +821,7 @@ class SimCC:
                     locations.append(next_arg)
                 return SimComboArg(locations, is_fp=is_fp)
             raise ValueError(
-                f"{self} doesn't know how to store large types. Consider overriding"
-                " next_arg to implement its ABI logic"
+                f"{self} doesn't know how to store large types. Consider overriding next_arg to implement its ABI logic"
             )
         return arg.refine(size, is_fp=is_fp, arch=self.arch)
 
@@ -1172,9 +1171,7 @@ class SimCC:
 
     @classmethod
     def _match(cls, arch, args: list[SimRegArg | SimStackArg], sp_delta):
-        if (
-            cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches())
-        ):  # pylint:disable=isinstance-second-argument-not-valid-type
+        if cls.arches() is not None and ":" not in arch.name and not isinstance(arch, cls.arches()):  # pylint:disable=isinstance-second-argument-not-valid-type
             return False
         if sp_delta != cls.STACKARG_SP_DIFF:
             return False
@@ -1287,7 +1284,9 @@ class SimLyingRegArg(SimRegArg):
         value = self.check_value_set(value, state.arch)
         if self._real_size == 4:
             value = claripy.fpToFP(
-                claripy.fp.RM.RM_NearestTiesEven, value.raw_to_fp(), claripy.FSORT_DOUBLE  # type: ignore
+                claripy.fp.RM.RM_NearestTiesEven,
+                value.raw_to_fp(),
+                claripy.FSORT_DOUBLE,  # type: ignore
             )
         state.registers.store(self.reg_name, value)
         # super(SimLyingRegArg, self).set_value(state, value, endness=endness, **kwargs)
@@ -1375,9 +1374,7 @@ class SimCCMicrosoftThiscall(SimCCCdecl):
         session = self.arg_session(prototype.returnty)
         if not prototype.args:
             return []
-        return [SimRegArg("ecx", self.arch.bytes)] + [
-            self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]
-        ]  # type: ignore
+        return [SimRegArg("ecx", self.arch.bytes)] + [self.next_arg(session, arg_ty) for arg_ty in prototype.args[1:]]  # type: ignore
 
 
 class SimCCStdcall(SimCCMicrosoftCdecl):

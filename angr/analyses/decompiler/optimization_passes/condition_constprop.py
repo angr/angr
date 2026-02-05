@@ -201,11 +201,17 @@ class ConditionConstantPropagation(OptimizationPass):
             if isinstance(op0, VirtualVariable) and isinstance(op1, Const) and op1.is_int:
                 if op == "CmpEQ":
                     ccond = ConstantCondition(
-                        op0.varid, op1, stmt.true_target.value, stmt.true_target_idx  # type: ignore
+                        op0.varid,
+                        op1,
+                        stmt.true_target.value,
+                        stmt.true_target_idx,  # type: ignore
                     )
                     cconds.append(ccond)
                 elif op == "CmpNE":
                     ccond = ConstantCondition(
-                        op0.varid, op1, stmt.false_target.value, stmt.false_target_idx  # type: ignore
+                        op0.varid,
+                        op1,
+                        stmt.false_target.value,
+                        stmt.false_target_idx,  # type: ignore
                     )
                     cconds.append(ccond)

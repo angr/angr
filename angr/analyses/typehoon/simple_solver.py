@@ -642,7 +642,6 @@ class SimpleSolver:
                 _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
 
             while constraint_subset:
-
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
                 # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is

@@ -71,7 +71,6 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
         return True, cache
 
     def _analyze(self, cache=None):
-
         default_case_node_addrs = cache["default_case_node_addrs"]
 
         out_graph = None

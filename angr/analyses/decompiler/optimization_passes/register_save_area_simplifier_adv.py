@@ -35,7 +35,6 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         self.analyze()
 
     def _check(self):
-
         self._srda = self.project.analyses.SReachingDefinitions(
             subject=self._func, func_graph=self._graph, func_args=self._arg_vvars
         )
@@ -46,9 +45,7 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         return True, {"info": info}
 
     @staticmethod
-    def _modify_statement(
-        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None
-    ):  # pylint:disable=unused-argument
+    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None):  # pylint:disable=unused-argument
         if old_block not in updated_blocks_:
             block = old_block.copy()
             updated_blocks_[old_block] = block
@@ -57,7 +54,6 @@ class RegisterSaveAreaSimplifierAdvanced(OptimizationPass):
         block.statements[stmt_idx_] = None
 
     def _analyze(self, cache=None):
-
         if cache is None:
             return
 

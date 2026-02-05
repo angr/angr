@@ -33,9 +33,9 @@ class SimUserland(SimOS):
     def configure_project(self, abi_list=None):  # pylint: disable=arguments-differ
         if abi_list is None:
             abi_list = list(self.syscall_library.syscall_number_mapping)
-            assert (
-                len(abi_list) == 1
-            ), "More than one ABI is available for this target - you need to specify which ones are valid"
+            assert len(abi_list) == 1, (
+                "More than one ABI is available for this target - you need to specify which ones are valid"
+            )
         self.kernel_base = self.project.loader.kernel_object.mapped_base
 
         base_no = 0

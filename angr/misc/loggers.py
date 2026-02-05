@@ -110,7 +110,7 @@ class CuteFormatter(logging.Formatter):
         # Finalize log message
         name = name.ljust(14 + len(name) - name_len)
         level = level.ljust(8 + len(level) - lvl_len)
-        body: str = f"{level} | {self.formatTime(record, self.datefmt) : <23} | {name} | {message}"
+        body: str = f"{level} | {self.formatTime(record, self.datefmt): <23} | {name} | {message}"
         if record.exc_info:
             body += "\n" + "".join(traceback.format_exception(*record.exc_info))[:-1]
         return body

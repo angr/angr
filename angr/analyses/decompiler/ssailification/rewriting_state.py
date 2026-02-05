@@ -37,7 +37,6 @@ class RewritingState:
         self.out_block = None
 
     def copy(self) -> RewritingState:
-
         copy_regs = defaultdict(dict)
         for k, vdict in self.registers.items():
             copy_regs[k] = vdict.copy()

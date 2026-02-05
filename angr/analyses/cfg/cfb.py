@@ -54,7 +54,7 @@ class MemoryRegion:
         self.cle_region = cle_region
 
     def __repr__(self):
-        return f"<MemoryRegion {self.addr:#x}-{self.addr+self.size:#x}, type {self.type}>"
+        return f"<MemoryRegion {self.addr:#x}-{self.addr + self.size:#x}, type {self.type}>"
 
 
 #

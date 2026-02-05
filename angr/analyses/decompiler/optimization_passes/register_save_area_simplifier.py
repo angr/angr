@@ -50,9 +50,7 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         return bool(info), {"info": info}
 
     @staticmethod
-    def _modify_statement(
-        old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None
-    ):  # pylint:disable=unused-argument
+    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None):  # pylint:disable=unused-argument
         if old_block not in updated_blocks_:
             block = old_block.copy()
             updated_blocks_[old_block] = block
@@ -61,7 +59,6 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
         block.statements[stmt_idx_] = None
 
     def _analyze(self, cache=None):
-
         if cache is None:
             return
 
@@ -154,7 +151,6 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
     def _find_registers_restored_from_stack(self) -> list[list[tuple[int, int, CodeLocation]]]:
         all_results = []
         for ret_site in self._func.ret_sites + self._func.jumpout_sites:
-
             ret_blocks = list(self._get_blocks(ret_site.addr))
             if len(ret_blocks) == 1 and self.project.simos is not None and self.project.simos.name == "Win32":
                 # PE files may call __security_check_cookie (which terminates the program if the stack canary is

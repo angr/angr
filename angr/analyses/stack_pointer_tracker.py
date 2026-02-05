@@ -748,7 +748,6 @@ class StackPointerTracker(Analysis, ForwardAnalysis):
             sp_adjusted = False
             if callees:
                 if len(callees) == 1:
-
                     callee = callees[0]
                     if callee.info.get("is_rust_probestack", False):
                         # sp = sp - rax/eax right after returning from the call

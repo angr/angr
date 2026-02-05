@@ -27,12 +27,7 @@ class TestDisassembly(TestCase):
 
         arch = ArchAArch64NoCapstone()
         proj = angr.load_shellcode(
-            b"\x00\xe4\x00\x6f"
-            b"\x43\x3c\x0b\x0e"
-            b"\x54\x9a\xb7\x72"
-            b"\xfc\x6f\xba\xa9"
-            b"\x88\x03\x98\x1a"
-            b"\x00\x60\x01\x4e",
+            b"\x00\xe4\x00\x6f\x43\x3c\x0b\x0e\x54\x9a\xb7\x72\xfc\x6f\xba\xa9\x88\x03\x98\x1a\x00\x60\x01\x4e",
             arch,
             0,
         )
@@ -50,12 +45,7 @@ class TestDisassembly(TestCase):
 
     def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
-            b"\x00\xe4\x00\x6f"
-            b"\x43\x3c\x0b\x0e"
-            b"\x54\x9a\xb7\x72"
-            b"\xfc\x6f\xba\xa9"
-            b"\x88\x03\x98\x1a"
-            b"\x00\x60\x01\x4e",
+            b"\x00\xe4\x00\x6f\x43\x3c\x0b\x0e\x54\x9a\xb7\x72\xfc\x6f\xba\xa9\x88\x03\x98\x1a\x00\x60\x01\x4e",
             "AARCH64",
             0,
         )
@@ -143,7 +133,9 @@ class TestDisassembly(TestCase):
         assert len(operand_1.offset) == 1
         assert operand_1.offset_location == "prefix"
         rendered = disass.render(color=False)
-        assert rendered == """   _start:
+        assert (
+            rendered
+            == """   _start:
 0  lw      $gp, 0x10($sp)
 4  move    $a2, $s1
 8  lw      $a1, -0x7fd8($gp)
@@ -152,6 +144,7 @@ c  lw      $t9, -0x7ee0($gp)
 14  addiu   $a1, $a1, 0x5e38
 18  jalr    $t9
 1c  addiu   $a0, $zero, 0x2"""
+        )
 
     def test_arm_data_address_display(self):
         proj = angr.load_shellcode(b"\x26\x49\x17\x48\x0b\xf0", "ARMCortexM", load_address=0x80410E6)

@@ -219,7 +219,6 @@ class ExpressionNarrower(AILBlockRewriter):
         return super().walk(block)
 
     def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment:
-
         if isinstance(stmt.src, Phi):
             changed = False
 

@@ -53,9 +53,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
         o.symbolic_data = SortedDict(self.symbolic_data)
         return o
 
-    def load(
-        self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs
-    ):  # pylint: disable=arguments-differ
+    def load(self, addr, size=None, page_addr=None, endness=None, memory=None, cooperate=False, **kwargs):  # pylint: disable=arguments-differ
         concrete_run = []
         symbolic_run = ...
         last_run = None

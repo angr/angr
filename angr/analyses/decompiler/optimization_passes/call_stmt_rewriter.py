@@ -28,7 +28,6 @@ class CallStatementRewriter(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         changed = False
 
         for block in self._graph.nodes:

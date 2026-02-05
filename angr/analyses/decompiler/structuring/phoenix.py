@@ -166,12 +166,12 @@ class PhoenixStructurer(StructurerBase):
         if _DEBUG:
             if g is None:
                 return
-            assert (
-                len(list(networkx.connected_components(networkx.Graph(g)))) <= 1
-            ), f"{msg}: More than one connected component. Please report this."
-            assert (
-                len([nn for nn in g if g.in_degree[nn] == 0]) <= 1
-            ), f"{msg}: More than one graph entrance. Please report this."
+            assert len(list(networkx.connected_components(networkx.Graph(g)))) <= 1, (
+                f"{msg}: More than one connected component. Please report this."
+            )
+            assert len([nn for nn in g if g.in_degree[nn] == 0]) <= 1, (
+                f"{msg}: More than one graph entrance. Please report this."
+            )
 
     def _analyze(self):
         # iterate until there is only one node in the region
@@ -697,7 +697,6 @@ class PhoenixStructurer(StructurerBase):
     def _match_cyclic_natural_loop(
         self, node, head, graph_raw, full_graph_raw
     ) -> tuple[bool, LoopNode | None, BaseNode | None]:
-
         full_graph = _f(full_graph_raw)
         graph = _f(graph_raw)
 
@@ -1229,9 +1228,8 @@ class PhoenixStructurer(StructurerBase):
                         if node is head_pred:
                             continue
                         succs = list(fullgraph.successors(node))
-                        if (
-                            head_pred in succs
-                            and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(fullgraph, node)
+                        if head_pred in succs and not self._is_switch_cases_address_loaded_from_memory_head_or_jumpnode(
+                            fullgraph, node
                         ):
                             # special case: if node is the header of a switch-case, then this is *not* a continue edge
                             continue_edges.append((node, head_pred))
@@ -1492,7 +1490,6 @@ class PhoenixStructurer(StructurerBase):
         return True
 
     def _match_acyclic_switch_cases_address_loaded_from_memory(self, node, graph_raw, full_graph_raw) -> bool:
-
         successor_addrs: list[int] = []
         cmp_expr: int = 0
         cmp_lb: int = 0

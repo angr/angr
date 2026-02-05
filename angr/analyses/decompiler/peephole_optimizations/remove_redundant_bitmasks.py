@@ -23,7 +23,6 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     expr_classes = (BinaryOp, Convert)
 
     def optimize(self, expr: BinaryOp | Convert, **kwargs):
-
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
         if isinstance(expr, Convert):

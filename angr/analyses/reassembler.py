@@ -1980,9 +1980,7 @@ class Reassembler(Analysis):
         proc = Procedure(self, name=name, asm_code=asm_code)
         self.procedures.append(proc)
 
-    def append_data(
-        self, name, initial_content, size, readonly=False, sort="unknown"
-    ):  # pylint:disable=unused-argument
+    def append_data(self, name, initial_content, size, readonly=False, sort="unknown"):  # pylint:disable=unused-argument
         """
         Append a new data entry into the binary with specific name, content, and size.
 
@@ -2709,9 +2707,7 @@ class Reassembler(Analysis):
 
         return "cgc-package-list", data_size
 
-    def _cgc_extended_application_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _cgc_extended_application_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Identifies the extended application (a PDF file) associated with the CGC binary.
 
@@ -2753,9 +2749,7 @@ class Reassembler(Analysis):
 
         return "cgc-extended-application", max_size
 
-    def _unknown_data_size_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _unknown_data_size_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Return the maximum number of bytes until a potential pointer or a potential sequence is found.
 

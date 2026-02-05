@@ -68,7 +68,6 @@ class SwitchReusedEntryRewriter(OptimizationPass):
         return True, cache
 
     def _analyze(self, cache=None):
-
         reused_entries: dict[Block, set[Block]] = cache["reused_entries"]
         out_graph = None
 
@@ -77,7 +76,6 @@ class SwitchReusedEntryRewriter(OptimizationPass):
             sorted_pred_nodes = sorted(pred_nodes, key=lambda x: (x.addr, x.idx))
 
             for head_node in sorted_pred_nodes[1:]:
-
                 # create the new goto node
                 goto_stmt = Jump(
                     None,

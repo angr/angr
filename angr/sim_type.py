@@ -143,12 +143,10 @@ class SimType:
     def _init_str(self):
         return f"NotImplemented({self.__class__.__name__})"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True):  # pylint: disable=unused-argument
         out = f"{str(self) if self.label is None else self.label} {name}"
         if self.qualifier:
-            out = f'{" ".join(self.qualifier)} {out}'
+            out = f"{' '.join(self.qualifier)} {out}"
         if name is None:
             return repr(self)
         return out
@@ -311,14 +309,11 @@ class TypeRef(SimType):
         self._arch = arch
         return self
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
-
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full:
             base_name = self.name
             if self.qualifier:
-                base_name = f'{" ".join(self.qualifier)} {name}'
+                base_name = f"{' '.join(self.qualifier)} {name}"
 
             if name is not None:
                 return f"{base_name} {name}"
@@ -373,12 +368,10 @@ class SimTypeBottom(SimType):
     def __repr__(self):
         return self.label or "BOT"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return "int" if self.label is None else self.label
-        return f'{"int" if self.label is None else self.label} {name}'
+        return f"{'int' if self.label is None else self.label} {name}"
 
     def _init_str(self):
         return "{}({})".format(self.__class__.__name__, (f'label="{self.label}"') if self.label else "")
@@ -540,14 +533,12 @@ class SimTypeInt(SimTypeReg):
             d.pop("q")
         return d
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         out = self._base_name
         if not self.signed:
             out = "unsigned " + out
         if self.qualifier:
-            out = f'{" ".join(self.qualifier)} {out}'
+            out = f"{' '.join(self.qualifier)} {out}"
         if name is None:
             return out
         return f"{out} {name}"
@@ -920,9 +911,7 @@ class SimTypePointer(SimTypeReg):
     def __repr__(self):
         return f"{self.pts_to}*" if not self.label else self.label
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         # if pts_to is SimTypeBottom, we return a void*
         if self.label is not None and name is not None:
             return super().c_repr(name=name, full=full, memo=memo, indent=indent, name_parens=name_parens)
@@ -997,9 +986,7 @@ class SimTypeReference(SimTypeReg):
     def __repr__(self):
         return f"{self.refs}&"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         name = "&" if name is None else f"&{name}"
         out = self.refs.c_repr(name, full, memo, indent)
         if self.qualifier:
@@ -1071,9 +1058,7 @@ class SimTypeArray(SimType):
     def __repr__(self):
         return "{}[{}]".format(self.elem_type, "" if self.length is None else self.length)
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -1170,9 +1155,7 @@ class SimTypeString(NamedTypeMixin, SimType):
     def __repr__(self):
         return "string_t"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -1256,9 +1239,7 @@ class SimTypeWString(NamedTypeMixin, SimType):
     def __repr__(self):
         return "wstring_t"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
@@ -1733,9 +1714,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def __repr__(self):
         return f"struct {self.name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -1964,9 +1943,7 @@ class SimUnion(NamedTypeMixin, SimType):
             self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.members.items())
         )
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -2108,9 +2085,7 @@ class SimTypeEnum(NamedTypeMixin, SimType):
     def __repr__(self):
         return f"enum {self._name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             out = f"enum {self._name}"
             if self.qualifier:
@@ -2273,9 +2248,7 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
     def __repr__(self):
         return f"bitfield {self._name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         # Bitfields are rendered similarly to enums in C
         if not full or (memo is not None and self in memo):
             out = f"enum {self._name}"  # Use enum syntax since C doesn't have bitfield types
@@ -2322,7 +2295,6 @@ class SimTypeBitfield(NamedTypeMixin, SimType):
 
 
 class SimCppClass(SimStruct):
-
     _args = (
         "unique_name",
         "name",
@@ -2588,9 +2560,7 @@ class SimTypeRef(SimType):
         prefix = "struct " if self.original_type is SimStruct else ""
         return f"{prefix}{self.name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ) -> str:  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
         if self.original_type is SimStruct:
             prefix = "struct "
@@ -4458,7 +4428,8 @@ if pycparser is not None:
     _accepts_scope_stack()
 
 with contextlib.suppress(ImportError):
-    register_types(parse_types("""
+    register_types(
+        parse_types("""
 typedef long time_t;
 
 struct timespec {
@@ -4470,6 +4441,7 @@ struct timeval {
     time_t tv_sec;
     long tv_usec;
 };
-"""))
+""")
+    )
 
 from .state_plugins.view import SimMemView

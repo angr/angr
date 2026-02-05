@@ -97,8 +97,9 @@ def get_vvar_deflocs(
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                vvar_to_loc[stmt.dst.varid] = stmt.dst, AILCodeLocation(
-                    block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")
+                vvar_to_loc[stmt.dst.varid] = (
+                    stmt.dst,
+                    AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                 )
                 if phi_vvars is not None and isinstance(stmt.src, Phi):
                     phi_vvars[stmt.dst.varid] = {
@@ -106,12 +107,14 @@ def get_vvar_deflocs(
                     }
             elif isinstance(stmt, Call):
                 if isinstance(stmt.ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.ret_expr.varid] = stmt.ret_expr, AILCodeLocation(
-                        block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")
+                    vvar_to_loc[stmt.ret_expr.varid] = (
+                        stmt.ret_expr,
+                        AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
                 if isinstance(stmt.fp_ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr, AILCodeLocation(
-                        block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")
+                    vvar_to_loc[stmt.fp_ret_expr.varid] = (
+                        stmt.fp_ret_expr,
+                        AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
 
     return vvar_to_loc
@@ -358,7 +361,6 @@ def has_call_in_between_stmts(
     useloc: AILCodeLocation,
     skip_if_contains_vvar: int | None = None,
 ) -> bool:
-
     def _contains_call(stmt: Statement) -> bool:
         if isinstance(stmt, Call):
             return True

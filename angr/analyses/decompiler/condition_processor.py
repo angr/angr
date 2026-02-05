@@ -293,7 +293,6 @@ class ConditionProcessor:
         return claripy.is_true(claripy.simplify(cond))  # type: ignore
 
     def recover_edge_condition(self, graph: networkx.DiGraph, src, dst):
-
         def _check_condnode_and_get_condition(cond_node: ConditionNode) -> claripy.ast.Bool | None:
             for cond_block, negate in [(cond_node.true_node, False), (cond_node.false_node, True)]:
                 if isinstance(cond_block, ailment.Block) and cond_block.statements:
@@ -894,9 +893,7 @@ class ConditionProcessor:
         self, condition, *, nobool: bool = False, must_bool: bool = False, ins_addr: int = 0
     ) -> claripy.ast.Bool | claripy.ast.Bits:
         # Unpack a condition all the way to the leaves
-        if isinstance(
-            condition, (claripy.ast.Bits, claripy.ast.Bool)
-        ):  # pylint:disable=isinstance-second-argument-not-valid-type
+        if isinstance(condition, (claripy.ast.Bits, claripy.ast.Bool)):  # pylint:disable=isinstance-second-argument-not-valid-type
             return condition
 
         if isinstance(
@@ -1005,7 +1002,6 @@ class ConditionProcessor:
 
     @staticmethod
     def claripy_ast_to_sympy_expr(ast, memo=None):
-
         import sympy  # pylint:disable=import-outside-toplevel
 
         if ast.op == "And":
@@ -1029,7 +1025,6 @@ class ConditionProcessor:
 
     @staticmethod
     def sympy_expr_to_claripy_ast(expr, memo: dict):
-
         import sympy  # pylint:disable=import-outside-toplevel
 
         if expr.is_Symbol:
@@ -1048,7 +1043,6 @@ class ConditionProcessor:
 
     @staticmethod
     def simplify_condition(cond, depth_limit=8, variables_limit=8):
-
         import sympy  # pylint:disable=import-outside-toplevel
 
         memo = {}

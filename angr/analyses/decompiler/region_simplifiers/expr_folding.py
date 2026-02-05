@@ -455,7 +455,6 @@ class InterferenceChecker(SequenceWalker):
 
     def _handle_Block(self, node: ailment.Block, **kwargs):
         for stmt in node.statements:
-
             # deal with uses
             spotter = ExpressionSpotter()
             # special case: we process the call arguments first, then the call itself. this is to allow more expression

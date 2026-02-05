@@ -126,6 +126,6 @@ class IndirectJump(Serializable):
             if self.jumptable_entries is not None:
                 status += f" with {len(self.jumptable_entries)} entries"
             if len(self.jumptables) > 1:
-                status += f" (+{len(self.jumptables)-1} jumptables)"
+                status += f" (+{len(self.jumptables) - 1} jumptables)"
 
         return "<IndirectJump {:#08x} - ins {:#08x}{}>".format(self.addr, self.ins_addr, " " + status if status else "")
