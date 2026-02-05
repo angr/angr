@@ -80,11 +80,7 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                 if end_stmt_idx - start_stmt_idx <= self.MIN_ASSIGNMENTS:
                     continue
 
-                for i in range(start_stmt_idx, end_stmt_idx):
-                    block.statements[i] = None  # remove these statements
-                # create a new memset call
                 base_expr = None
-
                 match candidate.kind:
                     case "stack":
                         # base_expr = StackBaseOffset(
@@ -111,6 +107,10 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
 
                 if base_expr is None:
                     continue
+
+                # create a new memset call
+                for i in range(start_stmt_idx, end_stmt_idx):
+                    block.statements[i] = None  # remove these statements
 
                 assert self.project is not None
                 call_stmt = Call(
