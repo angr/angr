@@ -187,7 +187,12 @@ class SimEngineFactCollectorVEX(
                     prev_stmt = self.block.vex.statements[i]
                     if isinstance(prev_stmt, pyvex.IRStmt.IMark):
                         break
-                    if isinstance(prev_stmt, pyvex.IRStmt.WrTmp) and prev_stmt.tmp == stmt.data.tmp:
+                    if (
+                        isinstance(prev_stmt, pyvex.IRStmt.WrTmp)
+                        and prev_stmt.tmp == stmt.data.tmp
+                        and isinstance(prev_stmt.data, pyvex.IRExpr.Get)
+                        and prev_stmt.data.offset == stmt.offset
+                    ):
                         same_ins_read = True
                         break
                 if same_ins_read:
