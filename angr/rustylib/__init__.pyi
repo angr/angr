@@ -1,6 +1,6 @@
 from typing_extensions import override
 
-from . import fuzzer, icicle
+from . import formlang, fuzzer, icicle
 
 class Segment:
     """
@@ -169,4 +169,4 @@ class SegmentList:
         :returns: A copy of the SegmentList instance.
         """
 
-__all__ = ["Segment", "SegmentList", "fuzzer", "icicle"]
+__all__ = ["Segment", "SegmentList", "formlang", "fuzzer", "icicle"]
