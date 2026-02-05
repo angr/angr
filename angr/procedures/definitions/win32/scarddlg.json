@@ -12,19 +12,19 @@
 	},
 	"functions": {
 		"GetOpenCardNameA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAMEA', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAMEA', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
 		},
 		"GetOpenCardNameW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAMEW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAMEW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
 		},
 		"SCardDlgExtendedError": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': []}"
 		},
 		"SCardUIDlgSelectCardA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAME_EXA', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAME_EXA', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
 		},
 		"SCardUIDlgSelectCardW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAME_EXW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OPENCARDNAME_EXW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'label': 'Int32'}, 'arg_names': ['param0']}"
 		}
 	}
 }

@@ -21,7 +21,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzExeName', 'bAllUsers']}"
 		},
 		"WerReportAddDump": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_DUMP_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_EXCEPTION_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_DUMP_CUSTOM_OPTIONS', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'hProcess', 'hThread', 'dumpType', 'pExceptionParam', 'pDumpCustomOptions', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_DUMP_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_EXCEPTION_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_DUMP_CUSTOM_OPTIONS', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'hProcess', 'hThread', 'dumpType', 'pExceptionParam', 'pDumpCustomOptions', 'dwFlags']}"
 		},
 		"WerReportAddFile": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_FILE_TYPE', 'ot': 'enum'}, {'_t': '_ref', 'name': 'WER_FILE', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'pwzPath', 'repFileType', 'dwFileFlags']}"
@@ -30,7 +30,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle']}"
 		},
 		"WerReportCreate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_REPORT_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzEventType', 'repType', 'pReportInformation', 'phReportHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_REPORT_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwzEventType', 'repType', 'pReportInformation', 'phReportHandle']}"
 		},
 		"WerReportSetParameter": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'dwparamID', 'pwzName', 'pwzValue']}"
@@ -39,40 +39,40 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_REPORT_UI', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'repUITypeID', 'pwzValue']}"
 		},
 		"WerReportSubmit": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_CONSENT', 'ot': 'enum'}, {'_t': '_ref', 'name': 'WER_SUBMIT_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_SUBMIT_RESULT', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'consent', 'dwFlags', 'pSubmitResult']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'WER_CONSENT', 'ot': 'enum'}, {'_t': '_ref', 'name': 'WER_SUBMIT_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_SUBMIT_RESULT', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportHandle', 'consent', 'dwFlags', 'pSubmitResult']}"
 		},
 		"WerStoreClose": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['hReportStore']}"
 		},
 		"WerStoreGetFirstReportKey": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'ppszReportKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'ppszReportKey']}"
 		},
 		"WerStoreGetNextReportKey": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'ppszReportKey']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'ppszReportKey']}"
 		},
 		"WerStoreGetReportCount": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pdwReportCount']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pdwReportCount']}"
 		},
 		"WerStoreGetSizeOnDisk": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pqwSizeInBytes']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pqwSizeInBytes']}"
 		},
 		"WerStoreOpen": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'REPORT_STORE_TYPES', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['repStoreType', 'phReportStore']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'REPORT_STORE_TYPES', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['repStoreType', 'phReportStore']}"
 		},
 		"WerStorePurge": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': []}"
 		},
 		"WerStoreQueryReportMetadataV1": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V1', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V1', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
 		},
 		"WerStoreQueryReportMetadataV2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V2', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V2', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
 		},
 		"WerStoreQueryReportMetadataV3": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V3', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_REPORT_METADATA_V3', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'pReportMetadata']}"
 		},
 		"WerStoreUploadReport": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_SUBMIT_RESULT', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'dwFlags', 'pSubmitResult']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HREPORTSTORE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'WER_SUBMIT_RESULT', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hReportStore', 'pszReportKey', 'dwFlags', 'pSubmitResult']}"
 		}
 	}
 }

@@ -12,22 +12,22 @@
 	},
 	"functions": {
 		"GetDpiForMonitor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MONITOR_DPI_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hmonitor', 'dpiType', 'dpiX', 'dpiY']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'MONITOR_DPI_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hmonitor', 'dpiType', 'dpiX', 'dpiY']}"
 		},
 		"GetProcessDpiAwareness": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROCESS_DPI_AWARENESS', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hprocess', 'value']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROCESS_DPI_AWARENESS', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hprocess', 'value']}"
 		},
 		"GetScaleFactorForMonitor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_SCALE_FACTOR', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hMon', 'pScale']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HMONITOR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DEVICE_SCALE_FACTOR', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hMon', 'pScale']}"
 		},
 		"RegisterScaleChangeEvent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hEvent', 'pdwCookie']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hEvent', 'pdwCookie']}"
 		},
 		"SetProcessDpiAwareness": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PROCESS_DPI_AWARENESS', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['value']}"
 		},
 		"UnregisterScaleChangeEvent": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCookie']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCookie']}"
 		}
 	}
 }

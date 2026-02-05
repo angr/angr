@@ -225,6 +225,7 @@ class SimType:
             memo.add(d["name"])
         for field in cls._args:
             field_key = "q" if field == "qualifier" else field
+            field_key = "disp" if field == "disposition" else field
             if field_key not in d:
                 continue
             value = d[field_key]
@@ -928,10 +929,8 @@ class SimTypePointer(SimTypeReg):
             d.pop("offset")
         if "q" in d and not d["q"]:
             d.pop("q")
-        if d["disposition"] == PointerDisposition.UNKNOWN:
-            d.pop("disposition")
-        else:
-            d["disposition"] = int(self.disposition)
+        if (disp := d.pop("disposition")) != PointerDisposition.UNKNOWN:
+            d["disp"] = int(disp)
         return d
 
     def __repr__(self):

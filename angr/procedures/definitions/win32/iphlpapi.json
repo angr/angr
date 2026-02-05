@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"AddIPAddress": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Address', 'IpMask', 'IfIndex', 'NTEContext', 'NTEInstance']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Address', 'IpMask', 'IfIndex', 'NTEContext', 'NTEInstance']}"
 		},
 		"CancelIPChangeNotify": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['notifyOverlapped']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['notifyOverlapped']}"
 		},
 		"CancelIfTimestampConfigChange": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NotificationHandle']}"
@@ -24,97 +24,97 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['NotificationHandle']}"
 		},
 		"CaptureInterfaceHardwareCrossTimestamp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_HARDWARE_CROSSTIMESTAMP', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'CrossTimestamp']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_HARDWARE_CROSSTIMESTAMP', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'CrossTimestamp']}"
 		},
 		"ConvertCompartmentGuidToId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentGuid', 'CompartmentId']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentGuid', 'CompartmentId']}"
 		},
 		"ConvertCompartmentIdToGuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentId', 'CompartmentGuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentId', 'CompartmentGuid']}"
 		},
 		"ConvertInterfaceAliasToLuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceAlias', 'InterfaceLuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceAlias', 'InterfaceLuid']}"
 		},
 		"ConvertInterfaceGuidToLuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceGuid', 'InterfaceLuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceGuid', 'InterfaceLuid']}"
 		},
 		"ConvertInterfaceIndexToLuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'InterfaceLuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'InterfaceLuid']}"
 		},
 		"ConvertInterfaceLuidToAlias": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceAlias', 'Length']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceAlias', 'Length']}"
 		},
 		"ConvertInterfaceLuidToGuid": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceGuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceGuid']}"
 		},
 		"ConvertInterfaceLuidToIndex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceIndex']}"
 		},
 		"ConvertInterfaceLuidToNameA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceName', 'Length']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceName', 'Length']}"
 		},
 		"ConvertInterfaceLuidToNameW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceName', 'Length']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt'}, 'label': 'UIntPtr', 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceName', 'Length']}"
 		},
 		"ConvertInterfaceNameToLuidA": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceName', 'InterfaceLuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceName', 'InterfaceLuid']}"
 		},
 		"ConvertInterfaceNameToLuidW": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceName', 'InterfaceLuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceName', 'InterfaceLuid']}"
 		},
 		"ConvertIpv4MaskToLength": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Mask', 'MaskLength']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Mask', 'MaskLength']}"
 		},
 		"ConvertLengthToIpv4Mask": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['MaskLength', 'Mask']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['MaskLength', 'Mask']}"
 		},
 		"CreateAnycastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"CreateIpForwardEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
 		},
 		"CreateIpForwardEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"CreateIpNetEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
 		},
 		"CreateIpNetEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"CreatePersistentTcpPortReservation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
 		},
 		"CreatePersistentUdpPortReservation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
 		},
 		"CreateProxyArpEntry": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwAddress', 'dwMask', 'dwIfIndex']}"
 		},
 		"CreateSortedAddressPairs": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6_PAIR', 'ot': 'struct'}}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['SourceAddressList', 'SourceAddressCount', 'DestinationAddressList', 'DestinationAddressCount', 'AddressSortOptions', 'SortedAddressPairList', 'SortedAddressPairCount']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6_PAIR', 'ot': 'struct'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['SourceAddressList', 'SourceAddressCount', 'DestinationAddressList', 'DestinationAddressCount', 'AddressSortOptions', 'SortedAddressPairList', 'SortedAddressPairCount']}"
 		},
 		"CreateUnicastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"DeleteAnycastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"DeleteIPAddress": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NTEContext']}"
 		},
 		"DeleteIpForwardEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
 		},
 		"DeleteIpForwardEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"DeleteIpNetEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
 		},
 		"DeleteIpNetEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"DeletePersistentTcpPortReservation": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts']}"
@@ -126,13 +126,13 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwAddress', 'dwMask', 'dwIfIndex']}"
 		},
 		"DeleteUnicastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"DisableMediaSense": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pHandle', 'pOverLapped']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pHandle', 'pOverLapped']}"
 		},
 		"EnableRouter": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pHandle', 'pOverlapped']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pHandle', 'pOverlapped']}"
 		},
 		"FlushIpNetTable": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwIfIndex']}"
@@ -144,268 +144,268 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family']}"
 		},
 		"FreeDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Settings']}"
 		},
 		"FreeInterfaceDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Settings']}"
 		},
 		"FreeMibTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Memory']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Memory']}"
 		},
 		"GetAdapterIndex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterName', 'IfIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterName', 'IfIndex']}"
 		},
 		"GetAdapterOrderMap": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_ORDER_MAP', 'ot': 'struct'}}, 'arg_names': []}"
 		},
 		"GetAdaptersAddresses": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'GET_ADAPTERS_ADDRESSES_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_ADDRESSES_LH', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Family', 'Flags', 'Reserved', 'AdapterAddresses', 'SizePointer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'GET_ADAPTERS_ADDRESSES_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_ADDRESSES_LH', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Family', 'Flags', 'Reserved', 'AdapterAddresses', 'SizePointer']}"
 		},
 		"GetAdaptersInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INFO', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo', 'SizePointer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INFO', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo', 'SizePointer']}"
 		},
 		"GetAnycastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetAnycastIpAddressTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ANYCASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetBestInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwDestAddr', 'pdwBestIfIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwDestAddr', 'pdwBestIfIndex']}"
 		},
 		"GetBestInterfaceEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pDestAddr', 'pdwBestIfIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pDestAddr', 'pdwBestIfIndex']}"
 		},
 		"GetBestRoute": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwDestAddr', 'dwSourceAddr', 'pBestRoute']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwDestAddr', 'dwSourceAddr', 'pBestRoute']}"
 		},
 		"GetBestRoute2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceIndex', 'SourceAddress', 'DestinationAddress', 'AddressSortOptions', 'BestRoute', 'BestSourceAddress']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceLuid', 'InterfaceIndex', 'SourceAddress', 'DestinationAddress', 'AddressSortOptions', 'BestRoute', 'BestSourceAddress']}"
 		},
 		"GetCurrentThreadCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': []}"
 		},
 		"GetCurrentThreadCompartmentScope": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CompartmentScope', 'CompartmentId']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CompartmentScope', 'CompartmentId']}"
 		},
 		"GetDefaultCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': []}"
 		},
 		"GetDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Settings']}"
 		},
 		"GetExtendedTcpTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'TCP_TABLE_CLASS', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpTable', 'pdwSize', 'bOrder', 'ulAf', 'TableClass', 'Reserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'TCP_TABLE_CLASS', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpTable', 'pdwSize', 'bOrder', 'ulAf', 'TableClass', 'Reserved']}"
 		},
 		"GetExtendedUdpTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'UDP_TABLE_CLASS', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpTable', 'pdwSize', 'bOrder', 'ulAf', 'TableClass', 'Reserved']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'UDP_TABLE_CLASS', 'ot': 'enum'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpTable', 'pdwSize', 'bOrder', 'ulAf', 'TableClass', 'Reserved']}"
 		},
 		"GetFriendlyIfIndex": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IfIndex']}"
 		},
 		"GetIcmpStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ICMP', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ICMP', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
 		},
 		"GetIcmpStatisticsEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ICMP_EX_XPSP1', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_ICMP_EX_XPSP1', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetIfEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfRow']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfRow']}"
 		},
 		"GetIfEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_ROW2', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_ROW2', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetIfEntry2Ex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MIB_IF_ENTRY_LEVEL', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_ROW2', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Level', 'Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MIB_IF_ENTRY_LEVEL', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_ROW2', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Level', 'Row']}"
 		},
 		"GetIfStackTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFSTACK_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFSTACK_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
 		},
 		"GetIfTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfTable', 'pdwSize', 'bOrder']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfTable', 'pdwSize', 'bOrder']}"
 		},
 		"GetIfTable2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_TABLE2', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_TABLE2', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
 		},
 		"GetIfTable2Ex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MIB_IF_TABLE_LEVEL', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_TABLE2', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Level', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MIB_IF_TABLE_LEVEL', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IF_TABLE2', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Level', 'Table']}"
 		},
 		"GetInterfaceActiveTimestampCapabilities": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
 		},
 		"GetInterfaceCurrentTimestampCapabilities": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
 		},
 		"GetInterfaceDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Interface', 'Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Interface', 'Settings']}"
 		},
 		"GetInterfaceHardwareTimestampCapabilities": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
 		},
 		"GetInterfaceInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_INTERFACE_INFO', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfTable', 'dwOutBufLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_INTERFACE_INFO', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfTable', 'dwOutBufLen']}"
 		},
 		"GetInterfaceSupportedTimestampCapabilities": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Value': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'Info': {'_t': '_ref', 'name': '_Info_e__Struct', 'ot': 'struct'}}, 'name': '<anon>'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INTERFACE_TIMESTAMP_CAPABILITIES', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceLuid', 'TimestampCapabilites']}"
 		},
 		"GetInvertedIfStackTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_INVERTEDIFSTACK_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_INVERTEDIFSTACK_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Table']}"
 		},
 		"GetIpAddrTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPADDRTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpAddrTable', 'pdwSize', 'bOrder']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPADDRTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpAddrTable', 'pdwSize', 'bOrder']}"
 		},
 		"GetIpErrorString": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ErrorCode', 'Buffer', 'Size']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ErrorCode', 'Buffer', 'Size']}"
 		},
 		"GetIpForwardEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetIpForwardTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpForwardTable', 'pdwSize', 'bOrder']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpForwardTable', 'pdwSize', 'bOrder']}"
 		},
 		"GetIpForwardTable2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_TABLE2', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_TABLE2', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetIpInterfaceEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetIpInterfaceTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetIpNetEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetIpNetTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IpNetTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IpNetTable', 'SizePointer', 'Order']}"
 		},
 		"GetIpNetTable2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_TABLE2', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_TABLE2', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetIpNetworkConnectionBandwidthEstimates": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IP_NETWORK_CONNECTION_BANDWIDTH_ESTIMATES', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'AddressFamily', 'BandwidthEstimates']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IP_NETWORK_CONNECTION_BANDWIDTH_ESTIMATES', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'AddressFamily', 'BandwidthEstimates']}"
 		},
 		"GetIpPathEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPPATH_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPPATH_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetIpPathTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPPATH_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPPATH_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetIpStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
 		},
 		"GetIpStatisticsEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetJobCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['JobHandle']}"
 		},
 		"GetMulticastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_MULTICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_MULTICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetMulticastIpAddressTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_MULTICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_MULTICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"GetNetworkConnectivityHint": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['ConnectivityHint']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['ConnectivityHint']}"
 		},
 		"GetNetworkConnectivityHintForInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'ConnectivityHint']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['InterfaceIndex', 'ConnectivityHint']}"
 		},
 		"GetNetworkInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['NetworkGuid', 'CompartmentId', 'SiteId', 'NetworkName', 'Length']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['NetworkGuid', 'CompartmentId', 'SiteId', 'NetworkName', 'Length']}"
 		},
 		"GetNetworkParams": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FIXED_INFO_W2KSP1', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pFixedInfo', 'pOutBufLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'FIXED_INFO_W2KSP1', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['pFixedInfo', 'pOutBufLen']}"
 		},
 		"GetNumberOfInterfaces": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pdwNumIf']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pdwNumIf']}"
 		},
 		"GetOwnerModuleFromPidAndInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ulPid', 'pInfo', 'Class', 'pBuffer', 'pdwSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ulPid', 'pInfo', 'Class', 'pBuffer', 'pdwSize']}"
 		},
 		"GetOwnerModuleFromTcp6Entry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW_OWNER_MODULE', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpEntry', 'Class', 'pBuffer', 'pdwSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW_OWNER_MODULE', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpEntry', 'Class', 'pBuffer', 'pdwSize']}"
 		},
 		"GetOwnerModuleFromTcpEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_OWNER_MODULE', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpEntry', 'Class', 'pBuffer', 'pdwSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_OWNER_MODULE', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpEntry', 'Class', 'pBuffer', 'pdwSize']}"
 		},
 		"GetOwnerModuleFromUdp6Entry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDP6ROW_OWNER_MODULE', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpEntry', 'Class', 'pBuffer', 'pdwSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDP6ROW_OWNER_MODULE', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpEntry', 'Class', 'pBuffer', 'pdwSize']}"
 		},
 		"GetOwnerModuleFromUdpEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPROW_OWNER_MODULE', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpEntry', 'Class', 'pBuffer', 'pdwSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPROW_OWNER_MODULE', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCPIP_OWNER_MODULE_INFO_CLASS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pUdpEntry', 'Class', 'pBuffer', 'pdwSize']}"
 		},
 		"GetPerAdapterInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_PER_ADAPTER_INFO_W2KSP1', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IfIndex', 'pPerAdapterInfo', 'pOutBufLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_PER_ADAPTER_INFO_W2KSP1', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IfIndex', 'pPerAdapterInfo', 'pOutBufLen']}"
 		},
 		"GetPerTcp6ConnectionEStats": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Ros', 'RosVersion', 'RosSize', 'Rod', 'RodVersion', 'RodSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Ros', 'RosVersion', 'RosSize', 'Rod', 'RodVersion', 'RodSize']}"
 		},
 		"GetPerTcpConnectionEStats": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Ros', 'RosVersion', 'RosSize', 'Rod', 'RodVersion', 'RodSize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Ros', 'RosVersion', 'RosSize', 'Rod', 'RodVersion', 'RodSize']}"
 		},
 		"GetRTTAndHopCount": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['DestIpAddress', 'HopCount', 'MaxHops', 'RTT']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['DestIpAddress', 'HopCount', 'MaxHops', 'RTT']}"
 		},
 		"GetSessionCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['SessionId']}"
 		},
 		"GetTcp6Table": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6TABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6TABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
 		},
 		"GetTcp6Table2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6TABLE2', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6TABLE2', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
 		},
 		"GetTcpStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS_LH', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS_LH', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics']}"
 		},
 		"GetTcpStatisticsEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS_LH', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS_LH', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetTcpStatisticsEx2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS2', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPSTATS2', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetTcpTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
 		},
 		"GetTcpTable2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPTABLE2', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPTABLE2', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['TcpTable', 'SizePointer', 'Order']}"
 		},
 		"GetTeredoPort": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Port']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Port']}"
 		},
 		"GetUdp6Table": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDP6TABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Udp6Table', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDP6TABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Udp6Table', 'SizePointer', 'Order']}"
 		},
 		"GetUdpStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Stats']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Stats']}"
 		},
 		"GetUdpStatisticsEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetUdpStatisticsEx2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS2', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPSTATS2', 'ot': 'struct'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"GetUdpTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPTABLE', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UdpTable', 'SizePointer', 'Order']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UDPTABLE', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['UdpTable', 'SizePointer', 'Order']}"
 		},
 		"GetUniDirectionalAdapterInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_UNIDIRECTIONAL_ADAPTER_ADDRESS', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIPIfInfo', 'dwOutBufLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_UNIDIRECTIONAL_ADAPTER_ADDRESS', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIPIfInfo', 'dwOutBufLen']}"
 		},
 		"GetUnicastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"GetUnicastIpAddressTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table']}"
 		},
 		"Icmp6CreateFile": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': []}"
 		},
 		"Icmp6ParseReplies": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReplyBuffer', 'ReplySize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReplyBuffer', 'ReplySize']}"
 		},
 		"Icmp6SendEcho2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'SourceAddress', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'SourceAddress', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
 		},
 		"IcmpCloseHandle": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['IcmpHandle']}"
@@ -414,133 +414,133 @@
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'arg_names': []}"
 		},
 		"IcmpParseReplies": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReplyBuffer', 'ReplySize']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ReplyBuffer', 'ReplySize']}"
 		},
 		"IcmpSendEcho": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
 		},
 		"IcmpSendEcho2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
 		},
 		"IcmpSendEcho2Ex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'SourceAddress', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IO_STATUS_BLOCK', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['ApcContext', 'IoStatusBlock', 'Reserved']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_OPTION_INFORMATION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['IcmpHandle', 'Event', 'ApcRoutine', 'ApcContext', 'SourceAddress', 'DestinationAddress', 'RequestData', 'RequestSize', 'RequestOptions', 'ReplyBuffer', 'ReplySize', 'Timeout']}"
 		},
 		"InitializeIpForwardEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
 		},
 		"InitializeIpInterfaceEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
 		},
 		"InitializeUnicastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['Row']}"
 		},
 		"IpReleaseAddress": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INDEX_MAP', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INDEX_MAP', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo']}"
 		},
 		"IpRenewAddress": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INDEX_MAP', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_ADAPTER_INDEX_MAP', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['AdapterInfo']}"
 		},
 		"LookupPersistentTcpPortReservation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
 		},
 		"LookupPersistentUdpPortReservation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': 'ptr', 'pts_to': {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['StartPort', 'NumberOfPorts', 'Token']}"
 		},
 		"NhpAllocateAndGetInterfaceInfoFromStack": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_INTERFACE_NAME_INFO_W2KSP1', 'ot': 'struct'}}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppTable', 'pdwCount', 'bOrder', 'hHeap', 'dwFlags']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IP_INTERFACE_NAME_INFO_W2KSP1', 'ot': 'struct'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ppTable', 'pdwCount', 'bOrder', 'hHeap', 'dwFlags']}"
 		},
 		"NotifyAddrChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Handle', 'overlapped']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Handle', 'overlapped']}"
 		},
 		"NotifyIfTimestampConfigChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CallerContext', 'Callback', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['CallerContext', 'Callback', 'NotificationHandle']}"
 		},
 		"NotifyIpInterfaceChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
 		},
 		"NotifyNetworkConnectivityHintChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'ConnectivityHint']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': '_ref', 'name': 'NL_NETWORK_CONNECTIVITY_HINT', 'ot': 'struct'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'ConnectivityHint']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
 		},
 		"NotifyRouteChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Handle', 'overlapped']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Handle', 'overlapped']}"
 		},
 		"NotifyRouteChange2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['AddressFamily', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['AddressFamily', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
 		},
 		"NotifyStableUnicastIpAddressTable": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'AddressTable']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table', 'CallerCallback', 'CallerContext', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_TABLE', 'ot': 'struct'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'AddressTable']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Table', 'CallerCallback', 'CallerContext', 'NotificationHandle']}"
 		},
 		"NotifyTeredoPortChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Port', 'NotificationType']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'short', 'signed': false, 'label': 'UInt16'}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Port', 'NotificationType']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
 		},
 		"NotifyUnicastIpAddressChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}}, {'_t': '_ref', 'name': 'MIB_NOTIFICATION_TYPE', 'ot': 'enum'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext', 'Row', 'NotificationType']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': '_ref', 'name': 'BOOLEAN', 'ot': 'char'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Family', 'Callback', 'CallerContext', 'InitialNotification', 'NotificationHandle']}"
 		},
 		"ParseNetworkString": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NET_ADDRESS_INFO', 'ot': 'struct'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NetworkString', 'Types', 'AddressInfo', 'PortNumber', 'PrefixLength']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'NET_ADDRESS_INFO', 'ot': 'struct'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'short', 'signed': false, 'label': 'UInt16'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NetworkString', 'Types', 'AddressInfo', 'PortNumber', 'PrefixLength']}"
 		},
 		"PfAddFiltersToInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ih', 'cInFilters', 'pfiltIn', 'cOutFilters', 'pfiltOut', 'pfHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ih', 'cInFilters', 'pfiltIn', 'cOutFilters', 'pfiltOut', 'pfHandle']}"
 		},
 		"PfAddGlobalFilterToInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': '_ref', 'name': 'GLOBAL_FILTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'gfFilter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': '_ref', 'name': 'GLOBAL_FILTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'gfFilter']}"
 		},
 		"PfBindInterfaceToIPAddress": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': '_ref', 'name': 'PFADDRESSTYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'pfatType', 'IPAddress']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': '_ref', 'name': 'PFADDRESSTYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'pfatType', 'IPAddress']}"
 		},
 		"PfBindInterfaceToIndex": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PFADDRESSTYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'dwIndex', 'pfatLinkType', 'LinkIPAddress']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PFADDRESSTYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'dwIndex', 'pfatLinkType', 'LinkIPAddress']}"
 		},
 		"PfCreateInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwName', 'inAction', 'outAction', 'bUseLog', 'bMustBeUnique', 'ppInterface']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['dwName', 'inAction', 'outAction', 'bUseLog', 'bMustBeUnique', 'ppInterface']}"
 		},
 		"PfDeleteInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface']}"
 		},
 		"PfDeleteLog": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': []}"
 		},
 		"PfGetInterfaceStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_INTERFACE_STATS', 'ot': 'struct'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'ppfStats', 'pdwBufferSize', 'fResetCounters']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_INTERFACE_STATS', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'ppfStats', 'pdwBufferSize', 'fResetCounters']}"
 		},
 		"PfMakeLog": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hEvent']}"
 		},
 		"PfRebindFilters": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_LATEBIND_INFO', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'pLateBindInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_LATEBIND_INFO', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'pLateBindInfo']}"
 		},
 		"PfRemoveFilterHandles": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'cFilters', 'pvHandles']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'cFilters', 'pvHandles']}"
 		},
 		"PfRemoveFiltersFromInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ih', 'cInFilters', 'pfiltIn', 'cOutFilters', 'pfiltOut']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PF_FILTER_DESCRIPTOR', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['ih', 'cInFilters', 'pfiltIn', 'cOutFilters', 'pfiltOut']}"
 		},
 		"PfRemoveGlobalFilterFromInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': '_ref', 'name': 'GLOBAL_FILTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'gfFilter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': '_ref', 'name': 'GLOBAL_FILTER', 'ot': 'enum'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface', 'gfFilter']}"
 		},
 		"PfSetLogBuffer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pbBuffer', 'dwSize', 'dwThreshold', 'dwEntries', 'pdwLoggedEntries', 'pdwLostEntries', 'pdwSizeUsed']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pbBuffer', 'dwSize', 'dwThreshold', 'dwEntries', 'pdwLoggedEntries', 'pdwLostEntries', 'pdwSizeUsed']}"
 		},
 		"PfTestPacket": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInInterface', 'pOutInterface', 'cBytes', 'pbPacket', 'ppAction']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PFFORWARD_ACTION', 'ot': 'enum'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInInterface', 'pOutInterface', 'cBytes', 'pbPacket', 'ppAction']}"
 		},
 		"PfUnBindInterface": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pInterface']}"
 		},
 		"RegisterInterfaceTimestampConfigChange": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Callback', 'CallerContext', 'NotificationHandle']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['CallerContext']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Callback', 'CallerContext', 'NotificationHandle']}"
 		},
 		"ResolveIpNetEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row', 'SourceAddress']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'union', 'members': {'Ipv4': {'_t': '_ref', 'name': 'SOCKADDR_IN', 'ot': 'struct'}, 'Ipv6': {'_t': '_ref', 'name': 'SOCKADDR_IN6', 'ot': 'struct'}, 'si_family': {'_t': '_ref', 'name': 'ADDRESS_FAMILY', 'ot': 'enum'}}, 'name': '<anon>'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row', 'SourceAddress']}"
 		},
 		"ResolveNeighbor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NetworkAddress', 'PhysicalAddress', 'PhysicalAddressLength']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'SOCKADDR', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['NetworkAddress', 'PhysicalAddress', 'PhysicalAddressLength']}"
 		},
 		"RestoreMediaSense": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pOverlapped', 'lpdwEnableCount']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pOverlapped', 'lpdwEnableCount']}"
 		},
 		"SendARP": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DestIP', 'SrcIP', 'pMacAddr', 'PhyAddrLen']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['DestIP', 'SrcIP', 'pMacAddr', 'PhyAddrLen']}"
 		},
 		"SetCurrentThreadCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentId']}"
@@ -549,34 +549,34 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['CompartmentScope']}"
 		},
 		"SetDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_SETTINGS', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Settings']}"
 		},
 		"SetIfEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfRow']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IFROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIfRow']}"
 		},
 		"SetInterfaceDnsSettings": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Interface', 'Settings']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'DNS_INTERFACE_SETTINGS', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Interface', 'Settings']}"
 		},
 		"SetIpForwardEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARDROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pRoute']}"
 		},
 		"SetIpForwardEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Route']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPFORWARD_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Route']}"
 		},
 		"SetIpInterfaceEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disposition': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPINTERFACE_ROW', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"SetIpNetEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNETROW_LH', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pArpEntry']}"
 		},
 		"SetIpNetEntry2": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPNET_ROW2', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"SetIpStatistics": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpStats']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pIpStats']}"
 		},
 		"SetIpStatisticsEx": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_IPSTATS_LH', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Statistics', 'Family']}"
 		},
 		"SetIpTTL": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['nTTL']}"
@@ -585,31 +585,31 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HANDLE', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['JobHandle', 'CompartmentId']}"
 		},
 		"SetNetworkInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['NetworkGuid', 'CompartmentId', 'NetworkName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['NetworkGuid', 'CompartmentId', 'NetworkName']}"
 		},
 		"SetPerTcp6ConnectionEStats": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Offset']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCP6ROW', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Offset']}"
 		},
 		"SetPerTcpConnectionEStats": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disposition': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Offset']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'TCP_ESTATS_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['Row', 'EstatsType', 'Rw', 'RwVersion', 'RwSize', 'Offset']}"
 		},
 		"SetSessionCompartmentId": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['SessionId', 'CompartmentId']}"
 		},
 		"SetTcpEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpRow']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_TCPROW_LH', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pTcpRow']}"
 		},
 		"SetUnicastIpAddressEntry": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'MIB_UNICASTIPADDRESS_ROW', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'WIN32_ERROR', 'ot': 'enum'}, 'arg_names': ['Row']}"
 		},
 		"UnenableRouter": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pOverlapped', 'lpdwEnableCount']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'OVERLAPPED', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['pOverlapped', 'lpdwEnableCount']}"
 		},
 		"UnregisterInterfaceTimestampConfigChange": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HIFTIMESTAMPCHANGE', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['NotificationHandle']}"
 		},
 		"if_indextoname": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray', 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['InterfaceIndex', 'InterfaceName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'label': 'LPArray', 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}, 'arg_names': ['InterfaceIndex', 'InterfaceName']}"
 		},
 		"if_nametoindex": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSTR', 'ot': 'ptr'}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['InterfaceName']}"

@@ -1053,7 +1053,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {}, 'name': 'FILE'}}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {}, 'name': 'fpos64_t', 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['STREAM', 'POSITION']}"
 		},
 		"fstat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disposition': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILEDES', 'BUF']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disp': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILEDES', 'BUF']}"
 		},
 		"fstat64": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'llong', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'llong'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat64'}}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILEDES', 'BUF']}"
@@ -1878,7 +1878,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'llong'}, {'_t': 'int'}], 'returnty': {'_t': 'llong'}, 'arg_names': ['FILEDES', 'OFFSET', 'WHENCE']}"
 		},
 		"lstat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disposition': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disp': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
 		},
 		"lstat64": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'llong', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'llong'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat64'}}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
@@ -1920,7 +1920,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'short', 'label': 'wchar_t'}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['RESULT', 'STRING', 'SIZE']}"
 		},
 		"mcheck": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'int'}], 'returnty': {'_t': 'bot', 'label': 'void'}, 'arg_names': ['STATUS']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['ABORTFN']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'func', 'args': [{'_t': 'enum', 'members': {}, 'base_type': {'_t': 'int', 'signed': false}, 'name': 'mcheck_status'}], 'returnty': {'_t': 'bot', 'label': 'void'}, 'arg_names': ['STATUS']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['ABORTFN']}"
 		},
 		"memalign": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BOUNDARY', 'SIZE']}"
@@ -1932,10 +1932,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"memcmp": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disposition': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['A1', 'A2', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'disp': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'int'}, 'arg_names': ['A1', 'A2', 'SIZE']}"
 		},
 		"memcpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'q': ['restrict'], 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'q': ['restrict'], 'disposition': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'q': ['restrict'], 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}, 'q': ['restrict'], 'disp': 1}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
 		},
 		"memfrob": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['MEM', 'LENGTH']}"
@@ -1953,7 +1953,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"memset": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'disposition': 2}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'disp': 2}, {'_t': 'int'}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}, 'arg_names': ['BLOCK', 'C', 'SIZE']}"
 		},
 		"mkdir": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'int', 'signed': false}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'MODE']}"
@@ -1992,7 +1992,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'long', 'signed': false}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void', 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['SPECIAL_FILE', 'DIR', 'FSTYPE', 'OPTIONS', 'DATA']}"
 		},
 		"mprobe": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}], 'returnty': {'_t': 'int'}, 'arg_names': ['POINTER']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}}], 'returnty': {'_t': 'enum', 'members': {}, 'base_type': {'_t': 'int', 'signed': false}, 'name': 'mcheck_status'}, 'arg_names': ['POINTER']}"
 		},
 		"mrand48": {
 			"proto": "{'_t': 'func', 'args': [], 'returnty': {'_t': 'long'}, 'arg_names': []}"
@@ -2382,7 +2382,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {}, 'name': 'DIR'}}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'d_ino': {'_t': 'long', 'signed': false}, 'd_reclen': {'_t': 'short', 'signed': false}, 'd_type': {'_t': 'char', 'signed': false}, 'd_namelen': {'_t': 'char', 'signed': false}, 'd_name': {'_t': 'array', 'elem_type': {'_t': 'char', 'signed': true}, 'length': 1, 'label': 'char[1]'}}, 'name': 'dirent'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'dirent', 'ot': 'struct'}}}], 'returnty': {'_t': 'int'}, 'arg_names': ['DIRSTREAM', 'ENTRY', 'RESULT']}"
 		},
 		"readlink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'len', 'addr': null, 'length': null}, 'arg_names': ['FILENAME', 'BUFFER', 'SIZE']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disp': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'len', 'addr': null, 'length': null}, 'arg_names': ['FILENAME', 'BUFFER', 'SIZE']}"
 		},
 		"readv": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'iov_base': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'iov_len': {'_t': 'len', 'signed': false, 'addr': null, 'length': null}}, 'name': '<anon>', 'q': ['const']}}, {'_t': 'int'}], 'returnty': {'_t': 'len', 'addr': null, 'length': null}, 'arg_names': ['FILEDES', 'VECTOR', 'COUNT']}"
@@ -2823,7 +2823,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false}], 'returnty': {'_t': 'int', 'signed': false}, 'arg_names': ['SECONDS']}"
 		},
 		"snprintf": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE'], 'variadic': true}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disp': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE'], 'variadic': true}"
 		},
 		"socket": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'int'}, {'_t': 'int'}], 'returnty': {'_t': 'int'}, 'arg_names': ['NAMESPACE', 'STYLE', 'PROTOCOL']}"
@@ -2832,7 +2832,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'int'}, {'_t': 'int'}, {'_t': 'array', 'elem_type': {'_t': 'int'}, 'length': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['NAMESPACE', 'STYLE', 'PROTOCOL', 'FILEDES']}"
 		},
 		"sprintf": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE'], 'variadic': true}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE'], 'variadic': true}"
 		},
 		"sqrt": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'double', 'align_double': true}], 'returnty': {'_t': 'double', 'align_double': true}, 'arg_names': ['X']}"
@@ -2865,7 +2865,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'sighandler_t'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'sighandler_t'}, 'arg_names': ['SIGNUM', 'ACTION']}"
 		},
 		"stat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disposition': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'long', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'long'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat'}, 'disp': 2}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
 		},
 		"stat64": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'struct', 'fields': {'st_mode': {'_t': 'int', 'signed': false}, 'st_ino': {'_t': 'llong', 'signed': false}, 'st_dev': {'_t': 'num', 'size': 64, 'signed': false}, 'st_nlink': {'_t': 'int', 'signed': false}, 'st_uid': {'_t': 'int', 'signed': false}, 'st_gid': {'_t': 'int', 'signed': false}, 'st_size': {'_t': 'llong'}, 'st_atime': {'_t': 'long'}, 'st_mtime': {'_t': 'long'}, 'st_ctime': {'_t': 'long'}}, 'name': 'stat64'}}], 'returnty': {'_t': 'int'}, 'arg_names': ['FILENAME', 'BUF']}"
@@ -2874,7 +2874,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'long', 'label': 'time_t', 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['NEWTIME']}"
 		},
 		"stpcpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disp': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
 		},
 		"stpncpy": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict']}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict']}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM', 'SIZE']}"
@@ -2886,7 +2886,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['HAYSTACK', 'NEEDLE']}"
 		},
 		"strcat": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disposition': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disp': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
 		},
 		"strchr": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'int'}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['STRING', 'C']}"
@@ -2901,7 +2901,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'int'}, 'arg_names': ['S1', 'S2']}"
 		},
 		"strcpy": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disposition': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'q': ['restrict'], 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'q': ['restrict'], 'disp': 1}], 'returnty': {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}}, 'arg_names': ['TO', 'FROM']}"
 		},
 		"strcspn": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}], 'returnty': {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, 'arg_names': ['STRING', 'STOPSET']}"
@@ -3291,10 +3291,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['TEMPLATE', 'AP']}"
 		},
 		"vsnprintf": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE', 'AP']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disp': 2}, {'_t': 'len', 'signed': false, 'addr': null, 'length': null}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'SIZE', 'TEMPLATE', 'AP']}"
 		},
 		"vsprintf": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disposition': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}, 'disp': 1}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"
 		},
 		"vsscanf": {
 			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'q': ['const']}}, {'_t': 'array', 'elem_type': {'_t': 'struct', 'fields': {'gp_offset': {'_t': 'int', 'signed': false}, 'fp_offset': {'_t': 'int', 'signed': false}, 'overflow_arg_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}, 'reg_save_area': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'void'}, 'label': 'void *'}}, 'name': 'va_list'}, 'length': 1, 'label': 'va_list[1]'}], 'returnty': {'_t': 'int'}, 'arg_names': ['S', 'TEMPLATE', 'AP']}"

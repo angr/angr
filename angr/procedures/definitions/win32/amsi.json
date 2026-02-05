@@ -15,19 +15,19 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['amsiContext', 'amsiSession']}"
 		},
 		"AmsiInitialize": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['appName', 'amsiContext']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['appName', 'amsiContext']}"
 		},
 		"AmsiNotifyOperation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'buffer', 'length', 'contentName', 'result']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'buffer', 'length', 'contentName', 'result']}"
 		},
 		"AmsiOpenSession": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'amsiSession']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'amsiSession']}"
 		},
 		"AmsiScanBuffer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disposition': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'buffer', 'length', 'contentName', 'amsiSession', 'result']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'buffer', 'length', 'contentName', 'amsiSession', 'result']}"
 		},
 		"AmsiScanString": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'string', 'contentName', 'amsiSession', 'result']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HAMSISESSION', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'AMSI_RESULT', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['amsiContext', 'string', 'contentName', 'amsiSession', 'result']}"
 		},
 		"AmsiUninitialize": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HAMSICONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['amsiContext']}"

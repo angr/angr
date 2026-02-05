@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"GetServiceDirectory": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SERVICE_STATUS_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_DIRECTORY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disposition': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disposition': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hServiceStatus', 'eDirectoryType', 'lpPathBuffer', 'cchPathBufferLength', 'lpcchRequiredBufferLength']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'SERVICE_STATUS_HANDLE', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'SERVICE_DIRECTORY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'arg_names': ['hServiceStatus', 'eDirectoryType', 'lpPathBuffer', 'cchPathBufferLength', 'lpcchRequiredBufferLength']}"
 		}
 	}
 }

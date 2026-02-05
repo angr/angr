@@ -12,13 +12,13 @@
 	},
 	"functions": {
 		"KeyCredentialManagerFreeInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerInfo', 'ot': 'struct'}, 'disposition': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['keyCredentialManagerInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerInfo', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': 'bot', 'label': 'Void'}, 'arg_names': ['keyCredentialManagerInfo']}"
 		},
 		"KeyCredentialManagerGetInformation": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerInfo', 'ot': 'struct'}}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['keyCredentialManagerInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerInfo', 'ot': 'struct'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['keyCredentialManagerInfo']}"
 		},
 		"KeyCredentialManagerGetOperationErrorStates": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'KeyCredentialManagerOperationType', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'disposition': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerOperationErrorStates', 'ot': 'enum'}, 'disposition': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['keyCredentialManagerOperationType', 'isReady', 'keyCredentialManagerOperationErrorStates']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'KeyCredentialManagerOperationType', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'KeyCredentialManagerOperationErrorStates', 'ot': 'enum'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['keyCredentialManagerOperationType', 'isReady', 'keyCredentialManagerOperationErrorStates']}"
 		},
 		"KeyCredentialManagerShowUIOperation": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'KeyCredentialManagerOperationType', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hWndOwner', 'keyCredentialManagerOperationType']}"
