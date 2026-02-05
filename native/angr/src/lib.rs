@@ -34,7 +34,13 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "segmentlist",
         segmentlist::segmentlist,
     )?;
-    import_submodule(m.py(), m, "angr.rustylib", "automaton", automaton::automaton)?;
+    import_submodule(
+        m.py(),
+        m,
+        "angr.rustylib",
+        "automaton",
+        automaton::automaton,
+    )?;
 
     m.add_class::<segmentlist::Segment>()?;
     m.add_class::<segmentlist::SegmentList>()?;
