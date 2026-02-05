@@ -14,7 +14,6 @@ from angr.rustylib.formlang import (
 from .typevars import BaseLabel, Subtype
 from .variance import Variance
 
-
 START_STATE = State("START")
 END_STATE = State("END")
 
