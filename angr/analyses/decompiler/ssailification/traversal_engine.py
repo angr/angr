@@ -158,8 +158,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     current_extent = definfo.variable_offset, definfo.variable_endoffset
 
                 current_defs.add(def_)
-                current_extent = min(current_extent[0], definfo.variable_offset), max(
-                    current_extent[1], definfo.variable_endoffset
+                current_extent = (
+                    min(current_extent[0], definfo.variable_offset),
+                    max(current_extent[1], definfo.variable_endoffset),
                 )
         flush()
 

@@ -28,7 +28,9 @@ class DominanceFrontier(Generic[T_co]):
         exception_edges: bool = False,
     ): ...
 
-    def __init__(self, func: Function, func_graph: networkx.DiGraph[T_co] | None = None, entry=None, exception_edges=False):  # type: ignore
+    def __init__(
+        self, func: Function, func_graph: networkx.DiGraph[T_co] | None = None, entry=None, exception_edges=False
+    ):  # type: ignore
         self.function = func
         self.func_graph = func_graph
         self.entry = entry

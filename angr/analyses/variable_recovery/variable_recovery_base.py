@@ -153,7 +153,11 @@ class VariableRecoveryBase(Analysis):
                 )
             else:
                 raise TypeError(f"Unsupported entry node address type: {type(entry_node_addr)}")
-            df: DominanceFrontier[CodeNode] | DominanceFrontier[ailment.Block] = DominanceFrontier(self.function, func_graph=cast("networkx.DiGraph[CodeNode | ailment.Block]", self.func_graph), entry=func_entry)  # type: ignore
+            df: DominanceFrontier[CodeNode] | DominanceFrontier[ailment.Block] = DominanceFrontier(
+                self.function,
+                func_graph=cast("networkx.DiGraph[CodeNode | ailment.Block]", self.func_graph),
+                entry=func_entry,
+            )  # type: ignore
         else:
             df = DominanceFrontier(self.function)
         self._dominance_frontiers = defaultdict(set)

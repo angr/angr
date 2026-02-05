@@ -249,7 +249,9 @@ class RewritingAnalysis:
                     else (
                         arg_vvar.reg_offset
                         if arg_vvar.category == VirtualVariableCategory.REGISTER
-                        else arg_vvar.stack_offset if arg_vvar.category == VirtualVariableCategory.STACK else None
+                        else arg_vvar.stack_offset
+                        if arg_vvar.category == VirtualVariableCategory.STACK
+                        else None
                     )
                 )
             )
