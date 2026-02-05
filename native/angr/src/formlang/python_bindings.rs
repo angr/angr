@@ -29,7 +29,7 @@ impl PyState {
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let repr = self.value.bind(py).repr()?;
-        Ok(format!("State({})", repr))
+        Ok(format!("State({repr})"))
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<bool> {
@@ -67,7 +67,7 @@ impl PySymbol {
 
     fn __repr__(&self, py: Python<'_>) -> PyResult<String> {
         let repr = self.value.bind(py).repr()?;
-        Ok(format!("Symbol({})", repr))
+        Ok(format!("Symbol({repr})"))
     }
 
     fn __eq__(&self, other: &Bound<'_, PyAny>, py: Python<'_>) -> PyResult<bool> {
