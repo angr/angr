@@ -1,6 +1,6 @@
 from typing import Any, Tuple, Union
 
-from angr.ailment import Block, AILBlockWalker, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
+from angr.ailment import Block, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Call, Statement, FunctionLikeMacro
 
@@ -126,3 +126,19 @@ def unwrap_stack_vvar_reference_with_offset(expr) -> Tuple[VirtualVariable, int]
         ):
             return expr.operand.operands[0], expr.operand.operands[1].value
     return None, None
+
+
+class CallVisitor(AILBlockViewer):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+        self.callback(stmt, block, stmt, is_expr=False)
+
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+        self.callback(expr, block, stmt, is_expr=True)
+
+    def visit(self, graph):
+        for block in graph.nodes:
+            self.walk(block)

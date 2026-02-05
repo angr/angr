@@ -16,6 +16,7 @@ from .macro.format_macro_simplifier import FormatMacroSimplifier
 from .pre_pattern_match_simplifier import PrePatternMatchSimplifier
 from .redundant_block_remover import RedundantBlockRemover
 from .ret_expr_rewriter import RetExprRewriter
+from .rust_calling_convention import RustCallingConvention
 from .security_check_remover import SecurityCheckRemover
 from .str_argument_simplifier import StrArgumentSimplifier
 from .struct_return_simplifier import StructReturnSimplifier
@@ -27,10 +28,10 @@ from .struct_instantiation_simplifier import StructInstantiationSimplifier
 def get_rust_optimization_passes():
     return [
         # BEFORE_SSA_LEVEL0_TRANSFORMATION
+        RustCallingConvention,
         RetExprRewriter,
-        # AFTER_MAKING_CALLSITES
-        ComboRegisterRewriter,
         # BEFORE_VARIABLE_RECOVERY
+        ComboRegisterRewriter,
         CleanupCodeRemover,
         SecurityCheckRemover,
         FunctionPrototypeInference,

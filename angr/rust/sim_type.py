@@ -179,7 +179,7 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             variadic=self.variadic,
             is_arg0_retbuf=self.is_arg0_retbuf,
             is_class_member_function=self.is_class_member_function,
-        )
+        ).with_arch(self._arch)
 
 
 class RustSimTypeReference(RustSimType, SimTypePointer):
@@ -740,12 +740,10 @@ class RustSimTypeArrayRef(RustSimStruct):
         return out
 
 
-class RustSimTypeStrRef(RustSimStruct):
+class RustSimTypeStrRef(RustSimTypeSlice):
     def __init__(self):
-        super().__init__(
-            fields=OrderedDict((("ptr", RustSimTypeReference(RustSimTypeInt(8))), ("len", RustSimTypeSize()))),
-            name="&str",
-        )
+        super().__init__(RustSimTypeInt(8, signed=False))
+        self.name = "&str"
 
     def copy(self):
         return RustSimTypeStrRef().with_arch(self._arch)

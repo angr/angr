@@ -803,7 +803,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr.registers = new_regs
             return new_expr
 
-        return None
+        return expr
 
     def _handle_CallExpr(
         self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
@@ -842,6 +842,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             new_expr.operands = (operand_0, operand_1)
             if operand_0 is None:
                 import ipdb
+
                 ipdb.set_trace()
             new_expr.depth = max(operand_0.depth, operand_1.depth) + 1
             return new_expr

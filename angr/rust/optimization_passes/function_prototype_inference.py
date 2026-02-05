@@ -80,9 +80,6 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         return call
 
     def _analyze(self, cache=None):
-        rcc = self.project.analyses.RustCallingConvention(self._func)
-        self._func.prototype = rcc.model.inferred_prototype
-
         rewriter = CallRewriter(callback=self._analyze_and_replace_call)
         for block in self._graph.nodes:
             rewriter.walk(block)

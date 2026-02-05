@@ -7,8 +7,8 @@ from networkx import DiGraph
 from networkx.exception import NetworkXError
 
 from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
-from angr.calling_conventions import SimCC
-from angr.ailment import BinaryOp, Const, AILBlockWalker, Block, AILBlockViewer, AILBlockRewriter
+from angr.calling_conventions import SimCC, default_cc
+from angr.ailment import BinaryOp, Const, Block, AILBlockViewer, AILBlockRewriter
 from angr.ailment.expression import BasePointerOffset, VirtualVariable, Tmp, Load, Phi, VirtualVariableCategory
 from angr.ailment.statement import Store, Call, Statement, ConditionalJump, Return, Assignment, Jump, Label
 from angr.rust.mixins import SRDAMixin, DFAMixin, CFAMixin
@@ -32,7 +32,8 @@ from angr.rust.sim_type import (
     RustSimTypeStrRef,
 )
 from angr.rust.typehoon.translator import RustTypeTranslator
-from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset
+from angr.rust.utils.ail import unwrap_stack_vvar_reference, has_call, extract_vvar_and_offset, CallVisitor
+from angr.rust.utils.calling_convention import zip_args_and_types
 from angr.rust.utils.demangler import normalize, demangle
 from angr.utils.graph import GraphUtils
 from angr.analyses import Analysis, AnalysesHub
@@ -394,11 +395,12 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 try:
                     cfg = self.kb.cfgs.get_most_accurate()
                     l.info(f"Clinic for {self.func.demangled_name}")
-                    self.graph = self.project.analyses.Clinic(
+                    self.clinic = self.project.analyses.Clinic(
                         self.func,
                         cfg=cfg,
                         optimization_passes=[UnreachableBranchFixer, CleanupCodeRemover, CallStatementRewriter],
-                    ).graph
+                    )
+                    self.graph = self.clinic.graph
                     l.info(f"Clinic end for {self.func.demangled_name}")
                 except Exception as e:
                     l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
@@ -648,18 +650,26 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
         return final_ty
 
-    def _arg_idx_to_arg_type(self, arg_idx, prototype: RustSimTypeFunction, cc: SimCC):
-        if prototype and cc:
-            arg_types = prototype.args
-            arg_locs = cc.arg_locs(prototype)
-            for arg_ty, arg_loc in zip(arg_types, arg_locs):
-                if arg_idx == 0:
+    @staticmethod
+    def _arg_idx_to_arg_ty(arg_idx, call: Call):
+        if call.prototype and call.calling_convention and call.args:
+            arg_offset = 0
+            for i in range(arg_idx):
+                arg = call.args[i]
+                arg_offset += arg.bits
+            cur_offset = 0
+            for arg_ty in call.prototype.args:
+                if cur_offset == arg_offset:
                     return arg_ty
-                locs = expand_argloc(arg_loc)
-                arg_idx -= len(locs)
+                cur_offset += arg_ty.size
+                if cur_offset > arg_offset:
+                    break
         return None
 
     def _infer_combo_arg_types(self, arg_types):
+        """
+        Infer argument types for consecutive register arguments that are likely to be used as a combo (e.g., slice types)
+        """
         combo_arg_types = {}
 
         def callback(call: Call, block, stmt, is_expr):
@@ -677,16 +687,14 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                         and next_arg.parameter_category == VirtualVariableCategory.REGISTER
                         and next_arg.varid - arg.varid == 1
                     ):
-                        arg_ty = self._arg_idx_to_arg_type(i, call.prototype, call.calling_convention)
+                        arg_ty = self._arg_idx_to_arg_ty(i, call)
                         if isinstance(arg_ty, RustSimType) and arg_ty.size == self.project.arch.bits * 2:
                             combo_arg_types[arg.varid] = arg_ty
                             i += 1
                 i += 1
-            return call
 
-        replacer = CallRewriter(callback)
-        for block in self._graph.nodes:
-            replacer.walk(block)
+        visitor = CallVisitor(callback)
+        visitor.visit(self.graph)
 
         new_arg_types = []
         i = 0
@@ -800,14 +808,13 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
                 ):
                     self.model.none_discriminant = cond.operands[1].value
 
-    def _rewrite_return_sites(self):
-        ret_blocks = set()
-        for block in self._graph.nodes:
-            if block.statements and isinstance(block.statements[-1], Return):
-                ret_blocks.add(block)
-        paths = Pathfinder(self._graph, self).find_ret2arg0_paths()
+    @property
+    def prototype(self):
+        return self.model.inferred_prototype
 
-        blocks_to_remove = set()
+    @property
+    def calling_convention(self):
+        return default_cc(self.project.arch.name)(self.project.arch)
 
     def _analyze(self):
         self.collect_function_body_facts()

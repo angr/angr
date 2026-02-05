@@ -1,6 +1,6 @@
 from angr.ailment.expression import ComboRegister, VirtualVariable, VirtualVariableCategory, UnaryOp
 from angr.ailment.statement import Call
-from .utils import CallRewriter
+from .utils import CallRewriter, replace_argument_pairs
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import SRDAMixin
 from angr.ailment import AILBlockWalker, Statement, Block
@@ -9,7 +9,7 @@ from angr.ailment import AILBlockWalker, Statement, Block
 class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite return expressions for functions returning struct via multiple registers"
 
     def __init__(self, func, **kwargs):
@@ -33,14 +33,8 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 ident_to_vvar[":".join(str(reg_offset) for reg_offset in arg_vvar.reg_offsets)] = arg_vvar
                 first_offset_to_vvar[arg_vvar.reg_offsets[0]] = arg_vvar
 
-        def callback(call: Call, block, stmt, is_expr):
-            new_args = []
-            changed = False
-
-            args = list(call.args)
-            while len(args) >= 2:
-                arg = args.pop(0)
-                next_arg = args.pop(0)
+        def handle_Call(call: Call, block, stmt, is_expr):
+            def replace_argument_pair(arg, next_arg):
                 if (
                     isinstance(arg, VirtualVariable)
                     and isinstance(next_arg, VirtualVariable)
@@ -50,20 +44,12 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                     if self.get_vvar_value(arg) is None and self.get_vvar_value(next_arg) is None:
                         ident = f"{arg.reg_offset}:{next_arg.reg_offset}"
                         if ident in ident_to_vvar:
-                            changed = True
-                            args.insert(0, next_arg)
-                            new_args.append(ident_to_vvar[ident])
-                            continue
-                args.insert(0, next_arg)
-                new_args.append(arg)
+                            return True, [ident_to_vvar[ident]]
+                return False, None
 
-            if changed:
-                new_call = call.copy()
-                new_call.args = new_args
-                return new_call
-            return call
+            return replace_argument_pairs(call, replace_argument_pair)
 
-        def _handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+        def handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
             if (
                 expr.op == "Reference"
                 and isinstance(expr.operand, VirtualVariable)
@@ -77,8 +63,8 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 return result
             return expr
 
-        rewriter = CallRewriter(callback)
-        rewriter.expr_handlers[UnaryOp] = _handle_UnaryOp
+        rewriter = CallRewriter(handle_Call)
+        rewriter.expr_handlers[UnaryOp] = handle_UnaryOp
 
         for block in self._graph.nodes:
             rewriter.walk(block)
