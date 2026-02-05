@@ -1,12 +1,12 @@
-//! PyO3 bindings for the formlang module.
+//! PyO3 bindings for the automaton module.
 //!
-//! Provides a pyformlang-compatible API for Python.
+//! Provides a pyautomaton-compatible API for Python.
 
-use crate::formlang::dfa::DFA;
-use crate::formlang::epsilon_nfa::EpsilonNFA as RustEpsilonNFA;
-use crate::formlang::state::StateId;
-use crate::formlang::subset_construction::subset_construction;
-use crate::formlang::symbol::{EPSILON, SymbolId};
+use crate::automaton::dfa::DFA;
+use crate::automaton::epsilon_nfa::EpsilonNFA as RustEpsilonNFA;
+use crate::automaton::state::StateId;
+use crate::automaton::subset_construction::subset_construction;
+use crate::automaton::symbol::{EPSILON, SymbolId};
 use indexmap::IndexMap;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -15,7 +15,7 @@ use pyo3::types::PySet;
 /// A State wrapper that holds any Python object.
 #[pyclass(
     name = "State",
-    module = "angr.rustylib.formlang",
+    module = "angr.rustylib.automaton",
     frozen,
     from_py_object
 )]
@@ -58,7 +58,7 @@ impl PyState {
 /// A Symbol wrapper that holds any Python object.
 #[pyclass(
     name = "Symbol",
-    module = "angr.rustylib.formlang",
+    module = "angr.rustylib.automaton",
     frozen,
     from_py_object
 )]
@@ -101,7 +101,7 @@ impl PySymbol {
 /// Marker for epsilon transitions.
 #[pyclass(
     name = "Epsilon",
-    module = "angr.rustylib.formlang",
+    module = "angr.rustylib.automaton",
     frozen,
     from_py_object
 )]
@@ -203,7 +203,7 @@ impl ObjectMapper {
 }
 
 /// An Epsilon Non-deterministic Finite Automaton.
-#[pyclass(name = "EpsilonNFA", module = "angr.rustylib.formlang")]
+#[pyclass(name = "EpsilonNFA", module = "angr.rustylib.automaton")]
 pub struct PyEpsilonNFA {
     /// The underlying Rust NFA
     nfa: RustEpsilonNFA,
@@ -289,7 +289,7 @@ impl PyEpsilonNFA {
 /// A Deterministic Finite Automaton.
 #[pyclass(
     name = "DeterministicFiniteAutomaton",
-    module = "angr.rustylib.formlang"
+    module = "angr.rustylib.automaton"
 )]
 pub struct PyDFA {
     /// The underlying Rust DFA
@@ -362,8 +362,8 @@ impl PyDFA {
     }
 }
 
-/// Register the formlang submodule.
-pub fn formlang(m: &Bound<'_, PyModule>) -> PyResult<()> {
+/// Register the automaton submodule.
+pub fn automaton(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyState>()?;
     m.add_class::<PySymbol>()?;
     m.add_class::<PyEpsilon>()?;

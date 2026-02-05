@@ -1,8 +1,8 @@
 //! Subset construction algorithm for converting ε-NFA to DFA.
 
-use crate::formlang::dfa::DFA;
-use crate::formlang::epsilon_nfa::EpsilonNFA;
-use crate::formlang::state::{StateId, StateSet};
+use crate::automaton::dfa::DFA;
+use crate::automaton::epsilon_nfa::EpsilonNFA;
+use crate::automaton::state::{StateId, StateSet};
 use indexmap::IndexMap;
 use std::collections::HashMap;
 

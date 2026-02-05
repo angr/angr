@@ -1,7 +1,7 @@
 //! Epsilon Non-deterministic Finite Automaton (ε-NFA) implementation.
 
-use crate::formlang::state::{StateId, StateSet};
-use crate::formlang::symbol::{EPSILON, SymbolId, is_epsilon};
+use crate::automaton::state::{StateId, StateSet};
+use crate::automaton::symbol::{EPSILON, SymbolId, is_epsilon};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 

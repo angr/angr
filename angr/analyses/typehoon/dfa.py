@@ -3,7 +3,7 @@ from __future__ import annotations
 import networkx
 
 from angr.errors import AngrError
-from angr.rustylib.formlang import (
+from angr.rustylib.automaton import (
     DeterministicFiniteAutomaton,
     Epsilon,
     EpsilonNFA,

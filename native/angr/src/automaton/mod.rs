@@ -15,6 +15,6 @@ mod symbol;
 
 pub use dfa::DFA;
 pub use epsilon_nfa::EpsilonNFA;
-pub use python_bindings::formlang;
+pub use python_bindings::automaton;
 pub use state::{StateId, StateSet};
 pub use symbol::{EPSILON, SymbolId};

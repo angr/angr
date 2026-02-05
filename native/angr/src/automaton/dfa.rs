@@ -1,7 +1,7 @@
 //! Deterministic Finite Automaton (DFA) implementation with Hopcroft minimization.
 
-use crate::formlang::state::{StateId, StateSet};
-use crate::formlang::symbol::SymbolId;
+use crate::automaton::state::{StateId, StateSet};
+use crate::automaton::symbol::SymbolId;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// A labeled edge in the graph representation: (source, destination, label).
