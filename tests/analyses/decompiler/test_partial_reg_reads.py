@@ -36,12 +36,12 @@ class TestPartialRegReads(unittest.TestCase):
 
         # the variable used in the condition `if (v28 > 4)` (within the do-while loop) must be properly assigned before
         # the loop; so we should expect two assignments to this variable in the decompilation
-        cond = re.search(r"if \((?P<var>v\d+) > 4\)", dec.codegen.text)
+        cond = re.search(r"if \((?P<var>\w+) > 4\)", dec.codegen.text)
         assert cond is not None
         var_name = cond.group("var")
 
         # also find the unicode variable on the stack
-        unicode_var = re.search(r"UNICODE_STRING (?P<var>v\d+);", dec.codegen.text)
+        unicode_var = re.search(r"UNICODE_STRING (?P<var>\w+);  // \[bp-0x50\]", dec.codegen.text)
         assert unicode_var is not None
         unicode_var_name = unicode_var.group("var")
 
