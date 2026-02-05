@@ -948,6 +948,7 @@ class VariableManagerInternal(Serializable):
                 if var.name is not None:
                     continue
                 if labels is not None and var.addr in labels:
+                    var.renamed = True
                     var.name = labels[var.addr]
                     # poor man's demangling
                     var.name = var.name.removeprefix("?")

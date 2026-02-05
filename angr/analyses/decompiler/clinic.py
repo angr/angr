@@ -2405,6 +2405,7 @@ class Clinic(Analysis):
                         global_vars = global_variables.get_global_variables(symbol.rebased_addr)
                         if not global_vars:
                             global_var = SimMemoryVariable(symbol.rebased_addr, symbol.size, name=symbol.name)
+                            global_var.renamed = True
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
                 if global_vars:

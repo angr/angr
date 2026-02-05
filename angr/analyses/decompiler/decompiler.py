@@ -623,10 +623,12 @@ class Decompiler(Analysis):
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:
                 ident = global_variables.next_variable_ident("global")
+                variable = SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident)
+                variable.renamed = True
                 global_variables.set_variable(
                     "global",
                     symbol.rebased_addr,
-                    SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident),
+                    variable,
                 )
 
     def reflow_variable_types(self, cache: DecompilationCache):
