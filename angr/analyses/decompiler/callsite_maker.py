@@ -318,6 +318,11 @@ class CallSiteMaker(Analysis):
                 ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
+        # Don't capture return value for void functions
+        if prototype is not None and isinstance(prototype.returnty, SimTypeBottom):
+            ret_expr = None
+            fp_ret_expr = None
+
         new_stmt = Stmt.Call(
             call_stmt.idx,
             call_stmt.target,

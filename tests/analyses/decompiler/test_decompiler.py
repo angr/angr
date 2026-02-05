@@ -5417,6 +5417,54 @@ class TestDecompiler(unittest.TestCase):
         proto_str = callee.prototype.c_repr("G_DoLoadLevel")
         assert "(void)" in proto_str, f"Callee prototype should have (void), got: {proto_str}"
 
+    def test_void_function_calls_no_assignment(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "p_plats.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        f = proj.kb.functions["T_PlatRaise"]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        # S_StartSound should be called without assignment (it's void)
+        assert "S_StartSound(" in text, "S_StartSound call not found"
+        assert "= S_StartSound(" not in text, "S_StartSound should not be assigned (void function)"
+
+    def test_void_function_calls_no_assignment_2(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        f = proj.kb.functions["G_CheckSpot"]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        # S_StartSound should be called without assignment (it's void)
+        assert "S_StartSound(" in text, "S_StartSound call not found"
+        assert "= S_StartSound(" not in text, "S_StartSound should not be assigned (void function)"
+
+    def test_void_function_calls_no_assignment_3(self, decompiler_options=None):
+        bin_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
+        proj.analyses.CompleteCallingConventions(cfg=cfg, recover_variables=True)
+
+        f = proj.kb.functions["G_WorldDone"]
+        dec = proj.analyses.Decompiler(f, cfg=cfg.model, options=decompiler_options)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+
+        text = dec.codegen.text
+        # F_StartFinale should be called without assignment (it's void)
+        assert "F_StartFinale(" in text, "F_StartFinale call not found"
+        assert "= F_StartFinale(" not in text, "F_StartFinale should not be assigned (void function)"
+
     @for_all_structuring_algos
     def test_decompiling_extern_size_hints(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "f_finale.o")
