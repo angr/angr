@@ -153,4 +153,4 @@ class DeterministicFiniteAutomaton:
         :returns: A new minimized DeterministicFiniteAutomaton.
         """
 
-__all__ = ["State", "Symbol", "Epsilon", "EpsilonNFA", "DeterministicFiniteAutomaton"]
+__all__ = ["DeterministicFiniteAutomaton", "Epsilon", "EpsilonNFA", "State", "Symbol"]
