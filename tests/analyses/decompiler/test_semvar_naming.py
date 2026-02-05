@@ -143,7 +143,7 @@ class TestSemvarNaming(unittest.TestCase):
 
         # Should have boolean-like variable patterns
         # Also check for 0/1 assignments typical of boolean flags
-        has_boolean_pattern = "result" in text
+        has_boolean_pattern = "flag" in text
         has_zero_one = "= 0" in text and "= 1" in text
 
         assert has_boolean_pattern or has_zero_one, "Expected boolean flag pattern not found"

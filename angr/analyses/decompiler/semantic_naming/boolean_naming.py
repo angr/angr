@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 # Names for boolean flag variables
-BOOLEAN_FLAG_NAMES = ["result"]
+BOOLEAN_FLAG_NAMES = ["flag", "choice"]
 
 
 class BooleanNaming(ClinicNamingBase):
@@ -236,15 +236,6 @@ class BooleanNaming(ClinicNamingBase):
 
         for var, info in sorted_candidates:
             if info["score"] < SCORE_THRESHOLD:
-                continue
-
-            # Skip if already has a meaningful name
-            if var.name and not var.name.startswith("v") and not var.name.startswith("var_"):
-                continue
-
-            # Check unified variable too
-            unified = self._variable_manager.unified_variable(var)
-            if unified and unified.name and not unified.name.startswith("v"):
                 continue
 
             # Assign a name
