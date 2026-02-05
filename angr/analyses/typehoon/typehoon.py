@@ -85,7 +85,6 @@ class Typehoon(Analysis):
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ) -> None:
-
         if not self.simtypes_solution:
             return
 

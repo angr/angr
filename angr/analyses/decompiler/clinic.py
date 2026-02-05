@@ -137,9 +137,8 @@ class Clinic(Analysis):
         insert_labels=True,
         optimization_passes=None,
         cfg=None,
-        peephole_optimizations: None | (
-            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
-        ) = None,  # pylint:disable=line-too-long
+        peephole_optimizations: None
+        | (Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]) = None,  # pylint:disable=line-too-long
         must_struct: set[str] | None = None,
         variable_kb: KnowledgeBase | None = None,
         reset_variable_names=False,
@@ -2908,7 +2907,6 @@ class Clinic(Analysis):
         intended_head_split_insns: int = 1,
         other_head_split_insns: int = 0,
     ) -> None:
-
         # split the intended head into two
         intended_head_block = self.project.factory.block(intended_head.addr, size=intended_head.original_size)
         split_ins_addr = intended_head_block.instruction_addrs[-intended_head_split_insns]
@@ -3535,7 +3533,6 @@ class Clinic(Analysis):
                 ail_graph.add_edge(new_node, succ)
 
     def _collect_callsite_prototypes(self) -> dict[int, list[tuple[list[SimType | None], SimType | None]]]:
-
         assert self.variable_kb is not None
 
         variables = self.variable_kb.variables[self.function.addr]

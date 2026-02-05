@@ -566,7 +566,6 @@ class LiveDefinitions:
 
         # set_object() replaces kill (not implemented) and add (add) in one step
         if isinstance(atom, Register):
-
             # Tolerate simple stack pointer alignments
             if atom.reg_offset == self.arch.sp_offset:
                 d = self._simplify_sp_alignment(d)

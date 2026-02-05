@@ -1166,7 +1166,9 @@ class JumpTableResolver(IndirectJumpResolver):
         l.info("Could not resolve indirect jump %#x in function %#x.", addr, func_addr)
         return False, None
 
-    def _find_load_statement(self, b, stmt_loc: tuple[int, int]) -> tuple[
+    def _find_load_statement(
+        self, b, stmt_loc: tuple[int, int]
+    ) -> tuple[
         tuple[int, int] | None,
         pyvex.stmt.IRStmt | None,
         int | None,
@@ -2044,9 +2046,7 @@ class JumpTableResolver(IndirectJumpResolver):
             jt_2nd_size,
         )
 
-    def _try_resolve_targets_ite(
-        self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp
-    ):  # pylint:disable=unused-argument
+    def _try_resolve_targets_ite(self, r, addr, cfg, annotatedcfg, ite_stmt: pyvex.IRStmt.WrTmp):  # pylint:disable=unused-argument
         """
         Try loading all jump targets from parsing an ITE block.
         """

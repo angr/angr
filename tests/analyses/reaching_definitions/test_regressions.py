@@ -194,11 +194,13 @@ class TestRDARegressions(TestCase):
         observation = rda.observed_results[call_observation]
         selector = observation.get_values(Atom.reg("x1", arch=proj.arch))
         assert selector is not None
-        assert (
-            selector.one_value() is None
-        ), f"There should be multiple concrete values for x1, not just one: {selector}"
+        assert selector.one_value() is None, (
+            f"There should be multiple concrete values for x1, not just one: {selector}"
+        )
         assert 0 in selector
         assert {bv.concrete_value for bv in selector[0]} == {
             0x100191A4C,
             0x100191A3D,
-        }, f"Expected selector to contain the pointers to 'startAnimating' and 'stopAnimating' i.e. 0x100191A4C, 0x100191A3D, but got: {selector}"
+        }, (
+            f"Expected selector to contain the pointers to 'startAnimating' and 'stopAnimating' i.e. 0x100191A4C, 0x100191A3D, but got: {selector}"
+        )

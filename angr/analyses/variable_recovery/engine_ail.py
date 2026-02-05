@@ -193,7 +193,9 @@ class SimEngineVRAIL(
                     arg_tv = (
                         args[0].typevar
                         if args[0].typevar is not None
-                        else args[1].typevar if args[1].typevar is not None else None
+                        else args[1].typevar
+                        if args[1].typevar is not None
+                        else None
                     )
                     if arg_tv is not None:
                         ret_ty = self._create_access_typevar(
@@ -518,7 +520,6 @@ class SimEngineVRAIL(
 
     def _handle_unop_Reference(self, expr: ailment.Expr.UnaryOp):
         if isinstance(expr.operand, ailment.Expr.VirtualVariable) and expr.operand.was_stack:
-
             refbase_typevar = None
             off = expr.operand.stack_offset
 

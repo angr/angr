@@ -128,15 +128,21 @@ class PropValue:
             if idx != len(keys) - 1:
                 next_offset = keys[idx + 1]
                 if end_offset != next_offset:
-                    yield end_offset, self.chop_value(
-                        self.value, end_offset, next_offset
-                    ), next_offset - end_offset, None
+                    yield (
+                        end_offset,
+                        self.chop_value(self.value, end_offset, next_offset),
+                        next_offset - end_offset,
+                        None,
+                    )
 
         # final gap detection
         if end_offset < self.value.size() // 8:
-            yield end_offset, self.chop_value(
-                self.value, end_offset, self.value.size() // 8
-            ), self.value.size() // 8 - end_offset, None
+            yield (
+                end_offset,
+                self.chop_value(self.value, end_offset, self.value.size() // 8),
+                self.value.size() // 8 - end_offset,
+                None,
+            )
 
     @staticmethod
     def from_value_and_labels(

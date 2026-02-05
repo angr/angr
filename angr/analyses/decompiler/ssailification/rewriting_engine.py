@@ -811,7 +811,6 @@ class SimEngineSSARewriting(
         return None
 
     def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
-
         if reg_expr.reg_offset in self.state.registers:
             if (
                 reg_expr.size in self.state.registers[reg_expr.reg_offset]

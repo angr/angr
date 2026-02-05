@@ -2487,7 +2487,6 @@ def do_it(in_dir):
     }
 
     for (prefix, lib, suffix), decls in missing_declarations.items():
-
         for func, proto in decls.items():
             # ensure the declaration does not exist anywhere else
             exists = False

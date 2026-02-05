@@ -105,7 +105,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, None, None, None])
             self._expr(stmt.false_target)
 
     def _handle_stmt_Call(self, stmt: Call):
-
         # kill caller-saved registers
         cc = (
             default_cc(self.arch.name, platform=self.simos.name if self.simos is not None else None)

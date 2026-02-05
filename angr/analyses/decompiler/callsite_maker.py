@@ -275,8 +275,7 @@ class CallSiteMaker(Analysis):
             )
             if sp_offset is None:
                 l.warning(
-                    "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store "
-                    "statements.",
+                    "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store statements.",
                     call_stmt.tags["ins_addr"],
                 )
                 self.stack_arg_offsets = None
@@ -383,9 +382,7 @@ class CallSiteMaker(Analysis):
 
         return None
 
-    def _resolve_stack_argument(
-        self, call_stmt: Stmt.Call, arg_loc
-    ) -> tuple[Any, Any]:  # pylint:disable=unused-argument
+    def _resolve_stack_argument(self, call_stmt: Stmt.Call, arg_loc) -> tuple[Any, Any]:  # pylint:disable=unused-argument
         assert self._stack_pointer_tracker is not None
 
         size = arg_loc.size

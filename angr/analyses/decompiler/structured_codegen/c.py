@@ -2322,7 +2322,6 @@ class CConstant(CExpression):
         return f'{prefix}"{base_str}"'
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-
         def _default_output(v) -> str | None:
             if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                 return CConstant.str_to_c_str(v.content.decode("utf-8"), maxlen=self.codegen.max_str_len)
@@ -4035,16 +4034,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     data_type = cbasevar.type
                     if data_type.size // self.project.arch.byte_width > expr.size:
                         # fallback to a more suitable type
-                        data_type = (
-                            {
-                                64: SimTypeLongLong(signed=False),
-                                32: SimTypeInt(signed=False),
-                                16: SimTypeShort(signed=False),
-                                8: SimTypeChar(signed=False),
-                            }
-                            .get(expr.bits, data_type)
-                            .with_arch(self.project.arch)
-                        )
+                        data_type = {
+                            64: SimTypeLongLong(signed=False),
+                            32: SimTypeInt(signed=False),
+                            16: SimTypeShort(signed=False),
+                            8: SimTypeChar(signed=False),
+                        }.get(expr.bits, data_type).with_arch(self.project.arch)
                 if ref and offset == 0:
                     cvar = cbasevar
                 else:

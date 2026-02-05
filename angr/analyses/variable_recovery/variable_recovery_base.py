@@ -433,9 +433,7 @@ class VariableRecoveryStateBase:
     #
 
     @staticmethod
-    def _mo_cmp(
-        mos_self: set[SimMemoryObject], mos_other: set[SimMemoryObject], addr: int, size: int
-    ):  # pylint:disable=unused-argument
+    def _mo_cmp(mos_self: set[SimMemoryObject], mos_other: set[SimMemoryObject], addr: int, size: int):  # pylint:disable=unused-argument
         # comparing bytes from two sets of memory objects
         # we don't need to resort to byte-level comparison. object-level is good enough.
 

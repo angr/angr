@@ -58,9 +58,9 @@ class TestPartialRegReads(unittest.TestCase):
         # there should be two paths from var_name to unicode_var_name.Length, which represents two different
         # assignments (one before the do-while loop, one at the end of the do-while loop).
         simple_paths = list(networkx.all_simple_paths(g, var_name, f"{unicode_var_name}.Length"))
-        assert (
-            len(simple_paths) == 2
-        ), f"Expect two assignments to {var_name} from {unicode_var_name}.Length; found {len(simple_paths)}"
+        assert len(simple_paths) == 2, (
+            f"Expect two assignments to {var_name} from {unicode_var_name}.Length; found {len(simple_paths)}"
+        )
 
 
 if __name__ == "__main__":

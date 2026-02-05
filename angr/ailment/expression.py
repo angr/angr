@@ -234,7 +234,6 @@ class VirtualVariableCategory(IntEnum):
 
 
 class VirtualVariable(Atom):
-
     __slots__ = (
         "category",
         "oident",
@@ -368,7 +367,6 @@ class VirtualVariable(Atom):
 
 
 class Phi(Atom):
-
     __slots__ = ("src_and_vvars",)
 
     def __init__(

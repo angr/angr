@@ -214,7 +214,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         r, s = True, b"\x00\x00"
                     else:
                         r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1  # type: ignore
+                            stmt.data.value,
+                            stmt.size,
+                            stmt.endness,
+                            min_length=1,  # type: ignore
                         )
                     if r and s is not None:
                         new_str = s_last + s
@@ -230,7 +233,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
                     r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                        stmt.src.value, stmt.dst.size, self.project.arch.memory_endness, min_length=1  # type: ignore
+                        stmt.src.value,
+                        stmt.dst.size,
+                        self.project.arch.memory_endness,
+                        min_length=1,  # type: ignore
                     )
                     if r and s is not None:
                         new_str = s_last + s

@@ -28,7 +28,6 @@ class TraversalAnalysis(ForwardAnalysis[TraversalState, ailment.Block, object, t
         tmps: bool,
         func_args: set[ailment.Expr.VirtualVariable],
     ):
-
         self.project = project
         self._stackvars = stackvars
         self._tmps = tmps

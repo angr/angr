@@ -109,9 +109,9 @@ class TestVariableRecovery(unittest.TestCase):
                     l.error("Unsupported variable sort %s.", var_sort)
                     assert False
 
-                assert (
-                    the_var is not None
-                ), f"The variable {var_info} in groundtruth at instruction {insn_addr:#x} cannot be found in variable manager."
+                assert the_var is not None, (
+                    f"The variable {var_info} in groundtruth at instruction {insn_addr:#x} cannot be found in variable manager."
+                )
                 l.debug("Found variable %s at %#x.", the_var, insn_addr)
 
         for block_addr, variables in groundtruth["phi_variables_by_block"].items():
@@ -134,9 +134,9 @@ class TestVariableRecovery(unittest.TestCase):
                     l.error("Unsupported variable sort %s.", var_sort)
                     assert False
 
-                assert (
-                    the_var is not None
-                ), f"The phi variable {var_info} in groundtruth at block {block_addr:#x} cannot be found in variable manager."
+                assert the_var is not None, (
+                    f"The phi variable {var_info} in groundtruth at block {block_addr:#x} cannot be found in variable manager."
+                )
                 l.debug("Found phi variable %s at %#x.", the_var, block_addr)
 
     def test_variable_recovery_fauxware_authenticate_true(self):

@@ -58,7 +58,8 @@ class BlockSimplifier(Analysis):
         block: Block | None,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
-        peephole_optimizations: None | (
+        peephole_optimizations: None
+        | (
             Iterable[
                 type[PeepholeOptimizationStmtBase]
                 | type[PeepholeOptimizationExprBase]
@@ -306,7 +307,6 @@ class BlockSimplifier(Analysis):
         return block.copy(statements=new_statements)
 
     def _eliminate_dead_assignments(self, block):
-
         def _statement_has_calls(stmt: Statement) -> bool:
             """
             Check if a statement has any Call expressions.

@@ -75,8 +75,7 @@ class ITEExprConverter(OptimizationPass):
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = (
-        "Transform single-use expressions that were assigned to in different "
-        "If-Else branches into ternary expressions"
+        "Transform single-use expressions that were assigned to in different If-Else branches into ternary expressions"
     )
     DESCRIPTION = __doc__.strip()
 

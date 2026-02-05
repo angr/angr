@@ -485,7 +485,7 @@ def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
             parent.default_node = seq
         else:
             raise TypeError(
-                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, ' f"default."
+                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, default.'
             )
     elif isinstance(parent, LoopNode):
         if label == "condition":

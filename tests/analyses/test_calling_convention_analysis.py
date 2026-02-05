@@ -104,12 +104,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def check_args(self, func_name, args, expected_arg_strs):
         assert len(args) == len(expected_arg_strs), (
-            f"Wrong number of arguments for function {func_name}. " f"Got {len(args)}, expect {len(expected_arg_strs)}."
+            f"Wrong number of arguments for function {func_name}. Got {len(args)}, expect {len(expected_arg_strs)}."
         )
 
         for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
             r = self.check_arg(arg, expected_arg_str)
-            assert r, f"Incorrect argument {idx} for function {func_name}. " f"Got {arg}, expect {expected_arg_str}."
+            assert r, f"Incorrect argument {idx} for function {func_name}. Got {arg}, expect {expected_arg_str}."
 
     def _a(self, funcs, func_name):
         func = funcs[func_name]
@@ -221,7 +221,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         prototype = cca.prototype
 
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
+            "Calling convention analysis failed to determine the calling convention of function 0x80494f0."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -240,7 +240,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert func_exit.returning is False
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
+            "Calling convention analysis failed to determine the calling convention of function 0x804a1a9."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -634,15 +634,15 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         func_reborn = cfg.kb.functions["G_PlayerReborn"]
         assert func_reborn.prototype is not None
-        assert isinstance(
-            func_reborn.prototype.returnty, SimTypeBottom
-        ), f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
+        assert isinstance(func_reborn.prototype.returnty, SimTypeBottom), (
+            f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
+        )
 
         func_init = cfg.kb.functions["G_InitPlayer"]
         assert func_init.prototype is not None
-        assert isinstance(
-            func_init.prototype.returnty, SimTypeBottom
-        ), f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
+        assert isinstance(func_init.prototype.returnty, SimTypeBottom), (
+            f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
+        )
 
 
 if __name__ == "__main__":

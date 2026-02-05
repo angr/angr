@@ -492,7 +492,6 @@ class AILSimplifier(Analysis):
         return narrowed
 
     def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block) -> dict[int, int]:
-
         vvar_effective_sizes: dict[int, int] = {}
 
         # determine effective sizes for non-phi vvars
@@ -582,7 +581,6 @@ class AILSimplifier(Analysis):
     def _narrowing_needed(
         self, def_: Definition, rd: SRDAModel, addr_and_idx_to_block, effective_sizes: dict[int, int]
     ) -> ExprNarrowingInfo:
-
         def_size = def_.size
         # find its uses
         # some use locations are phi assignments. we keep tracking the uses of phi variables and update the dictionary
@@ -1686,7 +1684,6 @@ class AILSimplifier(Analysis):
 
     @timethis
     def _remove_dead_assignments(self) -> bool:
-
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
         # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
         # value and the floating-point return value.

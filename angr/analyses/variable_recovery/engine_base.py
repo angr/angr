@@ -293,9 +293,7 @@ class SimEngineVRBase(
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
 
-    def _assign_to_register(
-        self, offset, richr, size, src=None, dst=None, create_variable: bool = True
-    ):  # pylint:disable=unused-argument
+    def _assign_to_register(self, offset, richr, size, src=None, dst=None, create_variable: bool = True):  # pylint:disable=unused-argument
         """
 
         :param int offset:
@@ -381,7 +379,6 @@ class SimEngineVRBase(
         create_variable: bool = True,
         vvar_id: int | None = None,
     ):  # pylint:disable=unused-argument
-
         if vvar_id is None:
             vvar_id = vvar.varid
 
@@ -495,9 +492,7 @@ class SimEngineVRBase(
 
         return variable
 
-    def _store(
-        self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None
-    ):  # pylint:disable=unused-argument
+    def _store(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None):  # pylint:disable=unused-argument
         """
 
         :param RichR addr:
