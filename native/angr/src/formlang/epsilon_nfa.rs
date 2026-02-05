@@ -1,7 +1,7 @@
 //! Epsilon Non-deterministic Finite Automaton (ε-NFA) implementation.
 
 use crate::formlang::state::{StateId, StateSet};
-use crate::formlang::symbol::{is_epsilon, SymbolId, EPSILON};
+use crate::formlang::symbol::{EPSILON, SymbolId, is_epsilon};
 use indexmap::IndexMap;
 use std::collections::{HashMap, HashSet, VecDeque};
 
@@ -232,9 +232,9 @@ impl EpsilonNFA {
 
     /// Get all transitions as an iterator.
     pub fn transitions(&self) -> impl Iterator<Item = (StateId, SymbolId, StateId)> + '_ {
-        self.transitions.iter().flat_map(|(&(src, sym), dests)| {
-            dests.iter().map(move |dst| (src, sym, dst))
-        })
+        self.transitions
+            .iter()
+            .flat_map(|(&(src, sym), dests)| dests.iter().map(move |dst| (src, sym, dst)))
     }
 
     /// Convert to a map representation for debugging.

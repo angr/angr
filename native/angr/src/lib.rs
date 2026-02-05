@@ -34,13 +34,7 @@ fn rustylib(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "segmentlist",
         segmentlist::segmentlist,
     )?;
-    import_submodule(
-        m.py(),
-        m,
-        "angr.rustylib",
-        "formlang",
-        formlang::formlang,
-    )?;
+    import_submodule(m.py(), m, "angr.rustylib", "formlang", formlang::formlang)?;
 
     m.add_class::<segmentlist::Segment>()?;
     m.add_class::<segmentlist::SegmentList>()?;

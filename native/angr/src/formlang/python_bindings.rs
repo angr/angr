@@ -6,14 +6,19 @@ use crate::formlang::dfa::DFA;
 use crate::formlang::epsilon_nfa::EpsilonNFA as RustEpsilonNFA;
 use crate::formlang::state::StateId;
 use crate::formlang::subset_construction::subset_construction;
-use crate::formlang::symbol::{SymbolId, EPSILON};
+use crate::formlang::symbol::{EPSILON, SymbolId};
 use indexmap::IndexMap;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PySet;
 
 /// A State wrapper that holds any Python object.
-#[pyclass(name = "State", module = "angr.rustylib.formlang", frozen, from_py_object)]
+#[pyclass(
+    name = "State",
+    module = "angr.rustylib.formlang",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyState {
     /// The underlying Python value
@@ -51,7 +56,12 @@ impl PyState {
 }
 
 /// A Symbol wrapper that holds any Python object.
-#[pyclass(name = "Symbol", module = "angr.rustylib.formlang", frozen, from_py_object)]
+#[pyclass(
+    name = "Symbol",
+    module = "angr.rustylib.formlang",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PySymbol {
     /// The underlying Python value
@@ -89,7 +99,12 @@ impl PySymbol {
 }
 
 /// Marker for epsilon transitions.
-#[pyclass(name = "Epsilon", module = "angr.rustylib.formlang", frozen, from_py_object)]
+#[pyclass(
+    name = "Epsilon",
+    module = "angr.rustylib.formlang",
+    frozen,
+    from_py_object
+)]
 #[derive(Clone)]
 pub struct PyEpsilon;
 
@@ -272,7 +287,10 @@ impl PyEpsilonNFA {
 }
 
 /// A Deterministic Finite Automaton.
-#[pyclass(name = "DeterministicFiniteAutomaton", module = "angr.rustylib.formlang")]
+#[pyclass(
+    name = "DeterministicFiniteAutomaton",
+    module = "angr.rustylib.formlang"
+)]
 pub struct PyDFA {
     /// The underlying Rust DFA
     dfa: DFA,
@@ -317,12 +335,13 @@ impl PyDFA {
         // Add edges with labels
         for (src, sym, dst) in self.dfa.transitions() {
             // Get the original Python symbol for the label
-            let label: Bound<'py, PyAny> = if let Some(py_symbol) = self.mapper.get_symbol_by_id(sym) {
-                py_symbol.bind(py).clone()
-            } else {
-                // Fallback to symbol ID if no mapping
-                sym.into_pyobject(py)?.into_any()
-            };
+            let label: Bound<'py, PyAny> =
+                if let Some(py_symbol) = self.mapper.get_symbol_by_id(sym) {
+                    py_symbol.bind(py).clone()
+                } else {
+                    // Fallback to symbol ID if no mapping
+                    sym.into_pyobject(py)?.into_any()
+                };
 
             // Create kwargs dict with label
             let kwargs = pyo3::types::PyDict::new(py);

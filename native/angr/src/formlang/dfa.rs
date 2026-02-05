@@ -346,7 +346,9 @@ impl DFA {
                             minimized.add_transition(part_idx as StateId, symbol, new_dest);
 
                             // Copy label if exists
-                            if let Some(label) = self.transition_labels.get(&(representative, symbol)) {
+                            if let Some(label) =
+                                self.transition_labels.get(&(representative, symbol))
+                            {
                                 minimized
                                     .transition_labels
                                     .insert((part_idx as StateId, symbol), label.clone());
