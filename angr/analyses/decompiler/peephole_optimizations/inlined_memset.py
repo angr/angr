@@ -87,7 +87,14 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
 
                 match candidate.kind:
                     case "stack":
-                        base_expr = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, candidate.offset)
+                        # base_expr = StackBaseOffset(
+                        #     self.manager.next_atom(), self.project.arch.bits, candidate.offset)
+                        # Creating memsets on the stack is a recipe to screw up variable identification.
+                        # Measurements indicate that memsets on the stack are usually no more than a single
+                        # mov or rep stosq. If you have data to the contrary, please help us figure out what
+                        # characteristics this has that differentiate it from simply storing many nulls
+                        # to many adjacent variables.
+                        base_expr = None
                     case "global":
                         base_expr = Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits)
                     case "heap":
