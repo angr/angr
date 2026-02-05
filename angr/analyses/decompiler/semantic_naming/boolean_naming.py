@@ -34,7 +34,7 @@ class BooleanNaming(ClinicNamingBase):
     Boolean flag patterns detected:
     - Variables assigned only 0 or 1
     - Variables used directly in conditions (if (var) or if (!var))
-    - Variables compared to 0 or 1
+    - Variables compared to 1
     - Variables that are results of comparison operations
     """
 
@@ -155,14 +155,14 @@ class BooleanNaming(ClinicNamingBase):
                         self._bool_candidates[var]["direct_condition"] = True
                         continue
 
-                # Check for comparison to 0 or 1: if (var == 0) or if (var != 0)
+                # Check for comparison to 1: if (var != 0)
                 if isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE"):
                     op0, op1 = cond.operands
                     var = None
 
-                    if isinstance(op1, Const) and op1.value in (0, 1):
+                    if isinstance(op1, Const) and op1.value == 1:
                         var = self._get_linked_variable(op0)
-                    elif isinstance(op0, Const) and op0.value in (0, 1):
+                    elif isinstance(op0, Const) and op0.value == 1:
                         var = self._get_linked_variable(op1)
 
                     if var is not None:
