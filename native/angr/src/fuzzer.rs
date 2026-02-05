@@ -70,6 +70,19 @@ impl Fuzzer {
             return Err(PyTypeError::new_err("Expected a callable harness function"));
         }
 
+        // Register the edge_hitmap plugin if not already present
+        let py = base_state.py();
+        let has_plugin: bool = base_state
+            .call_method1("has_plugin", ("edge_hitmap",))?
+            .extract()?;
+        if !has_plugin {
+            let edge_hitmap_plugin = py
+                .import("angr.state_plugins.edge_hitmap")?
+                .getattr("SimStateEdgeHitmap")?
+                .call0()?;
+            base_state.call_method1("register_plugin", ("edge_hitmap", edge_hitmap_plugin))?;
+        }
+
         let observer = OwnedMapObserver::new("", vec![0u8; 65536]);
         let mut feedback = MaxMapFeedback::with_name("edges", &observer);
         let mut objective = CrashFeedback::default();
