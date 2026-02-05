@@ -90,17 +90,6 @@ class TypeDBLoader(Analysis):
     def _structs(self):
         return self.project.kb.known_structs.known_struct_types
 
-    def _apply_patches(self):
-        argument_ty = self.project.kb.known_structs["core::fmt::rt::Argument"]
-        if argument_ty and "ty" in argument_ty.fields:
-            argument_enum = self.project.kb.known_structs["core::fmt::rt::ArgumentType"]
-            if argument_enum and argument_enum.get_variant_by_name("Placeholder"):
-                placeholder_variant = argument_enum.get_variant_by_name("Placeholder")
-                if placeholder_variant:
-                    new_argument_ty = placeholder_variant.as_struct_ty()
-                    new_argument_ty.name = "core::fmt::rt::Argument"
-                    self.project.kb.known_structs["core::fmt::rt::Argument"] = new_argument_ty
-
     def _parse_Pointer(self, data):
         return RustSimTypeReference(self._parse_type(data["pts_to"]) or RustSimTypeBottom()).with_arch(
             self.project.arch
@@ -309,7 +298,7 @@ class TypeDBLoader(Analysis):
         if None in args:
             return None
         ret_ty = self._parse_type(data["returnty"])
-        return self._fit_abi(RustSimTypeFunction(args, ret_ty))
+        return self._fit_abi(RustSimTypeFunction(args, ret_ty)).with_arch(self.project.arch)
 
     def _negotiate_prototype(self, prototype: RustSimTypeFunction, old_prototype: SimTypeFunction):
         # Negotiate the prototype with the old one to ensure compatibility
@@ -331,7 +320,7 @@ class TypeDBLoader(Analysis):
             ):
                 new_args = list(prototype.args)
                 new_args.insert(0, RustSimTypeReference(prototype.returnty))
-                return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True)
+                return RustSimTypeFunction(new_args, None, is_arg0_retbuf=True).with_arch(self.project.arch)
         else:
             if sum(arg_ty.size for arg_ty in old_prototype.args) == sum(arg_ty.size for arg_ty in prototype.args):
                 return prototype

@@ -884,7 +884,10 @@ class Clinic(Analysis):
 
         self._update_progress(79.0, text="Running simplifications 4")
         self._ail_graph = self._run_simplification_passes(
-            self._ail_graph, stack_items=self.stack_items, stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
+            self._ail_graph,
+            stack_items=self.stack_items,
+            stage=OptimizationPassStage.BEFORE_VARIABLE_RECOVERY,
+            arg_vvars=self.arg_vvars,
         )
 
         assert self.arg_vvars is not None

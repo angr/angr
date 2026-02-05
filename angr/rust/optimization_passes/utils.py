@@ -74,6 +74,30 @@ class CallRewriter(AILBlockRewriter):
         return self.callback(expr, block, stmt, is_expr=True)
 
 
+def replace_argument_pairs(call: Call, callback) -> Call:
+    if not call.args:
+        return call
+    queue = list(call.args)
+    new_args = []
+    changed = False
+    while len(queue) > 1:
+        arg = queue.pop(0)
+        next_arg = queue.pop(0)
+        replaced, replacement = callback(arg, next_arg)
+        if replaced:
+            new_args.extend(replacement)
+            changed = True
+        else:
+            new_args.append(arg)
+            queue.insert(0, next_arg)
+    if changed:
+        new_args.extend(queue)
+        new_call = call.copy()
+        new_call.args = new_args
+        return new_call
+    return call
+
+
 def expand_argloc(arg_loc: SimFunctionArgument) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
     if isinstance(arg_loc, SimComboArg):
         # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
