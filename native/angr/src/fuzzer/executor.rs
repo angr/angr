@@ -51,9 +51,8 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
     ) -> Result<ExitKind, libafl::Error> {
         *state.executions_mut() += 1;
 
-        let (emulator, exit) =
-            Python::attach(|py| {
-                || -> _ {
+        let (emulator, exit) = Python::attach(|py| {
+            || -> _ {
                 // Step 1: Copy the base state and run the apply function
                 // Copy base state by calling python copy function
                 let copied_state = self.base_state.bind(py).getattr("copy")?.call0()?;
@@ -74,7 +73,9 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     .call1((icicle_engine, &copied_state))?;
 
                 // Step 2.5: Set return address as breakpoint to detect normal returns
-                let calling_convention = self.base_state.getattr(py, "project")?
+                let calling_convention = self
+                    .base_state
+                    .getattr(py, "project")?
                     .getattr(py, "factory")?
                     .getattr(py, "cc")?
                     .call0(py)?;
@@ -83,7 +84,8 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     .getattr(py, "get_value")?
                     .call1(py, (copied_state,))?
                     .getattr(py, "concrete_value")?
-                    .extract::<u64>(py).map_err(|_| {
+                    .extract::<u64>(py)
+                    .map_err(|_| {
                         PyRuntimeError::new_err(
                             "Failed to extract return address, is it symbolic?".to_string(),
                         )
@@ -122,7 +124,7 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                     )
                 }
             })
-            })?;
+        })?;
 
         // Step 3: Handle the result
         let result = match exit.as_str() {
@@ -144,13 +146,13 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
             )),
         };
 
-        // Step 4: Copy the edge map from state.history to the observer to provide feedback
+        // Step 4: Copy the edge map from edge_hitmap plugin to the observer to provide feedback
         let py_hitmap: Vec<u8> = Python::attach(|py| {
             emulator
                 .bind(py)
                 .getattr("state")?
-                .getattr("history")?
-                .getattr("last_edge_hitmap")?
+                .call_method1("get_plugin", ("edge_hitmap",))?
+                .getattr("edge_hitmap")?
                 .extract()
         })
         .map_err(|e| {

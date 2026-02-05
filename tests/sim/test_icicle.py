@@ -21,6 +21,7 @@ import angr
 from angr import sim_options as o
 from angr.emulator import EmulatorStopReason
 from angr.engines.icicle import IcicleEngine, UberIcicleEngine
+from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from tests.common import bin_location
 
 
@@ -584,8 +585,9 @@ class TestEdgeHitmap(TestCase):
         init_state = project.factory.blank_state(
             remove_options={*o.symbolic},
         )
+        init_state.register_plugin("edge_hitmap", SimStateEdgeHitmap())
         result = engine.process(init_state, num_inst=10)
-        hitmap = result.successors[0].history.edge_hitmap
+        hitmap = result.successors[0].get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap is not None
         assert len(hitmap) == 65536
@@ -596,15 +598,17 @@ class TestEdgeHitmap(TestCase):
         engine = IcicleEngine(project)
 
         state_1 = project.factory.blank_state(remove_options={*o.symbolic})
+        state_1.register_plugin("edge_hitmap", SimStateEdgeHitmap())
         result_1 = engine.process(state_1, num_inst=3)
-        hitmap_1 = result_1.successors[0].history.edge_hitmap
+        hitmap_1 = result_1.successors[0].get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap_1 is not None
         assert any(x > 0 for x in hitmap_1)
 
         state_2 = project.factory.blank_state(remove_options={*o.symbolic})
+        state_2.register_plugin("edge_hitmap", SimStateEdgeHitmap())
         result_2 = engine.process(state_2, num_inst=5)
-        hitmap_2 = result_2.successors[0].history.edge_hitmap
+        hitmap_2 = result_2.successors[0].get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap_1 == hitmap_2
 
@@ -616,11 +620,12 @@ class TestEdgeHitmap(TestCase):
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
         )
+        init_state.register_plugin("edge_hitmap", SimStateEdgeHitmap())
 
         # Run a small number of instructions first
         result1 = engine.process(init_state, num_inst=5)
         s1 = result1.successors[0]
-        hitmap1 = s1.history.edge_hitmap
+        hitmap1 = s1.get_plugin("edge_hitmap").edge_hitmap
         assert hitmap1 is not None
         assert any(x > 0 for x in hitmap1)
         assert s1.history.recent_instruction_count == 5
@@ -629,7 +634,7 @@ class TestEdgeHitmap(TestCase):
         # Continue execution for more instructions
         result2 = engine.process(s1, num_inst=45)
         s2 = result2.successors[0]
-        hitmap2 = s2.history.edge_hitmap
+        hitmap2 = s2.get_plugin("edge_hitmap").edge_hitmap
         assert hitmap2 is not None
         assert any(x > 0 for x in hitmap2)
         assert s2.history.recent_instruction_count == 45
@@ -652,6 +657,7 @@ class TestEdgeHitmap(TestCase):
             remove_options={*o.symbolic},
             add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
         )
+        init_state.register_plugin("edge_hitmap", SimStateEdgeHitmap())
 
         engine = UberIcicleEngine(project)
 
@@ -662,7 +668,7 @@ class TestEdgeHitmap(TestCase):
             assert successors.successors[0].history.jumpkind != "Ijk_SigSEGV"
             state1 = successors.successors[0]
 
-        hitmap1 = state1.history.last_edge_hitmap
+        hitmap1 = state1.get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap1 is not None
         assert any(x > 0 for x in hitmap1)
@@ -675,6 +681,6 @@ class TestEdgeHitmap(TestCase):
             assert successors.successors[0].history.jumpkind != "Ijk_SigSEGV"
             state2 = successors.successors[0]
 
-        hitmap2 = state2.history.last_edge_hitmap
+        hitmap2 = state2.get_plugin("edge_hitmap").edge_hitmap
 
         assert hitmap1 == hitmap2

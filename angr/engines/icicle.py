@@ -5,16 +5,18 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing_extensions import override
+from typing import cast
 
 import pypcode
-from archinfo import Arch, ArchPcode, Endness, ArchARMCortexM
+from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
+from typing_extensions import override
 
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.syscall import SimEngineSyscall
-from angr.rustylib.icicle import Icicle, VmExit, ExceptionCode
+from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
+from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 
 log = logging.getLogger(__name__)
 
@@ -180,9 +182,10 @@ class IcicleEngine(ConcreteEngine):
         )
 
         # 3. Copy edge hitmap
-        edge_hitmap = state.history.last_edge_hitmap
-        if edge_hitmap is not None:
-            emu.edge_hitmap = edge_hitmap
+        if state.has_plugin("edge_hitmap"):
+            hitmap_plugin = cast(SimStateEdgeHitmap, state.get_plugin("edge_hitmap"))
+            if hitmap_plugin.edge_hitmap is not None:
+                emu.edge_hitmap = hitmap_plugin.edge_hitmap
 
         return (emu, translation_data)
 
@@ -234,8 +237,10 @@ class IcicleEngine(ConcreteEngine):
         # 3.3. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount
 
-        # 3.4. Set edge hitmap
-        state.history.edge_hitmap = emu.edge_hitmap
+        # 3.4. Set edge hitmap in dedicated plugin if present
+        if state.has_plugin("edge_hitmap"):
+            hitmap_plugin = cast(SimStateEdgeHitmap, state.get_plugin("edge_hitmap"))
+            hitmap_plugin.edge_hitmap = emu.edge_hitmap
 
         return state
 
