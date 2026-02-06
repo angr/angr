@@ -33,7 +33,6 @@ dependencies = [
     "psutil",
     "pycparser~=3.0",
     "pydemumble",
-    "pyformlang",
     "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.198.dev0",
     "rich>=13.1.0",
