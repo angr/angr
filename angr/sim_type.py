@@ -214,7 +214,7 @@ class SimType:
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
-            if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name is not None and t.name not in memo:
                 # attempt to resolve the type ref
                 with contextlib.suppress(AngrMissingTypeError):
                     return type_collection.get(t.name, memo=memo)
@@ -3758,7 +3758,9 @@ def parse_signature(defn, predefined_types=None, arch=None) -> SimTypeFunction:
     """
     try:
         parsed = parse_file(defn.strip(" \n\t;") + ";", predefined_types=predefined_types, arch=arch)
-        return next(iter(parsed[0].values()))
+        result = next(iter(parsed[0].values()))
+        assert isinstance(result, SimTypeFunction)
+        return result
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
