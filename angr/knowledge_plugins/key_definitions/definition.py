@@ -130,9 +130,7 @@ class DefinitionMatchPredicate:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
             if self.stack_offset is not None and (
-                not isinstance(defn.atom.addr, SpOffset)
-                or defn.atom.addr.base != "sp"  # TODO???????
-                or defn.atom.addr.offset != self.stack_offset
+                not isinstance(defn.atom.addr, SpOffset) or defn.atom.addr.offset != self.stack_offset
             ):
                 return False
         elif isinstance(defn.atom, Tmp) and self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
