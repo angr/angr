@@ -656,7 +656,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self._expr(expr.value)
         return set()
 
-    # pylint: disable=unused-argument
+    # pylint: disable=unused-argument,no-self-use
     def _handle_expr_MultiStatementExpression(self, expr) -> Value:
         return set()
 

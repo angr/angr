@@ -2,19 +2,18 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
-from angr.ailment.manager import Manager
-
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import os
-
 import unittest
-import archinfo
-import angr.ailment as ailment
-from angr.ailment.expression import BinaryOp, Const
-import angr
-from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
 
+import archinfo
+
+import angr
+from angr import ailment
+from angr.ailment.manager import Manager
+from angr.ailment.expression import BinaryOp, Const
+from angr.analyses.decompiler.peephole_optimizations import ConstantDereferences, EagerEvaluation
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")

@@ -2,18 +2,17 @@
 # pylint:disable=missing-class-docstring,no-self-use
 from __future__ import annotations
 
-from angr.ailment.manager import Manager
-
 __package__ = __package__ or "tests.analyses.decompiler"  # pylint:disable=redefined-builtin
 
 import logging
 import unittest
 
 import networkx as nx
-from angr.ailment import Block, Assignment, Register, Const, BinaryOp
-from angr.ailment.statement import Return, Store, ConditionalJump, Call
 
 import angr
+from angr.ailment.manager import Manager
+from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment.statement import Return, Store, ConditionalJump, Call
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
 from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
 
