@@ -383,8 +383,8 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
 
         self._fact_collector = None
 
-        if self.func.addr in self.kb.rust_calling_conventions.cache:
-            self.model = self.kb.rust_calling_conventions.cache[self.func.addr]
+        if self.func.addr in self.kb.rust_calling_conventions:
+            self.model = self.kb.rust_calling_conventions[self.func.addr]
         else:
             self.model = RustCallingConventionModel()
 
@@ -613,6 +613,11 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
             ).with_arch(self.project.arch)
             candidates_and_paths.append(((struct_ty, discriminant), path))
 
+        if self.func.addr == 0x4AF6A0:
+            import ipdb
+
+            ipdb.set_trace()
+
         # Return inferred enum type if we found one, otherwise return the struct type with the largest size
         returnty = self._infer_potential_enum_type(candidates_and_paths)
         if not returnty and candidates_and_paths:
@@ -819,19 +824,17 @@ class RustCallingConventionAnalysis(Analysis, CFAMixin, SRDAMixin, DFAMixin):
     def _analyze(self):
         self.collect_function_body_facts()
         self.collect_callsite_facts()
-        # self.collect_post_callsite_facts()
         self.model.has_write_to_arg0 = self.model.has_write_to_arg0 or self._fact_collector.has_write_to_arg0
         self.model.const_ret_values.update(self._fact_collector.const_ret_values)
 
         prototype = self.infer_prototype()
+        if self.func.addr == 0x4AF6A0:
+            import ipdb
 
-        # if self.rewrite and prototype.is_arg0_retbuf:
-        #     self._rewrite_return_sites()
+            ipdb.set_trace()
 
         self.model.inferred_prototype = prototype
-        self.kb.rust_calling_conventions.cache[self.func.addr] = self.model
-        # l.debug(f"Memory writes:\n{pformat(dict(self.model.memory_writes))}")
-        # l.debug(f"Callsite memory writes:\n{pformat(dict(self.model.callsite_memory_writes))}")
+        self.kb.rust_calling_conventions[self.func.addr] = self.model
         l.debug(f"Analysis result for {demangle(self.func.name)} (addr: {hex(self.func.addr)}): {str(self.model)}")
 
 
