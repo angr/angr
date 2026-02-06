@@ -938,6 +938,10 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         **ccall.tags,
                     )
 
+        elif ccall.cee_name == "amd64g_calculate_rflags_all":
+            # calculating all the flags, which is very likely used for storing all flags
+            return Expr.Const(None, None, 0, ccall.bits, **ccall.tags)
+
         return None
 
     @staticmethod
