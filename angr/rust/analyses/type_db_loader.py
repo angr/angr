@@ -358,12 +358,13 @@ class TypeDBLoader(Analysis):
                 for func_addr in name_to_func_addrs[func_name]:
                     # Re-fetch the function each time to get the current object from the cache
                     func = self.kb.functions[func_addr]
-                    old_prototype = func.prototype.with_arch(self.project.arch)
-                    negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
-                    if negotiated_prototype is not None:
-                        func.prototype = negotiated_prototype
-                        func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
-                        func.is_prototype_guessed = False
+                    if func.prototype:
+                        old_prototype = func.prototype.with_arch(self.project.arch)
+                        negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
+                        if negotiated_prototype is not None:
+                            func.prototype = negotiated_prototype
+                            func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
+                            func.is_prototype_guessed = False
                 self.project.kb.librust.set_prototype(func_name, prototype)
         l.info("Loaded %d functions from type database.", len(prototypes))
 
