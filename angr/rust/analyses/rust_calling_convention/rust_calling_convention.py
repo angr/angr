@@ -9,10 +9,8 @@ from angr.ailment.block import Block
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Call
 from angr.analyses import Analysis, AnalysesHub
-from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.knowledge_plugins.functions import Function
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
-from angr.rust.optimization_passes.unreachable_branch_fixer import UnreachableBranchFixer
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.sim_type import (
     RustSimEnum,
@@ -117,10 +115,6 @@ class RustCallingConventionAnalysis(Analysis):
         self.model.inferred_prototype = self._infer_prototype()
         self.kb.rust_calling_conventions[self.func.addr] = self.model
         l.debug(f"Analysis result for {demangle(self.func.name)} (addr: {hex(self.func.addr)}): {self.model}")
-        if self.func.addr == 0x4AF6A0:
-            import ipdb
-
-            ipdb.set_trace()
 
     # -- prototype inference -------------------------------------------------
 
