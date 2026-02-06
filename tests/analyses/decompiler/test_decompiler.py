@@ -5107,23 +5107,22 @@ class TestDecompiler(unittest.TestCase):
         # Ensure v0 <= 1000 branch is not flipped
         text = normalize_whitespace(dec.codegen.text)
         expected = normalize_whitespace(r"""
-            v0 = 10;
-            if (v0 <= 1000)
-            {
-                v0 += 1;
-                v0 += 2;
-                v0 += 3;
-                v0 += 4;
-                v0 += 5;
-                v0 += 6;
-                v0 += 7;
-                v0 += 8;
-                v0 += 9;
-            }
+            (\w+) = 10;
+            if \(\1 <= 1000\) \{
+                \1 \+= 1;
+                \1 \+= 2;
+                \1 \+= 3;
+                \1 \+= 4;
+                \1 \+= 5;
+                \1 \+= 6;
+                \1 \+= 7;
+                \1 \+= 8;
+                \1 \+= 9;
+            \}
+            .*g\(\1\)
             """)
 
-        assert expected in text
-        assert "g(v0)" in text
+        assert re.search(expected, text) is not None
 
     def test_decompiling_control_flow_guard_protected_binaries(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "windows", "control_flow_guard_test.exe")
