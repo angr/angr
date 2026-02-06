@@ -299,7 +299,12 @@ class Sketch:
             basetype = supertype
             if not isinstance(basetype, (TopType, BottomType)):
                 assert basetype.size is not None
-                if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
+                if (
+                    max_size not in {0, None}
+                    and basetype.size > 0
+                    and max_size // basetype.size > 1
+                    and basetype.size <= 8
+                ):  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
@@ -1007,13 +1012,16 @@ class SimpleSolver:
             cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
             existing_elements = cls0_elems | cls1_elems
             # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, DerivedTypeVariable):
+            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls0
-            elif not isinstance(cls1, DerivedTypeVariable):
+            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
                 rep_cls = next(
-                    iter(elem for elem in existing_elements if not isinstance(elem, DerivedTypeVariable)), cls0
+                    iter(
+                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    cls0,
                 )
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls

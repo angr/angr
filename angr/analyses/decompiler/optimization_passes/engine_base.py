@@ -336,6 +336,26 @@ class SimplifierAILEngine(
             **expr.tags,
         )
 
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract):
+        return ailment.expression.Extract(
+            expr.idx,
+            expr.bits,
+            self._expr(expr.base),
+            self._expr(expr.offset),
+            expr.endness,
+            **expr.tags,
+        )
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        return ailment.expression.Insert(
+            expr.idx,
+            self._expr(expr.base),
+            self._expr(expr.offset),
+            self._expr(expr.value),
+            expr.endness,
+            **expr.tags,
+        )
+
     def _handle_expr_Call(self, expr):
         return expr
 

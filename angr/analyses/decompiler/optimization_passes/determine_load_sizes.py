@@ -21,8 +21,8 @@ class DetermineLoadSizes(OptimizationPass):
     NAME = "Determine sizes of loads whose sizes are undetermined"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -54,7 +54,6 @@ class DetermineLoadSizes(OptimizationPass):
                                 operand.addr.value, max_size=4096
                             )
                             if bs is not None:
-                                operand.size = len(bs)
                                 operand.bits = len(bs) * 8
                     changed = True
 

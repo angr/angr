@@ -102,13 +102,12 @@ class SemanticNamingBase(ABC):
 
     # --- Helper methods for subclasses ---
 
-    @staticmethod
-    def _get_linked_variable(expr) -> SimVariable | None:
+    def _get_linked_variable(self, expr) -> SimVariable | None:
         """
         Get the SimVariable linked to an expression, if any.
         """
         if hasattr(expr, "variable") and expr.variable is not None:
-            return expr.variable
+            return self._variable_manager.unified_variable(expr.variable)
         return None
 
     def _get_function_name(self, call: Call) -> str | None:

@@ -1,30 +1,30 @@
 from __future__ import annotations
 import logging
-from typing import Any, Literal
+from typing import Literal, TypeAlias
 from collections import defaultdict
 from itertools import count
-from bisect import bisect_left
 
-from angr.ailment import Address
+import networkx
+
+from angr.ailment import Address, Block
 from angr.ailment.expression import (
-    Expression,
     Register,
     StackBaseOffset,
-    Tmp,
     VirtualVariable,
-    VirtualVariableCategory,
-    Load,
 )
-from angr.ailment.statement import Statement, Store
 
+from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
-from angr.code_location import AILCodeLocation
 from angr.analyses import Analysis, register_analysis
-from angr.utils.ssa import get_reg_offset_base_and_size
 from .traversal import TraversalAnalysis
 from .rewriting import RewritingAnalysis
 
 l = logging.getLogger(name=__name__)
+
+
+Kind: TypeAlias = Literal["stack", "reg"]
+UDef: TypeAlias = tuple[Kind, int, int]
+Def: TypeAlias = StackBaseOffset | Register
 
 
 class Ssailification(Analysis):  # pylint:disable=abstract-method
@@ -35,15 +35,16 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
     def __init__(
         self,
         func: Function | str,
-        ail_graph,
-        entry=None,
-        canonical_size=8,
+        ail_graph: networkx.DiGraph[Block],
+        entry: Block | None = None,
+        canonical_size: int = 8,
         stack_pointer_tracker=None,
         func_addr: int | None = None,
         ail_manager=None,
         ssa_stackvars: bool = False,
         ssa_tmps: bool = False,
         func_args: set[VirtualVariable] | None = None,
+        rewrite_vvars: set[int] | None = None,
         vvar_id_start: int = 0,
     ):
         """
@@ -63,6 +64,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self._ail_manager = ail_manager
         self._ssa_stackvars = ssa_stackvars
         self._ssa_tmps = ssa_tmps
+        self._rewrite_vvars = rewrite_vvars or set()
         self._func_args = func_args if func_args is not None else set()
         self._entry = (
             entry
@@ -82,202 +84,84 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             bp_as_gpr,
             ssa_stackvars,
             ssa_tmps,
-            self._func_args,
+            set(),
+            self.kb.functions.get,
         )
 
         # calculate virtual variables and phi nodes
         self._udef_to_phiid: dict[tuple, set[int]] = {}
         self._phiid_to_loc: dict[int, tuple[int, int | None]] = {}
-        self._stackvar_locs: dict[int, set[int]] = {}
-        self._calculate_virtual_variables(ail_graph, traversal.def_to_loc, traversal.loc_to_defs)
+
+        udef_to_defs: defaultdict[UDef, set[Def]] = defaultdict(set)
+        udef_to_blockkeys: defaultdict[UDef, set[Address]] = defaultdict(set)
+        blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
+        def_to_udef: dict[Def, UDef] = {}
+        extern_defs: set[UDef] = set()
+        incomplete_defs: set[Def] = set()
+        for def_, definfo in traversal.def_info.items():
+            if definfo.store_size != definfo.variable_size:
+                incomplete_defs.add(def_)
+            udef = (definfo.kind, definfo.variable_offset, definfo.variable_size)
+            udef_to_defs[udef].add(def_)
+            if definfo.loc.is_extern:
+                extern_defs.add(udef)
+                udef_to_blockkeys[udef].add((-1, None))
+            else:
+                blockkey = (definfo.loc.addr, definfo.loc.block_idx)
+                def_to_udef[def_] = udef
+                udef_to_blockkeys[udef].add(blockkey)
+
+        # Computer the dominance frontier for each node in the graph
+        df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
+        frontiers = df.frontiers
+
+        phi_id_ctr = count()
+
+        phiid_to_udef: dict[int, UDef] = {}
+        block_to_phiids: defaultdict[Block, list[int]] = defaultdict(list)
+        for udef, block_keys in udef_to_blockkeys.items():
+            blocks = {self._entry if block_key[0] == -1 else blockkey_to_block[block_key] for block_key in block_keys}
+            frontier_plus = calculate_iterated_dominace_frontier_set(frontiers, blocks)
+            for block in frontier_plus:
+                # Don't generate a phi for this udef if the udef does not correspond to the actual live
+                # varible at this location
+                if (state := traversal.start_states.get(block, None)) is not None:
+                    defmap = {"stack": state.stackvar_defs, "reg": state.register_defs}[udef[0]]
+                    if udef[1] not in defmap:
+                        continue
+                    defs = set(defmap[udef[1]])
+                    # Generally, we only see multiple sizes if a) the variable is actually unused past this point
+                    # or b) this is the top of a loop with one def at the bottom
+                    if udef[2] != max(traversal.def_info[def_].variable_size for def_ in defs):
+                        continue
+                    defs2 = set()
+                    for suboffset in range(udef[1] + 1, udef[1] + udef[2]):
+                        defs2.update(defmap.get(suboffset, ()))
+                    if (defs & defs2) != defs2:
+                        continue
+                phi_id = next(phi_id_ctr)
+                phiid_to_udef[phi_id] = udef
+                block_to_phiids[block].append(phi_id)
 
         # insert phi variables and rewrite uses
         rewriter = RewritingAnalysis(
             self.project,
             self._function,
             ail_graph,
-            stack_pointer_tracker,
-            bp_as_gpr,
-            self._udef_to_phiid,
-            self._phiid_to_loc,
-            self._stackvar_locs,
+            phiid_to_udef,
+            block_to_phiids,
             self._ssa_tmps,
             self._ail_manager,
             self._func_args,
+            def_to_udef,
+            extern_defs,
+            incomplete_defs=incomplete_defs,
             vvar_id_start=vvar_id_start,
+            stackvars=self._ssa_stackvars,
         )
-        self.secondary_stackvars = rewriter.secondary_stackvars
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
-
-    def _calculate_virtual_variables(
-        self,
-        ail_graph,
-        def_to_loc: list[tuple[Expression | Statement, AILCodeLocation]],
-        loc_to_defs: dict[AILCodeLocation, Any],
-    ):
-        """
-        Calculate the mapping from defs to virtual variables as well as where to insert phi nodes.
-        """
-
-        # Computer the dominance frontier for each node in the graph
-        df = self.project.analyses.DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
-        frontiers = df.frontiers
-
-        blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
-        blockkey_to_defs = defaultdict(set)
-        for codeloc, defs in loc_to_defs.items():
-            block_key = codeloc.block_addr, codeloc.block_idx
-            if block_key in blockkey_to_block:
-                for def_ in defs:
-                    blockkey_to_defs[block_key].add(def_)
-
-        if self._ssa_stackvars:
-            # for stack variables, we collect all definitions and identify stack variable locations using heuristics
-
-            stackvar_locs = self._synthesize_stackvar_locs(
-                [def_ for def_, _ in def_to_loc if isinstance(def_, (Store, StackBaseOffset))]
-            )
-            # handle function arguments
-            if self._func_args:
-                for func_arg in self._func_args:
-                    if func_arg.parameter_category == VirtualVariableCategory.STACK:
-                        assert isinstance(func_arg.parameter_stack_offset, int)
-                        stackvar_locs[func_arg.parameter_stack_offset] = {func_arg.size}
-            sorted_stackvar_offs = sorted(stackvar_locs)
-        else:
-            stackvar_locs = {}
-            sorted_stackvar_offs = []
-
-        # compute phi node locations for each unified definition
-        # compute udef_to_blockkeys
-        udef_to_defs: defaultdict[
-            tuple[Literal["stack"] | Literal["reg"], int, int | None], set[Expression | Statement]
-        ] = defaultdict(set)
-        udef_to_blockkeys: defaultdict[tuple[Literal["stack"] | Literal["reg"], int, int | None], set[Address]] = (
-            defaultdict(set)
-        )
-        for def_, loc in def_to_loc:
-            if isinstance(def_, Register):
-                base_off, base_size = get_reg_offset_base_and_size(def_.reg_offset, self.project.arch, size=def_.size)
-                base_reg_bits = base_size * self.project.arch.byte_width
-                udef_to_defs[("reg", base_off, base_reg_bits)].add(def_)
-                udef_to_blockkeys[("reg", base_off, base_reg_bits)].add((loc.block_addr, loc.block_idx))
-                # add a definition for the partial register
-                if base_off != def_.reg_offset or base_size != def_.size:
-                    reg_bits = def_.size * self.project.arch.byte_width
-                    udef_to_defs[("reg", def_.reg_offset, reg_bits)].add(def_)
-                    udef_to_blockkeys[("reg", def_.reg_offset, reg_bits)].add((loc.block_addr, loc.block_idx))
-            elif isinstance(def_, (Store, Load)):
-                if isinstance(def_.addr, StackBaseOffset) and isinstance(def_.addr.offset, int):
-                    idx_begin = bisect_left(sorted_stackvar_offs, def_.addr.offset)
-                    for i in range(idx_begin, len(sorted_stackvar_offs)):
-                        off = sorted_stackvar_offs[i]
-                        if off >= def_.addr.offset + def_.size:
-                            break
-                        full_sz = max(stackvar_locs[off])
-                        udef_to_defs[("stack", off, full_sz)].add(def_)
-                        udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
-                        # add a definition for the partial stack variable
-                        if def_.size in stackvar_locs[off] and def_.size < full_sz:
-                            udef_to_defs[("stack", off, def_.size)].add(def_)
-                            udef_to_blockkeys[("stack", off, def_.size)].add((loc.block_addr, loc.block_idx))
-            elif isinstance(def_, StackBaseOffset):
-                sz = 1
-                idx_begin = bisect_left(sorted_stackvar_offs, def_.offset)
-                for i in range(idx_begin, len(sorted_stackvar_offs)):
-                    off = sorted_stackvar_offs[i]
-                    if off >= def_.offset + sz:
-                        break
-                    full_sz = max(stackvar_locs[off])
-                    udef_to_defs[("stack", off, full_sz)].add(def_)
-                    udef_to_blockkeys[("stack", off, full_sz)].add((loc.block_addr, loc.block_idx))
-            elif isinstance(def_, Tmp):
-                # Tmps are local to each block and do not need phi nodes
-                pass
-            else:
-                raise NotImplementedError
-                # other types are not supported yet
-
-        phi_id_ctr = count()
-
-        udef_to_phiid = defaultdict(set)
-        phiid_to_loc = {}
-        for udef, block_keys in udef_to_blockkeys.items():
-            blocks = {blockkey_to_block[block_key] for block_key in block_keys}
-            frontier_plus = self._calculate_iterated_dominace_frontier_set(frontiers, blocks)
-            for block in frontier_plus:
-                phi_id = next(phi_id_ctr)
-                udef_to_phiid[udef].add(phi_id)
-                phiid_to_loc[phi_id] = block.addr, block.idx
-
-        self._stackvar_locs = stackvar_locs
-        self._udef_to_phiid = udef_to_phiid
-        self._phiid_to_loc = phiid_to_loc
-
-    @staticmethod
-    def _calculate_iterated_dominace_frontier_set(frontiers: dict, blocks: set) -> set:
-        last_frontier: set | None = None
-        while True:
-            frontier = set()
-            for b in blocks:
-                if b in frontiers:
-                    frontier |= frontiers[b]
-            if last_frontier is not None and last_frontier == frontier:
-                break
-            last_frontier = frontier
-            blocks |= frontier
-        return last_frontier
-
-    @staticmethod
-    def _synthesize_stackvar_locs(defs: list[Store | StackBaseOffset]) -> dict[int, set[int]]:
-        """
-        Derive potential locations (in terms of offsets and sizes) for stack variables based on all stack variable
-        definitions provided.
-
-        :param defs:    Store definitions.
-        :return:        A dictionary of stack variable offsets and their sizes.
-        """
-
-        accesses: defaultdict[int, set[int]] = defaultdict(set)
-        offs: set[int] = set()
-
-        for def_ in defs:
-            if isinstance(def_, StackBaseOffset):
-                stack_off = def_.offset
-                accesses[stack_off].add(-1)  # we will fix it later
-                offs.add(stack_off)
-            elif isinstance(def_, Store) and isinstance(def_.addr, StackBaseOffset):
-                stack_off = def_.addr.offset
-                accesses[stack_off].add(def_.size)
-                offs.add(stack_off)
-
-        sorted_offs = sorted(offs)
-        locs: dict[int, set[int]] = {}
-        for idx, off in enumerate(sorted_offs):
-            sorted_sizes = sorted(accesses[off])
-            if -1 in sorted_sizes:
-                sorted_sizes.remove(-1)
-
-            allowed_sizes = []
-            if not sorted_sizes:
-                # this location is only referenced by a ref; we guess its size
-                if idx < len(sorted_offs) - 1:
-                    next_off = sorted_offs[idx + 1]
-                    sz = next_off - off
-                    if sz > 0:
-                        allowed_sizes = [min(sz, 8)]
-            else:
-                if idx < len(sorted_offs) - 1:
-                    next_off = sorted_offs[idx + 1]
-                    allowed_sizes = [sz for sz in sorted_sizes if off + sz <= next_off]
-                else:
-                    allowed_sizes = sorted_sizes
-
-            if allowed_sizes:
-                locs[off] = set(allowed_sizes)
-
-        return locs
+        self.resized_func_args = rewriter.resized_func_args
 
 
 register_analysis(Ssailification, "Ssailification")

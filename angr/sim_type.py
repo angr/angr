@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import enum
 import re
 import logging
 from typing import Literal, Any, cast, overload, TYPE_CHECKING
@@ -213,7 +214,7 @@ class SimType:
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
-            if isinstance(t, SimTypeRef) and type_collection is not None and t.name not in memo:
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name is not None and t.name not in memo:
                 # attempt to resolve the type ref
                 with contextlib.suppress(AngrMissingTypeError):
                     return type_collection.get(t.name, memo=memo)
@@ -224,6 +225,7 @@ class SimType:
             memo.add(d["name"])
         for field in cls._args:
             field_key = "q" if field == "qualifier" else field
+            field_key = "disp" if field == "disposition" else field
             if field_key not in d:
                 continue
             value = d[field_key]
@@ -879,16 +881,34 @@ class SimTypeFd(SimTypeReg):
         return state.solver.eval(out)
 
 
+class PointerDisposition(enum.IntEnum):
+    IN_OUT = 0
+    IN = 1
+    OUT = 2
+    # outmaybe = conditionally overwritten
+    IN_OUTMAYBE = 3
+    OUTMAYBE = 4
+    NONE = 5
+    UNKNOWN = 6
+
+
 class SimTypePointer(SimTypeReg):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
-    _args = ("pts_to", "label", "offset", "qualifier")
+    _fields = (*(x for x in SimTypeReg._fields if x != "size"), "pts_to")
+    _args = ("pts_to", "label", "offset", "qualifier", "disposition")
     _ident = "ptr"
 
-    def __init__(self, pts_to, label=None, offset=0, qualifier: Iterable | None = None):
+    def __init__(
+        self,
+        pts_to: SimType,
+        label=None,
+        offset=0,
+        qualifier: Iterable[str] | None = None,
+        disposition: PointerDisposition | int = PointerDisposition.UNKNOWN,
+    ):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
@@ -897,6 +917,9 @@ class SimTypePointer(SimTypeReg):
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
+        if not isinstance(disposition, PointerDisposition):
+            disposition = PointerDisposition(disposition)
+        self.disposition = disposition
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         if memo is None:
@@ -906,6 +929,8 @@ class SimTypePointer(SimTypeReg):
             d.pop("offset")
         if "q" in d and not d["q"]:
             d.pop("q")
+        if (disp := d.pop("disposition")) != PointerDisposition.UNKNOWN:
+            d["disp"] = int(disp)
         return d
 
     def __repr__(self):
@@ -944,16 +969,21 @@ class SimTypePointer(SimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = SimTypePointer(
+            self.pts_to.with_arch(arch), self.label, self.offset, qualifier=self.qualifier, disposition=self.disposition
+        )
         out._arch = arch
         return out
 
     def _init_str(self):
         label_str = f', label="{self.label}"' if self.label is not None else ""
-        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}, offset={self.offset})"
+        disposition_str = (
+            f", disposition={int(self.disposition)}" if self.disposition != PointerDisposition.UNKNOWN else ""
+        )
+        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}{disposition_str}, offset={self.offset})"
 
     def copy(self):
-        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset, disposition=self.disposition)
 
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
@@ -3208,7 +3238,7 @@ GLIBC_TYPES = {
         name="dirent64",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
-    "stat": SimStruct(
+    "struct stat": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -3226,7 +3256,7 @@ GLIBC_TYPES = {
         name="stat",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L86
-    "stat64": SimStruct(
+    "struct stat64": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -3722,25 +3752,27 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def parse_signature(defn, predefined_types=None, arch=None):
+def parse_signature(defn, predefined_types=None, arch=None) -> SimTypeFunction:
     """
     Parse a single function prototype and return its type
     """
     try:
         parsed = parse_file(defn.strip(" \n\t;") + ";", predefined_types=predefined_types, arch=arch)
-        return next(iter(parsed[0].values()))
+        result = next(iter(parsed[0].values()))
+        assert isinstance(result, SimTypeFunction)
+        return result
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
 
-def parse_defns(defn, predefined_types=None, arch=None):
+def parse_defns(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
     return parse_file(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, predefined_types=None, arch=None):
+def parse_types(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
@@ -3755,7 +3787,7 @@ def parse_file(
     predefined_types: dict[Any, SimType] | None = None,
     arch=None,
     side_effect_types: dict[Any, SimType] | None = None,
-):
+) -> tuple[dict[str, SimType], dict[str, SimType]]:
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.

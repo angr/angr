@@ -8,9 +8,9 @@ import os
 import unittest
 
 import angr
+from angr.ailment.manager import Manager
 from angr.ailment.expression import BinaryOp, Const, Convert, Register
 from angr.analyses.decompiler.peephole_optimizations import ConcatSimplifier
-
 from tests.common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
@@ -19,7 +19,8 @@ test_location = os.path.join(bin_location, "tests")
 class TestPeepholeConcatSimplifier(unittest.TestCase):
     def setUp(self):
         self.proj = angr.load_shellcode(b"\x90", "AMD64")
-        self.opt = ConcatSimplifier(self.proj, self.proj.kb)
+        self.manager = Manager()
+        self.opt = ConcatSimplifier(self.proj, self.proj.kb, self.manager)
 
     def test_zero_extend_concat(self):
         # 0 CONCAT a  =>  Convert(a, unsigned, 2*bits)
@@ -55,7 +56,7 @@ class TestPeepholeConcatSimplifier(unittest.TestCase):
         shr = BinaryOp(None, "Shr", [concat, Const(None, None, 32, 8)], False, bits=64)
 
         result = self.opt.optimize(shr)
-        assert result is high
+        assert result == Convert(None, 32, 64, False, high)
 
     def test_low_part_extraction_and(self):
         # (a CONCAT b) & 0xFFFFFFFF  =>  b

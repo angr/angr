@@ -6,8 +6,11 @@ from collections.abc import Callable, Iterable
 import networkx
 
 import archinfo
-from angr.ailment import Expression, Block, UnaryOp, Address
+from angr.ailment import Expression, Block, Address
 from angr.ailment.expression import (
+    Convert,
+    Extract,
+    Insert,
     VirtualVariable,
     Const,
     Phi,
@@ -17,6 +20,7 @@ from angr.ailment.expression import (
     StackBaseOffset,
     DirtyExpression,
     ITE,
+    UnaryOp,
 )
 from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
 from angr.ailment.block_walker import AILBlockViewer
@@ -25,6 +29,7 @@ from angr.knowledge_plugins.key_definitions import atoms
 from angr.code_location import AILCodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
+from .vvar_extra_defs_collector import FindExtraDefs
 
 DEPHI_VVAR_REG_OFFSET = 4096
 
@@ -94,6 +99,8 @@ def get_vvar_deflocs(
     blocks, phi_vvars: dict[int, set[int | None]] | None = None
 ) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
     vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
+    walker = FindExtraDefs()
+    walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
@@ -116,6 +123,10 @@ def get_vvar_deflocs(
                         stmt.fp_ret_expr,
                         AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
+
+            if extra_defs := stmt.tags.get("extra_defs", None):
+                walker.walk_statement(stmt, block, stmt_idx)
+                assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
 
     return vvar_to_loc
 
@@ -166,8 +177,10 @@ def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, se
     return tmp_to_loc
 
 
-def is_const_assignment(stmt: Statement) -> tuple[bool, Const | StackBaseOffset | None]:
-    if isinstance(stmt, Assignment) and isinstance(stmt.src, (Const, StackBaseOffset)):
+def is_const_assignment(stmt: Statement, only_consts: bool = False) -> tuple[bool, Const | StackBaseOffset | None]:
+    if isinstance(stmt, Assignment) and (
+        isinstance(stmt.src, Const) or (not only_consts and isinstance(stmt.src, StackBaseOffset))
+    ):
         return True, stmt.src
     return False, None
 
@@ -308,6 +321,25 @@ def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
     return walker.has_references_to_vvar
 
 
+def stmt_is_simple_call(stmt: Statement) -> Call | None:
+    if isinstance(stmt, Call):
+        return stmt
+    if not isinstance(stmt, Assignment):
+        return None
+    src = stmt.src
+    while True:
+        if isinstance(src, Call):
+            return src
+        if isinstance(src, Convert):
+            src = src.operand
+        elif isinstance(src, Extract):
+            src = src.base
+        elif isinstance(src, Insert):
+            src = src.value
+        else:
+            return None
+
+
 def check_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
@@ -384,10 +416,19 @@ def has_load_expr_in_between_stmts(
     )
 
 
-def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
+def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None, stack_arg_offsets: set[int] | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
+        if isinstance(def_stmt, Assignment):
+            # do not create huge insert chains
+            return not isinstance(def_stmt.src, Insert)
         return True
-    if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
+    if vvar.was_stack and isinstance(def_stmt, Assignment):
+        if (
+            stack_arg_offsets is not None
+            and vvar.stack_offset in stack_arg_offsets
+            and not isinstance(def_stmt.src, Phi)
+        ):
+            return True
         if (
             isinstance(def_stmt.src, VirtualVariable)
             and def_stmt.src.was_stack

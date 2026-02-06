@@ -72,8 +72,8 @@ class ModSimplifier(OptimizationPass):
     NAME = "Simplify optimized mod forms"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.state = SimplifierAILState(self.project.arch)
         self.engine = ModSimplifierAILEngine(self.project)

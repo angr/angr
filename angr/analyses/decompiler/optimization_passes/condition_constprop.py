@@ -81,8 +81,8 @@ class ConditionConstantPropagation(OptimizationPass):
     NAME = "Propagate constants using information deduced from conditionals."
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):

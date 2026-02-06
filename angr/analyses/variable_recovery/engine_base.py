@@ -457,6 +457,10 @@ class SimEngineVRBase(
         self.vvar_region[vvar_id] = annotated_data
         self.state.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
+        if vvar.was_stack:
+            # shove it on the stack so we can get it back later by reference
+            self.state.stack_region.store(vvar.stack_offset, annotated_data)
+
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
                 # optimization: if richr.typevar is a derived typevar, we simply carry it over instead of creating a

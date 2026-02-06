@@ -31,8 +31,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
     NAME = "Duplicate default-case nodes to undo default-case node reuse caused by compiler code deduplication"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.node_idx = count(start=self._scratch.get("node_idx", 0))
 
@@ -153,7 +153,8 @@ class SwitchDefaultCaseDuplicator(OptimizationPass):
                         if unexpected_pred in jump_node_descedents:
                             continue
 
-                        default_case_block_copy = default_case_block.copy()
+                        assert default_case_block is not None
+                        default_case_block_copy = default_case_block.deep_copy(self.manager)
                         default_case_block_copy.idx = next(self.node_idx)
                         if out_graph is None:
                             out_graph = self._graph

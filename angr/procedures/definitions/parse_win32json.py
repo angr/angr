@@ -10,13 +10,20 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import angr
-from angr.sim_type import SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypeInt, SimTypeBottom, SimTypePointer
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
 
+logging.root.setLevel("DEBUG")
+
+# The win32json marks some outparams as inout. fix this
+OVERRIDE_OUTPARAMS = {
+    ("RtlInitUnicodeString", 0),
+}
+
 api_namespaces = {}
 altnames = set()
-
+dump_root = Path(__file__).parent
 
 typelib = SimTypeCollection()
 typelib.names = ["win32"]
@@ -193,6 +200,7 @@ def create_angr_type_from_json(t):
             new_param = handle_json_type(param["Type"])
             args.append(new_param)
             arg_names.append(param["Name"])
+
         typelib.add(
             t["Name"], angr.types.SimTypePointer(angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names))
         )
@@ -268,14 +276,28 @@ def do_it(in_dir):
                 libname = "ntoskrnl"
                 suffix = "exe"
             ret_type = handle_json_type(f["ReturnType"], create_missing=True)
+            variadic = f["CallingConvention"] == "VarArgs"
             args = []
             arg_names = []
-            for param in f["Params"]:
+            for idx, param in enumerate(f["Params"]):
                 new_param = handle_json_type(param["Type"], create_missing=True)
                 assert new_param is not None, "This should not happen, please report this."
                 args.append(new_param)
                 arg_names.append(param["Name"])
-            new_func = angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names)
+
+                if isinstance(new_param, SimTypePointer):
+                    attrset = {x for x in param["Attrs"] if isinstance(x, str)}
+
+                    if (f["Name"], idx) in OVERRIDE_OUTPARAMS:
+                        new_param.disposition = PointerDisposition.OUT
+                    elif len(attrset.intersection({"In", "Out"})) == 2:
+                        new_param.disposition = PointerDisposition.IN_OUT
+                    elif "Out" in attrset:
+                        new_param.disposition = PointerDisposition.OUT
+                    elif "In" in attrset:
+                        new_param.disposition = PointerDisposition.IN
+
+            new_func = angr.types.SimTypeFunction(args, ret_type, arg_names=arg_names, variadic=variadic)
             new_func_name = f["Name"]
             parsed_cprotos[(prefix, libname, suffix)].append((new_func_name, new_func, ""))
             func_count += 1
@@ -2507,8 +2529,9 @@ def do_it(in_dir):
 
     # dump to JSON files
     for (prefix, libname, suffix), parsed_cprotos_per_lib in parsed_cprotos.items():
+        full_prefix = dump_root / prefix
         filename = libname.replace(".", "_") + ".json"
-        os.makedirs(prefix, exist_ok=True)
+        os.makedirs(full_prefix, exist_ok=True)
         logging.debug("Writing to file %s...", filename)
         non_returning = []
         d = {
@@ -2527,11 +2550,11 @@ def do_it(in_dir):
                 non_returning.append(func)
         if not non_returning:
             del d["non_returning"]
-        with open(os.path.join(prefix, filename), "w", encoding="utf-8") as f:
+        with open(os.path.join(full_prefix, filename), "w", encoding="utf-8") as f:
             f.write(json.dumps(d, indent="\t"))
 
     # Dump the type collection to a JSON file
-    with open("win32/_types_win32.json", "w", encoding="utf-8") as f:
+    with open(dump_root / "win32/_types_win32.json", "w", encoding="utf-8") as f:
         logging.debug("Writing to file win32/win32_types.json...")
         f.write(json.dumps(typelib.to_json(types_as_string=True), indent="\t"))
 

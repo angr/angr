@@ -12,181 +12,181 @@
 	},
 	"functions": {
 		"CreateNamedPropertyStore": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INamedPropertyStore', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppStore']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'INamedPropertyStore', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppStore']}"
 		},
 		"MFCreate3GPMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
 		},
 		"MFCreateAC3MediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
 		},
 		"MFCreateADTSMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'pAudioMediaType', 'ppMediaSink']}"
 		},
 		"MFCreateASFContentInfo": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIContentInfo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIContentInfo']}"
 		},
 		"MFCreateASFIndexer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFIndexer', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIIndexer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFIndexer', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIIndexer']}"
 		},
 		"MFCreateASFIndexerByteStream": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIContentByteStream', 'cbIndexStartOffset', 'pIIndexByteStream']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'llong', 'signed': false, 'label': 'UInt64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIContentByteStream', 'cbIndexStartOffset', 'pIIndexByteStream']}"
 		},
 		"MFCreateASFMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'ppIMediaSink']}"
 		},
 		"MFCreateASFMediaSinkActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszFileName', 'pContentInfo', 'ppIActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pwszFileName', 'pContentInfo', 'ppIActivate']}"
 		},
 		"MFCreateASFMultiplexer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFMultiplexer', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIMultiplexer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFMultiplexer', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIMultiplexer']}"
 		},
 		"MFCreateASFProfile": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIProfile']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppIProfile']}"
 		},
 		"MFCreateASFProfileFromPresentationDescriptor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFPresentationDescriptor', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIPD', 'ppIProfile']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFPresentationDescriptor', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIPD', 'ppIProfile']}"
 		},
 		"MFCreateASFSplitter": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFSplitter', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppISplitter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFSplitter', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppISplitter']}"
 		},
 		"MFCreateASFStreamSelector": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFStreamSelector', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIASFProfile', 'ppSelector']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFASFStreamSelector', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIASFProfile', 'ppSelector']}"
 		},
 		"MFCreateASFStreamingMediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'ppIMediaSink']}"
 		},
 		"MFCreateASFStreamingMediaSinkActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pByteStreamActivate', 'pContentInfo', 'ppIActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFASFContentInfo', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pByteStreamActivate', 'pContentInfo', 'ppIActivate']}"
 		},
 		"MFCreateAggregateSource": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFCollection', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSourceCollection', 'ppAggSource']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFCollection', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSourceCollection', 'ppAggSource']}"
 		},
 		"MFCreateAudioRenderer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAudioAttributes', 'ppSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAudioAttributes', 'ppSink']}"
 		},
 		"MFCreateAudioRendererActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppActivate']}"
 		},
 		"MFCreateCredentialCache": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFNetCredentialCache', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppCache']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFNetCredentialCache', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppCache']}"
 		},
 		"MFCreateDeviceSource": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'ppSource']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'ppSource']}"
 		},
 		"MFCreateDeviceSourceActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'ppActivate']}"
 		},
 		"MFCreateEncryptedMediaExtensionsStoreActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFPMPHostApp', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pmpHost', 'objectStream', 'classId', 'activate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFPMPHostApp', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pmpHost', 'objectStream', 'classId', 'activate']}"
 		},
 		"MFCreateFMPEG4MediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
 		},
 		"MFCreateMP3MediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'ppMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pTargetByteStream', 'ppMediaSink']}"
 		},
 		"MFCreateMPEG4MediaSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIByteStream', 'pVideoMediaType', 'pAudioMediaType', 'ppIMediaSink']}"
 		},
 		"MFCreateMediaSession": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSession', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pConfiguration', 'ppMediaSession']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSession', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pConfiguration', 'ppMediaSession']}"
 		},
 		"MFCreateMuxSink": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['guidOutputSubType', 'pOutputAttributes', 'pOutputByteStream', 'ppMuxSink']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSink', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['guidOutputSubType', 'pOutputAttributes', 'pOutputByteStream', 'ppMuxSink']}"
 		},
 		"MFCreateNetSchemePlugin": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppvHandler']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riid', 'ppvHandler']}"
 		},
 		"MFCreatePMPMediaSession": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSession', 'ot': 'bot'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCreationFlags', 'pConfiguration', 'ppMediaSession', 'ppEnablerActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaSession', 'ot': 'bot'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCreationFlags', 'pConfiguration', 'ppMediaSession', 'ppEnablerActivate']}"
 		},
 		"MFCreatePMPServer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPMPServer', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCreationFlags', 'ppPMPServer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPMPServer', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwCreationFlags', 'ppPMPServer']}"
 		},
 		"MFCreatePresentationClock": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPresentationClock', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppPresentationClock']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPresentationClock', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppPresentationClock']}"
 		},
 		"MFCreatePresentationDescriptorFromASFProfile": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPresentationDescriptor', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIProfile', 'ppIPD']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFASFProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFPresentationDescriptor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIProfile', 'ppIPD']}"
 		},
 		"MFCreateProtectedEnvironmentAccess": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFProtectedEnvironmentAccess', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppAccess']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFProtectedEnvironmentAccess', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppAccess']}"
 		},
 		"MFCreateProxyLocator": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFNetProxyLocator', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszProtocol', 'pProxyConfig', 'ppProxyLocator']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFNetProxyLocator', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszProtocol', 'pProxyConfig', 'ppProxyLocator']}"
 		},
 		"MFCreateRemoteDesktopPlugin": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFRemoteDesktopPlugin', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppPlugin']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFRemoteDesktopPlugin', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppPlugin']}"
 		},
 		"MFCreateSampleCopierMFT": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTransform', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppCopierMFT']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTransform', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppCopierMFT']}"
 		},
 		"MFCreateSampleGrabberSinkActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFSampleGrabberSinkCallback', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIMFMediaType', 'pIMFSampleGrabberSinkCallback', 'ppIActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFSampleGrabberSinkCallback', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pIMFMediaType', 'pIMFSampleGrabberSinkCallback', 'ppIActivate']}"
 		},
 		"MFCreateSequencerSegmentOffset": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwId', 'hnsOffset', 'pvarSegmentOffset']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'llong', 'label': 'Int64'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['dwId', 'hnsOffset', 'pvarSegmentOffset']}"
 		},
 		"MFCreateSequencerSource": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSequencerSource', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pReserved', 'ppSequencerSource']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSequencerSource', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pReserved', 'ppSequencerSource']}"
 		},
 		"MFCreateSimpleTypeHandler": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaTypeHandler', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppHandler']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaTypeHandler', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppHandler']}"
 		},
 		"MFCreateStandardQualityManager": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFQualityManager', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppQualityManager']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFQualityManager', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppQualityManager']}"
 		},
 		"MFCreateTopoLoader": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopoLoader', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppObj']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopoLoader', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppObj']}"
 		},
 		"MFCreateTopology": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppTopo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppTopo']}"
 		},
 		"MFCreateTopologyNode": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MF_TOPOLOGY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopologyNode', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['NodeType', 'ppNode']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'MF_TOPOLOGY_TYPE', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopologyNode', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['NodeType', 'ppNode']}"
 		},
 		"MFCreateTranscodeProfile": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppTranscodeProfile']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppTranscodeProfile']}"
 		},
 		"MFCreateTranscodeSinkActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppActivate']}"
 		},
 		"MFCreateTranscodeTopology": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrc', 'pwszOutputFilePath', 'pProfile', 'ppTranscodeTopo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrc', 'pwszOutputFilePath', 'pProfile', 'ppTranscodeTopo']}"
 		},
 		"MFCreateTranscodeTopologyFromByteStream": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrc', 'pOutputStream', 'pProfile', 'ppTranscodeTopo']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaSource', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFByteStream', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IMFTranscodeProfile', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFTopology', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pSrc', 'pOutputStream', 'pProfile', 'ppTranscodeTopo']}"
 		},
 		"MFCreateVideoRenderer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riidRenderer', 'ppVideoRenderer']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['riidRenderer', 'ppVideoRenderer']}"
 		},
 		"MFCreateVideoRendererActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndVideo', 'ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndVideo', 'ppActivate']}"
 		},
 		"MFCreateWMAEncoderActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaType', 'pEncodingConfigurationProperties', 'ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaType', 'pEncodingConfigurationProperties', 'ppActivate']}"
 		},
 		"MFCreateWMVEncoderActivate": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaType', 'pEncodingConfigurationProperties', 'ppActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, {'_t': '_ref', 'name': 'IPropertyStore', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pMediaType', 'pEncodingConfigurationProperties', 'ppActivate']}"
 		},
 		"MFEnumDeviceSources": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'pppSourceActivate', 'pcSourceActivate']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFActivate', 'ot': 'bot'}}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pAttributes', 'pppSourceActivate', 'pcSourceActivate']}"
 		},
 		"MFGetLocalId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['verifier', 'size', 'id']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['verifier', 'size', 'id']}"
 		},
 		"MFGetService": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punkObject', 'guidService', 'riid', 'ppvObject']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['punkObject', 'guidService', 'riid', 'ppvObject']}"
 		},
 		"MFGetSystemId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSystemId', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppId']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSystemId', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['ppId']}"
 		},
 		"MFGetTopoNodeCurrentType": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFTopologyNode', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pNode', 'dwStreamIndex', 'fOutput', 'ppType']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFTopologyNode', 'ot': 'bot'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFMediaType', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pNode', 'dwStreamIndex', 'fOutput', 'ppType']}"
 		},
 		"MFLoadSignedLibrary": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSignedLibrary', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszName', 'ppLib']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFSignedLibrary', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pszName', 'ppLib']}"
 		},
 		"MFRequireProtectedEnvironment": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IMFPresentationDescriptor', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pPresentationDescriptor']}"
@@ -195,7 +195,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'IUnknown', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pUnk']}"
 		},
 		"MFTranscodeGetAudioOutputAvailableTypes": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFCollection', 'ot': 'bot'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['guidSubType', 'dwMFTFlags', 'pCodecConfig', 'ppAvailableTypes']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'IMFAttributes', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IMFCollection', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['guidSubType', 'dwMFTFlags', 'pCodecConfig', 'ppAvailableTypes']}"
 		}
 	}
 }

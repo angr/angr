@@ -1,6 +1,8 @@
 # pylint:disable=too-many-boolean-expressions
 from __future__ import annotations
+from collections import defaultdict
 from collections.abc import Iterable
+from itertools import chain
 import logging
 
 import archinfo
@@ -28,8 +30,8 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
     NAME = "Simplify register save areas"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -49,34 +51,24 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
 
         return bool(info), {"info": info}
 
-    @staticmethod
-    def _modify_statement(old_block, stmt_idx_: int, updated_blocks_, stack_offset: int | None = None):  # pylint:disable=unused-argument
-        if old_block not in updated_blocks_:
-            block = old_block.copy()
-            updated_blocks_[old_block] = block
-        else:
-            block = updated_blocks_[old_block]
-        block.statements[stmt_idx_] = None
-
     def _analyze(self, cache=None):
         if cache is None:
             return
 
         info: dict[int, dict[str, list[tuple[int, CodeLocation]]]] = cache["info"]
-        updated_blocks = {}
+        updated_blocks: defaultdict[ailment.Block, set[int]] = defaultdict(set)
 
         for data in info.values():
             # remove storing statements
-            for stack_offset, codeloc in data["stored"]:
+            for _, codeloc in chain(data["stored"], data["restored"]):
                 old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
-            for stack_offset, codeloc in data["restored"]:
-                old_block = self._get_block(codeloc.block_addr, idx=codeloc.block_idx)
-                self._modify_statement(old_block, codeloc.stmt_idx, updated_blocks, stack_offset=stack_offset)
+                assert old_block is not None
+                updated_blocks[old_block].add(codeloc.stmt_idx)
 
-        for old_block, new_block in updated_blocks.items():
-            # remove all statements that are None
-            new_block.statements = [stmt for stmt in new_block.statements if stmt is not None]
+        for old_block, removed_indices in updated_blocks.items():
+            # remove all marked statements
+            statements = [stmt for idx, stmt in enumerate(old_block.statements) if idx not in removed_indices]
+            new_block = old_block.copy(statements=statements)
             # update it
             self._update_block(old_block, new_block)
 
@@ -121,28 +113,27 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                 and isinstance(stmt.addr, ailment.Expr.StackBaseOffset)
                 and isinstance(stmt.addr.offset, int)
             ):
+                reg_offset = None
                 if isinstance(stmt.data, ailment.Expr.VirtualVariable) and stmt.data.was_reg:
-                    if stmt.data.reg_offset not in ignored_regs:
-                        # it's storing registers to the stack!
-                        stack_offset = stmt.addr.offset
-                        reg_offset = stmt.data.reg_offset
-                        codeloc = CodeLocation(
-                            first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.tags["ins_addr"]
-                        )
-                        results.append((reg_offset, stack_offset, codeloc))
+                    reg_offset = stmt.data.reg_offset
                 elif (
                     self.project.arch.name == "AMD64"
-                    and isinstance(stmt.data, ailment.Expr.Convert)
-                    and isinstance(stmt.data.operand, ailment.Expr.VirtualVariable)
-                    and stmt.data.operand.was_reg
-                    and stmt.data.from_bits == 256
-                    and stmt.data.to_bits == 128
+                    and isinstance(stmt.data, ailment.Expr.Extract)
+                    and isinstance(stmt.data.offset, ailment.Expr.Const)
+                    and isinstance(stmt.data.offset.value, int)
+                    and isinstance(stmt.data.base, ailment.Expr.VirtualVariable)
+                    and stmt.data.base.was_reg
+                    and stmt.data.base.bits == 256
+                    and stmt.data.bits == 128
                 ):
-                    # storing xmm registers to the stack
+                    # xmm registers extracted from ymm registers
+                    reg_offset = stmt.data.base.reg_offset + stmt.data.offset.value
+
+                if reg_offset is not None and reg_offset not in ignored_regs:
+                    # it's storing registers to the stack!
                     stack_offset = stmt.addr.offset
-                    reg_offset = stmt.data.operand.reg_offset
                     codeloc = CodeLocation(
-                        first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.tags["ins_addr"]
+                        first_block.addr, idx, block_idx=first_block.idx, ins_addr=stmt.tags.get("ins_addr", None)
                     )
                     results.append((reg_offset, stack_offset, codeloc))
 
@@ -174,13 +165,28 @@ class RegisterSaveAreaSimplifier(OptimizationPass):
                         isinstance(stmt, ailment.Stmt.Assignment)
                         and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                         and stmt.dst.was_reg
-                        and isinstance(stmt.src, ailment.Expr.Load)
-                        and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
                     ):
-                        stack_offset = stmt.src.addr.offset
                         reg_offset = stmt.dst.reg_offset
-                        codeloc = CodeLocation(block.addr, idx, block_idx=block.idx, ins_addr=stmt.tags["ins_addr"])
-                        results.append((reg_offset, stack_offset, codeloc))
+                        stack_offset = None
+                        if isinstance(stmt.src, ailment.Expr.Load) and isinstance(
+                            stmt.src.addr, ailment.Expr.StackBaseOffset
+                        ):
+                            stack_offset = stmt.src.addr.offset
+                        elif (
+                            isinstance(stmt.src, ailment.Expr.Insert)
+                            and isinstance(stmt.src.offset, ailment.Expr.Const)
+                            and isinstance(stmt.src.offset.value, int)
+                            and isinstance(stmt.src.value, ailment.Expr.Load)
+                            and isinstance(stmt.src.value.addr, ailment.Expr.StackBaseOffset)
+                        ):
+                            stack_offset = stmt.src.value.addr.offset
+                            reg_offset += stmt.src.offset.value
+
+                        if stack_offset is not None:
+                            codeloc = CodeLocation(
+                                block.addr, idx, block_idx=block.idx, ins_addr=stmt.tags.get("ins_addr", None)
+                            )
+                            results.append((reg_offset, stack_offset, codeloc))
 
                 if results:
                     all_results.append(results)

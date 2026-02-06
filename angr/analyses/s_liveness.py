@@ -2,8 +2,8 @@ from __future__ import annotations
 from collections import defaultdict
 
 import networkx
-from angr.ailment import Block
-from angr.ailment.expression import VirtualVariable
+from angr.ailment import Block, Address
+from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 
 from angr.analyses import Analysis, register_analysis
@@ -16,12 +16,12 @@ class SLivenessModel:
     """
     The SLiveness model that stores LiveIn and LiveOut sets for each block in a partial-SSA function.
 
-    Blocks are identified by address and index.
+    Blocks are identified by address and (block) index.
     """
 
     def __init__(self):
-        self.live_ins: dict[tuple[int, int | None], set[int]] = {}
-        self.live_outs: dict[tuple[int, int | None], set[int]] = {}
+        self.live_ins: dict[Address, set[int]] = {}
+        self.live_outs: dict[Address, set[int]] = {}
 
 
 class SLivenessAnalysis(Analysis):
@@ -32,14 +32,14 @@ class SLivenessAnalysis(Analysis):
     def __init__(
         self,
         func: Function,
-        func_graph: networkx.DiGraph[Block] | None = None,
+        func_graph: networkx.DiGraph[Block],
         entry: Block | None = None,
         func_addr: int | None = None,
         arg_vvars: list[VirtualVariable] | None = None,
     ):
         self.func = func
         self.func_addr = func_addr if func_addr is not None else func.addr
-        self.func_graph = func_graph if func_graph is not None else func.graph
+        self.func_graph = func_graph
         self.entry = (
             entry
             if entry is not None
@@ -110,9 +110,12 @@ class SLivenessAnalysis(Analysis):
                     live.discard(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
                     live.discard(stmt.ret_expr.varid)
+                live.difference_update(stmt.tags.get("extra_defs", ()))
 
                 phi_expr = phi_assignment_get_src(stmt)
                 if phi_expr is not None:
+                    assert isinstance(stmt, Assignment)
+                    assert isinstance(stmt.dst, VirtualVariable)
                     for src, vvar in phi_expr.src_and_vvars:
                         if head_controlled_loop and src == (block.addr, block.idx):
                             # this is a head-controlled loop block; we ignore the self-loop edge
@@ -126,6 +129,8 @@ class SLivenessAnalysis(Analysis):
 
                 # handle the statement: add used vvars to the live set
                 if head_controlled_loop and is_phi_assignment(stmt):
+                    assert isinstance(stmt, Assignment)
+                    assert isinstance(stmt.src, Phi)
                     for src, vvar in stmt.src.src_and_vvars:
                         # this is a head-controlled loop block; we ignore the self-loop edge
                         if src != (block.addr, block.idx) and vvar is not None:
@@ -156,7 +161,7 @@ class SLivenessAnalysis(Analysis):
         self.model.live_ins = live_ins
         self.model.live_outs = live_outs
 
-    def interference_graph(self) -> networkx.Graph:
+    def interference_graph(self) -> networkx.Graph[int]:
         """
         Generate an interference graph based on the liveness analysis result.
 
@@ -179,18 +184,17 @@ class SLivenessAnalysis(Analysis):
                 stmts = block.statements
 
             for stmt in reversed(stmts):
+                def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    def_vvar = stmt.dst.varid
+                    def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvar = stmt.ret_expr.varid
-                else:
-                    def_vvar = None
+                    def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector = VVarUsesCollector()
                 vvar_use_collector.walk_statement(stmt)
 
-                if def_vvar is not None:
+                for def_vvar in def_vvars:
                     for live_vvar in live:
                         graph.add_edge(def_vvar, live_vvar)
                     live.discard(def_vvar)
@@ -204,7 +208,7 @@ class SLivenessAnalysis(Analysis):
 
         return graph
 
-    def live_vars_by_stmt(self) -> defaultdict[tuple[int, int | None], dict[int, set[int]]]:
+    def live_vars_by_stmt(self) -> defaultdict[Address, dict[int, set[int]]]:
         """
         Get a mapping from statements to live variables at the point of the statement.
 
@@ -229,19 +233,18 @@ class SLivenessAnalysis(Analysis):
 
             for i, stmt in enumerate(reversed(stmts)):
                 stmt_idx = len(stmts) - i - 1
+                def_vvars = list(stmt.tags.get("extra_defs", []))
                 if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                    def_vvar = stmt.dst.varid
+                    def_vvars.append(stmt.dst.varid)
                 elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable):
-                    def_vvar = stmt.ret_expr.varid
-                else:
-                    def_vvar = None
+                    def_vvars.append(stmt.ret_expr.varid)
 
                 # handle the statement: add used vvars to the live set
                 vvar_use_collector = VVarUsesCollector()
                 vvar_use_collector.walk_statement(stmt)
 
                 live_vars[block_key][stmt_idx] = live.copy()
-                if def_vvar is not None:
+                for def_vvar in def_vvars:
                     for live_vvar in live:
                         live_vars[block_key][stmt_idx].add(live_vvar)
                     live.discard(def_vvar)

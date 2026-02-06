@@ -12,22 +12,22 @@
 	},
 	"functions": {
 		"AddPackageDependency": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'AddPackageDependencyOptions', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PACKAGEDEPENDENCY_CONTEXT', 'ot': 'ptr'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyId', 'rank', 'options', 'packageDependencyContext', 'packageFullName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'int', 'label': 'Int32'}, {'_t': '_ref', 'name': 'AddPackageDependencyOptions', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PACKAGEDEPENDENCY_CONTEXT', 'ot': 'ptr'}, 'disp': 2}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyId', 'rank', 'options', 'packageDependencyContext', 'packageFullName']}"
 		},
 		"DeletePackageDependency": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyId']}"
 		},
 		"GetIdForPackageDependencyContext": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PACKAGEDEPENDENCY_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyContext', 'packageDependencyId']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PACKAGEDEPENDENCY_CONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyContext', 'packageDependencyId']}"
 		},
 		"GetResolvedPackageFullNameForPackageDependency": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyId', 'packageFullName']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyId', 'packageFullName']}"
 		},
 		"RemovePackageDependency": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PACKAGEDEPENDENCY_CONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['packageDependencyContext']}"
 		},
 		"TryCreatePackageDependency": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PACKAGE_VERSION', 'ot': 'struct'}, {'_t': '_ref', 'name': 'PackageDependencyProcessorArchitectures', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PackageDependencyLifetimeKind', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CreatePackageDependencyOptions', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'packageFamilyName', 'minVersion', 'packageDependencyProcessorArchitectures', 'lifetimeKind', 'lifetimeArtifact', 'options', 'packageDependencyId']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PSID', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PACKAGE_VERSION', 'ot': 'struct'}, {'_t': '_ref', 'name': 'PackageDependencyProcessorArchitectures', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PackageDependencyLifetimeKind', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'CreatePackageDependencyOptions', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['user', 'packageFamilyName', 'minVersion', 'packageDependencyProcessorArchitectures', 'lifetimeKind', 'lifetimeArtifact', 'options', 'packageDependencyId']}"
 		}
 	}
 }
