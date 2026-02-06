@@ -168,7 +168,6 @@ from .block import Block
 from .sim_manager import SimulationManager
 from .analyses import Analysis, register_analysis
 from . import analyses
-from .rust.analyses import *
 from . import knowledge_plugins
 from . import exploration_techniques
 from .exploration_techniques import ExplorationTechnique
@@ -197,6 +196,9 @@ from .emulator import Emulator, EmulatorStopReason
 
 # for compatibility reasons
 from . import sim_manager as manager
+
+from .rust import analyses as rust_analyses
+from .rust import knowledge_plugins as rust_knowledge_plugins
 
 # now that we have everything loaded, re-grab the list of loggers
 loggers.load_all_loggers()

@@ -1,4 +1,4 @@
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from angr.rust.typehoon.lifter import RustTypeLifter
 
 

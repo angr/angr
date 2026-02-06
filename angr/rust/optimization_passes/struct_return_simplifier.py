@@ -75,7 +75,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                     return None
         if cur_offset == sum(field.size for field in fields.values()):
             vvar = self.get_stack_vvar_by_insn(
-                src_stack_offset, block.statements[-1].ins_addr, block.idx, size=cur_offset
+                src_stack_offset, block.statements[-1].tags["ins_addr"], block.idx, size=cur_offset
             )
             return vvar
         return None
