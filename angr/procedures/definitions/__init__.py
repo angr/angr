@@ -905,6 +905,7 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
         "angr.procedures.definitions",
         base_dir,
         filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
+        and not module_name.startswith("parse_")
         and module_name not in skip,
     ):
         pass

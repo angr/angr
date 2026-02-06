@@ -14,8 +14,6 @@ from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimT
 from angr.procedures.definitions import SimTypeCollection
 from angr.errors import AngrMissingTypeError
 
-logging.root.setLevel("DEBUG")
-
 # The win32json marks some outparams as inout. fix this
 OVERRIDE_OUTPARAMS = {
     ("RtlInitUnicodeString", 0),
@@ -2570,4 +2568,5 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.root.setLevel("DEBUG")
     main()
