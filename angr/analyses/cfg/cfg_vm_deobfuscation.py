@@ -1614,6 +1614,8 @@ class CFGVMDeobfuscation(ForwardAnalysis, CFGBase):    # pylint: disable=abstrac
                         self.project.hook(addr, SIM_PROCEDURES['stubs']['ReturnUnconstrained']())
                         with open('./runtime_hooked_addrs', 'a') as fp:
                             fp.write(hex(addr)+"\n")
+        # if not (0x07FF74DB5F000 <= addr <= 0x07FF74DB5F000+0x4000) and addr != 0x7ff74daea200:
+        #     import ipdb;ipdb.set_trace()
 
         sim_successors, exception_info, _ = self._get_simsuccessors(addr, job, current_function_addr=job.func_addr)
 

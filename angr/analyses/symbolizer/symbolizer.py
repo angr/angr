@@ -209,8 +209,8 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 pass
         result = super()._perform_vex_expr_Load(simplified_addr, ty, endness, **kwargs)
 
-        # if isinstance(result.args[0], str) and result.args[0].startswith('symbolic_read_unconstrained_') and result.args[0] not in self.project.symbolic_reads:
-        #     self.project.symbolic_reads[result.args[0]] = simplified_addr
+        if isinstance(result.args[0], str) and result.args[0].startswith('symbolic_read_unconstrained_') and result.args[0] not in self.project.symbolic_reads:
+            self.project.symbolic_reads[result.args[0]] = simplified_addr
 
 
         # Check if the addr is a stack address, if so skip it
@@ -348,6 +348,12 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                 for conc_addr in conc_addrs:
                     loaded_value = self.state.memory.load(conc_addr, self._ty_to_bytes(ty),
                                                           endness=self.state.arch.memory_endness)
+                    if self.state.solver.symbolic(loaded_value):
+                        try:
+                            new_val = self.state.partial_symbolic_constraint_solver.eval_one(loaded_value)
+                            loaded_value = claripy.BVV(new_val, loaded_value.size())
+                        except:
+                            pass
                     loaded_values.append(loaded_value)
 
                 existing_state_split_var = False
@@ -405,6 +411,16 @@ class PropagatorEmulatedEngine(SimEngineFailure, SimEngineSyscall, HooksMixin, S
                             elif addr.op == "__sub__":
                                 import ipdb;ipdb.set_trace()
                                 self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, addr.args[0] - conc_addrs[0], addr.args[0] - conc_addrs[1]))
+
+                        else:
+                            try:
+                                conc_val = self.state.partial_symbolic_constraint_solver.eval_one(addr.args[0])
+                                if addr.op == "__add__":
+                                    self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_addrs[0] - conc_val, conc_addrs[1] - conc_val))
+                                elif addr.op == "__sub__":
+                                    self.state.partial_symbolic_constraint_solver._solver.add_replacement(addr.args[1], claripy.If(state_split_cond, conc_val - conc_addrs[0], conc_val - conc_addrs[1]))
+                            except:
+                                pass
 
                     elif len(addr.args) == 3:
                         if addr.args[0].depth == 1:
@@ -1331,6 +1347,7 @@ class Symbolizer(ForwardAnalysis, Analysis):  # pylint:disable=abstract-method
                     # if the ip has become top then just replace with successor ip
                     if PropagatorState.is_top(uncon_succ.regs.ip):
                         if len(list(self._graph.successors(node))) == 1:
+                            # import ipdb;ipdb.set_trace()
                             uncon_succ.regs.ip = list(self._graph.successors(node))[0].addr
                             uncon_succ.scratch.target = uncon_succ.regs.ip
                         else:
