@@ -46,6 +46,7 @@ from .remove_redundant_insert import RemoveRedundantInsert
 from .remove_redundant_ite_branch import RemoveRedundantITEBranches
 from .remove_redundant_ite_comparisons import RemoveRedundantITEComparisons
 from .remove_redundant_nots import RemoveRedundantNots
+from .remove_redundant_negations import RemoveRedundantNegations
 from .remove_redundant_reinterprets import RemoveRedundantReinterprets
 from .remove_redundant_shifts import RemoveRedundantShifts
 from .remove_redundant_shifts_around_comparators import RemoveRedundantShiftsAroundComparators
