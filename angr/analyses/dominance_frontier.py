@@ -55,7 +55,7 @@ class DominanceFrontier(Generic[T_co]):
 
             if self.function.startpoint not in g:
                 # find the actual start point
-                startpoint = next(iter(nn for nn in g if nn.addr == self.function.startpoint.addr), None)  # type: ignore
+                startpoint = next((nn for nn in g if nn.addr == self.function.startpoint.addr), None)  # type: ignore
                 if startpoint is None:
                     raise ValueError(
                         f"Cannot find the startpoint of function {self.function!r} in the given function graph."

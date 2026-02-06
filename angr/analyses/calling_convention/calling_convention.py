@@ -1,7 +1,7 @@
 # pylint:disable=no-self-use
 from __future__ import annotations
-from collections import defaultdict
 from typing import TYPE_CHECKING
+from collections import defaultdict
 from collections.abc import Mapping
 import logging
 
@@ -10,8 +10,8 @@ import capstone
 
 from pyvex.stmt import Put
 from pyvex.expr import RdTmp
-import angr.ailment as ailment
 
+from angr import ailment
 from angr.code_location import ExternalCodeLocation
 
 from angr.calling_conventions import (

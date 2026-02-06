@@ -8,16 +8,16 @@ import logging
 
 import networkx
 
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment import Block
-from angr.ailment.expression import Const, Extract, Phi, VirtualVariable, VirtualVariableCategory
+from angr.ailment.expression import Phi, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Assignment, Label, Statement
 
 from angr.analyses.decompiler.ailgraph_walker import traverse_in_order
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_head_controlled_loop_block
-from angr.utils.ssa import get_reg_offset_base_and_size, is_phi_assignment
+from angr.utils.ssa import is_phi_assignment
 from .rewriting_engine import SimEngineSSARewriting
 from .rewriting_state import RewritingState
 
@@ -193,7 +193,7 @@ class RewritingAnalysis:
         else:
             node.statements = node.statements[:idx] + phi_stmts + node.statements[idx:]
 
-    def _reg_predicate(self, node_: Block, *, reg_offset: int, reg_size: int) -> tuple[bool, Any]:
+    def _reg_predicate(self, node_: Block, *, reg_offset: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
             if is_head_controlled_loop_block(node_) and (node_.addr, node_.idx) in self.head_controlled_loop_outstates
@@ -210,7 +210,7 @@ class RewritingAnalysis:
 
         return False, None
 
-    def _stack_predicate(self, node_: Block, *, stack_offset: int, stackvar_size: int) -> tuple[bool, Any]:
+    def _stack_predicate(self, node_: Block, *, stack_offset: int) -> tuple[bool, Any]:
         out_state: RewritingState = (
             self.head_controlled_loop_outstates[(node_.addr, node_.idx)]
             if is_head_controlled_loop_block(node_)
@@ -380,7 +380,7 @@ class RewritingAnalysis:
                             vvar = self._follow_one_path_backward(
                                 self._graph,
                                 pred,
-                                partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset, reg_size=stmt.dst.size),
+                                partial(self._reg_predicate, reg_offset=stmt.dst.reg_offset),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))
                             perfect_matches.append(
@@ -393,26 +393,7 @@ class RewritingAnalysis:
                             phi_stmt = Assignment(stmt.idx, stmt.dst, phi_var, **stmt.tags)
                             phi_stmts.append(phi_stmt)
                         else:
-                            # different sizes of vvars found; we need to resort to the base register and extract the
-                            # requested register out of the base register
-                            # here we rely on the fact that the larger register vvar must be created in this block when
-                            # the smaller register has been created
-                            continue
-                            base_reg_offset, max_reg_size = get_reg_offset_base_and_size(
-                                stmt.dst.reg_offset, self.project.arch, size=stmt.dst.size
-                            )
-                            # find the phi assignment statement of the larger base register
-                            base_vvar = self._find_phi_vvar_for_reg(base_reg_offset, max_reg_size, node.statements)
-                            assert base_vvar is not None
-                            partial_base_vvar = Extract(
-                                self._ail_manager.next_atom(),
-                                stmt.dst.bits,
-                                base_vvar,
-                                Const(self._ail_manager.next_atom(), None, stmt.dst.reg_offset - base_reg_offset, 64),
-                                endness=self.project.arch.register_endness,
-                            )
-                            new_stmt = Assignment(stmt.idx, stmt.dst, partial_base_vvar, **base_vvar.tags)
-                            phi_extraction_stmts.append(new_stmt)
+                            # different sizes of vvars found; this means the variable is unused from this point on
                             continue
 
                     elif stmt.dst.was_stack:
@@ -423,7 +404,6 @@ class RewritingAnalysis:
                                 partial(
                                     self._stack_predicate,
                                     stack_offset=stmt.dst.stack_offset,
-                                    stackvar_size=stmt.dst.size,
                                 ),
                             )
                             src_and_vvars.append(((pred.addr, pred.idx), vvar))

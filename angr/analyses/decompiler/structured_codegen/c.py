@@ -586,7 +586,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     extern_types.append(ty)
 
             # Discover all nested structs
-            for ty in extern_types:
+            # we rely on the behavior that if you extend a list while it is iterating you will see those values
+            for ty in extern_types:  # pylint
                 for field in ty.fields.values():
                     field = unpack_typeref(field)
                     while isinstance(field, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
@@ -4023,14 +4024,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ref: bool = False,
         **kwargs,
     ):
-        def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
-            # we do not allow returning a struct for a primitive type
-            if old_ty.size == proposed_ty.size and (
-                not isinstance(proposed_ty, SimStruct) or isinstance(old_ty, SimStruct)
-            ):
-                return proposed_ty
-            return old_ty
-
         if expr.variable is not None:
             cvar = self._variable(expr.variable, None, vvar_id=expr.varid)
 
@@ -4058,7 +4051,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             var_thing = self._variable(expr.variable, expr.size)
             var_thing.tags = dict(expr.tags)
             if "def_at" in var_thing.tags and "ins_addr" not in var_thing.tags:
-                var_thing.tags["ins_addr"] = var_thing.tags["def_at"].ins_addr
+                var_thing.tags["ins_addr"] = var_thing.tags["def_at"].tags["ins_addr"]
             return self._get_variable_reference(var_thing)
 
         # FIXME

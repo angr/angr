@@ -38,12 +38,12 @@ class FormatString:
         return self.parser.state
 
     @staticmethod
-    def _add_to_string(string, c):
+    def _add_to_string(sss, c):
         if c is None:
-            return string
-        if string is None:
+            return sss
+        if sss is None:
             return c
-        return string.concat(c)
+        return sss.concat(c)
 
     def _get_str_at(self, str_addr, max_length=None):
         if max_length is None:
@@ -67,16 +67,16 @@ class FormatString:
         :return:                The result formatted string
         """
 
-        string = None
+        sss = None
 
         for component in self.components:
             # if this is just concrete data
             if isinstance(component, bytes):
-                string = self._add_to_string(string, claripy.BVV(component))
+                sss = self._add_to_string(sss, claripy.BVV(component))
             elif isinstance(component, str):
-                raise Exception("this branch should be impossible?")
+                assert False, "this branch should be impossible?"
             elif isinstance(component, claripy.ast.BV):  # pylint:disable=isinstance-second-argument-not-valid-type
-                string = self._add_to_string(string, component)
+                sss = self._add_to_string(sss, component)
             else:
                 # okay now for the interesting stuff
                 # what type of format specifier is it?
@@ -84,7 +84,7 @@ class FormatString:
                 if fmt_spec.spec_type == b"s":
                     str_length = va_arg("size_t") if fmt_spec.length_spec == b".*" else None
                     str_ptr = va_arg("char*")
-                    string = self._add_to_string(string, self._get_str_at(str_ptr, max_length=str_length))
+                    sss = self._add_to_string(sss, self._get_str_at(str_ptr, max_length=str_length))
                 # integers, for most of these we'll end up concretizing values..
                 else:
                     # ummmmmmm this is a cheap translation but I think it should work
@@ -110,9 +110,9 @@ class FormatString:
                     if isinstance(fmt_spec.length_spec, int):
                         s_val = s_val.rjust(fmt_spec.length_spec, fmt_spec.pad_chr)
 
-                    string = self._add_to_string(string, claripy.BVV(s_val.encode()))
+                    sss = self._add_to_string(sss, claripy.BVV(s_val.encode()))
 
-        return string
+        return sss
 
     def interpret(self, va_arg, addr=None, simfd=None):
         """
@@ -329,8 +329,8 @@ class FormatSpecifier:
         "ty",
     )
 
-    def __init__(self, string, length_spec, pad_chr, ty: SimType):
-        self.string = string
+    def __init__(self, sss, length_spec, pad_chr, ty: SimType):
+        self.string = sss
         self.ty = ty
         self.length_spec = length_spec
         self.pad_chr = pad_chr
@@ -443,10 +443,7 @@ class FormatParser(SimProcedure):
 
         if FormatParser._ALL_SPEC is None:
             base = dict(self._mod_spec)
-
-            for spec in self.basic_spec:
-                base[spec] = self.basic_spec[spec]
-
+            base.update(self.basic_spec)
             FormatParser._ALL_SPEC = base
 
         return FormatParser._ALL_SPEC
@@ -494,6 +491,7 @@ class FormatParser(SimProcedure):
         if length_spec_str_len == 0 and length_str:
             length_spec_str_len = len(length_str)
         # is it an actual format?
+        # pylint: disable=not-an-iterable,unsubscriptable-object
         for spec in all_spec:
             if nugget.startswith(spec):
                 # this is gross coz sim_type is gross..

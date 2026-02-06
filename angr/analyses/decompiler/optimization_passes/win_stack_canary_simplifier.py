@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import defaultdict
 import logging
 
-import angr.ailment as ailment
 import cle
 
+from angr import ailment
 from angr.utils.funcid import is_function_security_check_cookie
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
 from angr.utils.ssa import stmt_is_simple_call

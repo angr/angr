@@ -1,9 +1,14 @@
 from __future__ import annotations
+
 from angr.ailment.expression import Const, Convert, Extract
 from .base import PeepholeOptimizationExprBase
 
 
 class EvaluateConstConversions(PeepholeOptimizationExprBase):
+    """
+    If we see a conversion over a constant, simply evaluate it
+    """
+
     DESCRIPTION = "Conv(*, C) => C'"
     expr_classes = (Convert, Extract)
 

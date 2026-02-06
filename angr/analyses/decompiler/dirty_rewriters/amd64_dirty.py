@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from angr.ailment.statement import DirtyStatement, Statement, Call
 from angr.ailment.expression import Const, DirtyExpression, Expression
-from .rewriter_base import DirtyRewriterBase
 from angr import sim_type
+from .rewriter_base import DirtyRewriterBase
 
 
 class AMD64DirtyRewriter(DirtyRewriterBase):

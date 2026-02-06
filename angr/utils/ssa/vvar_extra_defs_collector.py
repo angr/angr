@@ -6,6 +6,10 @@ from angr.code_location import AILCodeLocation
 
 
 class FindExtraDefs(AILBlockViewer):
+    """
+    Simple walker that finds any extra defs
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.found: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}

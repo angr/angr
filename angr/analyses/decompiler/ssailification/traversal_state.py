@@ -1,6 +1,6 @@
 from __future__ import annotations
-from collections import defaultdict
 from typing import TYPE_CHECKING, TypeAlias
+from collections import defaultdict
 from collections.abc import MutableMapping
 
 from angr.ailment.expression import StackBaseOffset

@@ -1,10 +1,8 @@
 from __future__ import annotations
-from collections import defaultdict
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
-from collections.abc import Iterable
-from collections.abc import Callable
-
+from dataclasses import dataclass
+from collections import defaultdict
+from collections.abc import Iterable, Callable
 
 from angr.ailment.statement import Call, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
@@ -47,6 +45,10 @@ def offset_sort_key(v: tuple[int | None, int]) -> tuple[int, int, int, int]:
 
 @dataclass
 class DefInfo:
+    """
+    Information about a def, or an expression that defines a new SSA variable.
+    """
+
     def_: Def
     kind: Kind
     loc: AILCodeLocation
@@ -419,7 +421,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             isinstance(stmt.true_target, Const)
             and isinstance(stmt.false_target, Const)
             and self.stmt_idx != len(self.block.statements) - 1
-            and (stmt.true_target.value == self.ins_addr or stmt.false_target.value == self.ins_addr)
+            and self.ins_addr in (stmt.true_target.value, stmt.false_target.value)
         ):
             self.hclb_side_exit_state = self.state.copy()
 
@@ -654,6 +656,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         self._expr(expr.value)
         return set()
 
+    # pylint: disable=unused-argument
     def _handle_expr_MultiStatementExpression(self, expr) -> Value:
         return set()
 
