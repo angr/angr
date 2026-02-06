@@ -387,7 +387,7 @@ class SimStackVariable(SimMemoryVariable):
     )
 
     def __init__(
-        self, offset: int, size: int, base="sp", base_addr=None, ident=None, name=None, region=None, category=None
+        self, offset: int, size: int, base="bp", base_addr=None, ident=None, name=None, region=None, category=None
     ):
         if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
