@@ -6,7 +6,7 @@ from archinfo import Endness
 from angr.analyses import Analysis, AnalysesHub
 from angr.ailment import UnaryOp
 from angr.ailment.expression import Const, Struct, Array, Load
-from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeArrayRef
+from angr.rust.sim_type import RustSimStruct, RustSimTypeReference, RustSimTypeSlice
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
 
 
@@ -113,8 +113,8 @@ class StructBuilder(Analysis):
         if field_exprs is None:
             return None
         field_exprs = self._fix_field_exprs(field_exprs, struct_ty)
-        if isinstance(struct_ty, RustSimTypeArrayRef):
-            # Special handling for ArrayReference type
+        if isinstance(struct_ty, RustSimTypeSlice):
+            # Special handling for RustSimTypeSlice type
             array = self._build_array(field_exprs, struct_ty)
             if array:
                 return array
