@@ -11,7 +11,6 @@ from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, SSAVariableMixin
 from angr.rust.sim_type import (
     RustSimStruct,
     RustSimTypeReference,
-    RustSimTypeArrayRef,
     RustSimTypeUnit,
     RustSimTypeInt,
     RustSimEnum,
@@ -361,7 +360,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                     arg = args.pop(0)
                     if cur_offset in offset_to_arg_ty:
                         expected_arg_ty = offset_to_arg_ty[cur_offset]
-                        if isinstance(expected_arg_ty, RustSimTypeArrayRef) and len(args) > 0:
+                        if isinstance(expected_arg_ty, RustSimTypeSlice) and len(args) > 0:
                             next_arg = args.pop(0)
                             array = StructBuilder(self).build({0: arg, arg.size: next_arg}, expected_arg_ty)
                             if array is not None:

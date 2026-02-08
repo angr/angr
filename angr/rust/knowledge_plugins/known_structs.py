@@ -2,20 +2,9 @@ from typing import Optional
 from collections import OrderedDict
 
 from angr.ailment import Const
-
-from ..optimization_passes.utils import extract_str_from_addr
-from angr.rust.sim_type import (
-    RustSimTypeReference,
-    RustSimStruct,
-    RustSimType,
-    RustSimTypeArrayRef,
-    RustSimTypeArray,
-    RustSimTypeOption,
-    RustSimTypeResult,
-    RustSimEnum,
-    EnumVariant,
-)
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.rust.optimization_passes.utils import extract_str_from_addr
+from angr.rust.sim_type import RustSimStruct
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class StructMatcher:
