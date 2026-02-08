@@ -1026,7 +1026,6 @@ _RUST_SIMTYPE_CLASSES = [
     RustSimTypeOption,
     RustSimTypeResult,
     RustSimTypeUnit,
-    RustSimTypeArrayRef,
     RustSimTypeStrRef,
 ]
 for _cls in _RUST_SIMTYPE_CLASSES:
