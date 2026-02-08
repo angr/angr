@@ -1,7 +1,9 @@
 import logging
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Tuple
 
+from angr.analyses import Analysis, AnalysesHub
+from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.ailment import Block
 from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
 from angr.ailment.statement import Call, FunctionLikeMacro, Store
@@ -13,7 +15,7 @@ from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimType, RustSimTypeSize
 from angr.rust.utils.demangler import demangle, normalize
 
-PRINT_FUNCTIONS = (
+FORMAT_FUNCTIONS = (
     "std::io::stdio::_print",
     "std::io::stdio::_eprint",
     "alloc::fmt::format::format_inner",
@@ -36,6 +38,52 @@ NEW_ARGUMENT_FUNCTION = ("core::fmt::rt::Argument::new_display",)
 l = logging.getLogger(__name__)
 
 
+class FormatWrapperIdentification(Analysis):
+
+    def __init__(self):
+        self._format_wrappers = {}
+
+        self._analyze()
+
+    @property
+    def format_wrappers(self):
+        return self._format_wrappers
+
+    def _analyze(self):
+        format_functions_set = set(FORMAT_FUNCTIONS)
+        for addr, func in self.project.kb.functions.items():
+            normalized = normalize(func.name, monopolize=False, use_trait_name=False)
+            if normalized in format_functions_set:
+                self._format_wrappers[addr] = normalized
+        queue = deque(self._format_wrappers.keys())
+        while queue:
+            func_addr = queue.popleft()
+            callers = self.project.kb.callgraph.predecessors(func_addr)
+            for caller_addr in callers:
+                if caller_addr not in self._format_wrappers:
+                    self._format_wrappers[caller_addr] = self._format_wrappers[func_addr]
+                    queue.append(caller_addr)
+
+
+AnalysesHub.register_default("FormatWrapperIdentification", FormatWrapperIdentification)
+
+
+class FormatWrappers(KnowledgeBasePlugin):
+
+    def __init__(self, kb):
+        super().__init__(kb)
+        self._analyzed = False
+        self._format_wrappers = {}
+
+    def resolve(self, addr):
+        if not self._analyzed:
+            self._format_wrappers = self._kb._project.analyses.FormatWrapperIdentification().format_wrappers
+        return self._format_wrappers.get(addr, None)
+
+
+KnowledgeBasePlugin.register_default("format_wrappers", FormatWrappers)
+
+
 class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSAVariableMixin):
     ARCHES = None
     PLATFORMS = None
@@ -50,27 +98,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         SSAVariableMixin.__init__(self, self)
 
         self._stmts_to_remove = defaultdict(list)
-        self._addr_to_name = {}
-        self._union_functions()
         self.analyze()
-
-    def _union_functions(self):
-        for name in PRINT_FUNCTIONS:
-            func_addrs = [
-                addr
-                for addr, func in self.project.kb.functions.items()
-                if normalize(func.name, monopolize=False, use_trait_name=False) == name
-            ]
-            for addr in func_addrs:
-                self._addr_to_name[addr] = name
-        queue = list(self._addr_to_name.keys())
-        while queue:
-            func_addr = queue.pop(0)
-            callers = self.project.kb.callgraph.predecessors(func_addr)
-            for caller_addr in callers:
-                if caller_addr not in self._addr_to_name:
-                    self._addr_to_name[caller_addr] = self._addr_to_name[func_addr]
-                    queue.append(caller_addr)
 
     def _check(self):
         return self.project.is_rust_binary, None
@@ -236,9 +264,9 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         return argument_structs, stmts_to_remove
 
     def replace_call(self, call: Call, block: Block, stmt, is_expr):
-        name = self.match_call(call, PRINT_FUNCTIONS, monopolize=False, use_trait_name=False)
+        name = self.match_call(call, FORMAT_FUNCTIONS, monopolize=False, use_trait_name=False)
         if name is None and isinstance(call.target, Const):
-            name = self._addr_to_name.get(call.target.value, None)
+            name = self.project.kb.format_wrappers.resolve(call.target.value)
         if name:
             arguments_struct, arguments_def_block, arguments_def_stmt = self._try_find_arguments_struct(call)
             # Sanity check
