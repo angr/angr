@@ -78,6 +78,7 @@ class FormatWrappers(KnowledgeBasePlugin):
     def resolve(self, addr):
         if not self._analyzed:
             self._format_wrappers = self._kb._project.analyses.FormatWrapperIdentification().format_wrappers
+            self._analyzed = True
         return self._format_wrappers.get(addr, None)
 
 
