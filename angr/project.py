@@ -62,6 +62,8 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
 
 CACHE_CONFIG_KEYS = {"functions"}
 
+_UNSET = object()
+
 
 class Project:
     """
@@ -272,6 +274,26 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+        # Step 8: LLM client (lazy-initialized from env vars on first access)
+        self._llm_client = _UNSET
+
+    @property
+    def llm_client(self):
+        """
+        The LLM client for this project. Lazy-initialized from environment variables on first access.
+        Set manually via ``project.llm_client = LLMClient(...)`` or configure via environment variables
+        ``ANGR_LLM_MODEL``, ``ANGR_LLM_API_KEY``, ``ANGR_LLM_API_BASE``.
+        """
+        if self._llm_client is _UNSET:
+            from .llm_client import LLMClient
+
+            self._llm_client = LLMClient.from_env()
+        return self._llm_client
+
+    @llm_client.setter
+    def llm_client(self, value):
+        self._llm_client = value
 
     @property
     def kb(self):
@@ -800,6 +822,7 @@ class Project:
                 if k
                 not in {
                     "analyses",
+                    "_llm_client",
                 }
             }
         finally:
@@ -807,6 +830,7 @@ class Project:
 
     def __setstate__(self, s):
         self.__dict__.update(s)
+        self._llm_client = _UNSET
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:

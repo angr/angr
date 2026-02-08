@@ -51,6 +51,7 @@ from .state_plugins.inspect import BP
 from .state_plugins import SimStatePlugin
 
 from .project import Project, load_shellcode
+from .llm_client import LLMClient
 from .errors import (
     AngrError,
     AngrRuntimeError,
@@ -262,6 +263,7 @@ __all__ = (
     "EmulatorStopReason",
     "ExplorationTechnique",
     "KnowledgeBase",
+    "LLMClient",
     "PTChunk",
     "PathUnreachableError",
     "PointerWrapper",
