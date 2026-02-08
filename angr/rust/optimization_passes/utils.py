@@ -96,22 +96,3 @@ def replace_argument_pairs(call: Call, callback) -> Call:
         new_call.args = new_args
         return new_call
     return call
-
-
-def expand_argloc(arg_loc: SimFunctionArgument) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
-    if isinstance(arg_loc, SimComboArg):
-        # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
-        # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
-        # have no way to know that until later down the pipeline.
-        return arg_loc.locations
-    elif isinstance(arg_loc, SimStructArg):
-        tmp_locs = []
-        for field_name in arg_loc.struct.fields:
-            if field_name not in arg_loc.locs:
-                continue
-            tmp_locs += expand_argloc(arg_loc.locs[field_name])
-        return tmp_locs
-    elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
-        return [arg_loc]
-    else:
-        raise NotImplementedError("Not implemented yet.")

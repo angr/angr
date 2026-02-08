@@ -3,7 +3,6 @@ from angr.ailment.statement import Assignment
 from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.optimization_passes.cleanup_code_remover import CLEANUP_FUNCTIONS
 from angr.rust.optimization_passes.utils import CallRewriter
 from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 

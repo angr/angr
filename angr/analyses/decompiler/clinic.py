@@ -28,7 +28,15 @@ from angr.utils import timethis
 from angr.utils.ssa import is_phi_assignment
 from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
-from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimStructArg, SimCCUsercall
+from angr.calling_conventions import (
+    SimRegArg,
+    SimStackArg,
+    SimFunctionArgument,
+    SimStructArg,
+    SimCCUsercall,
+    SimReferenceArgument,
+    SimComboArg,
+)
 from angr.sim_type import (
     SimType,
     SimTypeChar,
@@ -74,8 +82,6 @@ from .optimization_passes import get_optimization_passes, OptimizationPassStage,
 from ..typehoon.typehoon import Typehoon
 from angr.ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
 from angr.ailment.statement import FunctionLikeMacro
-from angr.rust.sim_type import RustSimTypeFunction
-from angr.rust.optimization_passes.utils import expand_argloc
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -296,7 +302,7 @@ class Clinic(Analysis):
 
         if self._mode == ClinicMode.DECOMPILE:
             self._analyze_for_decompiling()
-            if self._end_stage >= ClinicStage.MAKE_CALLSITES:
+            if self._end_stage >= ClinicStage.MAKE_CALLSITES and self.variable_kb is not None:
                 self._constrain_callee_prototypes()
         elif self._mode == ClinicMode.COLLECT_DATA_REFS:
             self._analyze_for_data_refs()
@@ -1992,6 +1998,25 @@ class Clinic(Analysis):
         self.vvar_id_start = dephication.vvar_id_start + 1
         return dephication.vvar_to_vvar_mapping, dephication.copied_vvar_ids
 
+    @staticmethod
+    def _expand_argloc(arg_loc: SimFunctionArgument) -> list[SimStackArg | SimRegArg | SimReferenceArgument]:
+        if isinstance(arg_loc, SimComboArg):
+            # a ComboArg spans across multiple locations (mostly stack but *in theory* can also be spanning
+            # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
+            # have no way to know that until later down the pipeline.
+            return arg_loc.locations
+        elif isinstance(arg_loc, SimStructArg):
+            tmp_locs = []
+            for field_name in arg_loc.struct.fields:
+                if field_name not in arg_loc.locs:
+                    continue
+                tmp_locs += Clinic._expand_argloc(arg_loc.locs[field_name])
+            return tmp_locs
+        elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
+            return [arg_loc]
+        else:
+            raise NotImplementedError("Not implemented yet.")
+
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
         if self.function.calling_convention is not None and self.function.prototype is not None:
@@ -2005,7 +2030,7 @@ class Clinic(Analysis):
                 new_args = []
                 for arg in args:
                     if isinstance(arg, SimStructArg):
-                        new_args.extend(expand_argloc(arg))
+                        new_args.extend(self._expand_argloc(arg))
                     else:
                         new_args.append(arg)
                 args = new_args
@@ -2031,7 +2056,7 @@ class Clinic(Analysis):
                             region=self.function.addr,
                         )
                     elif isinstance(arg, SimStructArg):
-                        locs = expand_argloc(arg)
+                        locs = self._expand_argloc(arg)
                         if all(isinstance(loc, SimRegArg) for loc in locs):
                             reg_offsets = []
                             reg_names = []
