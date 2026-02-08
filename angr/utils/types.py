@@ -164,7 +164,7 @@ def make_type_reference(t: SimType, memo: dict[str, SimTypeRef] | None = None) -
     if memo is None:
         memo = {}
 
-    if isinstance(t, SimStruct) and t.name:
+    if type(t) is SimStruct and t.name:
         if t.name in memo:
             ref_t = memo[t.name]
         else:
@@ -172,10 +172,12 @@ def make_type_reference(t: SimType, memo: dict[str, SimTypeRef] | None = None) -
             memo[t.name] = ref_t
     elif isinstance(t, SimTypePointer):
         ref_pts_to = make_type_reference(t.pts_to, memo=memo)
-        ref_t = SimTypePointer(ref_pts_to, label=t.label, offset=t.offset)
+        ref_t = t.copy()
+        ref_t.pts_to = ref_pts_to
     elif isinstance(t, SimTypeArray):
         ref_elem_type = make_type_reference(t.elem_type, memo=memo)
-        ref_t = SimTypeArray(ref_elem_type, length=t.length, label=t.label)
+        ref_t = t.copy()
+        ref_t.elem_type = ref_elem_type
     elif isinstance(t, SimUnion):
         ref_members = {k: make_type_reference(v, memo=memo) for k, v in t.members.items()}
         ref_t = SimUnion(ref_members, label=t.label)

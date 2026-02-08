@@ -11,6 +11,8 @@ from ..sim_type import (
     SimStruct,
     SimTypeNumOffset,
     SimTypeNum,
+    SimTypeRef,
+    IDENT_TO_CLS,
 )
 
 
@@ -27,6 +29,8 @@ class RustSimType:
 
 
 class RustSimTypeInt(RustSimType, SimTypeInt):
+    _ident = "rust_int"
+
     def __init__(self, size=32, signed=True, label=None):
         super().__init__(signed, label)
         self._size = size
@@ -53,8 +57,20 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
         name += str(self.size)
         return name
 
+    def to_json(self, fields=None, memo=None):
+        d = {"_t": self._ident, "size": self._size, "signed": self.signed}
+        if self.label:
+            d["label"] = self.label
+        return d
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        return RustSimTypeInt(size=d.get("size", 32), signed=d.get("signed", True), label=d.get("label"))
+
 
 class RustSimTypeSize(RustSimTypeInt):
+    _ident = "rust_size"
+
     def __init__(self, signed=True, label=None):
         super().__init__(size=0, signed=signed)
 
@@ -69,12 +85,25 @@ class RustSimTypeSize(RustSimTypeInt):
         name += "size"
         return name
 
+    def to_json(self, fields=None, memo=None):
+        d = {"_t": self._ident, "signed": self.signed}
+        if self.label:
+            d["label"] = self.label
+        return d
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        return RustSimTypeSize(signed=d.get("signed", True), label=d.get("label"))
+
 
 class RustSimTypeFunction(RustSimType, SimTypeFunction):
     """
     SimTypeFunction is a type that specifies an actual function (i.e. not a pointer) with certain types of arguments and
     a certain return value.
     """
+
+    _ident = "rust_func"
+    _args = ("args", "returnty", "label", "arg_names", "variadic", "is_arg0_retbuf", "is_class_member_function")
 
     args: List[RustSimType]
     returnty: Optional[RustSimType]
@@ -181,11 +210,26 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
             is_class_member_function=self.is_class_member_function,
         ).with_arch(self._arch)
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        d = SimType.to_json(self, fields=fields, memo=memo)
+        if "variadic" in d and d["variadic"] is False:
+            d.pop("variadic")
+        if "is_arg0_retbuf" in d and d["is_arg0_retbuf"] is False:
+            d.pop("is_arg0_retbuf")
+        if "is_class_member_function" in d and d["is_class_member_function"] is False:
+            d.pop("is_class_member_function")
+        return d
+
 
 class RustSimTypeReference(RustSimType, SimTypePointer):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
+
+    _ident = "rust_ref"
+    _args = ("pts_to", "label", "offset")
 
     def __init__(self, pts_to, label=None, offset=0):
         """
@@ -230,6 +274,8 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
     SimTypeArray is a type that specifies a series of data laid out in sequence.
     """
 
+    _ident = "rust_array"
+    _args = ("elem_type", "length", "label")
     _fields = ("elem_type", "length")
 
     def __init__(self, elem_type, length=None, label=None):
@@ -259,6 +305,8 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
 
 
 class RustSimStruct(RustSimType, SimStruct):
+    _ident = "rust_struct"
+    _args = ("fields", "name", "pack", "align")
     _fields = ("name", "fields")
 
     def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
@@ -346,12 +394,42 @@ class RustSimStruct(RustSimType, SimStruct):
                 return base_offset + addon_offset
         return default
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        if self.name and self.name in memo:
+            return memo[self.name].to_json(fields=fields, memo=memo)
+        d = SimType.to_json(self, fields=fields, memo=memo)
+        if "pack" in d and d["pack"] is False:
+            d.pop("pack")
+        if "align" in d and d["align"] is None:
+            d.pop("align")
+        return d
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        fields_data = d.get("fields", {})
+        fields = OrderedDict()
+        for k, v in fields_data.items():
+            if isinstance(v, dict) and "_t" in v:
+                fields[k] = SimType.from_json(v)
+            else:
+                fields[k] = v
+        return RustSimStruct(
+            fields,
+            name=d.get("name"),
+            pack=d.get("pack", False),
+            align=d.get("align"),
+        )
+
 
 class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
     """
     like SimTypeNum, but supports an offset of 1 to 7 to a byte aligned address to allow structs with bitfields
     """
 
+    _ident = "rust_numoff"
+    _args = ("size", "signed", "label", "offset")
     _fields = SimTypeNum._fields + ("offset",)
 
     def __init__(self, size, signed=True, label=None, offset=0):
@@ -362,6 +440,8 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
 
 
 class RustSimTypeSlice(RustSimStruct, SimType):
+    _ident = "rust_slice"
+
     def __init__(self, element_type, label=None, arch=None):
         self.element_type = element_type
         RustSimStruct.__init__(
@@ -378,7 +458,7 @@ class RustSimTypeSlice(RustSimStruct, SimType):
         if arch.name in self._arch_memo:
             return self._arch_memo[arch.name]
 
-        out = RustSimTypeSlice(self.element_type, label=self.label, arch=arch)
+        out = RustSimTypeSlice(self.element_type.with_arch(arch), label=self.label, arch=arch)
         out._arch = arch
         self._arch_memo[arch.name] = out
 
@@ -399,11 +479,26 @@ class RustSimTypeSlice(RustSimStruct, SimType):
     def __repr__(self):
         return self.name
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        d = {"_t": self._ident, "element_type": self.element_type.to_json(memo=memo)}
+        if self.label:
+            d["label"] = self.label
+        return d
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        element_type = SimType.from_json(d["element_type"])
+        return RustSimTypeSlice(element_type, label=d.get("label"))
+
 
 DEFAULT_VEC_FIELDS_ORDER = ("cap", "ptr", "len")
 
 
 class RustSimTypeVec(RustSimStruct, SimType):
+    _ident = "rust_vec"
+
     def __init__(self, element_type, order=DEFAULT_VEC_FIELDS_ORDER, label=None, arch=None):
         unordered_fields = {
             "ptr": RustSimTypeReference(pts_to=element_type).with_arch(arch),
@@ -440,8 +535,26 @@ class RustSimTypeVec(RustSimStruct, SimType):
     def __repr__(self):
         return self.name
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        d = {"_t": self._ident, "element_type": self.element_type.to_json(memo=memo)}
+        if self.order != DEFAULT_VEC_FIELDS_ORDER:
+            d["order"] = list(self.order)
+        if self.label:
+            d["label"] = self.label
+        return d
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        element_type = SimType.from_json(d["element_type"])
+        order = tuple(d.get("order", DEFAULT_VEC_FIELDS_ORDER))
+        return RustSimTypeVec(element_type, order=order, label=d.get("label"))
+
 
 class RustSimTypeBottom(RustSimType, SimTypeBottom):
+    _ident = "rust_bot"
+    _args = ("label",)
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         return "BOT"
@@ -535,8 +648,25 @@ class EnumVariant:
     def __repr__(self):
         return f"{self.name}(...)"
 
+    def to_json(self, memo=None):
+        if memo is None:
+            memo = {}
+        return {
+            "name": self.name,
+            "fields": [(ft.to_json(memo=memo), fn) for ft, fn in self.fields],
+            "discriminant": self.discriminant,
+            "discriminant_size": self.discriminant_size,
+        }
+
+    @staticmethod
+    def from_json(d):
+        fields = [(SimType.from_json(ft), fn) for ft, fn in d["fields"]]
+        return EnumVariant(d["name"], fields, d["discriminant"], d["discriminant_size"])
+
 
 class RustSimEnum(RustSimType, SimType):
+    _ident = "rust_enum"
+
     def __init__(self, name, variants: List[EnumVariant]):
         super().__init__()
         self.name = name
@@ -584,8 +714,24 @@ class RustSimEnum(RustSimType, SimType):
         struct_ty.name = self.name
         return struct_ty
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        return {
+            "_t": self._ident,
+            "name": self.name,
+            "variants": [v.to_json(memo=memo) for v in self.variants],
+        }
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        variants = [EnumVariant.from_json(v) for v in d["variants"]]
+        return RustSimEnum(d["name"], variants)
+
 
 class RustSimTypeOption(RustSimEnum):
+    _ident = "rust_option"
+
     def __init__(
         self, none_discriminant, none_discriminant_size, some_type, some_discriminant, some_discriminant_size, name=None
     ):
@@ -631,8 +777,35 @@ class RustSimTypeOption(RustSimEnum):
     def __repr__(self):
         return self.repr()
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        return {
+            "_t": self._ident,
+            "name": self.name,
+            "none_discriminant": self.none_discriminant,
+            "none_discriminant_size": self.none_discriminant_size,
+            "some_type": self.some_type.to_json(memo=memo),
+            "some_discriminant": self.some_discriminant,
+            "some_discriminant_size": self.some_discriminant_size,
+        }
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        some_type = SimType.from_json(d["some_type"])
+        return RustSimTypeOption(
+            d["none_discriminant"],
+            d["none_discriminant_size"],
+            some_type,
+            d["some_discriminant"],
+            d["some_discriminant_size"],
+            name=d.get("name"),
+        )
+
 
 class RustSimTypeResult(RustSimEnum):
+    _ident = "rust_result"
+
     def __init__(
         self,
         ok_type,
@@ -688,8 +861,38 @@ class RustSimTypeResult(RustSimEnum):
     def __repr__(self):
         return self.repr()
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        return {
+            "_t": self._ident,
+            "name": self.name,
+            "ok_type": self.ok_type.to_json(memo=memo),
+            "ok_discriminant": self.ok_discriminant,
+            "ok_discriminant_size": self.ok_discriminant_size,
+            "err_type": self.err_type.to_json(memo=memo),
+            "err_discriminant": self.err_discriminant,
+            "err_discriminant_size": self.err_discriminant_size,
+        }
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        ok_type = SimType.from_json(d["ok_type"])
+        err_type = SimType.from_json(d["err_type"])
+        return RustSimTypeResult(
+            ok_type,
+            d["ok_discriminant"],
+            d["ok_discriminant_size"],
+            err_type,
+            d["err_discriminant"],
+            d["err_discriminant_size"],
+            name=d.get("name"),
+        )
+
 
 class RustSimTypeUnit(RustSimStruct):
+    _ident = "rust_unit"
+
     def __init__(self):
         super().__init__(
             fields=OrderedDict(()),
@@ -716,8 +919,17 @@ class RustSimTypeUnit(RustSimStruct):
     def size(self):
         return 0
 
+    def to_json(self, fields=None, memo=None):
+        return {"_t": self._ident}
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        return RustSimTypeUnit()
+
 
 class RustSimTypeArrayRef(RustSimStruct):
+    _ident = "rust_arrayref"
+
     def __init__(self, ele_ty):
         name = f"&[{repr(ele_ty)}]"
         super().__init__(fields={"ptr": RustSimTypeReference(ele_ty), "len": RustSimTypeSize()}, name=name)
@@ -739,8 +951,20 @@ class RustSimTypeArrayRef(RustSimStruct):
 
         return out
 
+    def to_json(self, fields=None, memo=None):
+        if memo is None:
+            memo = {}
+        return {"_t": self._ident, "ele_ty": self.ele_ty.to_json(memo=memo)}
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        ele_ty = SimType.from_json(d["ele_ty"])
+        return RustSimTypeArrayRef(ele_ty)
+
 
 class RustSimTypeStrRef(RustSimTypeSlice):
+    _ident = "rust_strref"
+
     def __init__(self):
         super().__init__(RustSimTypeInt(8, signed=False))
         self.name = "&str"
@@ -759,3 +983,34 @@ class RustSimTypeStrRef(RustSimTypeSlice):
         self._arch_memo[arch.name] = out
 
         return out
+
+    def to_json(self, fields=None, memo=None):
+        return {"_t": self._ident}
+
+    @staticmethod
+    def from_json(d, type_collection=None, memo=None):
+        return RustSimTypeStrRef()
+
+
+# Register all Rust SimType classes in the global type registry so that
+# SimType.from_json() can reconstruct them during deserialization.
+_RUST_SIMTYPE_CLASSES = [
+    RustSimTypeInt,
+    RustSimTypeSize,
+    RustSimTypeFunction,
+    RustSimTypeReference,
+    RustSimTypeArray,
+    RustSimStruct,
+    RustSimTypeNumOffset,
+    RustSimTypeSlice,
+    RustSimTypeVec,
+    RustSimTypeBottom,
+    RustSimEnum,
+    RustSimTypeOption,
+    RustSimTypeResult,
+    RustSimTypeUnit,
+    RustSimTypeArrayRef,
+    RustSimTypeStrRef,
+]
+for _cls in _RUST_SIMTYPE_CLASSES:
+    IDENT_TO_CLS[_cls._ident] = _cls
