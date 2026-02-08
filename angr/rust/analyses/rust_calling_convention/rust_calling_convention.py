@@ -3,6 +3,7 @@ import traceback
 from typing import Tuple, List
 from collections import OrderedDict
 
+from angr.analyses.decompiler.clinic import ClinicStage
 from angr.calling_conventions import default_cc
 from angr.ailment import Const
 from angr.ailment.block import Block
@@ -83,11 +84,14 @@ class RustCallingConventionAnalysis(Analysis):
 
         if self.func.normalized and self.func.size:
             try:
-                cfg = self.kb.cfgs.get_most_accurate()
-                clinic = self.project.analyses.Clinic(
-                    self.func,
-                    cfg=cfg,
-                    optimization_passes=[CleanupCodeRemover],
+                # cfg = self.kb.cfgs.get_most_accurate()
+                # clinic = self.project.analyses.Clinic(
+                #     self.func,
+                #     cfg=cfg,
+                #     optimization_passes=[CleanupCodeRemover],
+                # )
+                clinic = self.project.kb.clinic_factory.get(
+                    self.func, optimization_passes=[CleanupCodeRemover], end_stage=ClinicStage.POST_CALLSITES
                 )
                 self.graph = clinic.graph
             except Exception as e:
