@@ -7,7 +7,6 @@ from angr.ailment.expression import VirtualVariable, Phi
 from angr.ailment.statement import Jump, ConditionalJump, Assignment
 from networkx import NetworkXError
 
-
 l = logging.getLogger(name=__name__)
 
 
@@ -247,7 +246,7 @@ class CFGTransformationMixin:
         first_block = block.copy()
         first_block.statements = first_stmts
         second_block = block.copy()
-        second_block.addr = new_head_stmt.ins_addr
+        second_block.addr = new_head_stmt.tags["ins_addr"]
         second_block.statements = second_stmts
 
         for pred in preds:
