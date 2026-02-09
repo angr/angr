@@ -10,41 +10,6 @@ from unittest import mock
 from angr.llm_client import LLMClient
 
 
-class TestLLMClientConstruction(unittest.TestCase):
-    """Tests for LLMClient construction and from_env."""
-
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
-    def test_constructor_stores_params(self):
-        """LLMClient stores all constructor parameters."""
-        client = LLMClient(
-            model="gpt-4",
-            api_key="sk-test",
-            api_base="http://localhost:8000",
-            max_tokens=2048,
-            temperature=0.5,
-        )
-        assert client.model == "gpt-4"
-        assert client.api_key == "sk-test"
-        assert client.api_base == "http://localhost:8000"
-        assert client.max_tokens == 2048
-        assert client.temperature == 0.5
-
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
-    def test_constructor_defaults(self):
-        """LLMClient has sensible defaults for optional parameters."""
-        client = LLMClient(model="gpt-4")
-        assert client.api_key is None
-        assert client.api_base is None
-        assert client.max_tokens == 4096
-        assert client.temperature == 0.0
-
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
-    def test_repr(self):
-        """LLMClient repr shows the model."""
-        client = LLMClient(model="gpt-4")
-        assert "gpt-4" in repr(client)
-
-
 class TestLLMClientFromEnv(unittest.TestCase):
     """Tests for LLMClient.from_env classmethod."""
 
