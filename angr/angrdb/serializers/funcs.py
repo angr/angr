@@ -51,6 +51,8 @@ class FunctionManagerSerializer:
 
         for db_func in db_funcs:
             func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project)
+            # Mark as dirty so SpillingFunctionDict will save it to LMDB upon eviction.
+            func._dirty = True
             funcs[func.addr] = func
 
         funcs.rebuild_callgraph()
