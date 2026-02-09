@@ -437,7 +437,6 @@ class Decompiler(Analysis):
                     **self.options_to_params(self.options_by_class["codegen"]),
                 )
 
-        self._update_progress(90.0, text="Finishing up")
         self.seq_node = seq_node
         self.codegen = codegen
         # save a copy of the AIL graph that is optimized but not modified by region identification
@@ -445,17 +444,18 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
-        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
-
         # LLM refinement pass
         if self.codegen is not None and self.options_by_class is not None:
             llm_opts = self.options_to_params(self.options_by_class.get("decompiler", []))
             if llm_opts.get("llm_refine", False):
+                self._update_progress(90.0, text="LLM refinement")
                 try:
                     self.llm_refine()
                 except Exception:
                     l.warning("LLM refinement failed", exc_info=True)
 
+        self._update_progress(95.0, text="Finishing up")
+        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
@@ -811,9 +811,7 @@ class Decompiler(Analysis):
 
         llm_client = self.project.llm_client
         if llm_client is None:
-            l.warning(
-                "llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client."
-            )
+            l.warning("llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client.")
             return False
 
         code_text = self.codegen.text
@@ -869,7 +867,7 @@ class Decompiler(Analysis):
             "Only include variables that you want to rename. Use snake_case naming convention.\n\n"
             f"Current variable names: {var_names}\n\n"
             f"Decompiled code:\n```c\n{code_text}\n```\n\n"
-            "Respond with ONLY a JSON object like: {\"old_name\": \"new_name\", ...}"
+            'Respond with ONLY a JSON object like: {"old_name": "new_name", ...}'
         )
 
         result = llm_client.completion_json([{"role": "user", "content": prompt}])
@@ -913,9 +911,9 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        current_name = self.func.name
-        if not (current_name.startswith("sub_") or current_name.startswith("fcn.")):
+        if not self.func.is_default_name:
             return False
+        current_name = self.func.name
 
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code, suggest a descriptive "
@@ -934,6 +932,7 @@ class Decompiler(Analysis):
 
         l.info("LLM renamed function %s -> %s", current_name, new_name)
         self.func.name = new_name
+        self.func.is_default_name = False
         if self.codegen and self.codegen.cfunc:
             self.codegen.cfunc.name = new_name
 
