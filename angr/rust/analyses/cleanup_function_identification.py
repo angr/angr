@@ -43,6 +43,7 @@ class CleanupFunctionIdentification(Analysis):
                 queue.append(func.addr)
                 if func.is_default_name:
                     func.name = "core::ptr::drop_in_place"
+                    func.from_signature = "flirt"
                     func.is_default_name = False
 
         while queue:

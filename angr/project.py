@@ -134,9 +134,13 @@ class Project:
         eager_ifunc_resolution=None,
         cache_limits: dict[str, int | None] | None = None,
         is_rust_binary=False,
+        rustc_version=None,
+        rustc_optimization_level=None,
         **kwargs,
     ):
         self.is_rust_binary = is_rust_binary
+        self.rustc_version = rustc_version
+        self.rustc_optimization_level = rustc_optimization_level
         # Step 1: Load the binary
 
         if load_options is None:

@@ -18,12 +18,12 @@ class FlirtSigPropagation(Analysis):
     def _analyze(self):
         """Propagate FLIRT signatures to simple functions that call FLIRT-matched functions."""
         cfg = self.cfg
-        queue = [func.addr for func in cfg.kb.functions.values() if func.from_signature == "flirt"]
+        queue = [func.addr for func in self.project.kb.functions.values() if func.from_signature == "flirt"]
         while queue:
             func_addr = queue.pop(0)
-            func = cfg.kb.functions[func_addr]
-            for pred_addr in cfg.kb.callgraph.predecessors(func_addr):
-                pred_func = cfg.kb.functions[pred_addr]
+            func = self.project.kb.functions[func_addr]
+            for pred_addr in self.project.kb.callgraph.predecessors(func_addr):
+                pred_func = self.project.kb.functions[pred_addr]
                 if self._is_simple_function(pred_func):
                     if not pred_func.from_signature:
                         pred_func.from_signature = "flirt"
