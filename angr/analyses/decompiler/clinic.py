@@ -947,6 +947,9 @@ class Clinic(Analysis):
             l.debug("variable_kb is None, skipping semantic variable naming")
             return
 
+        if self.project.is_rust_binary:
+            return
+
         self._update_progress(91.0, text="Applying semantic variable naming")
 
         # Get the variable manager for this function

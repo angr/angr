@@ -173,6 +173,14 @@ class AngrDB:
             for kb in kbs:
                 KnowledgeBaseSerializer.dump(session, kb)
 
+            # Save rust binary metadata
+            if self.project.is_rust_binary:
+                self.save_info(session, "is_rust_binary", self.project.is_rust_binary)
+            if self.project.rustc_version is not None:
+                self.save_info(session, "rustc_version", self.project.rustc_version)
+            if self.project.rustc_optimization_level is not None:
+                self.save_info(session, "rustc_optimization_level", self.project.rustc_optimization_level)
+
             # Save unresolvable target hook addresses so CFG edges can be resolved after load. CFGFast
             # allocates pseudo-addresses for UnresolvableCallTarget/JumpTarget via get_pseudo_addr(),
             # which are baked into CFG node/edge addresses. These addresses are not reproducible on a
@@ -213,7 +221,15 @@ class AngrDB:
             # Load the loader
             loader = LoaderSerializer.load(session)
             # Create the project
-            proj = Project(loader)
+            is_rust_binary = self.get_info(session, "is_rust_binary")
+            rustc_version = self.get_info(session, "rustc_version")
+            rustc_optimization_level = self.get_info(session, "rustc_optimization_level")
+            proj = Project(
+                loader,
+                is_rust_binary=is_rust_binary,
+                rustc_version=rustc_version,
+                rustc_optimization_level=rustc_optimization_level,
+            )
 
             # Restore unresolvable target hooks at the exact addresses used by the original CFGFast
             # analysis. These addresses are embedded in CFG edges and must be hooked with the correct
