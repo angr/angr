@@ -24,10 +24,10 @@ from .indirect_jump import IndirectJump
 from .spilling_cfg_graph import SpillingCFGGraph
 
 if TYPE_CHECKING:
-    from angr.knowledge_base.knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
-    from angr.utils.segment_list import SegmentList
+    from angr.rustylib import SegmentList
 
 
 l = logging.getLogger(name=__name__)
@@ -79,7 +79,7 @@ class CFGModel(Serializable):
         # When cache_limit is None, spilling is disabled (regular dict for nodes)
         rtdb = None
         if cfg_manager is not None and hasattr(cfg_manager, "_kb") and cfg_manager._kb is not None:
-            rtdb = getattr(cfg_manager._kb, "rtdb", None)
+            rtdb = cfg_manager._kb.rtdb
 
         self.graph: SpillingCFGGraph = SpillingCFGGraph(
             rtdb=rtdb,

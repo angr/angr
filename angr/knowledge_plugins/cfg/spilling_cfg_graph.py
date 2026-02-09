@@ -267,7 +267,7 @@ class SpillingCFGNodeDict:
 
     def _init_lmdb(self) -> None:
         if self._nodesdb is None and self.rtdb is not None:
-            self._nodesdb = self.rtdb.get_db("cfgnodes")
+            self._nodesdb = self.rtdb.open_db("cfgnodes")
             l.debug("Initialized CFGNode LMDB cache.")
 
     def _cleanup_lmdb(self) -> None:
@@ -485,7 +485,6 @@ class SpillingCFGGraph:
         self._rtdb = rtdb
         self._db_batch_size = db_batch_size
 
-        # Always use SpillingCFGNodeDict, but with a very large cache when spilling is disabled
         effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
         self._nodes: SpillingCFGNodeDict = SpillingCFGNodeDict(
             rtdb,
