@@ -15,6 +15,7 @@ from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
+from angr.sim_type import parse_type
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
@@ -451,7 +452,7 @@ class Decompiler(Analysis):
                 self._update_progress(90.0, text="LLM refinement")
                 try:
                     self.llm_refine()
-                except Exception:
+                except Exception:  # pylint:disable=broad-exception-caught
                     l.warning("LLM refinement failed", exc_info=True)
 
         self._update_progress(95.0, text="Finishing up")
@@ -943,8 +944,6 @@ class Decompiler(Analysis):
         Ask the LLM to suggest better C types for variables.
         Returns True if any variable types were changed.
         """
-        from angr.sim_type import parse_type
-
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -996,7 +995,7 @@ class Decompiler(Analysis):
                 continue
             try:
                 new_type = parse_type(type_str, arch=self.project.arch)
-            except Exception:
+            except Exception:  # pylint:disable=broad-exception-caught
                 l.debug("LLM suggested unparseable type '%s' for %s", type_str, var_name)
                 continue
 
