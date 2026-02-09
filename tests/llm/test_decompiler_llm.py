@@ -237,13 +237,14 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
 class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     """Tests for llm_suggest_function_name."""
 
-    def test_renames_sub_function(self):
-        """Should rename functions with sub_ prefix."""
+    def test_renames_function_with_default_name(self):
+        """Should rename functions that are marked with is_default_name = True."""
         dec = self._decompile("main")
 
         # Temporarily set the name to a sub_ name
         original_name = dec.func.name
         dec.func.name = "sub_401000"
+        dec.func.is_default_name = True
         if dec.codegen.cfunc:
             dec.codegen.cfunc.name = "sub_401000"
 
@@ -255,24 +256,6 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
             assert dec.func.name == "check_password"
             if dec.codegen.cfunc:
                 assert dec.codegen.cfunc.name == "check_password"
-        finally:
-            dec.func.name = original_name
-
-    def test_renames_fcn_function(self):
-        """Should rename functions with fcn. prefix."""
-        dec = self._decompile("main")
-
-        original_name = dec.func.name
-        dec.func.name = "fcn.00401000"
-        if dec.codegen.cfunc:
-            dec.codegen.cfunc.name = "fcn.00401000"
-
-        mock_client = _make_mock_llm_client([{"function_name": "process_input"}])
-
-        try:
-            result = dec.llm_suggest_function_name(llm_client=mock_client, code_text=dec.codegen.text)
-            assert result is True
-            assert dec.func.name == "process_input"
         finally:
             dec.func.name = original_name
 

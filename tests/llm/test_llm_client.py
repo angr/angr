@@ -3,33 +3,15 @@ from __future__ import annotations
 
 __package__ = __package__ or "tests.llm"  # pylint:disable=redefined-builtin
 
-import builtins
 import os
 import unittest
 from unittest import mock
 
 from angr.llm_client import LLMClient
 
-# Keep a reference to the real __import__ so our mock can delegate
-_real_import = builtins.__import__
-
-
-def _import_no_litellm(name, *args, **kwargs):
-    """A fake __import__ that raises ImportError for litellm only."""
-    if name == "litellm":
-        raise ImportError("No module named 'litellm'")
-    return _real_import(name, *args, **kwargs)
-
 
 class TestLLMClientConstruction(unittest.TestCase):
     """Tests for LLMClient construction and from_env."""
-
-    def test_constructor_raises_without_litellm(self):
-        """LLMClient constructor should fail with ImportError when litellm is missing."""
-        with mock.patch("builtins.__import__", side_effect=_import_no_litellm):
-            with self.assertRaises(ImportError) as ctx:
-                LLMClient(model="gpt-4")
-            assert "litellm" in str(ctx.exception)
 
     @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
     def test_constructor_stores_params(self):
@@ -108,10 +90,16 @@ class TestLLMClientCompletion(unittest.TestCase):
     def _make_mock_litellm():
         return mock.MagicMock()
 
+    def test_constructor_raises_without_litellm(self):
+        """LLMClient constructor should fail with ImportError when litellm is missing."""
+        with mock.patch("angr.llm_client.litellm", None), self.assertRaises(ImportError) as ctx:
+            LLMClient(model="gpt-4")
+            assert "litellm" in str(ctx.exception)
+
     def _make_client_and_litellm(self, **kwargs):
         """Create a client with a mocked litellm module."""
         mock_litellm = self._make_mock_litellm()
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             client = LLMClient(model="test-model", **kwargs)
         return client, mock_litellm
 
@@ -127,7 +115,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         self._set_response(mock_litellm, "Hello world")
 
         messages = [{"role": "user", "content": "Hi"}]
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion(messages)
 
         assert result == "Hello world"
@@ -142,7 +130,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, '{"foo": "bar"}')
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result == {"foo": "bar"}
 
@@ -151,7 +139,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, '```json\n{"key": "value"}\n```')
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result == {"key": "value"}
 
@@ -160,7 +148,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, '```\n{"a": 1}\n```')
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result == {"a": 1}
 
@@ -169,7 +157,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, "This is not JSON at all")
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result is None
 
@@ -178,7 +166,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, "")
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result is None
 
@@ -187,7 +175,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         client, mock_litellm = self._make_client_and_litellm()
         self._set_response(mock_litellm, "response")
 
-        with mock.patch.dict("sys.modules", {"litellm": mock_litellm}):
+        with mock.patch("angr.llm_client.litellm", mock_litellm):
             client.completion([{"role": "user", "content": "test"}])
 
         call_kwargs = mock_litellm.completion.call_args[1]
