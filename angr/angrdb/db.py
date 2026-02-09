@@ -157,6 +157,8 @@ class AngrDB:
             self.engine.dispose()
 
     def dump(self, db_path, kbs: list[KnowledgeBase] | None = None, extra_info: dict[str, Any] | None = None):
+        assert self.project is not None
+
         db_str = f"sqlite:///{db_path}"
 
         with self.open_db(db_str) as Session, self.session_scope(Session) as session:
