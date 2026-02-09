@@ -86,6 +86,7 @@ def decompile(args):
         preset=args.preset,
         cca=args.cca,
         cca_callsites=args.cca_callsites,
+        llm=args.llm,
         progressbar=args.progress,
     )
 
@@ -164,6 +165,14 @@ def main():
         "function prototype inference.",
         action="store_true",
         default=True,
+    )
+    decompile_cmd_parser.add_argument(
+        "--llm",
+        help="Use an LLM to refine the decompilation output. The LLM must be configured separately using environment "
+        "variables. You may only need to set ANGR_LLM_MODEL (see LiteLLM model list) and ANGR_LLM_API_KEY. See "
+        "the documentation for angr.LLMClient for details in LLM configuration.",
+        action="store_true",
+        default=False,
     )
     decompile_cmd_parser.add_argument(
         "-p",
