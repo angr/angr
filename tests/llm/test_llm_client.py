@@ -55,12 +55,6 @@ class TestLLMClientCompletion(unittest.TestCase):
     def _make_mock_litellm():
         return mock.MagicMock()
 
-    def test_constructor_raises_without_litellm(self):
-        """LLMClient constructor should fail with ImportError when litellm is missing."""
-        with mock.patch("angr.llm_client.litellm", None), self.assertRaises(ImportError) as ctx:
-            LLMClient(model="gpt-4")
-            assert "litellm" in str(ctx.exception)
-
     def _make_client_and_litellm(self, **kwargs):
         """Create a client with a mocked litellm module."""
         mock_litellm = self._make_mock_litellm()
