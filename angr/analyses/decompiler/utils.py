@@ -1100,20 +1100,15 @@ def decompile_functions(
             try:
                 # TODO: add a timeout
                 dec = proj.analyses.Decompiler(
-                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar
+                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar, fail_fast=True
                 )
             except Exception as e:
                 exception_string = str(e).replace("\n", " ")
                 dec = None
 
         # do sanity checks on decompilation, skip checks if we already errored
-        if not exception_string:
-            if dec is None or not dec.codegen or not dec.codegen.text:
-                exception_string = "Decompilation had no code output (failed in decompilation)"
-            elif "{\n}" in dec.codegen.text:
-                exception_string = "Decompilation outputted an empty function (failed in structuring)"
-            elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
-                exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
+        if not exception_string and (dec is None or not dec.codegen or not dec.codegen.text):
+            exception_string = "Decompilation had no code output (failed in decompilation)"
 
         if exception_string:
             _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
