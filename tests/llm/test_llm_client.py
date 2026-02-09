@@ -13,7 +13,7 @@ from angr.llm_client import LLMClient
 class TestLLMClientFromEnv(unittest.TestCase):
     """Tests for LLMClient.from_env classmethod."""
 
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
+    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
     def test_from_env_returns_none_when_model_unset(self):
         """from_env returns None if ANGR_LLM_MODEL is not set."""
         env = {k: v for k, v in os.environ.items() if not k.startswith("ANGR_LLM_")}
@@ -21,7 +21,7 @@ class TestLLMClientFromEnv(unittest.TestCase):
             result = LLMClient.from_env()
             assert result is None
 
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
+    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
     def test_from_env_creates_client_with_model(self):
         """from_env creates an LLMClient when ANGR_LLM_MODEL is set."""
         env = {"ANGR_LLM_MODEL": "gpt-4"}
@@ -32,7 +32,7 @@ class TestLLMClientFromEnv(unittest.TestCase):
             assert client.api_key is None
             assert client.api_base is None
 
-    @mock.patch.dict("sys.modules", {"litellm": mock.MagicMock()})
+    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
     def test_from_env_passes_all_env_vars(self):
         """from_env reads ANGR_LLM_API_KEY and ANGR_LLM_API_BASE."""
         env = {
