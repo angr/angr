@@ -34,13 +34,13 @@ class TestCommandLineInterface(unittest.TestCase):
 
         # test a single function
         assert (
-            run_cli(bin_path, "decompile", "--functions", f1, "--no-color")
+            run_cli("decompile", bin_path, "--functions", f1, "--no-color")
             == decompile_functions(bin_path, [f1]) + "\n"
         )
 
         # test multiple functions
         assert (
-            run_cli(bin_path, "decompile", "--functions", f1, f2, "--no-color")
+            run_cli("decompile", bin_path, "--functions", f1, f2, "--no-color")
             == decompile_functions(bin_path, [f1, f2]) + "\n"
         )
 
@@ -48,8 +48,8 @@ class TestCommandLineInterface(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "schedule_job"
 
-        dream_cli = run_cli(bin_path, "decompile", "--no-casts", "--functions", f1, "--structurer", "dream")
-        sailr_cli = run_cli(bin_path, "decompile", "--functions", f1, "--structurer", "sailr")
+        dream_cli = run_cli("decompile", bin_path, "--no-casts", "--functions", f1, "--structurer", "dream")
+        sailr_cli = run_cli("decompile", bin_path, "--functions", f1, "--structurer", "sailr")
         assert dream_cli.count("goto") == 0
         assert dream_cli != sailr_cli
 
@@ -62,14 +62,14 @@ class TestCommandLineInterface(unittest.TestCase):
         f1_offset = f1_default_addr - default_base_addr
 
         # function resolving is based on symbol
-        sym_based_dec = run_cli(bin_path, "decompile", "--functions", f1, "--preset", "full", "--no-color")
+        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1, "--preset", "full", "--no-color")
         # function resolving is based on the address (with default angr loading)
         base_addr_dec = run_cli(
-            bin_path, "decompile", "--functions", hex(f1_default_addr), "--preset", "full", "--no-color"
+            "decompile", bin_path, "--functions", hex(f1_default_addr), "--preset", "full", "--no-color"
         )
         # function resolving is based on the address (with base address specified)
         offset_dec = run_cli(
-            bin_path, "--base-addr", "0x0", "decompile", "--functions", hex(f1_offset), "--preset", "full", "--no-color"
+            "decompile", bin_path, "--base-addr", "0x0", "--functions", hex(f1_offset), "--preset", "full", "--no-color"
         )
 
         # since the externs can be unpredictable, we only check the function name down
@@ -86,7 +86,7 @@ class TestCommandLineInterface(unittest.TestCase):
 
     def test_disassembly(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
-        disasm = run_cli(bin_path, "disassemble")
+        disasm = run_cli("disassemble", bin_path)
         funcs = {
             "_init",
             "_start",
@@ -112,11 +112,45 @@ class TestCommandLineInterface(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "main"
 
-        no_colors_output = run_cli(bin_path, "decompile", "--functions", f1, "--no-colors")
+        no_colors_output = run_cli("decompile", bin_path, "--functions", f1, "--no-colors")
         expected_output = decompile_functions(bin_path, [f1]) + "\n"
 
         # it should maintain that no ANSI color codes are present
         assert no_colors_output == expected_output
+
+    def test_backwards_compat_old_arg_order(self):
+        """Old argument order (angr <binary> <command>) should still work with a deprecation warning."""
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
+        f1 = "schedule_job"
+
+        # Old order: binary first, then command
+        with mock.patch("sys.stderr", new=io.StringIO()) as fake_err:
+            result = run_cli(bin_path, "decompile", "--functions", f1, "--no-color")
+            stderr_output = fake_err.getvalue()
+
+        assert result == decompile_functions(bin_path, [f1]) + "\n"
+        assert "Deprecated argument order" in stderr_output
+
+    def test_backwards_compat_old_arg_order_with_base_addr(self):
+        """Old argument order with --base-addr between binary and command should still work."""
+        bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
+        f1 = "schedule_job"
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        default_base_addr = proj.loader.main_object.min_addr
+        f1_default_addr = proj.loader.find_symbol(f1).rebased_addr
+        f1_offset = f1_default_addr - default_base_addr
+
+        # Old order with --base-addr between binary and command
+        with mock.patch("sys.stderr", new=io.StringIO()) as fake_err:
+            result = run_cli(
+                bin_path, "--base-addr", "0x0", "decompile", "--functions", hex(f1_offset), "--preset", "full",
+                "--no-color"
+            )
+            stderr_output = fake_err.getvalue()
+
+        assert "Deprecated argument order" in stderr_output
+        # Verify it actually produced decompilation output
+        assert len(result.strip()) > 0
 
 
 if __name__ == "__main__":

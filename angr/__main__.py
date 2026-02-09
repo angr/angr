@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import re
+import sys
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 
@@ -23,6 +24,9 @@ log = logging.getLogger(__name__)
 
 
 NUMERIC_ARG_RE = re.compile(r"^(0x)?[a-fA-F0-9]+$")
+KNOWN_COMMANDS = frozenset({"decompile", "dec", "disassemble", "dis"})
+# Options that take a value argument (used for backwards-compat argv reordering)
+_OPTIONS_WITH_VALUE = frozenset({"--base-addr", "--structurer", "--preset", "--theme"})
 
 
 def parse_function_args(proj: angr.Project, func_args: list[str] | None) -> Generator[Function]:
@@ -106,12 +110,8 @@ def decompile(args):
         print(decompilation)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
-    parser.add_argument("--version", action="version", version=angr.__version__)
-    parser.add_argument(
-        "-v", "--verbose", action="count", default=0, help="Increase verbosity level (can be used multiple times)."
-    )
+def _add_binary_args(parser: argparse.ArgumentParser) -> None:
+    """Add the binary positional argument and related options shared by all subcommands."""
     parser.add_argument("binary", help="The path to the binary to analyze.")
     parser.add_argument(
         "--catch-exceptions",
@@ -129,10 +129,65 @@ def main():
         type=lambda x: int(x, 0),
         default=None,
     )
+
+
+def _maybe_reorder_args(argv: list[str]) -> list[str]:
+    """
+    Detect old-style argument order (angr <binary> <command>) and reorder
+    to new style (angr <command> <binary>) with a deprecation warning.
+    """
+    positionals = []
+    skip_next = False
+    for i, arg in enumerate(argv):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg in _OPTIONS_WITH_VALUE:
+            skip_next = True
+            continue
+        if arg.startswith("-"):
+            continue
+        positionals.append((i, arg))
+        if len(positionals) >= 2:
+            break
+
+    if len(positionals) < 2:
+        return argv
+
+    first_idx, first_val = positionals[0]
+    second_idx, second_val = positionals[1]
+
+    # If first positional is already a known command, no reorder needed
+    if first_val in KNOWN_COMMANDS:
+        return argv
+
+    # If second positional is a known command, it's the old argument order
+    if second_val in KNOWN_COMMANDS:
+        print(
+            "WARNING: Deprecated argument order detected: angr <binary> <command>.\n"
+            "Please use the new order: angr <command> <binary>\n"
+            "The old argument order will be removed in a future version.",
+            file=sys.stderr,
+        )
+        new_argv = list(argv)
+        new_argv[first_idx] = second_val
+        new_argv[second_idx] = first_val
+        return new_argv
+
+    return argv
+
+
+def main():
+    parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
+    parser.add_argument("--version", action="version", version=angr.__version__)
+    parser.add_argument(
+        "-v", "--verbose", action="count", default=0, help="Increase verbosity level (can be used multiple times)."
+    )
     subparsers = parser.add_subparsers(metavar="command", required=True)
 
     decompile_cmd_parser = subparsers.add_parser("decompile", aliases=["dec"], help=decompile.__doc__)
     decompile_cmd_parser.set_defaults(func=decompile)
+    _add_binary_args(decompile_cmd_parser)
     decompile_cmd_parser.add_argument(
         "--structurer",
         help="The structuring algorithm to use for decompilation.",
@@ -192,6 +247,7 @@ def main():
 
     disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
     disassemble_cmd_parser.set_defaults(func=disassemble)
+    _add_binary_args(disassemble_cmd_parser)
     disassemble_cmd_parser.add_argument(
         "--functions",
         help="""
@@ -200,7 +256,7 @@ def main():
         nargs="+",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(_maybe_reorder_args(sys.argv[1:]))
 
     log_level = max(logging.ERROR - (10 * args.verbose), logging.DEBUG)
     logging.getLogger("angr").setLevel(log_level)
