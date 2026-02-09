@@ -54,7 +54,7 @@ from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereferen
 from angr.utils.strings import decode_utf16_string
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
-from angr.errors import UnsupportedNodeTypeError, AngrRuntimeError
+from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.decompiler.region_identifier import MultiNode
@@ -1327,21 +1327,43 @@ class CAssignment(CStatement):
             yield ";\n", self
 
 
-class CFunctionCall(CStatement, CExpression):
+class CExpressionStatement(CStatement):
+    """
+    Wraps a CExpression so it can be used as a standalone statement.
+
+    expr;
+    """
+
+    __slots__ = ("expr", "returning")
+
+    def __init__(self, expr: CExpression, returning: bool = True, **kwargs):
+        super().__init__(**kwargs)
+        self.expr = expr
+        self.returning = returning
+
+    def c_repr_chunks(self, indent=0, asexpr=False):
+        indent_str = self.indent_str(indent=indent)
+
+        yield indent_str, None
+        yield from self.expr.c_repr_chunks(indent=0)
+        if not asexpr:
+            yield ";", None
+            if not self.returning:
+                yield " /* do not return */", None
+            yield "\n", None
+
+
+class CFunctionCall(CExpression):
     """
     func(arg0, arg1)
 
     :ivar Function callee_func:  The function getting called.
-    :ivar is_expr:  True if the return value of the function is written to ret_expr; Essentially, ret_expr = call().
     """
 
     __slots__ = (
         "args",
         "callee_func",
         "callee_target",
-        "is_expr",
-        "ret_expr",
-        "returning",
         "show_demangled_name",
         "show_disambiguated_name",
     )
@@ -1351,9 +1373,6 @@ class CFunctionCall(CStatement, CExpression):
         callee_target,
         callee_func,
         args,
-        returning=True,
-        ret_expr=None,
-        is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
         tags=None,
@@ -1361,14 +1380,10 @@ class CFunctionCall(CStatement, CExpression):
         **kwargs,
     ):
         super().__init__(tags=tags, codegen=codegen, **kwargs)
-        CConstruct.__init__(self, tags=tags, codegen=codegen)
 
         self.callee_target = callee_target
         self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
-        self.returning = returning
-        self.ret_expr = ret_expr
-        self.is_expr = is_expr
         self.show_demangled_name = show_demangled_name
         self.show_disambiguated_name = show_disambiguated_name
 
@@ -1391,11 +1406,9 @@ class CFunctionCall(CStatement, CExpression):
 
     @property
     def type(self):
-        if self.is_expr:
-            return (self.prototype.returnty if self.prototype is not None else None) or SimTypeInt(
-                signed=False
-            ).with_arch(self.codegen.project.arch)
-        raise AngrRuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+        return (self.prototype.returnty if self.prototype is not None else None) or SimTypeInt(signed=False).with_arch(
+            self.codegen.project.arch
+        )
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """
@@ -1430,20 +1443,7 @@ class CFunctionCall(CStatement, CExpression):
             return False
         return re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", chunks[-1]) is not None
 
-    def c_repr_chunks(self, indent=0, asexpr: bool = False):
-        """
-
-        :param indent:  Number of whitespace indentation characters.
-        :param asexpr:  True if this call is used as an expression (which means we will skip the generation of
-                        semicolons and newlines at the end of the call).
-        """
-        indent_str = self.indent_str(indent=indent)
-        yield indent_str, None
-
-        if not self.is_expr and self.ret_expr is not None:
-            yield from CExpression._try_c_repr_chunks(self.ret_expr)
-            yield " = ", None
-
+    def c_repr_chunks(self, indent=0, asexpr=False):
         if self.callee_func is not None:
             if self.callee_func.demangled_name and self.show_demangled_name:
                 func_name = get_cpp_function_name(self.callee_func.demangled_name)
@@ -1455,7 +1455,7 @@ class CFunctionCall(CStatement, CExpression):
                 and self._is_func_likely_method(func_name, self.callee_func.is_rust_function())
             ):
                 func_name = self.callee_func.short_name
-                yield from self._c_repr_chunks_thiscall(func_name, asexpr=asexpr)
+                yield from self._c_repr_chunks_thiscall(func_name)
                 return
             if self.show_disambiguated_name and self._is_target_ambiguous(func_name):
                 func_name = self.callee_func.get_unambiguous_name(display_name=func_name)
@@ -1481,13 +1481,7 @@ class CFunctionCall(CStatement, CExpression):
 
         yield ")", paren
 
-        if not self.is_expr and not asexpr:
-            yield ";", None
-            if not self.returning:
-                yield " /* do not return */", None
-            yield "\n", None
-
-    def _c_repr_chunks_thiscall(self, func_name: str, asexpr: bool = False):
+    def _c_repr_chunks_thiscall(self, func_name: str):
         # The first argument is the `this` pointer
         assert self.args
         this_ref = self.args[0]
@@ -1512,12 +1506,6 @@ class CFunctionCall(CStatement, CExpression):
             yield from CExpression._try_c_repr_chunks(arg)
 
         yield ")", paren
-
-        if not self.is_expr and not asexpr:
-            yield ";", None
-            if not self.returning:
-                yield " /* do not return */", None
-            yield "\n", None
 
 
 class CReturn(CStatement):
@@ -3606,30 +3594,37 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if not is_expr and stmt.ret_expr is not None:
             ret_expr = self._handle(stmt.ret_expr)
 
-        result = CFunctionCall(
+        call_expr = CFunctionCall(
             target,
             target_func,
             args,
-            returning=target_func.returning if target_func is not None else True,
-            ret_expr=ret_expr,
             tags=stmt.tags,
-            is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
             show_disambiguated_name=self.show_disambiguated_name,
             codegen=self,
         )
 
-        if result.is_expr and result.type.size != stmt.size * self.project.arch.byte_width:
-            result = CTypeCast(
-                result.type,
-                self.default_simtype_from_bits(
-                    stmt.size * self.project.arch.byte_width, signed=getattr(result.type, "signed", False)
-                ),
-                result,
-                codegen=self,
-            )
+        if is_expr:
+            # Used as an expression (e.g. nested in another expression)
+            if call_expr.type.size != stmt.size * self.project.arch.byte_width:
+                call_expr = CTypeCast(
+                    call_expr.type,
+                    self.default_simtype_from_bits(
+                        stmt.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
+                    ),
+                    call_expr,
+                    codegen=self,
+                )
+            return call_expr
 
-        return result
+        returning = target_func.returning if target_func is not None else True
+
+        if ret_expr is not None:
+            # ret_expr = call()  =>  CAssignment(ret_expr, call_expr)
+            return CAssignment(ret_expr, call_expr, tags=stmt.tags, codegen=self)
+
+        # Standalone call statement
+        return CExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)
@@ -3971,7 +3966,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             "_INSERT",
             None,
             [self._handle(expr.base), self._handle(expr.offset), self._handle(expr.value)],
-            is_expr=True,
             codegen=self,
         )
 
@@ -4114,10 +4108,13 @@ class CStructuredCodeWalker:
         obj.rhs = self.handle(obj.rhs)
         return obj
 
+    def handle_CExpressionStatement(self, obj):
+        obj.expr = self.handle(obj.expr)
+        return obj
+
     def handle_CFunctionCall(self, obj):
         obj.callee_target = self.handle(obj.callee_target)
         obj.args = [self.handle(arg) for arg in obj.args]
-        obj.ret_expr = self.handle(obj.ret_expr)
         return obj
 
     def handle_CReturn(self, obj):
