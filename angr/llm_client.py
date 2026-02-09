@@ -5,6 +5,11 @@ import logging
 import os
 import re
 
+try:
+    import litellm
+except ImportError:
+    litellm = None
+
 l = logging.getLogger(name=__name__)
 
 
@@ -22,9 +27,7 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.0,
     ):
-        try:
-            import litellm  # noqa: F401
-        except ImportError:
+        if litellm is None:
             raise ImportError(
                 "litellm is required for LLM support. Install it with: pip install angr[llm]  or  pip install litellm"
             )
@@ -54,8 +57,6 @@ class LLMClient:
         """
         Call the LLM with the given messages and return the response text.
         """
-        import litellm
-
         call_kwargs: dict = {
             "model": self.model,
             "messages": messages,

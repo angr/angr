@@ -1029,6 +1029,7 @@ def decompile_functions(
     preset: str | None = None,
     cca: bool = False,
     cca_callsites: bool = True,
+    llm: bool = False,
     progressbar: bool = False,
 ) -> str:
     """
@@ -1088,6 +1089,8 @@ def decompile_functions(
         (PARAM_TO_OPTION["structurer_cls"], structurer),
         (PARAM_TO_OPTION["show_casts"], show_casts),
     ]
+    if llm:
+        dec_options.append(("llm_refine", True))
     for func in functions:
         f = cfg.functions[func]
         if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
