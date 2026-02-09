@@ -40,6 +40,7 @@ class TestProjectLLMClient(unittest.TestCase):
             proj = self._get_project()
             client = proj.llm_client
             assert client is not None
+            assert isinstance(client, LLMClient)
             assert client.model == "test-model"
             assert client.api_key == "test-key"
 

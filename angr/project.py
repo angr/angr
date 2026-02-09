@@ -13,6 +13,7 @@ import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
 import cle
 from .sim_procedure import SimProcedure
+from .llm_client import LLMClient
 
 from .errors import AngrNoPluginError
 
@@ -286,8 +287,6 @@ class Project:
         ``ANGR_LLM_MODEL``, ``ANGR_LLM_API_KEY``, ``ANGR_LLM_API_BASE``.
         """
         if self._llm_client is _UNSET:
-            from .llm_client import LLMClient
-
             self._llm_client = LLMClient.from_env()
         return self._llm_client
 
@@ -834,7 +833,9 @@ class Project:
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:
-            l.warning("Plugin preset %s does not exist any more. Fall back to the default preset.")
+            l.warning(
+                "Plugin preset %s does not exist any more. Fall back to the default preset.", self._analyses_preset
+            )
             self._analyses_preset = "default"
             self._initialize_analyses_hub()
 

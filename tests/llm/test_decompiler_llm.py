@@ -141,6 +141,8 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_renames_variables(self):
         """Should rename variables when the LLM suggests new names."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         # collect current variable names
         varman = dec._variable_kb.variables[dec.func.addr]
@@ -161,6 +163,7 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_skips_unknown_variables(self):
         """Should skip variable names that don't match any known variable."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         mock_client = _make_mock_llm_client([{"nonexistent_var_xyz": "new_name"}])
 
@@ -170,6 +173,8 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_skips_same_name_renames(self):
         """Should skip rename when old_name == new_name."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -184,6 +189,7 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_returns_false_on_empty_response(self):
         """Should return False when LLM returns None."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
         mock_client = _make_mock_llm_client([None])
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
@@ -199,6 +205,8 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_skips_non_string_values(self):
         """Should ignore non-string rename values."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -215,6 +223,8 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_multiple_renames(self):
         """Should rename multiple variables at once."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -240,6 +250,7 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     def test_renames_function_with_default_name(self):
         """Should rename functions that are marked with is_default_name = True."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         # Temporarily set the name to a sub_ name
         original_name = dec.func.name
@@ -262,6 +273,7 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     def test_skips_named_function(self):
         """Should skip functions that already have meaningful names (not sub_/fcn.)."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         # "main" doesn't start with sub_ or fcn., so should be skipped
         mock_client = _make_mock_llm_client([{"function_name": "better_name"}])
@@ -275,6 +287,7 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     def test_returns_false_on_empty_response(self):
         """Should return False when LLM returns None."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         original_name = dec.func.name
         dec.func.name = "sub_401000"
@@ -290,6 +303,7 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     def test_returns_false_on_same_name(self):
         """Should return False when LLM suggests the same name."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         original_name = dec.func.name
         dec.func.name = "sub_401000"
@@ -312,6 +326,7 @@ class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     def test_returns_false_on_non_string_name(self):
         """Should return False when function_name in response is not a string."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         original_name = dec.func.name
         dec.func.name = "sub_401000"
@@ -331,6 +346,8 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_changes_variable_type(self):
         """Should change variable types when LLM suggests valid C types."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -353,6 +370,8 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_skips_unparseable_types(self):
         """Should skip variables with unparseable type strings."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -367,6 +386,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_skips_unknown_variable_names(self):
         """Should skip variable names that don't match any known variable."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         mock_client = _make_mock_llm_client([{"nonexistent_var_xyz": "int"}])
 
@@ -376,6 +396,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_returns_false_on_empty_response(self):
         """Should return False when LLM returns None."""
         dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
         mock_client = _make_mock_llm_client([None])
 
         result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
@@ -391,6 +412,8 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_pointer_type_change(self):
         """Should handle pointer type suggestions."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -408,6 +431,8 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_multiple_type_changes(self):
         """Should change types for multiple variables at once."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -428,6 +453,8 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
     def test_partial_valid_types(self):
         """When some types parse and some don't, should apply the valid ones."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -494,6 +521,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
     def test_full_variable_rename_flow(self):
         """Full flow: decompile -> mock LLM suggests renames -> verify text changes."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         # collect a variable to rename
         varman = dec._variable_kb.variables[dec.func.addr]
@@ -526,6 +555,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
     def test_full_type_change_flow(self):
         """Full flow: decompile -> mock LLM suggests types -> verify types applied."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
         unified_vars = varman.get_unified_variables(sort=None)
@@ -557,6 +588,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
     def test_no_changes_flow(self):
         """Full flow: LLM returns empty dicts -> no changes, no regeneration."""
         dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
         original_text = dec.codegen.text
 
         # Note: only 2 completion_json calls are made (function name skipped for "main")

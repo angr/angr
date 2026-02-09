@@ -6,7 +6,7 @@ import os
 import re
 
 try:
-    import litellm
+    import litellm  # type: ignore
 except ImportError:
     litellm = None
 
@@ -69,7 +69,7 @@ class LLMClient:
             call_kwargs["api_base"] = self.api_base
         call_kwargs.update(kwargs)
 
-        response = litellm.completion(**call_kwargs)
+        response = litellm.completion(**call_kwargs)  # type: ignore
         return response.choices[0].message.content
 
     def completion_json(self, messages: list[dict[str, str]], **kwargs) -> dict | None:
