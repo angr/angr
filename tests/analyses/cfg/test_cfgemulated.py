@@ -113,10 +113,10 @@ class TestCfgemulate(unittest.TestCase):
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
         end = time.time()
         duration = end - start
-        bbl_dict = cfg.model.nodes()
+        bbls = list(cfg.model.nodes())
 
         l.info("CFG generated in %f seconds.", duration)
-        l.info("Contains %d members in BBL dict.", len(bbl_dict))
+        l.info("Contains %d members in BBL dict.", len(bbls))
 
         if cfg_path is not None and os.path.isfile(cfg_path):
             # Compare the graph with a predefined CFG
