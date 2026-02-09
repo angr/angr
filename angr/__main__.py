@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import logging
+import os
+import pathlib
 import re
 import sys
 from typing import TYPE_CHECKING
@@ -13,7 +16,10 @@ from rich.console import Console
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
-from angr.analyses.decompiler.utils import decompile_functions
+try:
+    from angr.angrdb import AngrDB
+except ImportError:
+    AngrDB = None
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
@@ -23,10 +29,88 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+_CACHE_DIR = pathlib.Path(os.environ.get("ANGR_CACHE_DIR", os.path.join("~", ".cache", "angr"))).expanduser()
+
 NUMERIC_ARG_RE = re.compile(r"^(0x)?[a-fA-F0-9]+$")
 KNOWN_COMMANDS = frozenset({"decompile", "dec", "disassemble", "dis"})
 # Options that take a value argument (used for backwards-compat argv reordering)
 _OPTIONS_WITH_VALUE = frozenset({"--base-addr", "--structurer", "--preset", "--theme"})
+
+
+def _cache_path_for(binary: str, base_addr: int | None = None) -> pathlib.Path:
+    """Return the deterministic AngrDB cache path for *binary*."""
+    binary_resolved = str(pathlib.Path(binary).resolve())
+    key = binary_resolved
+    if base_addr is not None:
+        key += f":base_addr={base_addr:#x}"
+    digest = hashlib.sha256(key.encode()).hexdigest()[:16]
+    name = pathlib.Path(binary_resolved).name
+    return _CACHE_DIR / f"{name}-{digest}.angrdb"
+
+
+def _cache_is_fresh(cache_path: pathlib.Path, binary: str) -> bool:
+    """Return True if *cache_path* exists and is newer than *binary*."""
+    try:
+        return cache_path.stat().st_mtime >= pathlib.Path(binary).resolve().stat().st_mtime
+    except OSError:
+        return False
+
+
+def _load_project_from_cache(cache_path: pathlib.Path) -> angr.Project | None:
+    """Try to load a project (with CFG) from the AngrDB cache."""
+    if AngrDB is None:
+        return None
+    try:
+        angrdb = AngrDB()
+        proj = angrdb.load(str(cache_path))
+        log.info("Loaded cached analysis from %s", cache_path)
+        return proj
+    except Exception:  # pylint:disable=broad-exception-caught
+        log.debug("Failed to load cache %s, will recompute", cache_path, exc_info=True)
+        return None
+
+
+def _save_project_to_cache(proj: angr.Project, cache_path: pathlib.Path) -> None:
+    """Save the project's knowledge base to the AngrDB cache."""
+    if AngrDB is None:
+        return
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        angrdb = AngrDB(project=proj)
+        angrdb.dump(str(cache_path))
+        log.info("Saved analysis cache to %s", cache_path)
+    except Exception:  # pylint:disable=broad-exception-caught
+        log.debug("Failed to save cache to %s", cache_path, exc_info=True)
+
+
+def _load_or_analyze(binary: str, base_addr: int | None = None, no_cache: bool = False,
+                     progressbar: bool = False) -> angr.Project:
+    """
+    Load a project with CFG results, using a cache when possible.
+
+    If a valid cache exists for *binary*, load from it.  Otherwise create a
+    fresh project, run CFGFast, and persist the results for next time.
+    """
+    cache_path = _cache_path_for(binary, base_addr)
+
+    # Try loading from cache
+    if not no_cache and _cache_is_fresh(cache_path, binary):
+        proj = _load_project_from_cache(cache_path)
+        if proj is not None:
+            return proj
+
+    # Fresh analysis
+    loader_main_opts = {}
+    if base_addr is not None:
+        loader_main_opts["base_addr"] = base_addr
+    proj = angr.Project(binary, auto_load_libs=False, main_opts=loader_main_opts)
+    proj.analyses.CFG(normalize=True, data_references=True, show_progressbar=progressbar)
+
+    # Persist to cache
+    if not no_cache:
+        _save_project_to_cache(proj, cache_path)
+
+    return proj
 
 
 def parse_function_args(proj: angr.Project, func_args: list[str] | None) -> Generator[Function]:
@@ -58,12 +142,7 @@ def disassemble(args):
     """
     Disassemble functions.
     """
-    loader_main_opts_kwargs = {}
-    if args.base_addr is not None:
-        loader_main_opts_kwargs["base_addr"] = args.base_addr
-
-    proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
-    proj.analyses.CFG(normalize=True, data_references=True)
+    proj = _load_or_analyze(args.binary, base_addr=args.base_addr, no_cache=args.no_cache)
 
     for func in parse_function_args(proj, args.functions):
         try:
@@ -80,18 +159,76 @@ def decompile(args):
     """
     Decompile functions.
     """
-    decompilation = decompile_functions(
-        args.binary,
-        functions=args.functions,
-        structurer=args.structurer,
-        catch_errors=args.catch_exceptions,
-        show_casts=not args.no_casts,
-        base_address=args.base_addr,
-        preset=args.preset,
-        cca=args.cca,
-        cca_callsites=args.cca_callsites,
-        progressbar=args.progress,
-    )
+    from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
+    from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER as _DEFAULT_STRUCTURER
+
+    structurer = args.structurer or _DEFAULT_STRUCTURER.NAME
+
+    proj = _load_or_analyze(args.binary, base_addr=args.base_addr, no_cache=args.no_cache,
+                            progressbar=args.progress)
+    cfg = proj.kb.cfgs.get("CFGFast")
+
+    if args.cca:
+        proj.analyses.CompleteCallingConventions(analyze_callsites=args.cca_callsites,
+                                                show_progressbar=args.progress)
+
+    # Resolve which functions to decompile
+    functions = args.functions
+    if functions is None:
+        functions = sorted(proj.kb.functions)
+    else:
+        normalized: list[int | str] = []
+        for func in functions:
+            try:
+                normalized.append(int(func, 0) if isinstance(func, str) else func)
+            except ValueError:
+                normalized.append(func)
+        functions = normalized
+
+    # Verify functions exist
+    for func in list(functions):
+        if func not in proj.kb.functions:
+            if args.catch_exceptions:
+                log.warning("Function %s does not exist in the CFG.", str(func))
+                functions.remove(func)
+            else:
+                raise ValueError(f"Function {func} does not exist in the CFG.")
+
+    # Decompile
+    dec_options = [
+        (PARAM_TO_OPTION["structurer_cls"], structurer),
+        (PARAM_TO_OPTION["show_casts"], not args.no_casts),
+    ]
+    decompilation = ""
+    for func in functions:
+        f = proj.kb.functions[func]
+        if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
+            continue
+
+        exception_string = ""
+        if not args.catch_exceptions:
+            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=args.preset,
+                                           show_progressbar=args.progress)
+        else:
+            try:
+                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=args.preset,
+                                               show_progressbar=args.progress, fail_fast=True)
+            except Exception as e:  # pylint:disable=broad-exception-caught
+                exception_string = str(e).replace("\n", " ")
+                dec = None
+
+        if not exception_string and (dec is None or not dec.codegen or not dec.codegen.text):
+            exception_string = "Decompilation had no code output (failed in decompilation)"
+
+        if exception_string:
+            log.critical("Failed to decompile %s because %s", repr(f), exception_string)
+            decompilation += f"// [error: {func} | {exception_string}]\n"
+        else:
+            if dec is not None and dec.codegen is not None and dec.codegen.text is not None:
+                decompilation += dec.codegen.text
+            else:
+                decompilation += "Invalid decompilation output"
+            decompilation += "\n"
 
     # Determine if we should use syntax highlighting
     should_highlight = ansi_color_enabled and not args.no_colors
@@ -128,6 +265,12 @@ def _add_binary_args(parser: argparse.ArgumentParser) -> None:
         specified in the ELF header.""",
         type=lambda x: int(x, 0),
         default=None,
+    )
+    parser.add_argument(
+        "--no-cache",
+        help="Disable automatic caching of analysis results between invocations.",
+        action="store_true",
+        default=False,
     )
 
 
