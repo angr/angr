@@ -542,6 +542,62 @@ class _OutEdgeView:
         return self._graph._graph.number_of_edges()
 
 
+class _InDegreeView:
+    """View over graph in-degrees supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.in_degree(node)`` and ``graph.in_degree[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFGGraph):
+        self._graph = graph
+
+    def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
+        if node is None:
+            return iter(self)
+        return self[node]
+
+    def __getitem__(self, node: CFGNode) -> int:
+        block_id = self._graph._get_block_id(node)
+        if block_id not in self._graph._graph:
+            return 0
+        return self._graph._graph.in_degree(block_id)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
+        for block_id, deg in self._graph._graph.in_degree():
+            yield self._graph._get_node_by_id(block_id), deg
+
+    def __len__(self) -> int:
+        return len(self._graph._graph)
+
+
+class _OutDegreeView:
+    """View over graph out-degrees supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.out_degree(node)`` and ``graph.out_degree[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFGGraph):
+        self._graph = graph
+
+    def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
+        if node is None:
+            return iter(self)
+        return self[node]
+
+    def __getitem__(self, node: CFGNode) -> int:
+        block_id = self._graph._get_block_id(node)
+        if block_id not in self._graph._graph:
+            return 0
+        return self._graph._graph.out_degree(block_id)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
+        for block_id, deg in self._graph._graph.out_degree():
+            yield self._graph._get_node_by_id(block_id), deg
+
+    def __len__(self) -> int:
+        return len(self._graph._graph)
+
+
 class SpillingCFGGraph:
     """
     A graph wrapper that stores CFGNode instances in a spilling dict while keeping
@@ -719,23 +775,15 @@ class SpillingCFGGraph:
         """Return a view of out-edges supporting call, subscript, len, and iteration."""
         return _OutEdgeView(self)
 
-    def in_degree(self, node: CFGNode | None = None):
-        if node is None:
-            return self._graph.in_degree()
-        block_id = self._get_block_id(node)
-        # Return 0 for nodes not in the graph (they have no edges)
-        if block_id not in self._graph:
-            return 0
-        return self._graph.in_degree(block_id)
+    @property
+    def in_degree(self) -> _InDegreeView:
+        """Return a view of in-degrees supporting call, subscript, len, and iteration."""
+        return _InDegreeView(self)
 
-    def out_degree(self, node: CFGNode | None = None):
-        if node is None:
-            return self._graph.out_degree()
-        block_id = self._get_block_id(node)
-        # Return 0 for nodes not in the graph (they have no edges)
-        if block_id not in self._graph:
-            return 0
-        return self._graph.out_degree(block_id)
+    @property
+    def out_degree(self) -> _OutDegreeView:
+        """Return a view of out-degrees supporting call, subscript, len, and iteration."""
+        return _OutDegreeView(self)
 
     #
     # Adjacency access
