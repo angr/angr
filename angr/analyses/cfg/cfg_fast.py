@@ -2359,10 +2359,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     None,
                     None,
                 )
-                if namehint and (
-                    addr_ not in self.kb.labels
-                    or self.kb.labels[addr_] == "_ftext"
-                ):
+                if namehint and (addr_ not in self.kb.labels or self.kb.labels[addr_] == "_ftext"):
                     unique_label = self.kb.labels.get_unique_label(namehint)
                     self.kb.labels[addr_] = unique_label
 
