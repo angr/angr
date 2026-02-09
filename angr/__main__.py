@@ -209,14 +209,21 @@ def decompile(args):
         exception_string = ""
         if not args.catch_exceptions:
             dec = proj.analyses.Decompiler(
-                f, cfg=cfg, options=dec_options, preset=args.preset,
+                f,
+                cfg=cfg,
+                options=dec_options,
+                preset=args.preset,
                 show_progressbar=args.progress,  # type: ignore[call-arg]
             )
         else:
             try:
                 dec = proj.analyses.Decompiler(
-                    f, cfg=cfg, options=dec_options, preset=args.preset,
-                    show_progressbar=args.progress, fail_fast=True,  # type: ignore[call-arg]
+                    f,
+                    cfg=cfg,
+                    options=dec_options,
+                    preset=args.preset,
+                    show_progressbar=args.progress,
+                    fail_fast=True,  # type: ignore[call-arg]
                 )
             except Exception as e:  # pylint:disable=broad-exception-caught
                 exception_string = str(e).replace("\n", " ")
