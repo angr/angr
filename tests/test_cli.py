@@ -69,7 +69,15 @@ class TestCommandLineInterface(unittest.TestCase):
         )
         # function resolving is based on the address (with base address specified)
         offset_dec = run_cli(
-            "decompile", bin_path, "--base-addr", "0x0", "--functions", hex(f1_offset), "--preset", "full", "--no-colors"
+            "decompile",
+            bin_path,
+            "--base-addr",
+            "0x0",
+            "--functions",
+            hex(f1_offset),
+            "--preset",
+            "full",
+            "--no-colors",
         )
 
         # since the externs can be unpredictable, we only check the function name down
