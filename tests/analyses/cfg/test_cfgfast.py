@@ -737,7 +737,7 @@ class TestCfgfast(unittest.TestCase):
         proj = angr.load_shellcode("loop: dec ecx; jnz loop; ret", "x86")
         cfg = proj.analyses.CFGFast()
 
-        assert len(cfg.model.nodes()) == 2
+        assert len(cfg.model.graph) == 2
 
     def test_starting_point_ordering(self):
         # project entry should always be first
