@@ -15,6 +15,7 @@ from rich.console import Console
 
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
 
 try:
@@ -161,16 +162,16 @@ def decompile(args):
     """
     Decompile functions.
     """
-    from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
-    from angr.analyses.decompiler.structuring import DEFAULT_STRUCTURER as _DEFAULT_STRUCTURER
-
-    structurer = args.structurer or _DEFAULT_STRUCTURER.NAME
+    structurer = args.structurer or DEFAULT_STRUCTURER.NAME
 
     proj = _load_or_analyze(args.binary, base_addr=args.base_addr, no_cache=args.no_cache, progressbar=args.progress)
-    cfg = proj.kb.cfgs.get("CFGFast")
+    cfg = proj.kb.cfgs["CFGFast"]
 
     if args.cca:
-        proj.analyses.CompleteCallingConventions(analyze_callsites=args.cca_callsites, show_progressbar=args.progress)
+        proj.analyses.CompleteCallingConventions(
+            analyze_callsites=args.cca_callsites,
+            show_progressbar=args.progress,  # type: ignore[call-arg]
+        )
 
     # Resolve which functions to decompile
     functions = args.functions
@@ -208,12 +209,14 @@ def decompile(args):
         exception_string = ""
         if not args.catch_exceptions:
             dec = proj.analyses.Decompiler(
-                f, cfg=cfg, options=dec_options, preset=args.preset, show_progressbar=args.progress
+                f, cfg=cfg, options=dec_options, preset=args.preset,
+                show_progressbar=args.progress,  # type: ignore[call-arg]
             )
         else:
             try:
                 dec = proj.analyses.Decompiler(
-                    f, cfg=cfg, options=dec_options, preset=args.preset, show_progressbar=args.progress, fail_fast=True
+                    f, cfg=cfg, options=dec_options, preset=args.preset,
+                    show_progressbar=args.progress, fail_fast=True,  # type: ignore[call-arg]
                 )
             except Exception as e:  # pylint:disable=broad-exception-caught
                 exception_string = str(e).replace("\n", " ")

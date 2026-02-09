@@ -58,7 +58,9 @@ class TestCommandLineInterface(unittest.TestCase):
         f1 = "schedule_job"
         proj = angr.Project(bin_path, auto_load_libs=False)
         default_base_addr = proj.loader.main_object.min_addr
-        f1_default_addr = proj.loader.find_symbol(f1).rebased_addr
+        f1_sym = proj.loader.find_symbol(f1)
+        assert f1_sym is not None
+        f1_default_addr = f1_sym.rebased_addr
         f1_offset = f1_default_addr - default_base_addr
 
         # function resolving is based on symbol
@@ -137,7 +139,9 @@ class TestCommandLineInterface(unittest.TestCase):
         f1 = "schedule_job"
         proj = angr.Project(bin_path, auto_load_libs=False)
         default_base_addr = proj.loader.main_object.min_addr
-        f1_default_addr = proj.loader.find_symbol(f1).rebased_addr
+        f1_sym = proj.loader.find_symbol(f1)
+        assert f1_sym is not None
+        f1_default_addr = f1_sym.rebased_addr
         f1_offset = f1_default_addr - default_base_addr
 
         # Old order with --base-addr between binary and command
