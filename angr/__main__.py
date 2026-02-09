@@ -16,6 +16,7 @@ from rich.console import Console
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
+
 try:
     from angr.angrdb import AngrDB
 except ImportError:
@@ -83,8 +84,9 @@ def _save_project_to_cache(proj: angr.Project, cache_path: pathlib.Path) -> None
         log.debug("Failed to save cache to %s", cache_path, exc_info=True)
 
 
-def _load_or_analyze(binary: str, base_addr: int | None = None, no_cache: bool = False,
-                     progressbar: bool = False) -> angr.Project:
+def _load_or_analyze(
+    binary: str, base_addr: int | None = None, no_cache: bool = False, progressbar: bool = False
+) -> angr.Project:
     """
     Load a project with CFG results, using a cache when possible.
 
@@ -164,13 +166,11 @@ def decompile(args):
 
     structurer = args.structurer or _DEFAULT_STRUCTURER.NAME
 
-    proj = _load_or_analyze(args.binary, base_addr=args.base_addr, no_cache=args.no_cache,
-                            progressbar=args.progress)
+    proj = _load_or_analyze(args.binary, base_addr=args.base_addr, no_cache=args.no_cache, progressbar=args.progress)
     cfg = proj.kb.cfgs.get("CFGFast")
 
     if args.cca:
-        proj.analyses.CompleteCallingConventions(analyze_callsites=args.cca_callsites,
-                                                show_progressbar=args.progress)
+        proj.analyses.CompleteCallingConventions(analyze_callsites=args.cca_callsites, show_progressbar=args.progress)
 
     # Resolve which functions to decompile
     functions = args.functions
@@ -207,12 +207,14 @@ def decompile(args):
 
         exception_string = ""
         if not args.catch_exceptions:
-            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=args.preset,
-                                           show_progressbar=args.progress)
+            dec = proj.analyses.Decompiler(
+                f, cfg=cfg, options=dec_options, preset=args.preset, show_progressbar=args.progress
+            )
         else:
             try:
-                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=args.preset,
-                                               show_progressbar=args.progress, fail_fast=True)
+                dec = proj.analyses.Decompiler(
+                    f, cfg=cfg, options=dec_options, preset=args.preset, show_progressbar=args.progress, fail_fast=True
+                )
             except Exception as e:  # pylint:disable=broad-exception-caught
                 exception_string = str(e).replace("\n", " ")
                 dec = None

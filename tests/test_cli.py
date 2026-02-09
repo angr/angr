@@ -143,8 +143,15 @@ class TestCommandLineInterface(unittest.TestCase):
         # Old order with --base-addr between binary and command
         with mock.patch("sys.stderr", new=io.StringIO()) as fake_err:
             result = run_cli(
-                bin_path, "--base-addr", "0x0", "decompile", "--functions", hex(f1_offset), "--preset", "full",
-                "--no-color"
+                bin_path,
+                "--base-addr",
+                "0x0",
+                "decompile",
+                "--functions",
+                hex(f1_offset),
+                "--preset",
+                "full",
+                "--no-color",
             )
             stderr_output = fake_err.getvalue()
 
