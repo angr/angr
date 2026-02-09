@@ -92,9 +92,11 @@ class TestDecompilerLLMRefine(TestDecompilerLLMRefineBase):
         mock_client = _make_mock_llm_client([{}, {}, {}])
         self.proj.llm_client = mock_client
 
-        with mock.patch.object(dec, "llm_suggest_variable_names", return_value=False) as m_vars, \
-             mock.patch.object(dec, "llm_suggest_function_name", return_value=False) as m_func, \
-             mock.patch.object(dec, "llm_suggest_variable_types", return_value=False) as m_types:
+        with (
+            mock.patch.object(dec, "llm_suggest_variable_names", return_value=False) as m_vars,
+            mock.patch.object(dec, "llm_suggest_function_name", return_value=False) as m_func,
+            mock.patch.object(dec, "llm_suggest_variable_types", return_value=False) as m_types,
+        ):
             dec.llm_refine()
             m_vars.assert_called_once()
             m_func.assert_called_once()
@@ -106,10 +108,12 @@ class TestDecompilerLLMRefine(TestDecompilerLLMRefineBase):
         mock_client = _make_mock_llm_client([])
         self.proj.llm_client = mock_client
 
-        with mock.patch.object(dec, "llm_suggest_variable_names", return_value=True), \
-             mock.patch.object(dec, "llm_suggest_function_name", return_value=False), \
-             mock.patch.object(dec, "llm_suggest_variable_types", return_value=False), \
-             mock.patch.object(dec.codegen, "regenerate_text") as m_regen:
+        with (
+            mock.patch.object(dec, "llm_suggest_variable_names", return_value=True),
+            mock.patch.object(dec, "llm_suggest_function_name", return_value=False),
+            mock.patch.object(dec, "llm_suggest_variable_types", return_value=False),
+            mock.patch.object(dec.codegen, "regenerate_text") as m_regen,
+        ):
             result = dec.llm_refine()
             assert result is True
             m_regen.assert_called_once()
@@ -120,10 +124,12 @@ class TestDecompilerLLMRefine(TestDecompilerLLMRefineBase):
         mock_client = _make_mock_llm_client([])
         self.proj.llm_client = mock_client
 
-        with mock.patch.object(dec, "llm_suggest_variable_names", return_value=False), \
-             mock.patch.object(dec, "llm_suggest_function_name", return_value=False), \
-             mock.patch.object(dec, "llm_suggest_variable_types", return_value=False), \
-             mock.patch.object(dec.codegen, "regenerate_text") as m_regen:
+        with (
+            mock.patch.object(dec, "llm_suggest_variable_names", return_value=False),
+            mock.patch.object(dec, "llm_suggest_function_name", return_value=False),
+            mock.patch.object(dec, "llm_suggest_variable_types", return_value=False),
+            mock.patch.object(dec.codegen, "regenerate_text") as m_regen,
+        ):
             result = dec.llm_refine()
             assert result is False
             m_regen.assert_not_called()
@@ -460,9 +466,7 @@ class TestDecompilerLLMRefineHook(TestDecompilerLLMRefineBase):
 
     def test_hook_not_called_without_option(self):
         """llm_refine should not be called when llm_refine option is not set."""
-        with mock.patch(
-            "angr.analyses.decompiler.decompiler.Decompiler.llm_refine"
-        ) as m_refine:
+        with mock.patch("angr.analyses.decompiler.decompiler.Decompiler.llm_refine") as m_refine:
             self._decompile("main")
             m_refine.assert_not_called()
 
@@ -521,8 +525,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         # Note: llm_suggest_function_name for "main" returns early without calling the LLM
         mock_client = mock.MagicMock(spec=LLMClient)
         mock_client.completion_json.side_effect = [
-            {old_name: new_name},   # variable names
-            {},                      # variable types (function name is skipped for "main")
+            {old_name: new_name},  # variable names
+            {},  # variable types (function name is skipped for "main")
         ]
 
         try:
@@ -552,8 +556,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         # (name doesn't start with sub_/fcn.), so only 2 completion_json calls are made
         mock_client = mock.MagicMock(spec=LLMClient)
         mock_client.completion_json.side_effect = [
-            {},                     # variable names
-            {var_name: "int"},      # variable types (function name is skipped for "main")
+            {},  # variable names
+            {var_name: "int"},  # variable types (function name is skipped for "main")
         ]
 
         try:
