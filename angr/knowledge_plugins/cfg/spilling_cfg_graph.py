@@ -464,6 +464,84 @@ class _EdgeView:
             yield from self
 
 
+class _InEdgeView:
+    """View over graph in-edges supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.in_edges(node)`` and ``graph.in_edges[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFGGraph):
+        self._graph = graph
+
+    def __call__(
+        self, nbunch=None, data: bool = False
+    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
+        if nbunch is not None:
+            if isinstance(nbunch, CFGNode):
+                nbunch = [self._graph._get_block_id(nbunch)]
+            else:
+                nbunch = [self._graph._get_block_id(n) for n in nbunch]
+
+        if data:
+            return [
+                (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id), edge_data)
+                for src_id, dst_id, edge_data in self._graph._graph.in_edges(nbunch, data=True)
+            ]
+        return [
+            (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id))
+            for src_id, dst_id in self._graph._graph.in_edges(nbunch)
+        ]
+
+    def __getitem__(self, node) -> list[tuple[CFGNode, CFGNode]]:
+        return self(node)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
+        for src_id, dst_id in self._graph._graph.in_edges():
+            yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id)
+
+    def __len__(self) -> int:
+        return self._graph._graph.number_of_edges()
+
+
+class _OutEdgeView:
+    """View over graph out-edges supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.out_edges(node)`` and ``graph.out_edges[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFGGraph):
+        self._graph = graph
+
+    def __call__(
+        self, nbunch=None, data: bool = False
+    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
+        if nbunch is not None:
+            if isinstance(nbunch, CFGNode):
+                nbunch = [self._graph._get_block_id(nbunch)]
+            else:
+                nbunch = [self._graph._get_block_id(n) for n in nbunch]
+
+        if data:
+            return [
+                (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id), edge_data)
+                for src_id, dst_id, edge_data in self._graph._graph.out_edges(nbunch, data=True)
+            ]
+        return [
+            (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id))
+            for src_id, dst_id in self._graph._graph.out_edges(nbunch)
+        ]
+
+    def __getitem__(self, node) -> list[tuple[CFGNode, CFGNode]]:
+        return self(node)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
+        for src_id, dst_id in self._graph._graph.out_edges():
+            yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id)
+
+    def __len__(self) -> int:
+        return self._graph._graph.number_of_edges()
+
+
 class SpillingCFGGraph:
     """
     A graph wrapper that stores CFGNode instances in a spilling dict while keeping
@@ -631,43 +709,15 @@ class SpillingCFGGraph:
         for succ_id in self._graph.successors(block_id):
             yield self._get_node_by_id(succ_id)
 
-    def in_edges(
-        self, nbunch=None, data: bool = False
-    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
-        if nbunch is not None:
-            if isinstance(nbunch, CFGNode):
-                nbunch = [self._get_block_id(nbunch)]
-            else:
-                nbunch = [self._get_block_id(n) for n in nbunch]
+    @property
+    def in_edges(self) -> _InEdgeView:
+        """Return a view of in-edges supporting call, subscript, len, and iteration."""
+        return _InEdgeView(self)
 
-        if data:
-            return [
-                (self._get_node_by_id(src_id), self._get_node_by_id(dst_id), edge_data)
-                for src_id, dst_id, edge_data in self._graph.in_edges(nbunch, data=True)
-            ]
-        return [
-            (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
-            for src_id, dst_id in self._graph.in_edges(nbunch)
-        ]
-
-    def out_edges(
-        self, nbunch=None, data: bool = False
-    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
-        if nbunch is not None:
-            if isinstance(nbunch, CFGNode):
-                nbunch = [self._get_block_id(nbunch)]
-            else:
-                nbunch = [self._get_block_id(n) for n in nbunch]
-
-        if data:
-            return [
-                (self._get_node_by_id(src_id), self._get_node_by_id(dst_id), edge_data)
-                for src_id, dst_id, edge_data in self._graph.out_edges(nbunch, data=True)
-            ]
-        return [
-            (self._get_node_by_id(src_id), self._get_node_by_id(dst_id))
-            for src_id, dst_id in self._graph.out_edges(nbunch)
-        ]
+    @property
+    def out_edges(self) -> _OutEdgeView:
+        """Return a view of out-edges supporting call, subscript, len, and iteration."""
+        return _OutEdgeView(self)
 
     def in_degree(self, node: CFGNode | None = None):
         if node is None:
