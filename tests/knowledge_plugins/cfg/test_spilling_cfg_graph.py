@@ -110,7 +110,7 @@ class TestSpillingCFGGraph(unittest.TestCase):
         proj = angr.Project(self.bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
 
-        for src, dst, data in cfg.model.graph.edges(data=True):
+        for _, _, data in cfg.model.graph.edges(data=True):
             assert isinstance(data, dict), f"Expected dict, got {type(data)}"
             assert "jumpkind" in data, "Edge should have jumpkind"
             break
@@ -169,13 +169,13 @@ class TestSpillingCFGGraph(unittest.TestCase):
         for node in cfg.model.graph.nodes():
             # Test out_edges
             out_list = list(cfg.model.graph.out_edges([node], data=True))
-            for src, dst, data in out_list:
+            for src, _, data in out_list:
                 assert src == node, "Source should be the queried node"
                 assert isinstance(data, dict), "Data should be dict"
 
             # Test in_edges
             in_list = list(cfg.model.graph.in_edges([node], data=True))
-            for src, dst, data in in_list:
+            for _, dst, _ in in_list:
                 assert dst == node, "Destination should be the queried node"
 
             if out_list or in_list:
