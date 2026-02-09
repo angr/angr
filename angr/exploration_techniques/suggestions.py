@@ -22,7 +22,7 @@ def ast_weight(ast, memo=None):
     if memo is None:
         memo = {}
 
-    result = memo.get(ast.hash(), None)
+    result = memo.get(ast.hash())
     if result is not None:
         return result
 

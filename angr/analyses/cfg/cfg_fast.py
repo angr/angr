@@ -4433,7 +4433,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     last_sp = tmps[stmt.data.tmp]
 
         if last_sp is not None and isinstance(tmp_irsb.next, pyvex.IRExpr.RdTmp):
-            val = tmps.get(tmp_irsb.next.tmp, None)
+            val = tmps.get(tmp_irsb.next.tmp)
             # val being None means there are statements that we do not handle
             if isinstance(val, tuple) and val[0] == "load":
                 # the value comes from memory

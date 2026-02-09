@@ -57,7 +57,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
             and expr.base.op == "And"
             and isinstance((mask := expr.base.operands[1]), Const)
             and isinstance(mask.value, int)
-            and _MASKS.get(expr.bits, None) == mask.value
+            and _MASKS.get(expr.bits) == mask.value
             and expr.is_lsb_extract()
         ):
             return Convert(expr.idx, expr.base.bits, expr.bits, False, expr.base, **expr.tags)
@@ -72,7 +72,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             inner_expr = expr.operands[0]
-            if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
+            if expr.operands[1].value == _MASKS.get(inner_expr.bits):
                 return inner_expr
 
             if isinstance(inner_expr, BinaryOp):
@@ -82,7 +82,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                     if (
                         isinstance(shift_val, Const)
                         and shift_val.value in _MASKS
-                        and mask.value == _MASKS.get(int(64 - shift_val.value), None)
+                        and mask.value == _MASKS.get(int(64 - shift_val.value))
                     ):
                         return inner_expr
                 if inner_expr.op == "Div" and isinstance(inner_expr.operands[0], Convert):
@@ -126,7 +126,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 isinstance(op0, BinaryOp)
                 and op0.op == "And"
                 and isinstance(op0.operands[1], Const)
-                and op0.operands[1].value == _MASKS.get(expr.to_bits, None)
+                and op0.operands[1].value == _MASKS.get(expr.to_bits)
             ):
                 new_op0 = op0.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op0, new_op0)
@@ -147,7 +147,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 isinstance(op1, BinaryOp)
                 and op1.op == "And"
                 and isinstance(op1.operands[1], Const)
-                and op1.operands[1].value == _MASKS.get(expr.to_bits, None)
+                and op1.operands[1].value == _MASKS.get(expr.to_bits)
             ):
                 new_op1 = op1.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op1, new_op1)

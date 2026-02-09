@@ -35,9 +35,7 @@ class PairAILBlockRewriter:
             Return: self._handle_Return_pair,
         }
 
-        self.stmt_pair_handlers: dict[Statement, Callable] = (
-            stmt_pair_handlers if stmt_pair_handlers else _default_stmt_handlers
-        )
+        self.stmt_pair_handlers: dict[Statement, Callable] = stmt_pair_handlers or _default_stmt_handlers
 
     # pylint: disable=no-self-use
     def _walk_block(self, block):

@@ -1420,7 +1420,7 @@ class PhoenixStructurer(StructurerBase):
         case_nodes: set[int] = set()
         for _, _, case_target_addr, case_target_idx, _ in last_stmt.case_addrs:
             case_nodes.add(case_target_addr)
-            case_node = nodes.get((case_target_addr, case_target_idx), None)
+            case_node = nodes.get((case_target_addr, case_target_idx))
             if case_node is None:
                 continue
             successors.update(nn.addr for nn in graph_raw.successors(case_node))

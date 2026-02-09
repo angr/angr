@@ -240,7 +240,7 @@ class Clinic(Analysis):
         # inlining help
         self._sp_shift = sp_shift
         self._max_stack_depth = 0
-        self._inline_functions = inline_functions if inline_functions else set()
+        self._inline_functions = inline_functions or set()
         self._inlined_counts = {} if inlined_counts is None else inlined_counts
         self._inlining_parents = inlining_parents or set()
         self._desired_variables = desired_variables

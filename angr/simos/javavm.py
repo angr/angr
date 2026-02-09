@@ -144,7 +144,7 @@ class SimJavaVM(SimOS):
             )
 
         # init state register
-        state.regs._ip = addr if addr else self.project.entry
+        state.regs._ip = addr or self.project.entry
         state.regs._ip_binary = self.project.loader.main_object
         state.regs._invoke_return_target = None
         state.regs._invoke_return_variable = None

@@ -1830,7 +1830,7 @@ class CUnaryOp(CExpression):
             "Clz": self._c_repr_chunks_clz,
         }
 
-        handler = OP_MAP.get(self.op, None)
+        handler = OP_MAP.get(self.op)
         if handler is not None:
             yield from handler()
         else:
@@ -2020,7 +2020,7 @@ class CBinaryOp(CExpression):
             "Ror": self._c_repr_chunks_ror,
         }
 
-        handler = OP_MAP.get(self.op, None)
+        handler = OP_MAP.get(self.op)
         if handler is not None:
             yield from handler()
         else:
@@ -4033,7 +4033,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     32: SimTypeInt(signed=False),
                     16: SimTypeShort(signed=False),
                     8: SimTypeChar(signed=False),
-                }.get(expr.bits, None)
+                }.get(expr.bits)
                 if dst_type is not None:
                     dst_type = dst_type.with_arch(self.project.arch)
                     return CTypeCast(src_type, dst_type, cvar, tags=expr.tags, codegen=self)

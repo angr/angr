@@ -107,7 +107,7 @@ class TypeTranslator:
         if tc in self.structs:
             return self.structs[tc]
 
-        name = tc.name if tc.name else self.struct_name()
+        name = tc.name or self.struct_name()
 
         if tc.is_cppclass:
             s = sim_type.SimCppClass(name=name).with_arch(self.arch)

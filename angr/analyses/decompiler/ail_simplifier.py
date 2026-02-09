@@ -498,7 +498,7 @@ class AILSimplifier(Analysis):
         # determine effective sizes for non-phi vvars
         for def_ in defs:
             # find its def statement
-            old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx), None)
+            old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
             if old_block is None:
                 continue
             block = self.blocks.get(old_block, old_block)
@@ -615,7 +615,7 @@ class AILSimplifier(Analysis):
         used_by_loc = defaultdict(list)
 
         for atom, loc, expr in use_and_exprs:
-            old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
+            old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx))
             if old_block is None:
                 # missing a block for whatever reason
                 return ExprNarrowingInfo(False)
@@ -667,7 +667,7 @@ class AILSimplifier(Analysis):
             else:
                 target_size = max(all_used_sizes)
         else:
-            effective_size = effective_sizes.get(def_.atom.varid, None)
+            effective_size = effective_sizes.get(def_.atom.varid)
             if (
                 effective_size is not None
                 and any(used_size <= effective_size for used_size in all_used_sizes)
@@ -727,7 +727,7 @@ class AILSimplifier(Analysis):
             expr_and_uses = rd.all_vvar_uses[atom.varid]
 
             for expr, loc in set(expr_and_uses):
-                old_block = block_dict.get((loc.block_addr, loc.block_idx), None)
+                old_block = block_dict.get((loc.block_addr, loc.block_idx))
                 if old_block is None:
                     # missing a block for whatever reason
                     return None
@@ -1365,7 +1365,7 @@ class AILSimplifier(Analysis):
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
-                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx))
                 if old_block is None:
                     continue
                 if used_expr is None:
@@ -1585,7 +1585,7 @@ class AILSimplifier(Analysis):
                     continue
 
                 # replace all uses
-                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx))
                 if old_block is None:
                     continue
 

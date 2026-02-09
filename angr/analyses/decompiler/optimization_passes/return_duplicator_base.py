@@ -617,7 +617,7 @@ class ReturnDuplicatorBase:
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name if stmt.name else f"Label_{stmt.tags['ins_addr']:x}"
+                new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
                 if "block_idx" in stmt.tags:
                     suffix = f"__{stmt.tags['block_idx']}"
                     new_name = new_name.removesuffix(suffix)

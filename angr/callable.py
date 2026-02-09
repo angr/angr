@@ -67,8 +67,8 @@ class Callable:
         self._techniques = techniques
         self._deadend_addr = project.simos.return_deadend
         self._func_ty = prototype
-        self._add_options = add_options if add_options else set()
-        self._remove_options = remove_options if remove_options else set()
+        self._add_options = add_options or set()
+        self._remove_options = remove_options or set()
         self._step_limit = step_limit
         self._techniques = techniques or []
 

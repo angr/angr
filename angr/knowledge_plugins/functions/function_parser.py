@@ -128,7 +128,7 @@ class FunctionParser:
                 block = primitives_pb2.Block()
                 block.ea = node.addr
                 block.size = node.size
-                block.bytes = node.bytestr if node.bytestr else b""
+                block.bytes = node.bytestr or b""
                 external_blocks.append(block)
 
         TRANSITION_JK = func_edge_type_to_pb("transition")  # default edge type
@@ -203,7 +203,7 @@ class FunctionParser:
             binary_name=None if not cmsg.binary_name else cmsg.binary_name,
             calling_convention=cc,
             prototype=proto,
-            prototype_libname=cmsg.prototype_libname if cmsg.prototype_libname else None,
+            prototype_libname=cmsg.prototype_libname or None,
             is_prototype_guessed=cmsg.is_prototype_guessed,
         )
         obj._project = project

@@ -99,7 +99,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     first_stmt = stmts[0]
 
     return Block(
-        block_addr if block_addr else first_stmt.tags["ins_addr"],
+        block_addr or first_stmt.tags["ins_addr"],
         0,
         statements=list(stmts),
         idx=idx or 1,

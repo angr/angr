@@ -2113,8 +2113,9 @@ class JumpTableResolver(IndirectJumpResolver):
                     when=BP_BEFORE,
                     enabled=True,
                     action=StoreHook.hook,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: _s.scratch.bbl_addr == a
-                    and _s.scratch.stmt_idx == idx,
+                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
+                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                    ),
                 )
                 state.inspect.add_breakpoint("mem_write", bp)
             elif sort == "mem_read":
@@ -2123,16 +2124,18 @@ class JumpTableResolver(IndirectJumpResolver):
                     when=BP_BEFORE,
                     enabled=True,
                     action=hook.hook_before,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: _s.scratch.bbl_addr == a
-                    and _s.scratch.stmt_idx == idx,
+                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
+                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                    ),
                 )
                 state.inspect.add_breakpoint("mem_read", bp0)
                 bp1 = BP(
                     when=BP_AFTER,
                     enabled=True,
                     action=hook.hook_after,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: _s.scratch.bbl_addr == a
-                    and _s.scratch.stmt_idx == idx,
+                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
+                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                    ),
                 )
                 state.inspect.add_breakpoint("mem_read", bp1)
             elif sort == "reg_write":
@@ -2140,8 +2143,9 @@ class JumpTableResolver(IndirectJumpResolver):
                     when=BP_BEFORE,
                     enabled=True,
                     action=PutHook.hook,
-                    condition=lambda _s, a=block_addr, idx=stmt_idx: _s.scratch.bbl_addr == a
-                    and _s.scratch.stmt_idx == idx,
+                    condition=lambda _s, a=block_addr, idx=stmt_idx: (
+                        _s.scratch.bbl_addr == a and _s.scratch.stmt_idx == idx
+                    ),
                 )
                 state.inspect.add_breakpoint("reg_write", bp)
             else:
@@ -2484,12 +2488,12 @@ class JumpTableResolver(IndirectJumpResolver):
                 elif isinstance(stmt.data, pyvex.IRExpr.Binop) and stmt.data.op.startswith("Iop_Add"):
                     op0 = None
                     if isinstance(stmt.data.args[0], pyvex.IRExpr.RdTmp):
-                        op0 = tmp_values.get(stmt.data.args[0].tmp, None)
+                        op0 = tmp_values.get(stmt.data.args[0].tmp)
                     elif isinstance(stmt.data.args[0], pyvex.IRExpr.Const):
                         op0 = stmt.data.args[0].con.value
                     op1 = None
                     if isinstance(stmt.data.args[1], pyvex.IRExpr.RdTmp):
-                        op1 = tmp_values.get(stmt.data.args[1].tmp, None)
+                        op1 = tmp_values.get(stmt.data.args[1].tmp)
                     elif isinstance(stmt.data.args[1], pyvex.IRExpr.Const):
                         op1 = stmt.data.args[1].con.value
                     if isinstance(op1, int) and not isinstance(op0, int):
@@ -2503,7 +2507,7 @@ class JumpTableResolver(IndirectJumpResolver):
                             tmp_values[stmt.tmp] = ("+", (op0 + op1[1]) & mask, op1[2])
                 elif isinstance(stmt.data, pyvex.IRExpr.Load) and isinstance(stmt.data.addr, pyvex.IRExpr.RdTmp):
                     # is this load statement loading from a static address + an offset?
-                    v = tmp_values.get(stmt.data.addr.tmp, None)
+                    v = tmp_values.get(stmt.data.addr.tmp)
                     if isinstance(v, tuple) and v[0] == "+" and v[2] is None and self._is_address_mapped(v[1]):
                         qualified_load_stmt_ids.append(stmt_id)
                     load_stmt_ids.append(stmt_id)

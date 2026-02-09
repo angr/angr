@@ -450,7 +450,7 @@ class SimCppLibrary(SimLibrary):
     @staticmethod
     def _try_demangle(name):
         ast = pydemumble.demangle(name)
-        return ast if ast else name
+        return ast or name
 
     @staticmethod
     def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
@@ -867,9 +867,11 @@ def load_type_collections(only=None, skip=None) -> None:
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         _DEFINITIONS_BASEDIR,
-        filter_func=lambda module_name: module_name.startswith("types_")
-        and (only is None or (only is not None and module_name[6:] in only))
-        and module_name[6:] not in skip,
+        filter_func=lambda module_name: (
+            module_name.startswith("types_")
+            and (only is None or (only is not None and module_name[6:] in only))
+            and module_name[6:] not in skip
+        ),
     ):
         pass
 
@@ -904,9 +906,11 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         base_dir,
-        filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
-        and not module_name.startswith("parse_")
-        and module_name not in skip,
+        filter_func=lambda module_name: (
+            (only is None or (only is not None and module_name in only))
+            and not module_name.startswith("parse_")
+            and module_name not in skip
+        ),
     ):
         pass
 
