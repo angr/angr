@@ -185,7 +185,7 @@ class SimType:
         d: dict[str, Any] = {"_t": self._ident}
         for field in fields:
             value = getattr(self, field)
-            if field in {"qualifier"} and value is None:
+            if field == "qualifier" and value is None:
                 continue
             field = "q" if field == "qualifier" else field
             if isinstance(value, SimType):

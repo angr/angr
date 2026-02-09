@@ -2361,10 +2361,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 )
                 if namehint and (
                     addr_ not in self.kb.labels
-                    or self.kb.labels[addr_]
-                    in {
-                        "_ftext",
-                    }
+                    or self.kb.labels[addr_] == "_ftext"
                 ):
                     unique_label = self.kb.labels.get_unique_label(namehint)
                     self.kb.labels[addr_] = unique_label
@@ -3237,7 +3234,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # put
                 # e.g. PUT(rdi) = 0x0000000000400714
                 is_itstate = is_arm_arch(self.project.arch) and stmt.offset == self.project.arch.registers["itstate"][0]
-                if stmt.offset not in (self._initial_state.arch.ip_offset,) and not is_itstate:
+                if stmt.offset != self._initial_state.arch.ip_offset and not is_itstate:
                     _process(stmt_idx, stmt.data, instr_addr, next_instr_addr)
 
                 if is_arm_arch(self.project.arch) and not is_itstate:

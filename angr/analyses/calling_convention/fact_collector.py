@@ -531,7 +531,7 @@ class FactCollector(Analysis):
                     if isinstance(succ, (BlockNode, HookNode, FuncNode)) and self.kb.functions.contains_addr(succ.addr):
                         # attempt to convert it into a function
                         func_succ = self.kb.functions.get_by_addr(succ.addr)
-                    if func_succ is not None and func_succ.name not in {"_security_check_cookie"}:
+                    if func_succ is not None and func_succ.name != "_security_check_cookie":
                         if (
                             func_succ.calling_convention is not None
                             and func_succ.prototype is not None

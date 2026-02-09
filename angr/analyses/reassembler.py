@@ -2453,7 +2453,7 @@ class Reassembler(Analysis):
 
         l.debug("Creating data entries...")
         for addr, memory_data in cfg._memory_data.items():
-            if memory_data.sort in ("code reference",):
+            if memory_data.sort == "code reference":
                 continue
 
             if memory_data.sort == "string":
@@ -2475,7 +2475,7 @@ class Reassembler(Analysis):
                     None,
                 )
 
-                if section is not None and section.name not in (".note.gnu.build-id",):  # ignore certain section names
+                if section is not None and section.name != ".note.gnu.build-id":  # ignore certain section names
                     data = Data(self, memory_data, section=section)
                     self.data.append(data)
                 elif memory_data.sort == "segment-boundary":

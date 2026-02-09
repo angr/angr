@@ -19,10 +19,7 @@ class Labels(KnowledgeBasePlugin):
                 if (
                     v.name
                     and not v.is_import
-                    and v.type
-                    not in {
-                        cle.SymbolType.TYPE_OTHER,
-                    }
+                    and v.type != cle.SymbolType.TYPE_OTHER
                 ):
                     self._labels[v.rebased_addr] = v.name
                     self._reverse_labels[v.name] = v.rebased_addr

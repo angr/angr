@@ -902,7 +902,7 @@ class Tracer(ExplorationTechnique):
 
         if prev_obj is not None:
             prev_section = prev_obj.find_section_containing(prev_addr)
-            if prev_section is not None and prev_section.name in (".plt",):
+            if prev_section is not None and prev_section.name == ".plt":
                 l.info("...syncing at PLT callsite (type 2)")
                 return self._sync_return(state, idx, assert_obj=prev_obj)
 
