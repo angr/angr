@@ -89,7 +89,7 @@ namespaces = false
 
 [tool.setuptools.package-data]
 angr = ["py.typed", "unicornlib.*", "rustylib.*", "*.json"]
-"angr.rust.analyses" = ["sigs/*.sig", "type_db/*.json"]
+"angr.rust.analyses" = ["flirt_sigs/*.sig", "type_db/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "angr.__version__" }
