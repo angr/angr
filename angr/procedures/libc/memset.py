@@ -70,3 +70,8 @@ class memset(angr.SimProcedure):
                 offset += chunksize
 
         return dst_addr
+
+
+class __memset_chk(memset):
+    def run(self, dst_addr, char, num, _destlen):
+        return super().run(dst_addr, char, num)

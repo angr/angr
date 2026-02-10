@@ -1179,6 +1179,7 @@ class SimStateLibc(SimStatePlugin):
         self.buf_symbolic_bytes = 60
         self.max_symbolic_strstr = 1
         self.max_symbolic_strchr = 16
+        self.max_symbolic_memchr = 16
         self.max_variable_size = 128
         self.max_str_len = 128
         self.max_buffer_size = 48
@@ -1215,6 +1216,7 @@ class SimStateLibc(SimStatePlugin):
         o.buf_symbolic_bytes = self.buf_symbolic_bytes
         o.max_symbolic_strstr = self.max_symbolic_strstr
         o.max_symbolic_strchr = self.max_symbolic_strchr
+        o.max_symbolic_memchr = self.max_symbolic_memchr
         o.max_variable_size = self.max_variable_size
         o.max_str_len = self.max_str_len
         o.max_buffer_size = self.max_buffer_size
