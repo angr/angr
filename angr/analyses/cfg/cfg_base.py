@@ -687,7 +687,7 @@ class CFGBase(Analysis):
             section = obj.find_section_containing(region_start)
             if section is None:
                 return False
-            if section.name in {".textbss"}:
+            if section.name == ".textbss":
                 return True
 
         return False

@@ -1782,7 +1782,7 @@ class Unicorn(SimStatePlugin):
         handling symbolic exits in native interface
         """
 
-        state = succ_state if succ_state else self.state
+        state = succ_state or self.state
 
         # first, get the ignore list (in case of symbolic registers)
         saved_registers = []

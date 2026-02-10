@@ -53,7 +53,7 @@ class TypeLifter:
         self.struct_name_to_idx = {}
 
     def lift(self, ty: SimType):
-        handler = _mapping.get(type(ty), None)
+        handler = _mapping.get(type(ty))
         if handler is None:
             return BottomType(name=ty.label)
 

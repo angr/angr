@@ -15,7 +15,7 @@ DEFAULT_STRUCTURER = SAILRStructurer
 
 
 def structurer_class_from_name(name: str) -> type | None:
-    return STRUCTURER_CLASSES.get(name.lower(), None)
+    return STRUCTURER_CLASSES.get(name.lower())
 
 
 __all__ = (

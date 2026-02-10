@@ -52,14 +52,14 @@ class ARMCCallRewriter(CCallRewriterBase):
                             ccall.idx, "CmpLT" if inv == 0 else "CmpGE", (dep_1, dep_2), False, **ccall.tags
                         )
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
-                elif cond_v in {ARMCondLE}:
+                elif cond_v == ARMCondLE:
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 <= dep_2,
                         #   and then negate the result if inv == 1
                         r = Expr.BinaryOp(ccall.idx, "CmpLE", (dep_1, dep_2), False, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
 
-                elif cond_v in {ARMCondNE}:  # noqa: SIM102
+                elif cond_v == ARMCondNE:  # noqa: SIM102
                     if op_v == ARMG_CC_OP_SUB:
                         # dep_1 != dep_2,
                         #   and then negate the result if inv == 1

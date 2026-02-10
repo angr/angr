@@ -330,7 +330,7 @@ class AILMergeGraph:
                 merge_end_pairs[split_block.match_split].append(merge_end)
                 continue
 
-            merge_original = end_pair_map.get(split_block.original, None) or split_block.original
+            merge_original = end_pair_map.get(split_block.original) or split_block.original
             base_split = self._find_split_block_by_original(merge_original)
             merge_end_pairs[base_split.match_split].append(merge_end)
 

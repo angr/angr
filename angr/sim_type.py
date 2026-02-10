@@ -185,7 +185,7 @@ class SimType:
         d: dict[str, Any] = {"_t": self._ident}
         for field in fields:
             value = getattr(self, field)
-            if field in {"qualifier"} and value is None:
+            if field == "qualifier" and value is None:
                 continue
             field = "q" if field == "qualifier" else field
             if isinstance(value, SimType):
@@ -210,7 +210,7 @@ class SimType:
             memo = set()
 
         assert "_t" in d
-        cls = IDENT_TO_CLS.get(d["_t"], None)  # pylint: disable=redefined-outer-name
+        cls = IDENT_TO_CLS.get(d["_t"])  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
@@ -2619,7 +2619,7 @@ class SimTypeRef(SimType):
     ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
-        original_type = IDENT_TO_CLS.get(d["ot"], None)
+        original_type = IDENT_TO_CLS.get(d["ot"])
         if original_type is None:
             raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
         qualifier = d.get("q")

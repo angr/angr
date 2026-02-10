@@ -65,7 +65,7 @@ def main():
         protos[func_name] = func_proto
 
         for i, ty in enumerate(func_proto.args):
-            disp = DISPOSITIONS.get((func_name, i), None)
+            disp = DISPOSITIONS.get((func_name, i))
             if disp is not None:
                 assert isinstance(ty, SimTypePointer)
                 ty.disposition = disp

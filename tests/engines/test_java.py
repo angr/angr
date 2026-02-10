@@ -122,7 +122,7 @@ class TestJava(unittest.TestCase):
     def test_jni_global_and_local_refs(self):
         project = self.create_project("jni_global_and_local_refs")
 
-        assertions = {"global refs dict": lambda state: (state.jni_references.global_refs == {})}
+        assertions = {"global refs dict": lambda state: state.jni_references.global_refs == {}}
         self.run_method(
             project=project, method="MixedJava.test_jni_global_refs", assert_locals={"i0": 0xA}, assertions=assertions
         )
@@ -156,8 +156,8 @@ class TestJava(unittest.TestCase):
         project = self.create_project("jni_string_operations")
 
         assertions = {
-            "1st string": lambda state: (state.solver.eval_one(self.load_string(state, "r0")) == "mum"),
-            "2nd string": lambda state: (state.solver.eval_one(self.load_string(state, "r1")) == "himum!"),
+            "1st string": lambda state: state.solver.eval_one(self.load_string(state, "r0")) == "mum",
+            "2nd string": lambda state: state.solver.eval_one(self.load_string(state, "r1")) == "himum!",
         }
         self.run_method(
             project=project,

@@ -107,7 +107,7 @@ class CFBlanket(Analysis):
 
         self._on_object_added_callback = on_object_added
         self._regions = []
-        self._exclude_region_types = exclude_region_types if exclude_region_types else set()
+        self._exclude_region_types = exclude_region_types or set()
 
         self._init_regions()
 

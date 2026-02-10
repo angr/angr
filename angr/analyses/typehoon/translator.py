@@ -107,7 +107,7 @@ class TypeTranslator:
         if tc in self.structs:
             return self.structs[tc]
 
-        name = tc.name if tc.name else self.struct_name()
+        name = tc.name or self.struct_name()
 
         if tc.is_cppclass:
             s = sim_type.SimCppClass(name=name).with_arch(self.arch)
@@ -144,7 +144,7 @@ class TypeTranslator:
         return sim_type.SimTypeChar(signed=False, label=tc.name).with_arch(self.arch)
 
     def _translate_Int16(self, tc):
-        if tc.name in {"WCHAR"}:
+        if tc.name == "WCHAR":
             return sim_type.SimTypeWideChar(label=tc.name).with_arch(self.arch)
         return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
 

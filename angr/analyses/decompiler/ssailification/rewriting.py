@@ -268,7 +268,7 @@ class RewritingAnalysis:
         more_args: list[VirtualVariable] = []
         for kind, offset, size in sorted(self._extern_defs):
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
-            if (arg_vvar := func_args_map.get((category, offset), None)) is not None:
+            if (arg_vvar := func_args_map.get((category, offset))) is not None:
                 unused_func_args.discard(arg_vvar)
                 if arg_vvar.size == size:
                     vvar = arg_vvar

@@ -1898,7 +1898,7 @@ class Function(Serializable):
         if self.is_rust_function():
             nodes = ast.split("::")[:-1]
             ast = "::".join([Function._rust_fmt_node(node) for node in nodes])
-        return ast if ast else self.name
+        return ast or self.name
 
     @property
     def short_name(self):

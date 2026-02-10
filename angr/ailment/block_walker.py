@@ -82,10 +82,10 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
         }
 
         self.stmt_handlers: dict[type, Callable[[int, Any, Block | None], StmtType]] = (
-            stmt_handlers if stmt_handlers else _default_stmt_handlers
+            stmt_handlers or _default_stmt_handlers
         )
         self.expr_handlers: dict[type, Callable[[int, Any, int, Statement | None, Block | None], ExprType]] = (
-            expr_handlers if expr_handlers else _default_expr_handlers
+            expr_handlers or _default_expr_handlers
         )
 
     def walk(self, block: Block) -> BlockType:

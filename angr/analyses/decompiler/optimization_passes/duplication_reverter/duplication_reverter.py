@@ -868,7 +868,7 @@ class DuplicationReverter(StructuringOptimizationPass):
 
         bad_gotos = set()
         for goto in self._goto_manager.gotos:
-            goto_end_block = blocks_by_addr.get(goto.dst_addr, None)
+            goto_end_block = blocks_by_addr.get(goto.dst_addr)
             # skip gotos that don't exist
             if not goto_end_block:
                 continue

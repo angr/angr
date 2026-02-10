@@ -324,8 +324,8 @@ class SimulationManager:
             if isinstance(t, Veritesting):
                 deviation_filter_saved = t.options.get("deviation_filter", None)
                 if deviation_filter_saved is not None:
-                    t.options["deviation_filter"] = (
-                        lambda s, dfs=deviation_filter_saved: tech.find(s) or tech.avoid(s) or dfs(s)
+                    t.options["deviation_filter"] = lambda s, dfs=deviation_filter_saved: (
+                        tech.find(s) or tech.avoid(s) or dfs(s)
                     )
                 else:
                     t.options["deviation_filter"] = lambda s: tech.find(s) or tech.avoid(s)

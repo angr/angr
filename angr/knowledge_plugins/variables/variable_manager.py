@@ -376,7 +376,7 @@ class VariableManagerInternal(Serializable):
 
         for var2unified in cmsg.var2unified:
             variable = variable_by_ident[var2unified.var_ident]
-            unified = unified_variable_by_ident.get(var2unified.unified_var_ident, None)
+            unified = unified_variable_by_ident.get(var2unified.unified_var_ident)
             if unified is None:
                 l.warning(
                     "Unified variable %s is not found in unified_variable_by_ident.", var2unified.unified_var_ident
@@ -387,11 +387,11 @@ class VariableManagerInternal(Serializable):
             model._variables_to_unified_variables[variable] = unified
 
         for phi2var in cmsg.phi2var:
-            phi = variable_by_ident.get(phi2var.phi_ident, None)
+            phi = variable_by_ident.get(phi2var.phi_ident)
             if phi is None:
                 l.warning("Phi variable %s is not found in variable_by_ident.", phi2var.phi_ident)
                 continue
-            var = variable_by_ident.get(phi2var.var_ident, None)
+            var = variable_by_ident.get(phi2var.var_ident)
             if var is None:
                 l.warning("Variable %s is not found in variable_by_ident.", phi2var.var_ident)
                 continue
@@ -1167,7 +1167,7 @@ class VariableManagerInternal(Serializable):
             stack_vars_by_offset: dict[int, set[SimStackVariable]] = defaultdict(set)
             for v in sorted(
                 (v for v in congruence_classes if isinstance(v, SimStackVariable)),
-                key=lambda v: v.ident if v.ident else "",
+                key=lambda v: v.ident or "",
             ):
                 stack_vars_by_offset[v.offset].add(v)
             for vs in stack_vars_by_offset.values():
@@ -1222,7 +1222,7 @@ class VariableManagerInternal(Serializable):
             return False
         for acc in accesses:
             assert acc.location.block_addr is not None
-            block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx), None)
+            block = func_block_by_addr.get((acc.location.block_addr, acc.location.block_idx))
             if (
                 block is not None
                 and acc.location.stmt_idx is not None

@@ -102,7 +102,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._skip_other_funcs = skip_other_funcs
         self._auto_start = auto_start
         self._total_funcs = None
-        self._func_graphs = func_graphs if func_graphs else {}
+        self._func_graphs = func_graphs or {}
         self.prototype_libnames: set[str] = set()
 
         # sanity check

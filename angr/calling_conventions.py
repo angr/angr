@@ -1269,7 +1269,7 @@ class SimCC:
         argument_values = self.get_args(state, prototype)
 
         argument_types = prototype.args
-        argument_names = prototype.arg_names if prototype.arg_names else ["unknown"] * len(prototype.args)
+        argument_names = prototype.arg_names or ["unknown"] * len(prototype.args)
         return list(zip(argument_types, argument_names, argument_locations, argument_values))
 
 
