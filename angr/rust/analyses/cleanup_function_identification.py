@@ -58,6 +58,7 @@ class CleanupFunctionIdentification(Analysis):
                     caller_func = proj.kb.functions[caller_addr]
                     if caller_func.is_default_name:
                         caller_func.name = name
+                        caller_func.from_signature = "flirt"
                         caller_func.is_default_name = False
                         queue.append(caller_addr)
 
