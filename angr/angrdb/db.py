@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 import time
+import json
 from contextlib import contextmanager
 
 from sqlalchemy import create_engine
@@ -176,18 +177,18 @@ class AngrDB:
             # allocates pseudo-addresses for UnresolvableCallTarget/JumpTarget via get_pseudo_addr(),
             # which are baked into CFG node/edge addresses. These addresses are not reproducible on a
             # fresh loader, so we must save and restore them explicitly.
-            call_target_addrs = []
-            jump_target_addrs = []
+            call_target_addrs: list[int] = []
+            jump_target_addrs: list[int] = []
             for addr, proc in self.project._sim_procedures.items():
                 name = type(proc).__name__
                 if name == "UnresolvableCallTarget":
-                    call_target_addrs.append(str(addr))
+                    call_target_addrs.append(addr)
                 elif name == "UnresolvableJumpTarget":
-                    jump_target_addrs.append(str(addr))
+                    jump_target_addrs.append(addr)
             if call_target_addrs:
-                self.save_info(session, "unresolvable_call_target_addrs", ",".join(call_target_addrs))
+                self.save_info(session, "unresolvable_call_target_addrs", json.dumps(call_target_addrs))
             if jump_target_addrs:
-                self.save_info(session, "unresolvable_jump_target_addrs", ",".join(jump_target_addrs))
+                self.save_info(session, "unresolvable_jump_target_addrs", json.dumps(jump_target_addrs))
 
             # Update the information
             self.update_dbinfo(session, extra_info=extra_info)
@@ -219,14 +220,27 @@ class AngrDB:
             # SimProcedure for Clinic's indirect call resolution to work.
             call_addrs_str = self.get_info(session, "unresolvable_call_target_addrs")
             if call_addrs_str:
-                for addr_str in call_addrs_str.split(","):
-                    addr = int(addr_str)
-                    proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"](), replace=True)
+                try:
+                    call_addrs_list = json.loads(call_addrs_str)
+                    if not isinstance(call_addrs_list, list):
+                        raise TypeError("Expected a list of addresses")
+                    for addr in call_addrs_list:
+                        if isinstance(addr, int):
+                            proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableCallTarget"](), replace=True)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             jump_addrs_str = self.get_info(session, "unresolvable_jump_target_addrs")
             if jump_addrs_str:
-                for addr_str in jump_addrs_str.split(","):
-                    addr = int(addr_str)
-                    proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"](), replace=True)
+                try:
+                    jump_addrs_list = json.loads(jump_addrs_str)
+                    if not isinstance(jump_addrs_list, list):
+                        raise json.JSONDecodeError("Expected a list of addresses", "dummy", 0)
+                    for addr in jump_addrs_list:
+                        if isinstance(addr, int):
+                            proj.hook(addr, SIM_PROCEDURES["stubs"]["UnresolvableJumpTarget"](), replace=True)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
             if kb_names is None:
                 kb_names = ["global"]
