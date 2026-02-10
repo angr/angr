@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = TypeVar("K", bound=int)
+K = TypeVar("K", bound=tuple[int, int])
 
 
 class SpillingCFGNodeDict:
@@ -52,15 +52,15 @@ class SpillingCFGNodeDict:
         cache_limit: int = 10000,
         db_batch_size: int = 1000,
     ):
-        self._data: dict[int, CFGNode] = {}
+        self._data: dict[K, CFGNode] = {}
         self._cache_limit: int = cache_limit
         self._db_batch_size: int = max(cache_limit - 1, db_batch_size) if cache_limit > 0 else db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
 
-        self._lru_order: OrderedDict[int, None] = OrderedDict()
-        self._spilled_keys: set[int] = set()
+        self._lru_order: OrderedDict[K, None] = OrderedDict()
+        self._spilled_keys: set[K] = set()
 
         self._nodesdb = None
         self._eviction_enabled: bool = True
@@ -81,48 +81,48 @@ class SpillingCFGNodeDict:
     def _cfg_model(self, value: CFGModel | None) -> None:
         self._cfg_model_ref = weakref.ref(value) if value is not None else None
 
-    def __getitem__(self, block_id: int) -> CFGNode:
+    def __getitem__(self, block_key: K) -> CFGNode:
         # First try to get from in-memory cache
-        if block_id in self._data:
-            self._touch(block_id)
-            return self._data[block_id]
+        if block_key in self._data:
+            self._touch(block_key)
+            return self._data[block_key]
 
         # Try to load from LMDB if spilled
-        if block_id in self._spilled_keys:
-            node = self._load_from_lmdb(block_id)
+        if block_key in self._spilled_keys:
+            node = self._load_from_lmdb(block_key)
             if node is not None:
                 return node
 
-        raise KeyError(block_id)
+        raise KeyError(block_key)
 
-    def __setitem__(self, block_id: int, node: CFGNode) -> None:
-        self._data[block_id] = node
-        self._on_node_stored(block_id)
+    def __setitem__(self, block_key: K, node: CFGNode) -> None:
+        self._data[block_key] = node
+        self._on_node_stored(block_key)
 
-    def __delitem__(self, block_id: int) -> None:
+    def __delitem__(self, block_key: K) -> None:
         # Remove from in-memory cache if present
-        if block_id in self._data:
-            del self._data[block_id]
+        if block_key in self._data:
+            del self._data[block_key]
         # Remove from spilled set if present
-        self._spilled_keys.discard(block_id)
+        self._spilled_keys.discard(block_key)
         # Remove from LRU order
-        if block_id in self._lru_order:
-            del self._lru_order[block_id]
+        if block_key in self._lru_order:
+            del self._lru_order[block_key]
 
-    def __contains__(self, block_id: object) -> bool:
-        return block_id in self._data or block_id in self._spilled_keys
+    def __contains__(self, block_key: K) -> bool:
+        return block_key in self._data or block_key in self._spilled_keys
 
     def __len__(self) -> int:
         return len(self._data) + len(self._spilled_keys)
 
-    def __iter__(self) -> Iterator[int]:
-        # Iterate over all block_ids (cached + spilled)
+    def __iter__(self) -> Iterator[K]:
+        # Iterate over all block_keys (cached + spilled)
         yield from self._data.keys()
         yield from self._spilled_keys
 
-    def get(self, block_id: int, default: CFGNode | None = None) -> CFGNode | None:
+    def get(self, block_key: K, default: CFGNode | None = None) -> CFGNode | None:
         try:
-            return self[block_id]
+            return self[block_key]
         except KeyError:
             return default
 
@@ -130,12 +130,12 @@ class SpillingCFGNodeDict:
         return iter(self)
 
     def values(self) -> Iterator[CFGNode]:
-        for block_id in self:
-            yield self[block_id]
+        for block_key in self:
+            yield self[block_key]
 
-    def items(self) -> Iterator[tuple[int, CFGNode]]:
-        for block_id in self:
-            yield block_id, self[block_id]
+    def items(self) -> Iterator[tuple[K, CFGNode]]:
+        for block_key in self:
+            yield block_key, self[block_key]
 
     def clear(self) -> None:
         self._data.clear()
@@ -154,9 +154,9 @@ class SpillingCFGNodeDict:
         new_dict._eviction_enabled = False
 
         # Copy in-memory nodes
-        for block_id, node in self._data.items():
-            new_dict._data[block_id] = node.copy()
-            new_dict._lru_order[block_id] = None
+        for block_key, node in self._data.items():
+            new_dict._data[block_key] = node.copy()
+            new_dict._lru_order[block_key] = None
 
         # Copy spilled data from LMDB
         if self._spilled_keys and self._nodesdb is not None and self.rtdb is not None:
@@ -165,12 +165,12 @@ class SpillingCFGNodeDict:
                 self.rtdb.begin_txn(self._nodesdb) as src_txn,
                 self.rtdb.begin_txn(new_dict._nodesdb, write=True) as dst_txn,
             ):
-                for block_id in self._spilled_keys:
-                    key = str(block_id).encode("utf-8")
+                for block_key in self._spilled_keys:
+                    key = str(block_key).encode("utf-8")
                     value = src_txn.get(key)
                     if value is not None:
                         dst_txn.put(key, value)
-                        new_dict._spilled_keys.add(block_id)
+                        new_dict._spilled_keys.add(block_key)
 
         new_dict._eviction_enabled = True
         return new_dict
@@ -202,22 +202,22 @@ class SpillingCFGNodeDict:
     def total_count(self) -> int:
         return len(self._data) + len(self._spilled_keys)
 
-    def is_cached(self, block_id: int) -> bool:
-        return block_id in self._data
+    def is_cached(self, block_key: K) -> bool:
+        return block_key in self._data
 
     #
     # LRU Cache Management
     #
 
-    def _touch(self, block_id: int) -> None:
-        if block_id in self._lru_order:
-            self._lru_order.move_to_end(block_id)
+    def _touch(self, block_key: K) -> None:
+        if block_key in self._lru_order:
+            self._lru_order.move_to_end(block_key)
         else:
-            self._lru_order[block_id] = None
+            self._lru_order[block_key] = None
 
-    def _on_node_stored(self, block_id: int) -> None:
-        self._touch(block_id)
-        self._spilled_keys.discard(block_id)
+    def _on_node_stored(self, block_key: K) -> None:
+        self._touch(block_key)
+        self._spilled_keys.discard(block_key)
 
         if self._eviction_enabled and self._cache_limit is not None and self.cached_count > self._cache_limit:
             self._evict_lru()
@@ -240,20 +240,20 @@ class SpillingCFGNodeDict:
 
         evicted = 0
         nodes_to_evict = []
-        for lru_block_id in list(self._lru_order):
+        for lru_block_key in list(self._lru_order):
             if evicted >= n:
                 break
 
-            if lru_block_id not in self._data:
-                self._lru_order.pop(lru_block_id)
+            if lru_block_key not in self._data:
+                self._lru_order.pop(lru_block_key)
                 continue
 
-            node = self._data[lru_block_id]
-            nodes_to_evict.append((lru_block_id, node))
+            node = self._data[lru_block_key]
+            nodes_to_evict.append((lru_block_key, node))
 
-            del self._data[lru_block_id]
-            del self._lru_order[lru_block_id]
-            self._spilled_keys.add(lru_block_id)
+            del self._data[lru_block_key]
+            del self._lru_order[lru_block_key]
+            self._spilled_keys.add(lru_block_key)
             evicted += 1
 
         if nodes_to_evict:
@@ -284,30 +284,30 @@ class SpillingCFGNodeDict:
         while True:
             try:
                 with self.rtdb.begin_txn(self._nodesdb, write=True) as txn:
-                    for block_id, node in nodes:
+                    for block_key, node in nodes:
                         # Serialize using pickle with __getstate__
                         state = node.__getstate__()
-                        key = str(block_id).encode("utf-8")
+                        key = str(block_key).encode("utf-8")
                         txn.put(key, pickle.dumps(state))
                 break
             except lmdb.MapFullError:
                 self.rtdb.increase_lmdb_map_size()
 
-    def _load_from_lmdb(self, block_id: int) -> CFGNode | None:
+    def _load_from_lmdb(self, block_key: K) -> CFGNode | None:
         if self._nodesdb is None or self.rtdb is None:
             return None
 
         with self._db_load_lock:
-            return self._load_from_lmdb_core(block_id)
+            return self._load_from_lmdb_core(block_key)
 
-    def _load_from_lmdb_core(self, block_id: int) -> CFGNode | None:
+    def _load_from_lmdb_core(self, block_key: K) -> CFGNode | None:
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
         self._loading_from_lmdb = True
 
         try:
-            key = str(block_id).encode("utf-8")
+            key = str(block_key).encode("utf-8")
 
             with self.rtdb.begin_txn(self._nodesdb) as txn:
                 value = txn.get(key)
@@ -325,9 +325,9 @@ class SpillingCFGNodeDict:
                     node._cfg_model = self._cfg_model
 
             # Remove from spilled set and add to cache
-            self._spilled_keys.discard(block_id)
-            self._data[block_id] = node
-            self._on_node_stored(block_id)
+            self._spilled_keys.discard(block_key)
+            self._data[block_key] = node
+            self._on_node_stored(block_key)
 
             return node
         finally:
@@ -344,9 +344,9 @@ class SpillingCFGNodeDict:
         self._eviction_enabled = False
 
         try:
-            block_ids_to_load = list(self._spilled_keys)
-            for block_id in block_ids_to_load:
-                self._load_from_lmdb(block_id)
+            block_keys_to_load = list(self._spilled_keys)
+            for block_key in block_keys_to_load:
+                self._load_from_lmdb(block_key)
         finally:
             self._eviction_enabled = old_eviction_state
 
@@ -389,29 +389,29 @@ class SpillingCFGNodeDict:
 class _AdjacencyDict:
     """Helper class to support graph[src][dst] access pattern."""
 
-    def __init__(self, graph: SpillingCFGGraph, src_block_id: int):
+    def __init__(self, graph: SpillingCFGGraph, src_block_key: K):
         self._graph = graph
-        self._src_block_id = src_block_id
+        self._src_block_key = src_block_key
 
     def __getitem__(self, dst_node: CFGNode) -> dict:
-        dst_block_id = self._graph._get_block_id(dst_node)
-        return self._graph._graph[self._src_block_id][dst_block_id]
+        dst_block_key = self._graph._get_block_key(dst_node)
+        return self._graph._graph[self._src_block_key][dst_block_key]
 
     def __contains__(self, dst_node: CFGNode) -> bool:
-        dst_block_id = self._graph._get_block_id(dst_node)
-        return dst_block_id in self._graph._graph[self._src_block_id]
+        dst_block_key = self._graph._get_block_key(dst_node)
+        return dst_block_key in self._graph._graph[self._src_block_key]
 
     def keys(self) -> Iterator[CFGNode]:
-        for dst_block_id in self._graph._graph[self._src_block_id]:
-            yield self._graph._get_node_by_id(dst_block_id)
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph._get_node_by_key(dst_block_key)
 
     def values(self) -> Iterator[dict]:
-        for dst_block_id in self._graph._graph[self._src_block_id]:
-            yield self._graph._graph[self._src_block_id][dst_block_id]
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph._graph[self._src_block_key][dst_block_key]
 
     def items(self) -> Iterator[tuple[CFGNode, dict]]:
-        for dst_block_id in self._graph._graph[self._src_block_id]:
-            yield self._graph._get_node_by_id(dst_block_id), self._graph._graph[self._src_block_id][dst_block_id]
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph._get_node_by_key(dst_block_key), self._graph._graph[self._src_block_key][dst_block_key]
 
     def __iter__(self) -> Iterator[CFGNode]:
         return self.keys()
@@ -427,13 +427,13 @@ class _NodeView:
         return len(self._graph._graph)
 
     def __iter__(self) -> Iterator[CFGNode]:
-        for block_id in self._graph._graph.nodes():
-            yield self._graph._get_node_by_id(block_id)
+        for block_key in self._graph._graph.nodes():
+            yield self._graph._get_node_by_key(block_key)
 
     def __call__(self, data: bool = False) -> Iterator[CFGNode] | Iterator[tuple[CFGNode, dict]]:
         if data:
-            for block_id, node_data in self._graph._graph.nodes(data=True):
-                yield self._graph._get_node_by_id(block_id), node_data
+            for block_key, node_data in self._graph._graph.nodes(data=True):
+                yield self._graph._get_node_by_key(block_key), node_data
         else:
             yield from self
 
@@ -452,14 +452,14 @@ class _EdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.edges():
-            yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id)
+            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
 
     def __call__(
         self, data: bool = False
     ) -> Iterator[tuple[CFGNode, CFGNode]] | Iterator[tuple[CFGNode, CFGNode, dict]]:
         if data:
             for src_id, dst_id, edge_data in self._graph._graph.edges(data=True):
-                yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id), edge_data
+                yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data
         else:
             yield from self
 
@@ -478,17 +478,17 @@ class _InEdgeView:
     ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
         if nbunch is not None:
             if isinstance(nbunch, CFGNode):
-                nbunch = [self._graph._get_block_id(nbunch)]
+                nbunch = [self._graph._get_block_key(nbunch)]
             else:
-                nbunch = [self._graph._get_block_id(n) for n in nbunch]
+                nbunch = [self._graph._get_block_key(n) for n in nbunch]
 
         if data:
             return [
-                (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id), edge_data)
+                (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph._graph.in_edges(nbunch, data=True)
             ]
         return [
-            (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id))
+            (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id))
             for src_id, dst_id in self._graph._graph.in_edges(nbunch)
         ]
 
@@ -497,7 +497,7 @@ class _InEdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.in_edges():
-            yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id)
+            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
 
     def __len__(self) -> int:
         return self._graph._graph.number_of_edges()
@@ -517,17 +517,17 @@ class _OutEdgeView:
     ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
         if nbunch is not None:
             if isinstance(nbunch, CFGNode):
-                nbunch = [self._graph._get_block_id(nbunch)]
+                nbunch = [self._graph._get_block_key(nbunch)]
             else:
-                nbunch = [self._graph._get_block_id(n) for n in nbunch]
+                nbunch = [self._graph._get_block_key(n) for n in nbunch]
 
         if data:
             return [
-                (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id), edge_data)
+                (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph._graph.out_edges(nbunch, data=True)
             ]
         return [
-            (self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id))
+            (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id))
             for src_id, dst_id in self._graph._graph.out_edges(nbunch)
         ]
 
@@ -536,7 +536,7 @@ class _OutEdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.out_edges():
-            yield self._graph._get_node_by_id(src_id), self._graph._get_node_by_id(dst_id)
+            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
 
     def __len__(self) -> int:
         return self._graph._graph.number_of_edges()
@@ -557,14 +557,14 @@ class _InDegreeView:
         return self[node]
 
     def __getitem__(self, node: CFGNode) -> int:
-        block_id = self._graph._get_block_id(node)
-        if block_id not in self._graph._graph:
+        block_key = self._graph._get_block_key(node)
+        if block_key not in self._graph._graph:
             return 0
-        return self._graph._graph.in_degree(block_id)
+        return self._graph._graph.in_degree(block_key)
 
     def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
-        for block_id, deg in self._graph._graph.in_degree():
-            yield self._graph._get_node_by_id(block_id), deg
+        for block_key, deg in self._graph._graph.in_degree():
+            yield self._graph._get_node_by_key(block_key), deg
 
     def __len__(self) -> int:
         return len(self._graph._graph)
@@ -585,14 +585,14 @@ class _OutDegreeView:
         return self[node]
 
     def __getitem__(self, node: CFGNode) -> int:
-        block_id = self._graph._get_block_id(node)
-        if block_id not in self._graph._graph:
+        block_key = self._graph._get_block_key(node)
+        if block_key not in self._graph._graph:
             return 0
-        return self._graph._graph.out_degree(block_id)
+        return self._graph._graph.out_degree(block_key)
 
     def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
-        for block_id, deg in self._graph._graph.out_degree():
-            yield self._graph._get_node_by_id(block_id), deg
+        for block_key, deg in self._graph._graph.out_degree():
+            yield self._graph._get_node_by_key(block_key), deg
 
     def __len__(self) -> int:
         return len(self._graph._graph)
@@ -639,54 +639,54 @@ class SpillingCFGGraph:
         self._cfg_model_ref = weakref.ref(value) if value is not None else None
         self._nodes._cfg_model = value
 
-    def _get_block_id(self, node: CFGNode) -> int:
+    def _get_block_key(self, node: CFGNode) -> K:
         block_id = node.block_id
         if block_id is None:
             block_id = node.addr
-        return block_id
+        return block_id, node.size if node.size is not None else -1
 
-    def _get_node_by_id(self, block_id: int) -> CFGNode:
+    def _get_node_by_key(self, block_key: K) -> CFGNode:
         """Get a CFGNode by block_id, with fallback to graph node data."""
         # First try the nodes dict (handles spilling)
-        if block_id in self._nodes:
-            return self._nodes[block_id]
+        if block_key in self._nodes:
+            return self._nodes[block_key]
         # Fallback to graph node data (for nodes removed from _nodes but still in graph)
-        if block_id in self._graph:
-            node_data = self._graph.nodes[block_id]
+        if block_key in self._graph:
+            node_data = self._graph.nodes[block_key]
             if "_node" in node_data:
                 return node_data["_node"]
-        raise KeyError(block_id)
+        raise KeyError(block_key)
 
     #
     # Node operations
     #
 
     def add_node(self, node: CFGNode, **attr) -> None:
-        block_id = self._get_block_id(node)
-        self._nodes[block_id] = node
+        block_key = self._get_block_key(node)
+        self._nodes[block_key] = node
         # Store node reference in graph data for fallback lookup
-        self._graph.add_node(block_id, _node=node, **attr)
+        self._graph.add_node(block_key, _node=node, **attr)
 
     def remove_node(self, node: CFGNode) -> None:
-        block_id = self._get_block_id(node)
+        block_key = self._get_block_key(node)
         # Check if the stored node is the same as the one being removed
         # If a different node with the same block_id exists (replacement happened),
         # don't remove from the graph to preserve edges
         should_remove_from_graph = True
-        if block_id in self._nodes:
-            stored_node = self._nodes[block_id]
+        if block_key in self._nodes:
+            stored_node = self._nodes[block_key]
             if stored_node is not node:
                 # A replacement happened - don't remove from graph
                 should_remove_from_graph = False
             else:
-                del self._nodes[block_id]
+                del self._nodes[block_key]
 
-        if should_remove_from_graph and block_id in self._graph:
-            self._graph.remove_node(block_id)
+        if should_remove_from_graph and block_key in self._graph:
+            self._graph.remove_node(block_key)
 
     def has_node(self, node: CFGNode) -> bool:
-        block_id = self._get_block_id(node)
-        return block_id in self._graph
+        block_key = self._get_block_key(node)
+        return block_key in self._graph
 
     def __contains__(self, node: CFGNode) -> bool:
         return self.has_node(node)
@@ -703,45 +703,45 @@ class SpillingCFGGraph:
         return _NodeView(self)
 
     def __iter__(self) -> Iterator[CFGNode]:
-        for block_id in self._graph:
-            yield self._get_node_by_id(block_id)
+        for block_key in self._graph:
+            yield self._get_node_by_key(block_key)
 
     #
     # Edge operations
     #
 
     def add_edge(self, src: CFGNode, dst: CFGNode, **attr) -> None:
-        src_block_id = self._get_block_id(src)
-        dst_block_id = self._get_block_id(dst)
+        src_block_key = self._get_block_key(src)
+        dst_block_key = self._get_block_key(dst)
 
         # Always update _nodes with the passed nodes
         # This is needed for node replacement during _shrink_node
-        self._nodes[src_block_id] = src
-        self._nodes[dst_block_id] = dst
+        self._nodes[src_block_key] = src
+        self._nodes[dst_block_key] = dst
 
         # Ensure nodes exist in the graph structure
-        if src_block_id not in self._graph:
-            self._graph.add_node(src_block_id, _node=src)
+        if src_block_key not in self._graph:
+            self._graph.add_node(src_block_key, _node=src)
 
-        if dst_block_id not in self._graph:
-            self._graph.add_node(dst_block_id, _node=dst)
+        if dst_block_key not in self._graph:
+            self._graph.add_node(dst_block_key, _node=dst)
 
-        self._graph.add_edge(src_block_id, dst_block_id, **attr)
+        self._graph.add_edge(src_block_key, dst_block_key, **attr)
 
     def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
-        src_block_id = self._get_block_id(src)
-        dst_block_id = self._get_block_id(dst)
-        self._graph.remove_edge(src_block_id, dst_block_id)
+        src_block_key = self._get_block_key(src)
+        dst_block_key = self._get_block_key(dst)
+        self._graph.remove_edge(src_block_key, dst_block_key)
 
     def has_edge(self, src: CFGNode, dst: CFGNode) -> bool:
-        src_block_id = self._get_block_id(src)
-        dst_block_id = self._get_block_id(dst)
-        return self._graph.has_edge(src_block_id, dst_block_id)
+        src_block_key = self._get_block_key(src)
+        dst_block_key = self._get_block_key(dst)
+        return self._graph.has_edge(src_block_key, dst_block_key)
 
     def get_edge_data(self, src: CFGNode, dst: CFGNode, default=None) -> dict | None:
-        src_block_id = self._get_block_id(src)
-        dst_block_id = self._get_block_id(dst)
-        return self._graph.get_edge_data(src_block_id, dst_block_id, default)
+        src_block_key = self._get_block_key(src)
+        dst_block_key = self._get_block_key(dst)
+        return self._graph.get_edge_data(src_block_key, dst_block_key, default)
 
     def number_of_edges(self) -> int:
         return self._graph.number_of_edges()
@@ -756,14 +756,14 @@ class SpillingCFGGraph:
     #
 
     def predecessors(self, node: CFGNode) -> Iterator[CFGNode]:
-        block_id = self._get_block_id(node)
-        for pred_id in self._graph.predecessors(block_id):
-            yield self._get_node_by_id(pred_id)
+        block_key = self._get_block_key(node)
+        for pred_key in self._graph.predecessors(block_key):
+            yield self._get_node_by_key(pred_key)
 
     def successors(self, node: CFGNode) -> Iterator[CFGNode]:
-        block_id = self._get_block_id(node)
-        for succ_id in self._graph.successors(block_id):
-            yield self._get_node_by_id(succ_id)
+        block_key = self._get_block_key(node)
+        for succ_key in self._graph.successors(block_key):
+            yield self._get_node_by_key(succ_key)
 
     @property
     def in_edges(self) -> _InEdgeView:
@@ -790,10 +790,10 @@ class SpillingCFGGraph:
     #
 
     def __getitem__(self, node: CFGNode) -> _AdjacencyDict:
-        block_id = self._get_block_id(node)
-        if block_id not in self._graph:
+        block_key = self._get_block_key(node)
+        if block_key not in self._graph:
             raise KeyError(node)
-        return _AdjacencyDict(self, block_id)
+        return _AdjacencyDict(self, block_key)
 
     #
     # Graph operations
@@ -838,15 +838,15 @@ class SpillingCFGGraph:
         Return a subgraph as a regular networkx DiGraph with CFGNode instances.
         This is useful for algorithms that need a pure networkx graph.
         """
-        block_ids = [self._get_block_id(n) for n in nodes]
-        sub = self._graph.subgraph(block_ids)
+        block_keys = [self._get_block_key(n) for n in nodes]
+        sub = self._graph.subgraph(block_keys)
 
         # Convert to CFGNode-based graph
         result = networkx.DiGraph()
-        for block_id in sub.nodes():
-            result.add_node(self._get_node_by_id(block_id))
-        for src_id, dst_id, data in sub.edges(data=True):
-            result.add_edge(self._get_node_by_id(src_id), self._get_node_by_id(dst_id), **data)
+        for block_key in sub.nodes():
+            result.add_node(self._get_node_by_key(block_key))
+        for src_key, dst_key, data in sub.edges(data=True):
+            result.add_edge(self._get_node_by_key(src_key), self._get_node_by_key(dst_key), **data)
 
         return result
 
