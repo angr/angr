@@ -12,28 +12,28 @@
 	},
 	"functions": {
 		"CreateCaptureAudioStateMonitor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['audioStateMonitor']}"
 		},
 		"CreateCaptureAudioStateMonitorForCategory": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'audioStateMonitor']}"
 		},
 		"CreateCaptureAudioStateMonitorForCategoryAndDeviceId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'deviceId', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'deviceId', 'audioStateMonitor']}"
 		},
 		"CreateCaptureAudioStateMonitorForCategoryAndDeviceRole": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': '_ref', 'name': 'ERole', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'role', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ERole', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'role', 'audioStateMonitor']}"
 		},
 		"CreateRenderAudioStateMonitor": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['audioStateMonitor']}"
 		},
 		"CreateRenderAudioStateMonitorForCategory": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'audioStateMonitor']}"
 		},
 		"CreateRenderAudioStateMonitorForCategoryAndDeviceId": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'deviceId', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'deviceId', 'audioStateMonitor']}"
 		},
 		"CreateRenderAudioStateMonitorForCategoryAndDeviceRole": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'int'}, {'_t': '_ref', 'name': 'ERole', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'role', 'audioStateMonitor']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'AUDIO_STREAM_CATEGORY', 'ot': 'enum'}, {'_t': '_ref', 'name': 'ERole', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IAudioStateMonitor', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['category', 'role', 'audioStateMonitor']}"
 		}
 	}
 }

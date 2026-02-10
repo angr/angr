@@ -10,6 +10,7 @@ import networkx
 
 import angr.ailment as ailment
 
+from angr.ailment.manager import Manager
 from angr.analyses.decompiler import RegionIdentifier
 from angr.analyses.decompiler.ailgraph_walker import AILGraphWalker
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
@@ -79,8 +80,9 @@ class BaseOptimizationPass:
     NAME = "N/A"
     DESCRIPTION = "N/A"
 
-    def __init__(self, func):
+    def __init__(self, func, manager: Manager):
         self._func: Function = func
+        self.manager = manager
 
     @property
     def project(self) -> Project:
@@ -126,6 +128,7 @@ class OptimizationPass(BaseOptimizationPass):
     def __init__(
         self,
         func,
+        manager,
         *,
         graph,
         blocks_by_addr=None,
@@ -139,6 +142,7 @@ class OptimizationPass(BaseOptimizationPass):
         force_loop_single_exit: bool = True,
         refine_loops_with_single_successor: bool = False,
         complete_successors: bool = False,
+        fold_expressions: bool = True,
         avoid_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[ailment.Expr.VirtualVariable, SimVariable]] | None = None,
         peephole_optimizations=None,
@@ -146,7 +150,7 @@ class OptimizationPass(BaseOptimizationPass):
         notes: dict | None = None,
         **kwargs,
     ):
-        super().__init__(func)
+        super().__init__(func, manager)
         # self._blocks is just a cache
         self._blocks_by_addr: dict[int, set[ailment.Block]] = blocks_by_addr or {}
         self._blocks_by_addr_and_idx: dict[tuple[int, int | None], ailment.Block] = blocks_by_addr_and_idx or {}
@@ -165,6 +169,7 @@ class OptimizationPass(BaseOptimizationPass):
         self._refine_loops_with_single_successor = refine_loops_with_single_successor
         self._complete_successors = complete_successors
         self._avoid_vvar_ids = avoid_vvar_ids or set()
+        self._fold_expressions = fold_expressions
         self._peephole_optimizations = peephole_optimizations
         self._stack_pointer_tracker = stack_pointer_tracker
         self.notes = notes if notes is not None else {}
@@ -365,6 +370,7 @@ class OptimizationPass(BaseOptimizationPass):
 
         simp = self.project.analyses.AILBlockSimplifier(
             ail_block,
+            self.manager,
             self._func.addr,
             peephole_optimizations=self._peephole_optimizations,
             cached_reaching_definitions=cached_rd,
@@ -384,6 +390,8 @@ class OptimizationPass(BaseOptimizationPass):
             simp = self.project.analyses.AILSimplifier(
                 self._func,
                 func_graph=graph,
+                ail_manager=self.manager,
+                fold_expressions=self._fold_expressions,
                 use_callee_saved_regs_at_return=False,
                 gp=self._func.info.get("gp", None) if self.project.arch.name in {"MIPS32", "MIPS64"} else None,
                 avoid_vvar_ids=self._avoid_vvar_ids,
@@ -414,8 +422,8 @@ class SequenceOptimizationPass(BaseOptimizationPass):
     The base class for any sequence node optimization pass.
     """
 
-    def __init__(self, func, seq=None, **kwargs):
-        super().__init__(func)
+    def __init__(self, func, manager, seq=None, **kwargs):
+        super().__init__(func, manager)
         self.seq = seq
         self.out_seq = None
 
@@ -445,6 +453,7 @@ class StructuringOptimizationPass(OptimizationPass):
     def __init__(
         self,
         func,
+        manager,
         require_structurable_graph: bool = True,
         prevent_new_gotos: bool = True,
         strictly_less_gotos: bool = False,
@@ -457,7 +466,7 @@ class StructuringOptimizationPass(OptimizationPass):
         edges_to_remove: list[tuple[tuple[int, int | None], tuple[int, int | None]]] | None = None,
         **kwargs,
     ):
-        super().__init__(func, **kwargs)
+        super().__init__(func, manager, **kwargs)
         self._require_structurable_graph = require_structurable_graph
         self._prevent_new_gotos = prevent_new_gotos
         self._strictly_less_gotos = strictly_less_gotos

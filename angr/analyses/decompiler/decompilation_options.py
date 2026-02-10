@@ -293,6 +293,16 @@ options = [
         clears_cache=True,
     ),
     O(
+        "Show void for empty parameter list",
+        "Display (void) instead of () for functions with no parameters, following the C standard convention.",
+        bool,
+        "codegen",
+        "cstyle_void_param",
+        category="Display",
+        default_value=True,
+        clears_cache=False,
+    ),
+    O(
         "Multi-expression statements generation",
         "Should the structuring algorithm generate multi-expression statements? If so, under what conditions?",
         type,
@@ -303,6 +313,17 @@ options = [
         candidate_values=[op.value for op in MultiStmtExprMode],
         clears_cache=True,
         convert=MultiStmtExprMode,
+    ),
+    O(
+        "Refine decompilation output with LLM",
+        "Use a configured LLM (via LiteLLM) to suggest improved variable names, function names, and variable types "
+        "for the decompiled code. Requires an LLM client to be configured on the project.",
+        bool,
+        "decompiler",
+        "llm_refine",
+        category="LLM",
+        default_value=False,
+        clears_cache=False,
     ),
 ]
 

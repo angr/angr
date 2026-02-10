@@ -19,8 +19,8 @@ class CallStatementRewriter(OptimizationPass):
     NAME = "Unify call statements on demand."
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -28,7 +28,6 @@ class CallStatementRewriter(OptimizationPass):
         return True, None
 
     def _analyze(self, cache=None):
-
         changed = False
 
         for block in self._graph.nodes:

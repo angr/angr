@@ -33,8 +33,8 @@ class StringObfType3Rewriter(OptimizationPass):
     DESCRIPTION = "Simplify Type 3 string deobfuscation calls"
     stmt_classes = ()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.analyze()
 
@@ -48,7 +48,6 @@ class StringObfType3Rewriter(OptimizationPass):
         return isinstance(stmt, Call) or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call))
 
     def _analyze(self, cache=None):
-
         # find all blocks with type-3 deobfuscation calls
         for block in list(self._graph):
             if not block.statements:

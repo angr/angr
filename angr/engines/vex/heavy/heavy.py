@@ -188,7 +188,7 @@ class HeavyVEXMixin(SuccessorsEngine, ClaripyDataMixin, SimStateStorageMixin, VE
 
         # do return emulation and calless stuff
         for exit_state in list(successors.all_successors):
-            exit_jumpkind = exit_state.history.jumpkind if exit_state.history.jumpkind else ""
+            exit_jumpkind = exit_state.history.jumpkind or ""
 
             if o.CALLLESS in self.state.options and exit_jumpkind == "Ijk_Call":
                 exit_state.registers.store(

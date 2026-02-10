@@ -33,9 +33,7 @@ class AMD64PeIatResolver(IndirectJumpResolver):
         # Must be of the form: call qword ptr [0xABCD]
         return bool(opnd.type == X86_OP_MEM and opnd.mem.disp and opnd.mem.base == X86_REG_RIP and opnd.mem.index == 0)
 
-    def resolve(
-        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
-    ):  # pylint:disable=unused-argument
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):  # pylint:disable=unused-argument
         call_insn = self.project.factory.block(addr).capstone.insns[-1].insn
         addr = (call_insn.disp + call_insn.address + call_insn.size) & 0xFFFF_FFFF_FFFF_FFFF
         target = cfg._fast_memory_load_pointer(addr)

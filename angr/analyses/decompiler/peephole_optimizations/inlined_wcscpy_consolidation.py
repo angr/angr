@@ -5,7 +5,8 @@ from typing import TYPE_CHECKING
 from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
 from angr.ailment.statement import Call, Store, Assignment
 
-from angr.sim_type import SimTypePointer, SimTypeWideChar
+from angr.ailment.tagged_object import TagDict
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from .base import PeepholeOptimizationMultiStmtBase
 from .inlined_wcscpy import InlinedWcscpy
 
@@ -214,7 +215,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         r, s = True, b"\x00\x00"
                     else:
                         r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1  # type: ignore
+                            stmt.data.value,
+                            stmt.size,
+                            stmt.endness,
+                            min_length=1,  # type: ignore
                         )
                     if r and s is not None:
                         new_str = s_last + s
@@ -230,7 +234,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
                     r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                        stmt.src.value, stmt.dst.size, self.project.arch.memory_endness, min_length=1  # type: ignore
+                        stmt.src.value,
+                        stmt.dst.size,
+                        self.project.arch.memory_endness,
+                        min_length=1,  # type: ignore
                     )
                     if r and s is not None:
                         new_str = s_last + s
@@ -238,6 +245,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             if new_str is not None:
                 assert self.project is not None
                 wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
+                wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+                prototype = SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
+                    self.project.arch
+                )
                 if new_str.endswith(b"\x00\x00"):
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
@@ -245,7 +256,6 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         last_stmt.args[0],
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
                     ]
-                    prototype = None
                 else:
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
@@ -254,9 +264,16 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
                         Const(None, None, len(new_str) // 2, self.project.arch.bits),
                     ]
-                    prototype = None
 
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
+                tags = TagDict(stmt.tags)
+                if args[0].tags.get("extra_def", False):
+                    assert isinstance(args[0], UnaryOp)
+                    assert args[0].op == "Reference"
+                    assert isinstance(args[0].operand, VirtualVariable)
+                    tags["extra_defs"] = [args[0].operand.varid]
+                else:
+                    tags.pop("extra_defs", None)
+                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **tags)]
 
         return None
 
@@ -265,18 +282,18 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         # we force the base to 64-bit because it does not really matter when we use it
 
         if isinstance(addr, VirtualVariable) and addr.was_stack:
-            return StackBaseOffset(None, 64, 0), addr.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.stack_offset
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
-            return StackBaseOffset(None, 64, 0), addr.offset
+            return StackBaseOffset(-1, 64, 0), addr.offset
         if (
             isinstance(addr, UnaryOp)
             and addr.op == "Reference"
             and isinstance(addr.operand, VirtualVariable)
             and addr.operand.was_stack
         ):
-            return StackBaseOffset(None, 64, 0), addr.operand.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
                 base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr.operands[0])

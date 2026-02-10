@@ -61,7 +61,6 @@ class DataTransformationEmbedder(Analysis):
         self._analyze()
 
     def _analyze(self):
-
         _l.debug("Look for partially evaluatable calls that are likely data transformation functions.")
         r = self._analyze_concrete_calls_to_data_transformation_functions()
         if r:
@@ -557,7 +556,6 @@ class DataTransformationEmbedder(Analysis):
 
     @staticmethod
     def _frontier_var_initial_assignments(frontier_varids: set[int], cc_graph: networkx.DiGraph):
-
         var_assignments = {}
         for block in cc_graph.nodes:
             for stmt in block.statements:

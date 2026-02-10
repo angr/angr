@@ -24,6 +24,8 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
                     # extension -> truncation
                     return inner.operand
                 # truncation -> extension
+                if expr.is_signed:
+                    return None
                 # we must clear the top truncated bits
                 mask = (1 << inner.to_bits) - 1
                 return BinaryOp(
@@ -33,7 +35,10 @@ class RemoveCascadingConversions(PeepholeOptimizationExprBase):
                     False,
                     **expr.tags,
                 )
-            return Convert(expr.idx, inner.from_bits, expr.to_bits, expr.is_signed, inner.operand, **expr.tags)
+            if (inner.to_bits >= expr.to_bits or inner.to_bits >= inner.from_bits) and (
+                expr.to_bits < inner.to_bits or (expr.is_signed == inner.is_signed)
+            ):
+                return Convert(expr.idx, inner.from_bits, expr.to_bits, inner.is_signed, inner.operand, **expr.tags)
 
         if isinstance(expr.operand, BinaryOp) and expr.operand.op == "And":
             and0, and1 = expr.operand.operands

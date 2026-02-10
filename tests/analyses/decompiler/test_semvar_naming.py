@@ -61,14 +61,14 @@ class TestSemvarNaming(unittest.TestCase):
         _, code = self._decompile_function("sum_matrix")
 
         # Check for outer loop with 'i'
-        assert (
-            re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None
-        ), "Expected outer loop counter 'i' not found"
+        assert re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None, (
+            "Expected outer loop counter 'i' not found"
+        )
 
         # Check for inner loop with 'j'
-        assert (
-            re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None
-        ), "Expected inner loop counter 'j' not found"
+        assert re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None, (
+            "Expected inner loop counter 'j' not found"
+        )
 
     def test_loop_counter_naming_triple_nested(self):
         """Test that triple nested loops get i, j, k naming."""
@@ -143,7 +143,7 @@ class TestSemvarNaming(unittest.TestCase):
 
         # Should have boolean-like variable patterns
         # Also check for 0/1 assignments typical of boolean flags
-        has_boolean_pattern = "result" in text
+        has_boolean_pattern = "flag" in text
         has_zero_one = "= 0" in text and "= 1" in text
 
         assert has_boolean_pattern or has_zero_one, "Expected boolean flag pattern not found"

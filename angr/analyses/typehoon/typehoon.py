@@ -85,7 +85,6 @@ class Typehoon(Analysis):
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ) -> None:
-
         if not self.simtypes_solution:
             return
 
@@ -182,7 +181,7 @@ class Typehoon(Analysis):
     def _analyze(self):
         # convert ground truth into constraints
         if self._ground_truth:
-            translator = TypeTranslator(arch=self.project.arch)
+            translator = TypeTranslator(self.project.arch)
             for tv, sim_type in self._ground_truth.items():
                 self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
@@ -319,7 +318,7 @@ class Typehoon(Analysis):
             return
 
         simtypes_solution = {}
-        translator = TypeTranslator(arch=self.project.arch)
+        translator = TypeTranslator(self.project.arch)
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():

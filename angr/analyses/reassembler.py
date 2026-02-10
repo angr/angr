@@ -1980,9 +1980,7 @@ class Reassembler(Analysis):
         proc = Procedure(self, name=name, asm_code=asm_code)
         self.procedures.append(proc)
 
-    def append_data(
-        self, name, initial_content, size, readonly=False, sort="unknown"
-    ):  # pylint:disable=unused-argument
+    def append_data(self, name, initial_content, size, readonly=False, sort="unknown"):  # pylint:disable=unused-argument
         """
         Append a new data entry into the binary with specific name, content, and size.
 
@@ -2455,7 +2453,7 @@ class Reassembler(Analysis):
 
         l.debug("Creating data entries...")
         for addr, memory_data in cfg._memory_data.items():
-            if memory_data.sort in ("code reference",):
+            if memory_data.sort == "code reference":
                 continue
 
             if memory_data.sort == "string":
@@ -2477,7 +2475,7 @@ class Reassembler(Analysis):
                     None,
                 )
 
-                if section is not None and section.name not in (".note.gnu.build-id",):  # ignore certain section names
+                if section is not None and section.name != ".note.gnu.build-id":  # ignore certain section names
                     data = Data(self, memory_data, section=section)
                     self.data.append(data)
                 elif memory_data.sort == "segment-boundary":
@@ -2709,9 +2707,7 @@ class Reassembler(Analysis):
 
         return "cgc-package-list", data_size
 
-    def _cgc_extended_application_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _cgc_extended_application_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Identifies the extended application (a PDF file) associated with the CGC binary.
 
@@ -2753,9 +2749,7 @@ class Reassembler(Analysis):
 
         return "cgc-extended-application", max_size
 
-    def _unknown_data_size_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _unknown_data_size_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Return the maximum number of bytes until a potential pointer or a potential sequence is found.
 

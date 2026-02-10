@@ -84,6 +84,10 @@ def decompile(args):
         show_casts=not args.no_casts,
         base_address=args.base_addr,
         preset=args.preset,
+        cca=args.cca,
+        cca_callsites=args.cca_callsites,
+        llm=args.llm,
+        progressbar=args.progress,
     )
 
     # Determine if we should use syntax highlighting
@@ -103,11 +107,10 @@ def decompile(args):
         print(decompilation)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
-    parser.add_argument("--version", action="version", version=angr.__version__)
-    parser.add_argument("binary", help="The path to the binary to analyze.")
-    parser.add_argument(
+def _add_common_args(subparser):
+    """Add arguments common to all subcommands."""
+    subparser.add_argument("binary", help="The path to the binary to analyze.")
+    subparser.add_argument(
         "--catch-exceptions",
         help="""
         Catch exceptions during analysis. The scope of error handling may depend on the command used for analysis.
@@ -115,7 +118,7 @@ def main():
         action="store_true",
         default=False,
     )
-    parser.add_argument(
+    subparser.add_argument(
         "--base-addr",
         help="""
         The base address of the binary. This is useful when the binary is loaded at a different address than the one
@@ -123,10 +126,19 @@ def main():
         type=lambda x: int(x, 0),
         default=None,
     )
+
+
+def main():
+    parser = argparse.ArgumentParser(description="The angr CLI allows you to decompile and analyze binaries.")
+    parser.add_argument("--version", action="version", version=angr.__version__)
+    parser.add_argument(
+        "-v", "--verbose", action="count", default=0, help="Increase verbosity level (can be used multiple times)."
+    )
     subparsers = parser.add_subparsers(metavar="command", required=True)
 
     decompile_cmd_parser = subparsers.add_parser("decompile", aliases=["dec"], help=decompile.__doc__)
     decompile_cmd_parser.set_defaults(func=decompile)
+    _add_common_args(decompile_cmd_parser)
     decompile_cmd_parser.add_argument(
         "--structurer",
         help="The structuring algorithm to use for decompilation.",
@@ -146,6 +158,34 @@ def main():
         default="default",
     )
     decompile_cmd_parser.add_argument(
+        "--cca",
+        help="Enable full-binary function prototype recovery. Improves decompilation quality but may be slow on "
+        "binaries with many functions.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "--cca-callsites",
+        help="When --cca (full-binary function prototype recovery) is enabled, also analyze call sites for better "
+        "function prototype inference.",
+        action="store_true",
+        default=True,
+    )
+    decompile_cmd_parser.add_argument(
+        "--llm",
+        help="Use an LLM to refine the decompilation output. The LLM must be configured separately using environment "
+        "variables. You may only need to set ANGR_LLM_MODEL (see LiteLLM model list) and ANGR_LLM_API_KEY. See "
+        "the documentation for angr.LLMClient for details in LLM configuration.",
+        action="store_true",
+        default=False,
+    )
+    decompile_cmd_parser.add_argument(
+        "-p",
+        "--progress",
+        help="Show a progress bar during decompilation.",
+        action="store_true",
+    )
+    decompile_cmd_parser.add_argument(
         "--functions",
         help="""
         The functions to decompile. Functions can either be expressed as names found in the
@@ -161,11 +201,12 @@ def main():
     decompile_cmd_parser.add_argument(
         "--theme",
         help="The syntax highlighting theme to use (only if rich is installed and colors are enabled).",
-        default="dracula",
+        default="ansi_dark",
     )
 
     disassemble_cmd_parser = subparsers.add_parser("disassemble", aliases=["dis"], help=disassemble.__doc__)
     disassemble_cmd_parser.set_defaults(func=disassemble)
+    _add_common_args(disassemble_cmd_parser)
     disassemble_cmd_parser.add_argument(
         "--functions",
         help="""
@@ -175,6 +216,10 @@ def main():
     )
 
     args = parser.parse_args()
+
+    log_level = max(logging.ERROR - (10 * args.verbose), logging.DEBUG)
+    logging.getLogger("angr").setLevel(log_level)
+
     args.func(args)
 
 

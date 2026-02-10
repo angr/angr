@@ -52,6 +52,7 @@ from .typeconsts import (
     Float,
     Float32,
     Float64,
+    Enum,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -76,6 +77,7 @@ Array_ = Array()
 Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
+Enum_ = Enum()
 
 
 PRIMITIVE_TYPES = {
@@ -96,6 +98,7 @@ PRIMITIVE_TYPES = {
     Float_,
     Float32_,
     Float64_,
+    Enum_,
 }
 
 
@@ -109,11 +112,16 @@ BASE_LATTICE_64.add_edge(Int_, Int64_)
 BASE_LATTICE_64.add_edge(Int_, Int32_)
 BASE_LATTICE_64.add_edge(Int_, Int16_)
 BASE_LATTICE_64.add_edge(Int_, Int8_)
+BASE_LATTICE_64.add_edge(Int512_, Bottom_)
+BASE_LATTICE_64.add_edge(Int256_, Bottom_)
+BASE_LATTICE_64.add_edge(Int128_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Bottom_)
 BASE_LATTICE_64.add_edge(Int16_, Bottom_)
 BASE_LATTICE_64.add_edge(Int8_, Bottom_)
 BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
 BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Enum_)
+BASE_LATTICE_64.add_edge(Enum_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
@@ -125,11 +133,16 @@ BASE_LATTICE_32.add_edge(Int_, Int64_)
 BASE_LATTICE_32.add_edge(Int_, Int32_)
 BASE_LATTICE_32.add_edge(Int_, Int16_)
 BASE_LATTICE_32.add_edge(Int_, Int8_)
-BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
+BASE_LATTICE_32.add_edge(Int512_, Bottom_)
+BASE_LATTICE_32.add_edge(Int256_, Bottom_)
+BASE_LATTICE_32.add_edge(Int128_, Bottom_)
 BASE_LATTICE_32.add_edge(Int64_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Enum_)
+BASE_LATTICE_32.add_edge(Enum_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -279,15 +292,19 @@ class Sketch:
         if (
             try_maxsize
             and isinstance(subtype, TypeVariable)
-            and subtype in self.solver.stackvar_max_sizes
+            and (max_size := self.solver.get_tv_max_stack_size(subtype)) is not None
             and isinstance(supertype, TypeConstant)
             and not isinstance(supertype, BottomType)
         ):
             basetype = supertype
             if not isinstance(basetype, (TopType, BottomType)):
                 assert basetype.size is not None
-                max_size = self.solver.stackvar_max_sizes.get(subtype, None)
-                if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
+                if (
+                    max_size not in {0, None}
+                    and basetype.size > 0
+                    and max_size // basetype.size > 1
+                    and basetype.size <= 8
+                ):  # type: ignore
                     supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
@@ -490,6 +507,10 @@ class SimpleSolver:
                 self.preprocess(func_tv)
                 self.simplified_constraints_count += len(self._constraints[func_tv])
 
+        self._repr_tv_to_tvs = defaultdict(set)
+        for tv, repr_tv in self._equivalence.items():
+            self._repr_tv_to_tvs[repr_tv].add(tv)
+
         self.solution = {}
         for tv, sol in self._equivalence.items():
             if isinstance(tv, TypeVariable) and isinstance(sol, TypeConstant):
@@ -499,6 +520,24 @@ class SimpleSolver:
         self.solve()
         for func_tv in list(self._constraints):
             self._convert_arrays(self._constraints[func_tv])
+
+        for tv, tv_eq in self._equivalence.items():
+            if tv not in self.solution and tv_eq in self.solution:
+                self.solution[tv] = self.solution[tv_eq]
+
+    def get_tv_max_stack_size(self, tv: TypeVariable) -> int | None:
+        """
+        Get the potential maximum stack variable size of a given type variable, if any. Also considers other type
+        variables that are equivalent to the given type variable.
+        """
+
+        if tv in self.stackvar_max_sizes:
+            return self.stackvar_max_sizes[tv]
+        if tv in self._repr_tv_to_tvs:
+            for eq_tv in self._repr_tv_to_tvs[tv]:
+                if eq_tv in self.stackvar_max_sizes:
+                    return self.stackvar_max_sizes[eq_tv]
+        return None
 
     def preprocess(self, func_tv: TypeVariable):
         self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])
@@ -608,7 +647,6 @@ class SimpleSolver:
                 _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
 
             while constraint_subset:
-
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
                 # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
@@ -974,13 +1012,16 @@ class SimpleSolver:
             cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
             existing_elements = cls0_elems | cls1_elems
             # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, DerivedTypeVariable):
+            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls0
-            elif not isinstance(cls1, DerivedTypeVariable):
+            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
                 rep_cls = next(
-                    iter(elem for elem in existing_elements if not isinstance(elem, DerivedTypeVariable)), cls0
+                    iter(
+                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    cls0,
                 )
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
@@ -1398,6 +1439,8 @@ class SimpleSolver:
                             tv_sizes[sz].add(constraint)
                     elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
                         tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                    elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
+                        tv_sizes[constraint.super_type.SIZE].add(constraint)
 
             if not tv_sizes:
                 continue
@@ -1630,6 +1673,8 @@ class SimpleSolver:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
             return True
+        if isinstance(typevar, Enum) and Enum_ in typevar_set:
+            return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
             return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
         if isinstance(typevar, Pointer) and (Pointer32_ in typevar_set or Pointer64_ in typevar_set):
@@ -1728,6 +1773,8 @@ class SimpleSolver:
             return Pointer32()
         if isinstance(t, Pointer64):
             return Pointer64()
+        if isinstance(t, Enum):
+            return Enum_
         return t
 
     @staticmethod

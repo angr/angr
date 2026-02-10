@@ -2,13 +2,11 @@ from __future__ import annotations
 import logging
 
 import claripy
-from unique_log_filter import UniqueLogFilter
 
 import angr
 from angr.state_plugins.sim_action_object import SimActionObject
 
 l = logging.getLogger(name=__name__)
-l.addFilter(UniqueLogFilter())
 
 
 class deallocate(angr.SimProcedure):

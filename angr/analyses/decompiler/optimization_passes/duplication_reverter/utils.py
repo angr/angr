@@ -72,14 +72,12 @@ def bfs_list_blocks(start_block: Block, graph: nx.DiGraph):
     return [start_block, *blocks]
 
 
-def copy_graph_and_nodes(graph: nx.DiGraph, new_idx=False):
+def copy_graph_and_nodes(graph: nx.DiGraph):
     new_graph = nx.DiGraph()
     nodes_map = {}
     for node in graph.nodes:
         node_copy = node.copy()
         node_copy.statements = list(node_copy.statements)
-        if new_idx:
-            node_copy.idx = node_copy.idx + 1 if isinstance(node_copy.idx, int) else 1
         nodes_map[node] = node_copy
 
     new_graph.add_nodes_from(nodes_map.values())
@@ -101,7 +99,7 @@ def ail_block_from_stmts(stmts, idx=None, block_addr=None) -> Block | None:
     first_stmt = stmts[0]
 
     return Block(
-        block_addr if block_addr else first_stmt.tags["ins_addr"],
+        block_addr or first_stmt.tags["ins_addr"],
         0,
         statements=list(stmts),
         idx=idx or 1,

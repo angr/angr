@@ -35,9 +35,7 @@ class PairAILBlockRewriter:
             Return: self._handle_Return_pair,
         }
 
-        self.stmt_pair_handlers: dict[Statement, Callable] = (
-            stmt_pair_handlers if stmt_pair_handlers else _default_stmt_handlers
-        )
+        self.stmt_pair_handlers: dict[Statement, Callable] = stmt_pair_handlers or _default_stmt_handlers
 
     # pylint: disable=no-self-use
     def _walk_block(self, block):
@@ -147,10 +145,10 @@ class ConstPropOptReverter(OptimizationPass):
     NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, region_identifier=None, reaching_definitions=None, **kwargs):
+    def __init__(self, *args, region_identifier=None, reaching_definitions=None, **kwargs):
         self.ri = region_identifier
         self.rd = reaching_definitions
-        super().__init__(func, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._call_pair_targets = []
         self.resolution = False

@@ -53,7 +53,7 @@ class KnowledgeBase:
             l.warning("The obj parameter in KnowledgeBase.__init__() has been deprecated.")
         object.__setattr__(self, "_project", project)
         object.__setattr__(self, "_plugins", {})
-        object.__setattr__(self, "name", name if name else f"kb_{next(kb_ctr)}")
+        object.__setattr__(self, "name", name or f"kb_{next(kb_ctr)}")
 
     @property
     def callgraph(self):

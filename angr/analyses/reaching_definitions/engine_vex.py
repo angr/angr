@@ -723,9 +723,7 @@ class SimEngineRDVEX(
         if expr0_v is not None and expr1_v is not None:
             if expr0_v.concrete and expr1_v.concrete:
                 # dividing two single values
-                r = (
-                    MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)
-                )  # type: ignore
+                r = MultiValues(self.state.top(bits)) if expr1_v.concrete_value == 0 else MultiValues(expr0_v / expr1_v)  # type: ignore
         elif expr0_v is None and expr1_v is not None:
             if expr1_v.concrete and expr1_v.concrete_value == 0:
                 r = MultiValues(self.state.top(bits))

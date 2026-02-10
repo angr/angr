@@ -443,9 +443,7 @@ class CFGFastSoot(CFGFast):
 
         return entries
 
-    def _create_jobs(
-        self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx
-    ):  # pylint:disable=arguments-differ
+    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):  # pylint:disable=arguments-differ
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG

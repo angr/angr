@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"ActivateAudioInterfaceAsync": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': '_ref'}}, {'_t': '_ref', 'name': 'IActivateAudioInterfaceCompletionHandler', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IActivateAudioInterfaceAsyncOperation', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['deviceInterfacePath', 'riid', 'activationParams', 'completionHandler', 'activationOperation']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PROPVARIANT', 'ot': 'struct'}, 'disp': 1}, {'_t': '_ref', 'name': 'IActivateAudioInterfaceCompletionHandler', 'ot': 'bot'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'IActivateAudioInterfaceAsyncOperation', 'ot': 'bot'}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['deviceInterfacePath', 'riid', 'activationParams', 'completionHandler', 'activationOperation']}"
 		}
 	}
 }

@@ -100,12 +100,14 @@ class TestMemView(unittest.TestCase):
     def test_structs(self):
         s = SimState(arch="AMD64")
 
-        register_types(parse_types("""
+        register_types(
+            parse_types("""
     struct test_structs {
       int a;
       long b;
     };
-    """))
+    """)
+        )
 
         s.memory.store(0x8000, bytes(16))
         s.mem[0x8000].struct.test_structs = {"a": 10, "b": 20}

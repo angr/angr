@@ -129,9 +129,7 @@ class LoopSimplifier(SequenceWalker):
         for n0, n1, n2 in zip(node.nodes, [*node.nodes[1:], successor], [predecessor, *node.nodes[:-1]]):
             self._handle(n0, predecessor=n2, successor=n1, loop=loop, loop_successor=loop_successor)
 
-    def _handle_block(
-        self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs
-    ):  # pylint:disable=no-self-use
+    def _handle_block(self, block, predecessor=None, successor=None, loop=None, loop_successor=None, **kwargs):  # pylint:disable=no-self-use
         if isinstance(successor, ContinueNode) or successor is loop_successor:
             # ensure this block is not returning or exiting
             try:

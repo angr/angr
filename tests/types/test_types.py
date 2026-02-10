@@ -282,9 +282,9 @@ class TestTypes(unittest.TestCase):
 
         # Check that arg_names survive a with_arch call
         nsig = sig.with_arch(archinfo.ArchAMD64())
-        assert (
-            sig.arg_names == nsig.arg_names
-        ), "Function type generated with .with_arch() doesn't have identical arg_names"
+        assert sig.arg_names == nsig.arg_names, (
+            "Function type generated with .with_arch() doesn't have identical arg_names"
+        )
 
         # If for some reason only some of the parameters are named,
         # the list can only be partially not None, but has to match the positions

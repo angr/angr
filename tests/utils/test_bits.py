@@ -7,7 +7,6 @@ from angr.utils.bits import truncate_bits
 
 # pylint: disable=missing-class-docstring,disable=no-self-use
 class TestBits(unittest.TestCase):
-
     def test_truncate_bits(self):
         with self.assertRaises(ValueError):
             truncate_bits(0, -1)

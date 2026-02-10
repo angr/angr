@@ -241,7 +241,6 @@ class RegionIdentifier(Analysis):
         )
 
     def _make_supergraph(self, graph: TGraph):
-
         entry_node = None
         if self.entry_node_addr is not None:
             entry_node = next(iter(nn for nn in graph if nn.addr == self.entry_node_addr[0]), None)

@@ -1,3 +1,5 @@
+#![allow(clippy::declare_interior_mutable_const)] // FIXME: https://github.com/PyO3/pyo3/issues/5768
+
 /// Icicle bindings
 ///
 /// This module provides Python bindings for the Icicle emulator, allowing
@@ -40,7 +42,7 @@ impl icicle_vm::cpu::RegHandler for X86FlagsRegHandler {
 }
 
 /// VmExit is the result of a VM execution. Borrowed directly from icicle.
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VmExit {
     /// The VM is still running.
@@ -89,7 +91,7 @@ impl From<icicle_vm::VmExit> for VmExit {
     }
 }
 
-#[pyclass(module = "angr.rustylib.icicle")]
+#[pyclass(module = "angr.rustylib.icicle", from_py_object)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u64)]
 pub enum ExceptionCode {

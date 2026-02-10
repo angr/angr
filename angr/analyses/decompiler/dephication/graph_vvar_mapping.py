@@ -237,7 +237,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         new_vvar = VirtualVariable(
                             None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
                         )
-                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr)
+                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr, dephi=True)
 
                         self._append_stmt(the_block, assignment, old_vvarid=varid, new_vvarid=new_vvar_id)
 
@@ -268,7 +268,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             new_vvar = VirtualVariable(
                 None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
             )
-            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
+            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr, dephi=True)
 
             phi_stmt = the_block.statements[phidef_stmt_idx]
             replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
@@ -282,7 +282,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
     @staticmethod
     def _append_stmt(block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
-
         def _handle_VirtualVariable(  # pylint:disable=unused-argument
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
         ):
@@ -290,9 +289,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             return (
                 expr
                 if expr.varid != old_vvarid
-                else VirtualVariable(
-                    None, new_vvarid, expr.bits, expr.category, oident=expr.oident, ins_addr=expr.tags["ins_addr"]
-                )
+                else VirtualVariable(None, new_vvarid, expr.bits, expr.category, oident=expr.oident, **expr.tags)
             )
 
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):

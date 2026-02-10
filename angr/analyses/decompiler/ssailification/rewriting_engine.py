@@ -1,9 +1,9 @@
 # pylint:disable=no-self-use,unused-argument,too-many-boolean-expressions
 from __future__ import annotations
-from typing import Literal
+from typing import TYPE_CHECKING
+from collections.abc import MutableMapping
 import logging
 
-from archinfo import Endness
 from angr.ailment.block import Block
 from angr.ailment.manager import Manager
 from angr.ailment.statement import (
@@ -21,6 +21,8 @@ from angr.ailment.statement import (
 from angr.ailment.expression import (
     Atom,
     Expression,
+    Extract,
+    Insert,
     Register,
     VirtualVariable,
     Load,
@@ -37,16 +39,15 @@ from angr.ailment.expression import (
     Reinterpret,
 )
 
-from angr.knowledge_plugins.key_definitions import atoms
+from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
-from angr.utils.ssa import get_reg_offset_base_and_size
 from .rewriting_state import RewritingState
 
+if TYPE_CHECKING:
+    from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
+
+
 _l = logging.getLogger(__name__)
-
-
-DefExprType = atoms.Register | atoms.Tmp | atoms.MemoryLocation
-AT = Literal["l", "s"] | None
 
 
 class SimEngineSSARewriting(
@@ -57,43 +58,34 @@ class SimEngineSSARewriting(
     copies at each use location.
     """
 
-    state: RewritingState
-
     def __init__(
         self,
         project,
         *,
-        sp_tracker,
-        udef_to_phiid: dict[tuple, set[int]],
-        phiid_to_loc: dict[int, tuple[int, int | None]],
-        stackvar_locs: dict[int, set[int]],
         ail_manager: Manager,
+        def_to_udef: MutableMapping[Def, UDef],
+        incomplete_defs: set[Def],
         vvar_id_start: int = 0,
-        bp_as_gpr: bool = False,
         rewrite_tmps: bool = False,
+        stackvars: bool = False,
     ):
         super().__init__(project)
 
-        self.sp_tracker = sp_tracker
-        self.bp_as_gpr = bp_as_gpr
-        self.def_to_vvid: dict[tuple[int, int | None, int, DefExprType, AT], int] = {}
-        self.stackvar_locs = stackvar_locs
-        self.udef_to_phiid = udef_to_phiid
-        self.phiid_to_loc = phiid_to_loc
+        self.def_to_vvid_cache: dict[Def, int] = {}
+        self.tmp_to_vvid_cache: dict[int, int] = {}
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
-        self.head_controlled_loop_outstate: RewritingState | None = None
-
-        self.secondary_stackvars: set[int] = set()
+        self.hclb_side_exit_state: RewritingState | None = None
+        self.out_block: Block | None = None
+        self.def_to_udef = def_to_udef
+        self.stackvars = stackvars
+        self.incomplete_defs = incomplete_defs
 
         self._current_vvar_id = vvar_id_start
+        self._extra_defs: list[int] = []
 
     @property
     def current_vvar_id(self) -> int:
-        return self._current_vvar_id
-
-    def next_vvar_id(self) -> int:
-        self._current_vvar_id += 1
         return self._current_vvar_id
 
     #
@@ -116,7 +108,6 @@ class SimEngineSSARewriting(
     def process(
         self, state: RewritingState, *, block: Block | None = None, whitelist: set[int] | None = None, **kwargs
     ) -> None:
-        self.head_controlled_loop_outstate = None
         super().process(state, block=block, whitelist=whitelist, **kwargs)
 
     def _top(self, bits):
@@ -127,93 +118,48 @@ class SimEngineSSARewriting(
 
     def _process_block_end(self, block, stmt_data, whitelist):
         assert whitelist is None
+        if all(stmt is None for stmt in stmt_data):
+            self.out_block = block
+            return
+
+        self.out_block = Block(block.addr, block.original_size, idx=block.idx)
         for stmt_idx, new_stmt in enumerate(stmt_data):
             if new_stmt is not None:
                 if isinstance(new_stmt, tuple):
                     for stmt_ in new_stmt:
-                        self.state.append_statement(stmt_)
+                        self.out_block.statements.append(stmt_)
                 else:
-                    self.state.append_statement(new_stmt)
+                    self.out_block.statements.append(new_stmt)
             else:
-                self.state.append_statement(block.statements[stmt_idx])
+                self.out_block.statements.append(block.statements[stmt_idx])
+
+    def _stmt(self, stmt: Statement):
+        self._extra_defs = []
+        result = super()._stmt(stmt)
+        for rstmt in result if isinstance(result, tuple) else [result] if isinstance(result, Statement) else []:
+            if self._extra_defs:
+                rstmt.tags["extra_defs"] = self._extra_defs
+            else:
+                rstmt.tags.pop("extra_defs", None)
+
+        return result
+
+    def _handle_expr_VirtualVariable(self, expr):
+        return None
 
     def _handle_stmt_Assignment(self, stmt):
         new_src = self._expr(stmt.src)
-
-        if isinstance(stmt.dst, VirtualVariable):
-            if stmt.dst.category == VirtualVariableCategory.REGISTER:
-                self.state.registers[stmt.dst.reg_offset][stmt.dst.size] = stmt.dst
-            elif stmt.dst.category == VirtualVariableCategory.STACK:
-                self.state.stackvars[stmt.dst.stack_offset][stmt.dst.size] = stmt.dst
-            elif stmt.dst.category == VirtualVariableCategory.TMP:
-                assert stmt.dst.tmp_idx is not None
-                self.state.tmps[stmt.dst.tmp_idx] = stmt.dst
-            new_dst = None
-        else:
-            new_dst = self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.dst)
-
-        additional_stmts = []
+        new_dst = self._replace_def_expr(stmt.dst, new_src or stmt.src, stmt)
         if new_dst is not None:
-            if isinstance(stmt.dst, Register):
-                # remove everything else that is an alias
-                # we keep the base register around because it's always updated immediately, and will be used in the
-                # case of partial register update
-                self._clear_aliasing_regs(stmt.dst.reg_offset, stmt.dst.size, remove_base_reg=False)
+            return new_dst
 
-                self.state.registers[stmt.dst.reg_offset][stmt.dst.size] = new_dst
-
-                base_offset, base_size = get_reg_offset_base_and_size(
-                    stmt.dst.reg_offset, self.arch, size=stmt.dst.size
-                )
-
-                # generate an assignment that updates the base register if needed
-                if base_offset != stmt.dst.reg_offset or base_size != stmt.dst.size:
-                    base_reg_expr = Register(
-                        self.ail_manager.next_atom(),
-                        None,
-                        base_offset,
-                        base_size * self.arch.byte_width,
-                        **stmt.dst.tags,
-                    )
-                    existing_base_reg_vvar = self._replace_use_reg(base_reg_expr)
-                    base_reg_vvar = self._replace_def_expr(
-                        self.block.addr, self.block.idx, self.stmt_idx, base_reg_expr
-                    )
-                    assert base_reg_vvar is not None
-                    base_reg_value = self._partial_update_expr(
-                        existing_base_reg_vvar,
-                        base_offset,
-                        base_size,
-                        new_dst,
-                        stmt.dst.reg_offset,
-                        stmt.dst.size,
-                    )
-                    stmt_base_reg = Assignment(
-                        self.ail_manager.next_atom(),
-                        base_reg_vvar,
-                        base_reg_value,
-                        **stmt.tags,
-                    )
-                    additional_stmts.append(stmt_base_reg)
-                    self.state.registers[base_offset][base_size] = base_reg_vvar
-                else:
-                    base_reg_vvar = new_dst
-
-            elif isinstance(stmt.dst, Tmp):
-                pass
-            else:
-                raise NotImplementedError
-
-        if new_dst is not None or new_src is not None:
-            new_stmt = Assignment(
+        if new_src is not None:
+            return Assignment(
                 stmt.idx,
-                stmt.dst if new_dst is None else new_dst,
-                stmt.src if new_src is None else new_src,
+                stmt.dst,
+                new_src,
                 **stmt.tags,
             )
-            if additional_stmts:
-                return new_stmt, *additional_stmts
-            return new_stmt
         return None
 
     def _handle_stmt_WeakAssignment(self, stmt) -> WeakAssignment | None:
@@ -265,43 +211,11 @@ class SimEngineSSARewriting(
 
     def _handle_stmt_Store(self, stmt: Store) -> Store | Assignment | tuple[Assignment, ...] | None:
         new_data = self._expr(stmt.data)
-        if stmt.guard is None:
-            # the variable
-            vvar = self._replace_def_store(self.block.addr, self.block.idx, self.stmt_idx, stmt)
-            if vvar is not None:
-                assert isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int)
-
-                # remove everything else that overlaps with the current stack variable
-                # the full stack variable is kept around because it's always updated immediately and will be used in
-                # case of partial stack variable update
-                self._clear_overlapping_stackvars(
-                    stmt.addr.offset, stmt.size, remove_base_stackvar=False, remove_current_stackvar=False
-                )
-
-                data = stmt.data if new_data is None else new_data
-                vvar_assignment = Assignment(stmt.idx, vvar, data, **stmt.tags)
-
-                full_size = self._get_stack_var_full_size(stmt)
-                assert full_size is not None
-                if vvar.size >= full_size:
-                    return vvar_assignment
-
-                # update the full variable
-                existing_full_vvar = self._replace_use_load(
-                    Load(None, stmt.addr, full_size, stmt.endness), create=False
-                )
-                if existing_full_vvar is not None:
-                    vvar_full = self._replace_def_store(
-                        self.block.addr, self.block.idx, self.stmt_idx, stmt, force_size=full_size
-                    )
-                    if vvar_full is not None:
-                        self.secondary_stackvars.add(vvar_full.varid)
-                        full_data = self._partial_update_expr(
-                            existing_full_vvar, stmt.addr.offset, full_size, vvar, stmt.addr.offset, stmt.size
-                        )
-                        full_assignment = Assignment(stmt.idx, vvar_full, full_data, **stmt.tags)
-                        return vvar_assignment, full_assignment
-                return vvar_assignment
+        if self.stackvars and stmt.guard is None and isinstance(stmt.addr, StackBaseOffset):
+            # vvar assignment
+            vvar = self._expr_to_vvar(stmt.addr, False)
+            assert isinstance(stmt.addr.offset, int)
+            return self._vvar_update(vvar, stmt.addr.offset - vvar.stack_offset, new_data or stmt.data, stmt)
 
         # fall back to Store
         new_addr = self._expr(stmt.addr)
@@ -334,7 +248,7 @@ class SimEngineSSARewriting(
         if self.stmt_idx != len(self.block.statements) - 1 and self._is_head_controlled_loop_jump(self.block, stmt):
             # the conditional jump is in the middle of the block (e.g., the block generated from lifting rep stosq).
             # we need to make a copy of the state and use the state of this point in its successor
-            self.head_controlled_loop_outstate = self.state.copy()
+            self.hclb_side_exit_state = self.state.copy()
 
         if new_cond is not None or new_true_target is not None or new_false_target is not None:
             return ConditionalJump(
@@ -348,19 +262,26 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_stmt_Call(self, stmt: Call) -> Call | None:
-        changed = False
+    def _handle_stmt_Call(self, stmt: Call) -> Statement:
+        new_args = None
+        if stmt.args is not None:
+            new_args = []
+            for arg in stmt.args:
+                new_arg = self._expr(arg)
+                if new_arg is not None:
+                    new_args.append(new_arg)
+                else:
+                    new_args.append(arg)
 
-        new_target = self._replace_use_expr(stmt.target) if not isinstance(stmt.target, str) else None
-        new_ret_expr = (
-            self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.ret_expr)
-            if stmt.ret_expr is not None
-            else None
-        )
-        new_fp_ret_expr = (
-            self._replace_def_expr(self.block.addr, self.block.idx, self.stmt_idx, stmt.fp_ret_expr)
-            if stmt.fp_ret_expr is not None
-            else None
+        new_target = self._expr(stmt.target) if not isinstance(stmt.target, str) else None
+        replaced_call = Call(
+            stmt.idx,
+            stmt.target if new_target is None else new_target,
+            calling_convention=stmt.calling_convention,
+            prototype=stmt.prototype,
+            args=new_args,
+            bits=stmt.bits,
+            **stmt.tags,
         )
 
         cc = stmt.calling_convention if stmt.calling_convention is not None else self.project.factory.cc()
@@ -368,46 +289,20 @@ class SimEngineSSARewriting(
             # clean up all caller-saved registers (and their subregisters)
             for reg_name in cc.CALLER_SAVED_REGS:
                 base_off, base_size = self.arch.registers[reg_name]
-                self._clear_aliasing_regs(base_off, base_size)
-                self.state.registers[base_off][base_size] = None
+                for suboff in range(base_off, base_off + base_size):
+                    self.state.registers.pop(suboff, None)
 
-        if new_ret_expr is not None and isinstance(stmt.ret_expr, Register):
-            base_off, base_size = get_reg_offset_base_and_size(
-                stmt.ret_expr.reg_offset, self.arch, size=stmt.ret_expr.size
-            )
-            self._clear_aliasing_regs(base_off, base_size)
-            self.state.registers[base_off][base_size] = new_ret_expr
-        if new_fp_ret_expr is not None and isinstance(stmt.fp_ret_expr, Register):
-            self._clear_aliasing_regs(stmt.fp_ret_expr.reg_offset, stmt.fp_ret_expr.size)
-            self.state.registers[stmt.fp_ret_expr.reg_offset][stmt.fp_ret_expr.size] = new_fp_ret_expr
+        new_stmt = None
+        if stmt.ret_expr is not None:
+            assert isinstance(stmt.ret_expr, Atom)
+            new_stmt = self._replace_def_expr(stmt.ret_expr, replaced_call, stmt)
+        elif stmt.fp_ret_expr is not None:
+            assert isinstance(stmt.fp_ret_expr, Atom)
+            new_stmt = self._replace_def_expr(stmt.fp_ret_expr, replaced_call, stmt)
+        if new_stmt is None:
+            new_stmt = replaced_call
 
-        new_args = None
-        if stmt.args is not None:
-            new_args = []
-            for arg in stmt.args:
-                new_arg = self._expr(arg)
-                if new_arg is not None:
-                    changed = True
-                    new_args.append(new_arg)
-                else:
-                    new_args.append(arg)
-
-        if new_target is not None or new_ret_expr is not None or new_fp_ret_expr is not None:
-            changed = True
-
-        if changed:
-            return Call(
-                stmt.idx,
-                stmt.target if new_target is None else new_target,
-                calling_convention=stmt.calling_convention,
-                prototype=stmt.prototype,
-                args=new_args,
-                ret_expr=stmt.ret_expr if new_ret_expr is None else new_ret_expr,
-                fp_ret_expr=stmt.fp_ret_expr if new_fp_ret_expr is None else new_fp_ret_expr,
-                bits=stmt.bits,
-                **stmt.tags,
-            )
-        return None
+        return new_stmt
 
     def _handle_stmt_DirtyStatement(self, stmt: DirtyStatement) -> DirtyStatement | None:
         dirty = self._expr(stmt.dirty)
@@ -417,18 +312,30 @@ class SimEngineSSARewriting(
         return DirtyStatement(stmt.idx, dirty, **stmt.tags)
 
     def _handle_expr_Register(self, expr: Register) -> VirtualVariable | Expression | None:
-        return self._replace_use_reg(expr)
+        vvar = self._expr_to_vvar(expr, True)
+        return self._vvar_extract(vvar, expr.size, expr.reg_offset - vvar.reg_offset, expr)
 
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
-        return (
-            self._replace_use_tmp(self.block.addr, self.block.idx, self.stmt_idx, expr) if self.rewrite_tmps else None
+        if not self.rewrite_tmps:
+            return None
+        if (vvid := self.tmp_to_vvid_cache.get(expr.tmp_idx, None)) is None:
+            vvid = self.tmp_to_vvid_cache[expr.tmp_idx] = self._current_vvar_id
+            self._current_vvar_id += 1
+        return VirtualVariable(
+            expr.idx,
+            vvid,
+            expr.bits,
+            VirtualVariableCategory.TMP,
+            oident=expr.tmp_idx,
+            **(expr.tags | {"ins_addr": self.ins_addr}),
         )
 
-    def _handle_expr_Load(self, expr: Load) -> Load | VirtualVariable | None:
-        if isinstance(expr.addr, StackBaseOffset) and isinstance(expr.addr.offset, int):
-            new_expr = self._replace_use_load(expr)
-            if new_expr is not None:
-                return new_expr
+    def _handle_expr_Load(self, expr: Load) -> Expression | None:
+        if self.stackvars and isinstance(expr.addr, StackBaseOffset):
+            # vvar assignment
+            vvar = self._expr_to_vvar(expr.addr, True)
+            assert isinstance(expr.addr.offset, int)
+            return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
 
         new_addr = self._expr(expr.addr)
         if new_addr is not None:
@@ -453,21 +360,21 @@ class SimEngineSSARewriting(
 
     def _handle_stmt_Return(self, stmt: Return) -> Return | None:
         if stmt.ret_exprs is None:
-            new_ret_exprs = None
-        else:
-            updated = False
-            new_ret_exprs = []
-            for r in stmt.ret_exprs:
-                new_r = self._expr(r)
-                if new_r is not None:
-                    updated = True
-                new_ret_exprs.append(new_r if new_r is not None else None)
-            if not updated:
-                new_ret_exprs = None
+            return None
 
-        if new_ret_exprs:
-            return Return(stmt.idx, new_ret_exprs, **stmt.tags)
-        return None
+        updated = False
+        new_ret_exprs = []
+        for r in stmt.ret_exprs:
+            new_r = self._expr(r)
+            if new_r is not None:
+                updated = True
+                new_ret_exprs.append(new_r)
+            else:
+                new_ret_exprs.append(r)
+
+        if not updated:
+            return None
+        return Return(stmt.idx, new_ret_exprs, **stmt.tags)
 
     def _handle_expr_BinaryOp(self, expr: BinaryOp) -> BinaryOp | None:
         new_op0 = self._expr(expr.operands[0])
@@ -535,7 +442,11 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_Call(self, expr):
-        return self._handle_stmt_Call(expr)
+        assert expr.ret_expr is None
+        assert expr.fp_ret_expr is None
+        result = self._handle_stmt_Call(expr)
+        assert isinstance(result, Call)
+        return result
 
     def _handle_expr_Const(self, expr):
         return None
@@ -592,430 +503,167 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_StackBaseOffset(self, expr):
-        if expr.offset not in self.state.stackvars:
-            # create it on the fly
-            vvar_id = self.get_vvid_by_def(
-                self.block.addr,
-                self.block.idx,
-                self.stmt_idx,
-                atoms.MemoryLocation(expr.offset, 1, self.project.arch.memory_endness),
-                "l",
-            )
-            vvar = VirtualVariable(
-                self.ail_manager.next_atom(),
-                vvar_id,
-                1 * self.arch.byte_width,
-                category=VirtualVariableCategory.STACK,
-                oident=expr.offset,
-                **expr.tags,
-            )
-            self.state.stackvars[expr.offset][1] = vvar
-        else:
-            sz = 1 if 1 in self.state.stackvars[expr.offset] else max(self.state.stackvars[expr.offset])
-            vvar = self.state.stackvars[expr.offset][sz]
-        return UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
+        if not self.stackvars:
+            return None
 
-    def _handle_expr_VirtualVariable(self, expr):
+        # if we get here, it means it's NOT through a Load or Store
+        # so we won't get the opportunity to lift this into an appropriate Assignment
+        # so if we don't completely redefine the value we should not create a new vvar
+        if expr in self.incomplete_defs and expr.offset in self.state.stackvars:
+            self.def_to_udef.pop(expr, None)
+
+        vvar = self._expr_to_vvar(expr, True)
+        refers = UnaryOp(expr.idx, "Reference", vvar, bits=expr.bits, **expr.tags)
+        if expr in self.def_to_udef:
+            refers.tags["extra_def"] = True
+            self._extra_defs.append(vvar.varid)
+        if vvar.stack_offset == expr.offset:
+            return refers
+
+        return BinaryOp(expr.idx, "Add", [refers, Const(None, None, vvar.stack_offset - expr.offset, refers.bits)])
+
+    def _handle_expr_Extract(self, expr: Extract):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+
+        if base is not expr.base or offset is not expr.offset:
+            return Extract(expr.idx, expr.bits, base, offset, expr.endness, **expr.tags)
+        return None
+
+    def _handle_expr_Insert(self, expr: Insert):
+        base = self._expr(expr.base) or expr.base
+        offset = self._expr(expr.offset) or expr.offset
+        value = self._expr(expr.value) or expr.value
+
+        if base is not expr.base or offset is not expr.offset or value is not expr.value:
+            return Insert(expr.idx, base, offset, value, expr.endness, **expr.tags)
         return None
 
     #
     # Expression replacement
     #
 
-    def _partial_update_expr(
-        self,
-        existing_vvar: Expression,
-        base_offset: int,
-        base_size: int,
-        new_value: Expression,
-        offset: int,
-        size: int,
-    ) -> VirtualVariable | Expression:
-        if offset == base_offset and base_size == size:
-            return new_value
-        if base_offset > offset:
-            raise ValueError(f"Base offset {base_offset} is greater than expression offset {offset}")
-
-        base_mask = ((1 << (base_size * self.arch.byte_width)) - 1) ^ (
-            ((1 << (size * self.arch.byte_width)) - 1) << ((offset - base_offset) * self.arch.byte_width)
-        )
-        base_mask = Const(self.ail_manager.next_atom(), None, base_mask, existing_vvar.bits)
-        new_base_expr = BinaryOp(
-            self.ail_manager.next_atom(),
-            "And",
-            [existing_vvar, base_mask],
-            False,
-            bits=existing_vvar.bits,
-            **existing_vvar.tags,
-        )
-        assert size < base_size
-        extended_vvar = Convert(
-            self.ail_manager.next_atom(),
-            size * self.arch.byte_width,
-            base_size * self.arch.byte_width,
-            False,
-            new_value,
-            **new_value.tags,
-        )
-        if base_offset < offset:
-            shift_amount = Const(
-                self.ail_manager.next_atom(), None, (offset - base_offset) * self.arch.byte_width, self.arch.byte_width
-            )
-            shifted_vvar = BinaryOp(
-                self.ail_manager.next_atom(),
-                "Shl",
-                [
-                    extended_vvar,
-                    shift_amount,
-                ],
-                bits=extended_vvar.bits,
-                **extended_vvar.tags,
-            )
-        else:
-            shifted_vvar = extended_vvar
-        assert new_base_expr.bits == shifted_vvar.bits
-        return BinaryOp(
-            self.ail_manager.next_atom(),
-            "Or",
-            [
-                new_base_expr,
-                shifted_vvar,
-            ],
-            False,
-            bits=new_base_expr.bits,
-            **new_base_expr.tags,
-        )
-
-    def _replace_def_expr(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, thing: Expression | Statement
-    ) -> VirtualVariable | None:
+    def _replace_def_expr(self, thing: Atom, value: Expression, orig_tags: TaggedObject) -> Assignment | None:
         """
         Return a new virtual variable for the given defined expression.
         """
         if isinstance(thing, Register):
-            return self._replace_def_reg(block_addr, block_idx, stmt_idx, thing)
-        if isinstance(thing, Store):
-            return self._replace_def_store(block_addr, block_idx, stmt_idx, thing)
+            return self._replace_def_reg(thing, value, orig_tags)
         if isinstance(thing, Tmp) and self.rewrite_tmps:
-            return self._replace_def_tmp(block_addr, block_idx, stmt_idx, thing)
+            return self._replace_def_tmp(thing, value, orig_tags)
+        if isinstance(thing, VirtualVariable):
+            # update liveness info
+            if thing.category == VirtualVariableCategory.REGISTER:
+                for suboff in range(thing.reg_offset, thing.reg_offset + thing.size):
+                    self.state.registers[suboff] = thing
+            elif thing.category == VirtualVariableCategory.STACK:
+                for suboff in range(thing.stack_offset, thing.stack_offset + thing.size):
+                    self.state.stackvars[suboff] = thing
         return None
 
-    def _replace_def_reg(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, expr: Register
-    ) -> VirtualVariable:
+    def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """
         Return a new virtual variable for the given defined register.
         """
+        vvar = self._expr_to_vvar(expr, False)
+        return self._vvar_update(vvar, expr.reg_offset - vvar.reg_offset, value, orig_tags)
 
-        # get the virtual variable ID
-        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, atoms.Register(expr.reg_offset, expr.size), "s")
-        return VirtualVariable(
-            expr.idx,
-            vvid,
-            expr.bits,
-            VirtualVariableCategory.REGISTER,
-            oident=expr.reg_offset,
-            **expr.tags,
-        )
-
-    def _get_full_reg_vvar(self, reg_offset: int, size: int, ins_addr: int | None = None) -> VirtualVariable:
-        base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
-        if (
-            base_off not in self.state.registers
-            or base_size not in self.state.registers[base_off]
-            or self.state.registers[base_off][base_size] is None
-        ):
-            # somehow it's never defined before...
-            _l.debug("Creating a new virtual variable for an undefined register (%d [%d]).", base_off, base_size)
-            tags = {}
-            if ins_addr is not None:
-                tags["ins_addr"] = ins_addr
-            vvar = VirtualVariable(
-                self.ail_manager.next_atom(),
-                self.next_vvar_id(),
-                base_size * self.arch.byte_width,
-                category=VirtualVariableCategory.REGISTER,
-                oident=base_off,
-                **tags,
-            )
-            self.state.registers[base_off][base_size] = vvar
-            return vvar
-        existing_var = self.state.registers[base_off][base_size]
-        assert existing_var is not None
-        return existing_var
-
-    def _get_stack_var_full_size(self, stmt: Store) -> int | None:
-        if (
-            isinstance(stmt.addr, StackBaseOffset)
-            and isinstance(stmt.addr.offset, int)
-            and stmt.addr.offset in self.stackvar_locs
-            and stmt.size in self.stackvar_locs[stmt.addr.offset]
-        ):
-            return max(self.stackvar_locs[stmt.addr.offset])
-        return None
-
-    def _replace_def_store(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, stmt: Store, force_size: int | None = None
-    ) -> VirtualVariable | None:
-        size = stmt.size if force_size is None else force_size
-        if (
-            isinstance(stmt.addr, StackBaseOffset)
-            and isinstance(stmt.addr.offset, int)
-            and stmt.addr.offset in self.stackvar_locs
-            and size in self.stackvar_locs[stmt.addr.offset]
-        ):
-            vvar_id = self.get_vvid_by_def(
-                block_addr,
-                block_idx,
-                stmt_idx,
-                atoms.MemoryLocation(stmt.addr.offset, size, Endness(stmt.endness)),
-                "s",
-            )
-            vvar = VirtualVariable(
-                self.ail_manager.next_atom(),
-                vvar_id,
-                size * self.arch.byte_width,
-                category=VirtualVariableCategory.STACK,
-                oident=stmt.addr.offset,
-                **stmt.tags,
-            )
-            self.state.stackvars[stmt.addr.offset][size] = vvar
-            return vvar
-        return None
-
-    def _replace_def_tmp(self, block_addr: int, block_idx: int | None, stmt_idx: int, expr: Tmp) -> VirtualVariable:
-        vvid = self.get_vvid_by_def(block_addr, block_idx, stmt_idx, atoms.Tmp(expr.tmp_idx, expr.size), "s")
-        vvar = VirtualVariable(
-            expr.idx,
-            vvid,
-            expr.bits,
-            VirtualVariableCategory.TMP,
-            oident=expr.tmp_idx,
-            **expr.tags,
-        )
-        self.state.tmps[expr.tmp_idx] = vvar
-        return vvar
-
-    def _replace_use_expr(self, thing: Expression | Statement) -> VirtualVariable | Expression | None:
-        """
-        Return a new virtual variable for the given defined expression.
-        """
-        if isinstance(thing, Register):
-            return self._replace_use_reg(thing)
-        if isinstance(thing, Store):
-            raise NotImplementedError("Store expressions are not supported in _replace_use_expr.")
-        if isinstance(thing, Tmp) and self.rewrite_tmps:
-            return self._replace_use_tmp(self.block.addr, self.block.idx, self.stmt_idx, thing)
-        if isinstance(thing, Load):
-            return self._replace_use_load(thing)
-        return None
-
-    def _replace_use_reg(self, reg_expr: Register) -> VirtualVariable | Expression:
-
-        if reg_expr.reg_offset in self.state.registers:
-            if (
-                reg_expr.size in self.state.registers[reg_expr.reg_offset]
-                and self.state.registers[reg_expr.reg_offset][reg_expr.size] is not None
-            ):
-                vvar = self.state.registers[reg_expr.reg_offset][reg_expr.size]
-                assert vvar is not None
-                if vvar.category == VirtualVariableCategory.PARAMETER:
-                    return VirtualVariable(
-                        reg_expr.idx,
-                        vvar.varid,
-                        vvar.bits,
-                        VirtualVariableCategory.PARAMETER,
-                        oident=vvar.oident,
-                        **vvar.tags,
-                    )
-                return VirtualVariable(
-                    reg_expr.idx,
-                    vvar.varid,
-                    vvar.bits,
-                    VirtualVariableCategory.REGISTER,
-                    oident=reg_expr.reg_offset,
-                    **reg_expr.tags,
-                )
-
-            for existing_size in sorted(self.state.registers[reg_expr.reg_offset], reverse=True):
-                if reg_expr.size < existing_size:
-                    vvar = self.state.registers[reg_expr.reg_offset][existing_size]
-                    if vvar is not None:
-                        # extract it
-                        return Convert(
-                            self.ail_manager.next_atom(),
-                            vvar.bits,
-                            reg_expr.bits,
-                            False,
-                            vvar,
-                            **reg_expr.tags,
-                        )
-                elif reg_expr.size > existing_size:
-                    # part of the variable exists... maybe it's a parameter?
-                    vvar = self.state.registers[reg_expr.reg_offset][existing_size]
-                    if vvar is not None and vvar.category == VirtualVariableCategory.PARAMETER:
-                        # just zero-extend it
-                        return Convert(
-                            self.ail_manager.next_atom(),
-                            existing_size * self.project.arch.byte_width,
-                            reg_expr.size * self.project.arch.byte_width,
-                            False,
-                            vvar,
-                            **vvar.tags,
-                        )
-                    break
-                else:
-                    break
-
-        # no good size available
-        # get the full register, then extract from there
-        vvar = self._get_full_reg_vvar(
-            reg_expr.reg_offset,
-            reg_expr.size,
-            ins_addr=reg_expr.tags["ins_addr"],
-        )
-        # extract
-        if reg_expr.reg_offset == vvar.oident:
-            shifted = vvar
-        else:
-            shift_amount = Const(
-                self.ail_manager.next_atom(),
-                None,
-                (reg_expr.reg_offset - vvar.reg_offset) * self.arch.byte_width,
-                8,
-                **reg_expr.tags,
-            )
-            shifted = BinaryOp(
-                self.ail_manager.next_atom(),
-                "Shr",
-                [
-                    vvar,
-                    shift_amount,
-                ],
-                False,
-                bits=vvar.bits,
-                **reg_expr.tags,
-            )
-        if shifted.bits == reg_expr.bits:
-            return shifted
-        return Convert(
-            self.ail_manager.next_atom(),
-            shifted.bits,
-            reg_expr.bits,
-            False,
-            shifted,
-            **reg_expr.tags,
-        )
-
-    def _replace_use_load(self, expr: Load, create: bool = True) -> VirtualVariable | None:
-        if (
-            isinstance(expr.addr, StackBaseOffset)
-            and isinstance(expr.addr.offset, int)
-            and expr.addr.offset in self.stackvar_locs
-            and expr.size in self.stackvar_locs[expr.addr.offset]
-        ):
-            if expr.size not in self.state.stackvars[expr.addr.offset]:
-                if not create:
-                    return None
-                # we have not seen its use before (which does not necessarily mean it's never created!), so we create
-                # it on the fly and record it in self.state.stackvars
-                vvar_id = self.get_vvid_by_def(
-                    self.block.addr,
-                    self.block.idx,
-                    self.stmt_idx,
-                    atoms.MemoryLocation(expr.addr.offset, expr.size, Endness(expr.endness)),
-                    "l",
-                )
-                var = VirtualVariable(
-                    self.ail_manager.next_atom(),
-                    vvar_id,
-                    expr.size * self.arch.byte_width,
-                    category=VirtualVariableCategory.STACK,
-                    oident=expr.addr.offset,
-                    **expr.tags,
-                )
-                self.state.stackvars[expr.addr.offset][expr.size] = var
-                return var
-
-            # TODO: Support truncation
-            # TODO: Maybe also support concatenation
-            vvar = self.state.stackvars[expr.addr.offset][expr.size]
-            if vvar.category == VirtualVariableCategory.PARAMETER:
-                return VirtualVariable(
-                    expr.idx,
-                    vvar.varid,
-                    vvar.bits,
-                    VirtualVariableCategory.PARAMETER,
-                    oident=vvar.oident,
-                    **vvar.tags,
-                )
-            return VirtualVariable(
-                expr.idx,
-                vvar.varid,
-                vvar.bits,
-                VirtualVariableCategory.STACK,
-                oident=vvar.stack_offset,
-                **vvar.tags,
-            )
-        return None
-
-    def _replace_use_tmp(self, block_addr: int, block_idx: int | None, stmt_idx: int, expr: Tmp) -> VirtualVariable:
-        vvar = self.state.tmps.get(expr.tmp_idx)
-        if vvar is None:
-            return self._replace_def_tmp(block_addr, block_idx, stmt_idx, expr)
-        return VirtualVariable(
-            expr.idx,
-            vvar.varid,
-            vvar.bits,
-            VirtualVariableCategory.TMP,
-            oident=expr.tmp_idx,
-            **expr.tags,
-        )
+    def _replace_def_tmp(self, expr: Tmp, value: Expression, orig_tags: TaggedObject) -> Assignment:
+        if not self.rewrite_tmps:
+            return Assignment(orig_tags.idx, expr, value, **orig_tags.tags)
+        vvar = self._handle_expr_Tmp(expr)
+        assert vvar is not None
+        return self._vvar_update(vvar, 0, value, orig_tags)
 
     #
     # Utils
     #
 
-    def get_vvid_by_def(
-        self, block_addr: int, block_idx: int | None, stmt_idx: int, thing: DefExprType, access_type: AT
-    ) -> int:
-        key = block_addr, block_idx, stmt_idx, thing, access_type
-        if key in self.def_to_vvid:
-            return self.def_to_vvid[key]
-        vvid = self.next_vvar_id()
-        self.def_to_vvid[key] = vvid
-        return vvid
+    def _expr_to_vvar(self, expr: Def, def_is_implicit: bool) -> VirtualVariable:
+        # is this a use, not a def?
+        if (udef := self.def_to_udef.get(expr, None)) is None:
+            # in case of emergency, raise keyerror
+            if isinstance(expr, StackBaseOffset):
+                assert isinstance(expr.offset, int)
+                return self.state.stackvars[expr.offset]
+            if isinstance(expr, Register):
+                return self.state.registers[expr.reg_offset]
+            raise TypeError(expr)
+        kind, offset, size = udef
+        if (varid := self.def_to_vvid_cache.get(expr, None)) is None:
+            varid = self.def_to_vvid_cache[expr] = self._current_vvar_id
+            self._current_vvar_id += 1
+        idx = self.ail_manager.next_atom()
+        # TODO replace these str kinds with VirtualVariableCategory I guess
+        if kind == "stack":
+            category = VirtualVariableCategory.STACK
+            oident = offset
+        elif kind == "reg":
+            category = VirtualVariableCategory.REGISTER
+            oident = offset
+        else:
+            raise TypeError(expr)
+        vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
+        if def_is_implicit:
+            if kind == "stack":
+                for suboff in range(offset, offset + size):
+                    self.state.stackvars[suboff] = vvar
+            elif kind == "reg":
+                for suboff in range(offset, offset + size):
+                    self.state.registers[suboff] = vvar
+        return vvar
 
-    def _clear_aliasing_regs(self, reg_offset: int, size: int, remove_base_reg: bool = True) -> None:
-        base_offset, base_size = get_reg_offset_base_and_size(reg_offset, self.arch, size=size)
-        for off in range(base_offset, base_offset + base_size):
-            if off in self.state.registers:
-                if not remove_base_reg and off == base_offset and base_size in self.state.registers[off]:
-                    if len(self.state.registers[off]) > 1:
-                        self.state.registers[off] = {base_size: self.state.registers[off][base_size]}
-                else:
-                    del self.state.registers[off]
+    def _vvar_extract(
+        self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
+    ) -> Extract | VirtualVariable:
+        assert offset >= 0
+        if size == vvar.size:
+            return vvar
+        endness = (
+            self.project.arch.memory_endness
+            if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+            else self.project.arch.register_endness
+        )
+        return Extract(
+            self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), endness, **orig_tags.tags
+        )
 
-    def _clear_overlapping_stackvars(
-        self, stack_offset: int, size: int, remove_base_stackvar: bool = True, remove_current_stackvar: bool = True
-    ) -> None:
-        if self.state.stackvars.get(stack_offset):
-            base_size = max(self.stackvar_locs[stack_offset])
-            remaining_sizes = list(self.state.stackvars[stack_offset])
-            if remove_current_stackvar and size in remaining_sizes:
-                remaining_sizes.remove(size)
-            if remove_base_stackvar and base_size in remaining_sizes:
-                remaining_sizes.remove(base_size)
-            if not remaining_sizes:
-                del self.state.stackvars[stack_offset]
+    def _vvar_update(
+        self, vvar: VirtualVariable, offset: int, value: Expression, orig_tags: TaggedObject
+    ) -> Assignment:
+        assert offset >= 0
+        if value.bits == vvar.bits:
+            combined = value
+        else:
+            if vvar.category == VirtualVariableCategory.STACK:
+                base = self.state.stackvars.get(vvar.stack_offset, None)
+            elif vvar.category == VirtualVariableCategory.REGISTER:
+                base = self.state.registers.get(vvar.reg_offset, None)
             else:
-                self.state.stackvars[stack_offset] = {
-                    sz: self.state.stackvars[stack_offset][sz] for sz in remaining_sizes
-                }
+                raise TypeError(vvar.category)
+            if base is None:
+                base = Const(None, None, 0, vvar.bits, uninitialized=True)
+            if base.bits < vvar.bits:
+                base = BinaryOp(
+                    self.ail_manager.next_atom(),
+                    "Concat",
+                    [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
+                    bits=vvar.bits,
+                )
+            endness = (
+                self.project.arch.memory_endness
+                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+                else self.project.arch.register_endness
+            )
+            combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
 
-        for off in range(stack_offset + 1, stack_offset + size):
-            if off in self.state.stackvars:
-                del self.state.stackvars[off]
+        if vvar.category == VirtualVariableCategory.STACK:
+            for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
+                self.state.stackvars[suboff] = vvar
+        elif vvar.category == VirtualVariableCategory.REGISTER:
+            for suboff in range(vvar.reg_offset, vvar.reg_offset + vvar.size):
+                self.state.registers[suboff] = vvar
+        return Assignment(self.ail_manager.next_atom(), vvar, combined, **orig_tags.tags)
 
     def _unreachable(self, *args, **kwargs):
         assert False

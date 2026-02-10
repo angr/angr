@@ -104,12 +104,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def check_args(self, func_name, args, expected_arg_strs):
         assert len(args) == len(expected_arg_strs), (
-            f"Wrong number of arguments for function {func_name}. " f"Got {len(args)}, expect {len(expected_arg_strs)}."
+            f"Wrong number of arguments for function {func_name}. Got {len(args)}, expect {len(expected_arg_strs)}."
         )
 
         for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
             r = self.check_arg(arg, expected_arg_str)
-            assert r, f"Incorrect argument {idx} for function {func_name}. " f"Got {arg}, expect {expected_arg_str}."
+            assert r, f"Incorrect argument {idx} for function {func_name}. Got {arg}, expect {expected_arg_str}."
 
     def _a(self, funcs, func_name):
         func = funcs[func_name]
@@ -157,7 +157,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         # check args
         expected_args = {
-            "main": ["r_r0", "r_r1"],
+            # main args are not used
+            # "main": ["r_r0", "r_r1"],
             "accepted": [],
             "rejected": [],
             "authenticate": ["r_r0", "r_r1"],
@@ -221,7 +222,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         prototype = cca.prototype
 
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
+            "Calling convention analysis failed to determine the calling convention of function 0x80494f0."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -240,7 +241,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert func_exit.returning is False
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
+            "Calling convention analysis failed to determine the calling convention of function 0x804a1a9."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -621,6 +622,28 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             if "ret_ptr" in funcs and funcs["ret_ptr"].prototype:
                 ret_size = funcs["ret_ptr"].prototype.returnty.size
                 self.assertEqual(ret_size, 64)
+
+    @cca_mode("fast")
+    def test_void_tail_call(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(
+            mode=mode, recover_variables=True, cfg=cfg.model, analyze_callsites=True
+        )
+
+        func_reborn = cfg.kb.functions["G_PlayerReborn"]
+        assert func_reborn.prototype is not None
+        assert isinstance(func_reborn.prototype.returnty, SimTypeBottom), (
+            f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
+        )
+
+        func_init = cfg.kb.functions["G_InitPlayer"]
+        assert func_init.prototype is not None
+        assert isinstance(func_init.prototype.returnty, SimTypeBottom), (
+            f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
+        )
 
 
 if __name__ == "__main__":

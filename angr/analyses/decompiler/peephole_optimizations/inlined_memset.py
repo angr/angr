@@ -80,23 +80,26 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                 if end_stmt_idx - start_stmt_idx <= self.MIN_ASSIGNMENTS:
                     continue
 
-                for i in range(start_stmt_idx, end_stmt_idx):
-                    block.statements[i] = None  # remove these statements
-                # create a new memset call
                 base_expr = None
-
                 match candidate.kind:
                     case "stack":
-                        base_expr = StackBaseOffset(None, self.project.arch.bits, candidate.offset)
+                        # base_expr = StackBaseOffset(
+                        #     self.manager.next_atom(), self.project.arch.bits, candidate.offset)
+                        # Creating memsets on the stack is a recipe to screw up variable identification.
+                        # Measurements indicate that memsets on the stack are usually no more than a single
+                        # mov or rep stosq. If you have data to the contrary, please help us figure out what
+                        # characteristics this has that differentiate it from simply storing many nulls
+                        # to many adjacent variables.
+                        base_expr = None
                     case "global":
-                        base_expr = Const(None, None, candidate.offset, self.project.arch.bits)
+                        base_expr = Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits)
                     case "heap":
                         base_expr = BinaryOp(
-                            None,
+                            self.manager.next_atom(),
                             "Add",
                             [
                                 candidate.base,
-                                Const(None, None, candidate.offset, self.project.arch.bits),
+                                Const(self.manager.next_atom(), None, candidate.offset, self.project.arch.bits),
                             ],
                             False,
                             bits=self.project.arch.bits,
@@ -105,16 +108,20 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                 if base_expr is None:
                     continue
 
+                # create a new memset call
+                for i in range(start_stmt_idx, end_stmt_idx):
+                    block.statements[i] = None  # remove these statements
+
                 assert self.project is not None
                 call_stmt = Call(
                     stmt.idx,
                     "memset",
                     args=[
                         base_expr,
-                        Const(None, None, candidate.value, 8),
-                        Const(None, None, candidate.count, self.project.arch.bits),
+                        Const(self.manager.next_atom(), None, candidate.value, 8),
+                        Const(self.manager.next_atom(), None, candidate.count, self.project.arch.bits),
                     ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy"),
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
                     **stmt.tags,
                 )
                 if start_stmt_idx == stmt_idx:

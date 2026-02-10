@@ -452,9 +452,7 @@ class ReachingDefinitionsState:
         defs = self.live_definitions.get_tmp_definitions(tmp)
         self.add_tmp_use_by_defs(defs, expr=expr)
 
-    def add_tmp_use_by_defs(
-        self, defs: Iterable[Definition[A]], expr: Any | None = None
-    ) -> None:  # pylint:disable=unused-argument
+    def add_tmp_use_by_defs(self, defs: Iterable[Definition[A]], expr: Any | None = None) -> None:  # pylint:disable=unused-argument
         for definition in defs:
             self.codeloc_uses.add(definition)
             # if track_tmps is False, definitions may not be Tmp definitions

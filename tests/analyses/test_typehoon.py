@@ -7,6 +7,8 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 import os
 import unittest
 
+import archinfo
+
 import angr
 from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
 from angr.analyses.typehoon.typevars import (
@@ -22,7 +24,7 @@ from angr.analyses.typehoon.typevars import (
 from angr.analyses.typehoon.typeconsts import Int32, Struct, Pointer64, Float32, Float64
 from angr.analyses.typehoon.translator import TypeTranslator
 
-from tests.common import bin_location
+from tests.common import bin_location, print_decompilation_result
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -200,7 +202,11 @@ class TestTypehoon(unittest.TestCase):
         #     struct struct_0 *field_8;
         # };
         sols = dec.clinic.typehoon.simtypes_solution
-        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
+        tvs = [
+            tv
+            for tv in sols
+            if not isinstance(tv, DerivedTypeVariable) and tv.name is None and isinstance(sols[tv], SimTypePointer)
+        ]
         assert len(tvs) == 3
         assert sols[tvs[1]] == sols[tvs[2]]
         sol = sols[tvs[1]]
@@ -229,12 +235,21 @@ class TestTypehoon(unittest.TestCase):
             and dec.clinic is not None
             and dec.clinic.typehoon is not None
         )
+        print_decompilation_result(dec)
+        assert "->field_0 = NULL;\n" in dec.codegen.text
+        assert "->field_8 = NULL;\n" in dec.codegen.text
 
-        # it has three struct classes (I would love to have one, but we don't have enough information to force that):
+        # it has five struct classes (I would love to have one, but we don't have enough information to force that):
+        #
         # typedef struct struct_2 {
         #     struct struct_0 *field_0;
         #     struct struct_1 *field_8;
         # } struct_2;
+        #
+        # typedef struct struct_3 {
+        #     char padding_0[8];
+        #     struct struct_4 *field_8;
+        # } struct_3;
         #
         # typedef struct struct_0 {
         #     char padding_0[8];
@@ -244,9 +259,20 @@ class TestTypehoon(unittest.TestCase):
         # typedef struct struct_1 {
         #     struct struct_0 *field_0;
         # } struct_1;
+        #
+        # typedef struct struct_4 {
+        #     struct struct_3 *field_0;
+        # } struct_4;
         sols = dec.clinic.typehoon.simtypes_solution
-        tvs = [tv for tv in sols if not isinstance(tv, DerivedTypeVariable) and tv.name is None]
-        assert len(tvs) == 2
+        tvs = sorted(
+            [
+                tv
+                for tv in sols
+                if not isinstance(tv, DerivedTypeVariable) and tv.name is None and isinstance(sols[tv], SimTypePointer)
+            ],
+            key=lambda x: x.idx,
+        )
+        assert len(tvs) == 4  # the last two tvs are for the NULL pointers
         sol = sols[tvs[1]]
         assert isinstance(sol, SimTypePointer)
         assert isinstance(sol.pts_to, SimStruct)
@@ -327,13 +353,13 @@ class TestTypehoon(unittest.TestCase):
 
 class TestTypeTranslator(unittest.TestCase):
     def test_tc2simtype(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         tc = Float32()
         st, _ = tx.tc2simtype(tc)
         assert isinstance(st, SimTypeFloat)
 
     def test_simtype2tc(self):
-        tx = TypeTranslator()
+        tx = TypeTranslator(archinfo.arch_from_id("x86"))
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)

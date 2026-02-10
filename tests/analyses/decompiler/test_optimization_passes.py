@@ -8,10 +8,11 @@ import logging
 import unittest
 
 import networkx as nx
-from angr.ailment import Block, Assignment, Register, Const, BinaryOp
-from angr.ailment.statement import Return, Store, ConditionalJump, Call
 
 import angr
+from angr.ailment.manager import Manager
+from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment.statement import Return, Store, ConditionalJump, Call
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
 from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
 
@@ -95,7 +96,8 @@ class TestFlipBooleanCmp(unittest.TestCase):
         pre_transform_seq_repr = seq.dbg_repr()
         log.debug("Before:\n%s", pre_transform_seq_repr)
 
-        FlipBooleanCmp(func, flip_size=flip_size, seq=seq, graph=graph)
+        manager = Manager()
+        FlipBooleanCmp(func, manager, flip_size=flip_size, seq=seq, graph=graph)
 
         post_transform_seq_repr = seq.dbg_repr()
         log.debug("After:\n%s", post_transform_seq_repr)
@@ -163,7 +165,8 @@ class TestFlipBooleanCmp(unittest.TestCase):
         pre_transform_seq_repr = seq.dbg_repr()
         log.debug("Before:\n%s", pre_transform_seq_repr)
 
-        FlipBooleanCmp(func, flip_size=flip_size, seq=seq, graph=graph)
+        manager = Manager()
+        FlipBooleanCmp(func, manager, flip_size=flip_size, seq=seq, graph=graph)
 
         post_transform_seq_repr = seq.dbg_repr()
         log.debug("After:\n%s", post_transform_seq_repr)

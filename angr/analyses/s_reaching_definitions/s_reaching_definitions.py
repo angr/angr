@@ -96,7 +96,6 @@ class SReachingDefinitionsAnalysis(Analysis):
             )
 
         if self.mode == "function":
-
             assert self.func is not None
 
             # fix register definitions for arguments

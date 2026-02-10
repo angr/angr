@@ -1,6 +1,5 @@
 from __future__ import annotations
 from typing import Any
-import copy
 import logging
 
 import networkx
@@ -81,6 +80,7 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
+        manager,
         *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
@@ -96,6 +96,7 @@ class ReturnDuplicatorBase:
         # this should also be set by the optimization passes initer
         self.scratch = scratch if scratch is not None else {}
         self._func = func
+        self._manager = manager
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
         self._max_func_blocks = max_func_blocks
@@ -229,10 +230,9 @@ class ReturnDuplicatorBase:
             if node in copies:
                 node_copy = copies[node]
             else:
+                node_copy = node.deep_copy(self._manager)
                 if node is region_head:
-                    node_copy = self._copy_node_and_update_phi_variables(node, pred)
-                else:
-                    node_copy = copy.deepcopy(node)
+                    node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
                 node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)
@@ -617,7 +617,7 @@ class ReturnDuplicatorBase:
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name if stmt.name else f"Label_{stmt.tags['ins_addr']:x}"
+                new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
                 if "block_idx" in stmt.tags:
                     suffix = f"__{stmt.tags['block_idx']}"
                     new_name = new_name.removesuffix(suffix)

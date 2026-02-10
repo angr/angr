@@ -323,7 +323,7 @@ class SimLinux(SimUserland):
         state.memory.store(newsp, argc_bvv, endness=state.arch.memory_endness)
         state.regs.sp = newsp
 
-        if state.arch.name in ("PPC32",):
+        if state.arch.name == "PPC32":
             state.stack_push(claripy.BVV(0, 32))
             state.stack_push(claripy.BVV(0, 32))
             state.stack_push(claripy.BVV(0, 32))

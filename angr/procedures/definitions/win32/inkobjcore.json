@@ -12,7 +12,7 @@
 	},
 	"functions": {
 		"AddStroke": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PACKET_DESCRIPTION', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'XFORM', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pPacketDesc', 'cbPacket', 'pPacket', 'pXForm']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'PACKET_DESCRIPTION', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': false, 'label': 'Byte'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'XFORM', 'ot': 'struct'}, 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pPacketDesc', 'cbPacket', 'pPacket', 'pXForm']}"
 		},
 		"AddWordsToWordList": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOWORDLIST', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwl', 'pwcWords']}"
@@ -21,10 +21,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'bNewStroke']}"
 		},
 		"CreateContext": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'phrc']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'phrc']}"
 		},
 		"CreateRecognizer": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCLSID', 'phrec']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['pCLSID', 'phrec']}"
 		},
 		"DestroyContext": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc']}"
@@ -39,43 +39,43 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc']}"
 		},
 		"GetAllRecognizers": {
-			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['recognizerClsids', 'count']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['recognizerClsids', 'count']}"
 		},
 		"GetBestResultString": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcBestResult']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcBestResult']}"
 		},
 		"GetLatticePtr": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_LATTICE', 'ot': '_ref'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'ppLattice']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_LATTICE', 'ot': 'struct'}}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'ppLattice']}"
 		},
 		"GetLeftSeparator": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcLeftSeparator']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcLeftSeparator']}"
 		},
 		"GetRecoAttributes": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_ATTRS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pRecoAttrs']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_ATTRS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pRecoAttrs']}"
 		},
 		"GetResultPropertyList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pPropertyCount', 'pPropertyGuid']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pPropertyCount', 'pPropertyGuid']}"
 		},
 		"GetRightSeparator": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcRightSeparator']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pcSize', 'pwcRightSeparator']}"
 		},
 		"GetUnicodeRanges": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CHARACTER_RANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pcRanges', 'pcr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': 'int', 'signed': false, 'label': 'UInt32'}, 'disp': 0}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CHARACTER_RANGE', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pcRanges', 'pcr']}"
 		},
 		"IsStringSupported": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'wcString', 'pwcString']}"
 		},
 		"LoadCachedAttributes": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_ATTRS', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['clsid', 'pRecoAttributes']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_ATTRS', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['clsid', 'pRecoAttributes']}"
 		},
 		"MakeWordList": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOWORDLIST', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pBuffer', 'phwl']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOGNIZER', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'HRECOWORDLIST', 'ot': 'ptr'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrec', 'pBuffer', 'phwl']}"
 		},
 		"Process": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pbPartialProcessing']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pbPartialProcessing']}"
 		},
 		"SetEnabledUnicodeRanges": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CHARACTER_RANGE', 'ot': '_ref'}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'cRanges', 'pcr']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'CHARACTER_RANGE', 'ot': 'struct'}, 'disp': 0}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'cRanges', 'pcr']}"
 		},
 		"SetFactoid": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': '_ref', 'name': 'PWSTR', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'cwcFactoid', 'pwcFactoid']}"
@@ -84,10 +84,10 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'dwFlags']}"
 		},
 		"SetGuide": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_GUIDE', 'ot': '_ref'}}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pGuide', 'iIndex']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'RECO_GUIDE', 'ot': 'struct'}, 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'pGuide', 'iIndex']}"
 		},
 		"SetTextContext": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'cwcBefore', 'pwcBefore', 'cwcAfter', 'pwcAfter']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 1}, {'_t': 'int', 'signed': false, 'label': 'UInt32'}, {'_t': 'ptr', 'pts_to': {'_t': 'char', 'signed': true, 'label': 'Char'}, 'label': 'LPArray', 'disp': 1}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'cwcBefore', 'pwcBefore', 'cwcAfter', 'pwcAfter']}"
 		},
 		"SetWordList": {
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HRECOCONTEXT', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'HRECOWORDLIST', 'ot': 'ptr'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hrc', 'hwl']}"

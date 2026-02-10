@@ -2,7 +2,7 @@
 # pylint: disable=wrong-import-position
 from __future__ import annotations
 
-__version__ = "9.2.194.dev0"
+__version__ = "9.2.199.dev0"
 
 if bytes is str:
     raise Exception("""
@@ -51,6 +51,7 @@ from .state_plugins.inspect import BP
 from .state_plugins import SimStatePlugin
 
 from .project import Project, load_shellcode
+from .llm_client import LLMClient
 from .errors import (
     AngrError,
     AngrRuntimeError,
@@ -262,6 +263,7 @@ __all__ = (
     "EmulatorStopReason",
     "ExplorationTechnique",
     "KnowledgeBase",
+    "LLMClient",
     "PTChunk",
     "PathUnreachableError",
     "PointerWrapper",

@@ -84,7 +84,7 @@ class LoopSeer(ExplorationTechnique):
                 func = self._get_function(f)
                 if func is not None:
                     funcs.append(func)
-            funcs = funcs if funcs else None
+            funcs = funcs or None
 
         elif self.functions is not None:
             raise TypeError("Invalid type for 'functions' parameter!")

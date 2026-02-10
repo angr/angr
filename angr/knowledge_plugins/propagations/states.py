@@ -250,7 +250,11 @@ class PropagatorState:
         self._replacements = defaultdict(dict)
 
     def add_replacement(
-        self, codeloc: CodeLocation, old, new, force_replace: bool = False  # pylint:disable=unused-argument
+        self,
+        codeloc: CodeLocation,
+        old,
+        new,
+        force_replace: bool = False,  # pylint:disable=unused-argument
     ) -> bool:
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.

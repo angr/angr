@@ -279,9 +279,7 @@ class ProximityGraphAnalysis(Analysis):
                 func_node = n_
                 for block, _, data in func.transition_graph.in_edges(func_node, data=True):
                     if "ins_addr" in data:
-                        if (
-                            self._expand_funcs and func_node.addr in self._expand_funcs
-                        ):  # pylint:disable=unsupported-membership-test
+                        if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                             node = FunctionProxiNode(func_node, ref_at={data["ins_addr"]})
                             to_expand.append(node)
                         else:
@@ -356,7 +354,9 @@ class ProximityGraphAnalysis(Analysis):
             return []
 
         def _handle_Call(
-            stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None  # pylint:disable=unused-argument
+            stmt_idx: int,
+            stmt: ailment.Stmt.Call,
+            block: ailment.Block | None,  # pylint:disable=unused-argument
         ):  # pylint:disable=unused-argument
             if isinstance(stmt.target, ailment.Expr.Const) and self.kb.functions.contains_addr(stmt.target.value):
                 func_node = FuncNode(stmt.target.value_int)
@@ -368,9 +368,7 @@ class ProximityGraphAnalysis(Analysis):
                     for arg in stmt.args:
                         self._arg_handler(arg, args, string_refs)
 
-                if (
-                    self._expand_funcs and func_node.addr in self._expand_funcs
-                ):  # pylint:disable=unsupported-membership-test
+                if self._expand_funcs and func_node.addr in self._expand_funcs:  # pylint:disable=unsupported-membership-test
                     new_node = FunctionProxiNode(func_node, ref_at=ref_at)
                     if new_node not in to_expand:
                         to_expand.append(new_node)

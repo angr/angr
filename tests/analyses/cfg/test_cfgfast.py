@@ -915,6 +915,17 @@ class TestCfgfast(unittest.TestCase):
         assert len(func.endpoints) == 1
         assert func.endpoints[0].addr == 0x40400A
 
+    def test_incorrect_dummy_plt_function_stub_removal(self):
+        path = os.path.join(
+            test_location, "i386", "windows", "8530a86eca5be79c02f9701508ffceb06828aeff8e9413f09e74de58b7c266d9"
+        )
+        proj = angr.Project(path)
+        _ = proj.analyses.CFGFast()
+
+        # 0x1001b5ec is *not* a dummy PLT function stub
+        assert 0x1001B5EC in proj.kb.functions
+        assert proj.kb.functions[0x1001B5EC].name == "_security_check_cookie"
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):

@@ -5,8 +5,10 @@ from collections.abc import Callable
 from collections import defaultdict
 
 from archinfo import Endness
+import archinfo
 from angr.ailment.expression import (
     Const,
+    Load,
     Register,
     Expression,
     StackBaseOffset,
@@ -15,9 +17,8 @@ from angr.ailment.expression import (
     VirtualVariable,
     Phi,
     UnaryOp,
-    VirtualVariableCategory,
 )
-from angr.ailment.statement import ConditionalJump, Jump, Assignment
+from angr.ailment.statement import ConditionalJump, Jump, Store
 import claripy
 
 from angr.utils.bits import zeroextend_on_demand
@@ -203,7 +204,7 @@ class InlinedStringTransformationAILEngine(
                             byte_off = val.size() // self.arch.byte_width - i - 1
                         self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
-    def _handle_stmt_Store(self, stmt):
+    def _handle_stmt_Store(self, stmt: Store):
         addr_and_type = self._process_address(stmt.addr)
         if addr_and_type is not None:
             addr, addr_type = addr_and_type
@@ -214,7 +215,7 @@ class InlinedStringTransformationAILEngine(
                 if addr_type == "stack":
                     for i in range(val.size() // self.arch.byte_width):
                         byte_off = i
-                        if self.arch.memory_endness == Endness.LE:
+                        if stmt.endness == Endness.LE:
                             byte_off = val.size() // self.arch.byte_width - i - 1
                         self.stack_accesses[addr + i].append(("store", self._codeloc(), val.get_byte(byte_off)))
 
@@ -241,7 +242,52 @@ class InlinedStringTransformationAILEngine(
             return claripy.BVV(expr.value, expr.bits)
         return None
 
-    def _handle_expr_Load(self, expr):
+    def _handle_expr_Extract(self, expr):
+        v = self._expr(expr.base)
+        off = self._expr(expr.offset)
+        if off is None or not off.concrete or v is None:
+            return None
+        if expr.endness == archinfo.Endness.BE:
+            r = v[len(v) - 1 - off.concrete_value * 8 : len(v) - off.concrete_value * 8 - expr.bits]
+        else:
+            r = v[expr.bits + off.concrete_value * 8 - 1 : off.concrete_value * 8]
+        assert len(r) == expr.bits
+        return r
+
+    def _handle_expr_Insert(self, expr):
+        v = self._expr(expr.value)
+        off = self._expr(expr.offset)
+        base = self._expr(expr.base)
+        if off is None or not off.concrete or v is None or base is None:
+            return None
+        if expr.endness == archinfo.Endness.BE:
+            r = claripy.Concat(
+                (
+                    base[len(base) - 1 : len(base) - off.concrete_value * 8]
+                    if off.concrete_value != 0
+                    else claripy.BVV(b"")
+                ),
+                v,
+                (
+                    base[len(base) - off.concrete_value * 8 - len(v) - 1 : 0]
+                    if off.concrete_value * 8 + len(v) != len(base)
+                    else claripy.BVV(b"")
+                ),
+            )
+        else:
+            r = claripy.Concat(
+                (
+                    base[len(base) - 1 : off.concrete_value * 8 + len(v)]
+                    if off.concrete_value * 8 + len(v) != len(base)
+                    else claripy.BVV(b"")
+                ),
+                v,
+                base[off.concrete_value * 8 - 1 : 0] if off.concrete_value != 0 else claripy.BVV(b""),
+            )
+        assert len(r) == expr.bits
+        return r
+
+    def _handle_expr_Load(self, expr: Load):
         addr_and_type = self._process_address(expr.addr)
         if addr_and_type is not None:
             addr, addr_type = addr_and_type
@@ -250,7 +296,7 @@ class InlinedStringTransformationAILEngine(
             if addr_type == "stack" and isinstance(v, claripy.ast.BV):
                 for i in range(expr.size):
                     byte_off = i
-                    if self.arch.memory_endness == Endness.LE:
+                    if expr.endness == Endness.LE:
                         byte_off = expr.size - i - 1
                     self.stack_accesses[addr + i].append(("load", self._codeloc(), v.get_byte(byte_off)))
             return v
@@ -479,12 +525,13 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
 
     ARCHES = None
     PLATFORMS = None
-    STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
+    # must be before stack ssa
+    STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL1_TRANSFORMATION
     NAME = "Simplify string transformations"
     DESCRIPTION = "Simplify string transformations that are commonly used in obfuscated functions."
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -502,10 +549,13 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
             # remove the original statements
             skip_stmt_indices = set()
             for stack_accesses in desc.stack_accesses:
-                # the first element is the initial storing statement
-                codeloc = stack_accesses[0][1]
-                assert codeloc.block_addr == desc.store_block.addr
-                skip_stmt_indices.add(codeloc.stmt_idx)
+                # the first stores are the initial storing statements
+                for access in stack_accesses:
+                    if access[0] != "store":
+                        break
+                    codeloc = access[1]
+                    assert codeloc.block_addr == desc.store_block.addr
+                    skip_stmt_indices.add(codeloc.stmt_idx)
             new_statements = [
                 stmt for idx, stmt in enumerate(desc.store_block.statements) if idx not in skip_stmt_indices
             ]
@@ -516,20 +566,16 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
                 # the last element is the final storing statement
                 new_value_ast = stack_accesses[-1][2]
                 new_value = Const(None, None, new_value_ast.concrete_value, self.project.arch.byte_width)
-                stmt = Assignment(
-                    None,
-                    VirtualVariable(
-                        None,
-                        self.vvar_id_start,
-                        self.project.arch.bits,
-                        category=VirtualVariableCategory.STACK,
-                        oident=desc.beginning_stack_offset + off,
-                        ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
+                stmt = Store(
+                    self.manager.next_atom(),
+                    StackBaseOffset(
+                        self.manager.next_atom(), self.project.arch.bits, desc.beginning_stack_offset + off
                     ),
                     new_value,
+                    new_value.size,
+                    self.project.arch.memory_endness,
                     ins_addr=desc.store_block.addr + desc.store_block.original_size - 1,
                 )
-                self.vvar_id_start += 1
                 store_statements.append(stmt)
             if new_statements and isinstance(new_statements[-1], (ConditionalJump, Jump)):
                 new_statements = new_statements[:-1] + store_statements + new_statements[-1:]
@@ -593,8 +639,8 @@ class InlinedStringTransformationSimplifier(OptimizationPass):
                 candidate_stack_addrs = []
                 for stack_addr in sorted(engine.stack_accesses.keys()):
                     stack_accesses = engine.stack_accesses[stack_addr]
-                    if len(stack_accesses) == 3:
-                        item0, item1, item2 = stack_accesses
+                    if len(stack_accesses) >= 3:
+                        *_, item0, item1, item2 = stack_accesses
                         if (
                             item0[0] == "store"
                             and item1[0] == "load"

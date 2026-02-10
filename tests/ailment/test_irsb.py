@@ -1,28 +1,22 @@
 from __future__ import annotations
 import unittest
 
-import angr.ailment as ailment
+import archinfo
+import pyvex
 
-try:
-    import angr
-    import archinfo
-except ImportError:
-    angr = None
+import angr
+from angr import ailment
 
-try:
-    import pyvex
-except ImportError:
-    pyvex = None
+# pylint: disable=missing-class-docstring
+# pylint: disable=line-too-long
 
 
 class TestIrsb(unittest.TestCase):
-    # pylint: disable=missing-class-docstring
     block_bytes = bytes.fromhex(
         "554889E54883EC40897DCC488975C048C745F89508400048C745F0B6064000488B45C04883C008488B00BEA70840004889C7E883FEFFFF"
-    )  # pylint: disable=line-too-long
+    )
     block_addr = 0x4006C6
 
-    @unittest.skipUnless(pyvex, "pyvex required")
     def test_convert_from_vex_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
         manager = ailment.Manager(arch=arch)
@@ -30,7 +24,6 @@ class TestIrsb(unittest.TestCase):
         ablock = ailment.IRSBConverter.convert(irsb, manager)
         assert ablock  # TODO: test if this conversion is valid
 
-    @unittest.skipUnless(angr and hasattr(angr.engines, "UberEnginePcode"), "angr and pypcode required")
     def test_convert_from_pcode_irsb(self):
         arch = archinfo.arch_from_id("AMD64")
         manager = ailment.Manager(arch=arch)

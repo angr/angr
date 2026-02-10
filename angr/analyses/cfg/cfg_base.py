@@ -687,7 +687,7 @@ class CFGBase(Analysis):
             section = obj.find_section_containing(region_start)
             if section is None:
                 return False
-            if section.name in {".textbss"}:
+            if section.name == ".textbss":
                 return True
 
         return False
@@ -1805,7 +1805,11 @@ class CFGBase(Analysis):
             addr = fn_meta.addr - (fn_meta.addr % 16)
             if addr != fn_meta.addr and addr in functions:
                 fn2_meta = functions.get_by_addr(addr, meta_only=True)
-                if fn2_meta.is_plt:
+                if (
+                    functions.get_func_block_count(fn_meta.addr) == 1
+                    and self.functions.callgraph.in_degree[fn_meta.addr] <= 1
+                    and fn2_meta.is_plt
+                ):
                     fn = functions.get_by_addr(fn_addr, meta_only=False)
                     if not _is_function_a_plt_stub(arch, fn):
                         to_remove.add(fn.addr)
@@ -1945,20 +1949,24 @@ class CFGBase(Analysis):
                 i += 1
                 if f_addr == func_addr:
                     continue
+                if f_addr in functions_to_remove:
+                    # this function has already been merged with other functions before... it cannot be merged with
+                    # this function anymore
+                    should_merge = False
+                    break
+                if f_addr in predetermined_function_addrs:
+                    # this function is a legit one. it shouldn't be removed/merged
+                    should_merge = False
+                    break
+                # check all blocks in this function and make sure they are within the range
                 f = functions[f_addr]
                 if max_unresolved_jump_addr < f_addr < endpoint_addr and all(
                     max_unresolved_jump_addr < b_addr < endpoint_addr for b_addr in f.block_addrs
                 ):
-                    if f_addr in functions_to_remove:
-                        # this function has already been merged with other functions before... it cannot be merged with
-                        # this function anymore
-                        should_merge = False
-                        break
-                    if f_addr in predetermined_function_addrs:
-                        # this function is a legit one. it shouldn't be removed/merged
-                        should_merge = False
-                        break
                     functions_to_merge.add(f_addr)
+                else:
+                    should_merge = False
+                    break
 
             if not should_merge:
                 # we shouldn't merge...

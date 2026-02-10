@@ -31,7 +31,6 @@ class ObfuscationDetector(Analysis):
         self.analyze()
 
     def analyze(self):
-
         analysis_routines = [
             self._analyze_vmprotect,
         ]
