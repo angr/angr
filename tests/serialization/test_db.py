@@ -53,6 +53,10 @@ class TestDb(unittest.TestCase):
             }
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
 
+            # new_func (which is just loaded out of angr db) should be marked as dirty so it can potentially be
+            # saved to LMDB if it's evicted.
+            assert new_func.dirty is True
+
         # compare call graph
         callgraph_nodes_old = set(proj.kb.callgraph.nodes)
         callgraph_nodes_new = set(new_proj.kb.callgraph.nodes)
