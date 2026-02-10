@@ -126,7 +126,7 @@ class CFGModel(Serializable):
     #
 
     def __getstate__(self):
-        return {x: self.__getattribute__(x) for x in self.__slots__}
+        return {x: self.__getattribute__(x) for x in self.__slots__ if x not in {"__weakref__", "_cfg_manager"}}
 
     def __setstate__(self, state):
         for attribute, value in state.items():
@@ -139,6 +139,8 @@ class CFGModel(Serializable):
         for addr in self._nodes:
             node = self._nodes[addr]
             node._cfg_model = self
+
+        self._cfg_manager = None
 
     @classmethod
     def _get_cmsg(cls):
