@@ -349,24 +349,31 @@ class TypeDBLoader(Analysis):
             func = self.kb.functions[addr]
             name_to_func_addrs[demangle(func.name)].append(addr)
 
-        prototypes = []
+        prototypes = defaultdict(list)
         for func_data in prototype_db:
             prototype = self._parse_Prototype(func_data["prototype"])
             if prototype is not None:
                 prototype = prototype.with_arch(self.project.arch)
-                prototypes.append(prototype)
                 func_name = func_data["name"]
+                prototypes[func_name].append(prototype)
+
+        for func_name, prototypes in prototypes.items():
+            for prototype in prototypes:
                 for func_addr in name_to_func_addrs[func_name]:
                     # Re-fetch the function each time to get the current object from the cache
                     func = self.kb.functions[func_addr]
                     if func.prototype:
                         old_prototype = func.prototype.with_arch(self.project.arch)
-                        negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
+                        if len(prototypes) == 1:
+                            # If there's only one prototype for this function name, we can be more confident about it
+                            # and skip negotiation
+                            negotiated_prototype = prototype
+                        else:
+                            negotiated_prototype = self._negotiate_prototype(prototype, old_prototype)
                         if negotiated_prototype is not None:
                             func.prototype = negotiated_prototype
                             func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
                             func.is_prototype_guessed = False
-                self.project.kb.librust.set_prototype(func_name, prototype)
         l.info("Loaded %d functions from type database.", len(prototypes))
 
 
