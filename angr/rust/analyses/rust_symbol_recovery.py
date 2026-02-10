@@ -29,11 +29,11 @@ class RustSymbolRecovery(Analysis):
         self.rust_symbols = {}
 
         if self.project.rustc_version is None or self.project.rustc_optimization_level is None:
-            l.debug("Auto-detecting rustc version and optimization level (sig_dir=%s)", self.sig_dir)
+            l.info("Auto-detecting rustc version and optimization level (sig_dir=%s)", self.sig_dir)
             start_time = time.time()
             self._identify_rustc_version_and_optimization_level()
             elapsed = time.time() - start_time
-            l.debug(
+            l.info(
                 "Detection completed in %.2f seconds: rustc %s -O%s (matched %d functions)",
                 elapsed,
                 self.project.rustc_version,
@@ -73,7 +73,7 @@ class RustSymbolRecovery(Analysis):
             sig_path = os.path.join(self.sig_dir, sig_file)
             count = self._match_signature(sig_path)
             self._cache[sig_file] = count
-            l.debug("[%d] Testing %s: %d matches", len(self._cache), sig_file, count)
+            l.info("[%d] Testing %s: %d matches", len(self._cache), sig_file, count)
         return self._cache[sig_file]
 
     def _identify_rustc_version_and_optimization_level(self):
@@ -95,7 +95,7 @@ class RustSymbolRecovery(Analysis):
 
         # Phase 1: Find approximate version range using O2 as probe
         probe_opt = "3"
-        l.debug(f"Phase 1: Find approximate version range (probe opt=O{probe_opt})")
+        l.info(f"Phase 1: Find approximate version range (probe opt=O{probe_opt})")
         probe_sigs = sigs_by_opt[probe_opt]
         n_samples = min(10, len(probe_sigs))
         step = max(1, len(probe_sigs) // n_samples)
@@ -104,10 +104,10 @@ class RustSymbolRecovery(Analysis):
         version_scores = [(idx, self._cached_count(probe_sigs[idx])) for idx in sample_indices]
         best_probe_idx = max(version_scores, key=lambda x: x[1])[0]
         best_probe_version = self._parse_version(probe_sigs[best_probe_idx])[0]
-        l.debug("Best probe version: %s at index %d", probe_sigs[best_probe_idx], best_probe_idx)
+        l.info("Best probe version: %s at index %d", probe_sigs[best_probe_idx], best_probe_idx)
 
         # Phase 2: Determine opt level around best version
-        l.debug("Phase 2: Determine optimization level around best version")
+        l.info("Phase 2: Determine optimization level around best version")
         opt_scores = {}
         for opt in self.OPT_LEVELS:
             sigs = sigs_by_opt[opt]
@@ -132,13 +132,13 @@ class RustSymbolRecovery(Analysis):
 
             test_range = range(max(0, closest_idx - 2), min(len(sigs), closest_idx + 3))
             opt_scores[opt] = max(self._cached_count(sigs[i]) for i in test_range)
-            l.debug("O%s: max score = %d", opt, opt_scores[opt])
+            l.info("O%s: max score = %d", opt, opt_scores[opt])
 
         best_opt = max(opt_scores, key=opt_scores.get)
-        l.debug("Best opt level: O%s", best_opt)
+        l.info("Best opt level: O%s", best_opt)
 
         # Phase 3: Ternary search for best version
-        l.debug("Phase 3: Ternary search in O%s", best_opt)
+        l.info("Phase 3: Ternary search in O%s", best_opt)
         filtered_sigs = sigs_by_opt[best_opt]
         left, right = 0, len(filtered_sigs) - 1
 
@@ -151,7 +151,7 @@ class RustSymbolRecovery(Analysis):
                 right = mid2
 
         # Fine search in remaining range
-        l.debug("Fine search in range [%d, %d]", left, right)
+        l.info("Fine search in range [%d, %d]", left, right)
         best_idx = left
         best_count = self._cached_count(filtered_sigs[left])
         for i in range(left, right + 1):
@@ -164,7 +164,7 @@ class RustSymbolRecovery(Analysis):
         self.project.rustc_version = ".".join(str(x) for x in best_version)
         self.project.rustc_optimization_level = best_opt
         self.matched_count = self._cache[filtered_sigs[best_idx]]
-        l.debug(
+        l.info(
             "Best match: %s, matched %d functions (tested %d/%d sig files)",
             filtered_sigs[best_idx].replace(".sig", ""),
             self.matched_count,
@@ -175,37 +175,37 @@ class RustSymbolRecovery(Analysis):
     def _analyze(self):
         sig_path = Path(self.sig_dir) / f"{self.project.rustc_version}-O{self.project.rustc_optimization_level}.sig"
         if sig_path.exists():
-            l.debug("Applying signatures from %s", sig_path)
+            l.info("Applying signatures from %s", sig_path)
             self.project.analyses.Flirt(str(sig_path))
 
             for func in self.project.kb.functions.values():
                 if func.from_signature == "flirt":
                     self.rust_symbols[func.addr] = demangle(func.name)
-            l.debug("Recovered %d rust symbols (after Flirt)", len(self.rust_symbols))
+            l.info("Recovered %d rust symbols (after Flirt)", len(self.rust_symbols))
 
             self.project.analyses.FlirtSigPropagation(cfg=self.project.kb.cfgs.get_most_accurate())
 
             for func in self.project.kb.functions.values():
                 if func.from_signature == "flirt":
                     self.rust_symbols[func.addr] = demangle(func.name)
-            l.debug("Recovered %d rust symbols (after FlirtSigPropagation)", len(self.rust_symbols))
+            l.info("Recovered %d rust symbols (after FlirtSigPropagation)", len(self.rust_symbols))
 
             self.project.analyses.CleanupFunctionIdentification()
 
             for func in self.project.kb.functions.values():
                 if func.from_signature == "flirt":
                     self.rust_symbols[func.addr] = demangle(func.name)
-            l.debug("Recovered %d rust symbols (after CleanupFunctionIdentification)", len(self.rust_symbols))
+            l.info("Recovered %d rust symbols (after CleanupFunctionIdentification)", len(self.rust_symbols))
 
             total_functions = len(self.project.kb.functions)
-            l.debug(
+            l.info(
                 "Final count: %d rust symbols out of %d total functions (%.2f%%)",
                 len(self.rust_symbols),
                 total_functions,
                 100 * len(self.rust_symbols) / total_functions,
             )
         else:
-            l.debug("Signature file not found: %s", sig_path)
+            l.info("Signature file not found: %s", sig_path)
 
 
 AnalysesHub.register_default("RustSymbolRecovery", RustSymbolRecovery)
