@@ -803,26 +803,6 @@ class SpillingCFGGraph:
     # Graph operations
     #
 
-    def reverse(self, copy: bool = True) -> SpillingCFGGraph:
-        if not copy:
-            raise NotImplementedError("In-place reverse not supported for SpillingCFGGraph")
-
-        new_graph = SpillingCFGGraph(
-            rtdb=self._rtdb,
-            cfg_model=self._cfg_model,
-            cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
-            db_batch_size=self._db_batch_size,
-        )
-
-        # Copy nodes
-        new_graph._nodes = self._nodes.copy()
-        new_graph._spilling_enabled = self._spilling_enabled
-
-        # Reverse edges
-        new_graph._graph = self._graph.reverse(copy=True)
-
-        return new_graph
-
     def copy(self) -> SpillingCFGGraph:
         new_graph = SpillingCFGGraph(
             rtdb=self._rtdb,
