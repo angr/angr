@@ -223,7 +223,7 @@ class SpillingCFGNodeDict:
     def _evict_lru(self) -> bool:
         with self._db_store_lock:
             evicted_any = False
-            while self.cached_count > self._cache_limit:
+            while self.cached_count > self._cache_limit + self._db_batch_size:
                 # Evict enough to get below the limit, in batches
                 to_evict = self.cached_count - self._cache_limit
                 batch_size = min(self._db_batch_size, to_evict)
