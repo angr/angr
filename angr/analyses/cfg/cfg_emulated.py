@@ -51,6 +51,7 @@ from .cfg_job_base import BlockID, CFGJobBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGNode
+    from angr.knowledge_plugins.cfg.spilling_cfg_graph import SpillingCFGGraph
 
 
 l = logging.getLogger(name=__name__)
@@ -529,7 +530,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         if start_node is None:
             raise AngrCFGError("Cannot find start node when trying to unroll loops. The CFG might be empty.")
 
-        graph_copy = networkx.DiGraph(self.graph)
+        graph_copy = networkx.DiGraph(self.graph.to_networkx())
 
         while True:
             cycles_iter = networkx.simple_cycles(graph_copy)
@@ -622,7 +623,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         # Update loop backedges
         self._loop_back_edges = loop_backedges
 
-        self.model.graph = graph_copy
+        self.model.graph.from_networkx(graph_copy)
 
     def immediate_dominators(self, start, target_graph=None):
         """
@@ -803,7 +804,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     #
 
     @property
-    def graph(self):
+    def graph(self) -> SpillingCFGGraph:
         return self._model.graph
 
     @property

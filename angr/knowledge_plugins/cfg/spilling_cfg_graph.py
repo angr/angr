@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, TypeVar
 import lmdb
 import networkx
 
-from .cfg_node import CFGNode
+from .cfg_node import CFGNode, CFGENode
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = TypeVar("K", bound=tuple[int, int])
+K = TypeVar("K", bound=tuple[int, ...])
 
 
 class SpillingCFGNodeDict:
@@ -639,11 +639,15 @@ class SpillingCFGGraph:
         self._cfg_model_ref = weakref.ref(value) if value is not None else None
         self._nodes._cfg_model = value
 
-    def _get_block_key(self, node: CFGNode) -> K:
+    def _get_block_key(self, node: CFGNode | CFGENode) -> K:
         block_id = node.block_id
         if block_id is None:
             block_id = node.addr
-        return block_id, node.size if node.size is not None else -1
+        block_key = block_id, node.size if node.size is not None else -1
+
+        if isinstance(node, CFGENode):
+            return block_key, node.looping_times if node.looping_times is not None else 0
+        return block_key
 
     def _get_node_by_key(self, block_key: K) -> CFGNode:
         """Get a CFGNode by block_id, with fallback to graph node data."""
@@ -861,6 +865,19 @@ class SpillingCFGGraph:
         for src, dst, data in self.edges(data=True):
             result.add_edge(src, dst, **data)
         return result
+
+    def from_networkx(self, nx_graph: networkx.DiGraph) -> None:
+        """
+        Load graph structure from a networkx DiGraph with CFGNode instances as nodes.
+        """
+        self._graph.clear()
+        self._nodes.clear()
+
+        for node in nx_graph.nodes():
+            self.add_node(node)
+
+        for src, dst, data in nx_graph.edges(data=True):
+            self.add_edge(src, dst, **data)
 
     #
     # Spilling control
