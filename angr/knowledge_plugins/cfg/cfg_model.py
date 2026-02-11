@@ -21,7 +21,7 @@ from angr.errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
-from .spilling_cfg_graph import SpillingCFGGraph
+from .spilling_cfg import SpillingCFG
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -81,7 +81,7 @@ class CFGModel(Serializable):
         if cfg_manager is not None and hasattr(cfg_manager, "_kb") and cfg_manager._kb is not None:
             rtdb = cfg_manager._kb.rtdb
 
-        self.graph: SpillingCFGGraph = SpillingCFGGraph(
+        self.graph: SpillingCFG = SpillingCFG(
             rtdb=rtdb,
             cfg_model=self,
             cache_limit=cache_limit,

@@ -51,7 +51,7 @@ from .cfg_job_base import BlockID, CFGJobBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGNode
-    from angr.knowledge_plugins.cfg.spilling_cfg_graph import SpillingCFGGraph
+    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 
 
 l = logging.getLogger(name=__name__)
@@ -804,7 +804,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     #
 
     @property
-    def graph(self) -> SpillingCFGGraph:
+    def graph(self) -> SpillingCFG:
         return self._model.graph
 
     @property

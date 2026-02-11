@@ -29,7 +29,9 @@ class CFGManager(KnowledgeBasePlugin):
                 is_arm = is_arm_arch(self._kb._project.arch)
             else:
                 is_arm = False
-            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm)
+            self.cfgs[ident] = CFGModel(
+                ident, cfg_manager=self, is_arm=is_arm, cache_limit=self._kb.project.get_function_cache_limit()
+            )
         return self.cfgs[ident]
 
     def __setitem__(self, ident, model):

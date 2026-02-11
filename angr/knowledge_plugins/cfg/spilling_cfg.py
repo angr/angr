@@ -33,9 +33,7 @@ class SpillingCFGNodeDict:
     """
     A dict-like container for CFGNode instances with LRU caching and LMDB spilling.
 
-    This class keeps only the most recently accessed N nodes in memory, spilling others
-    to an LMDB database on disk. This allows working with CFGs that have more nodes than
-    can fit in memory.
+    This class keeps only the most recently accessed N nodes in memory, spilling others to an LMDB database on disk.
 
     :ivar cache_limit:          The maximum number of nodes to keep in memory.
     :ivar rtdb:                 A reference to the RuntimeDb knowledge base plugin.
@@ -49,8 +47,8 @@ class SpillingCFGNodeDict:
         self,
         rtdb: RuntimeDb | None,
         cfg_model: CFGModel | None = None,
-        cache_limit: int = 10000,
-        db_batch_size: int = 1000,
+        cache_limit: int = 1000,
+        db_batch_size: int = 200,
     ):
         self._data: dict[K, CFGNode] = {}
         self._cache_limit: int = cache_limit
@@ -389,7 +387,7 @@ class SpillingCFGNodeDict:
 class _AdjacencyDict:
     """Helper class to support graph[src][dst] access pattern."""
 
-    def __init__(self, graph: SpillingCFGGraph, src_block_key: K):
+    def __init__(self, graph: SpillingCFG, src_block_key: K):
         self._graph = graph
         self._src_block_key = src_block_key
 
@@ -420,7 +418,7 @@ class _AdjacencyDict:
 class _NodeView:
     """View over graph nodes supporting len(), iteration, and call with data=True."""
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __len__(self) -> int:
@@ -444,7 +442,7 @@ class _NodeView:
 class _EdgeView:
     """View over graph edges supporting len(), iteration, and call with data=True."""
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __len__(self) -> int:
@@ -470,7 +468,7 @@ class _InEdgeView:
     Supports both ``graph.in_edges(node)`` and ``graph.in_edges[node]``.
     """
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __call__(
@@ -509,7 +507,7 @@ class _OutEdgeView:
     Supports both ``graph.out_edges(node)`` and ``graph.out_edges[node]``.
     """
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __call__(
@@ -548,7 +546,7 @@ class _InDegreeView:
     Supports both ``graph.in_degree(node)`` and ``graph.in_degree[node]``.
     """
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
@@ -576,7 +574,7 @@ class _OutDegreeView:
     Supports both ``graph.out_degree(node)`` and ``graph.out_degree[node]``.
     """
 
-    def __init__(self, graph: SpillingCFGGraph):
+    def __init__(self, graph: SpillingCFG):
         self._graph = graph
 
     def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
@@ -598,13 +596,12 @@ class _OutDegreeView:
         return len(self._graph._graph)
 
 
-class SpillingCFGGraph:
+class SpillingCFG:
     """
-    A graph wrapper that stores CFGNode instances in a spilling dict while keeping
-    only integer keys in the underlying networkx graph.
+    A graph wrapper that stores CFGNode instances in a spilling dict while keeping only primitive keys in the
+    underlying networkx graph.
 
-    This provides a networkx-compatible interface while supporting disk-backed
-    storage for large CFGs.
+    This provides a networkx-compatible interface while supporting disk-backed storage for large CFGs.
     """
 
     def __init__(
@@ -803,8 +800,8 @@ class SpillingCFGGraph:
     # Graph operations
     #
 
-    def copy(self) -> SpillingCFGGraph:
-        new_graph = SpillingCFGGraph(
+    def copy(self) -> SpillingCFG:
+        new_graph = SpillingCFG(
             rtdb=self._rtdb,
             cfg_model=self._cfg_model,
             cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
