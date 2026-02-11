@@ -542,7 +542,9 @@ class CFGModel(Serializable):
         """
         # use the reverse graph and query for successors (networkx.dfs_predecessors is misleading)
         # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
-        predecessors = set().union(*networkx.dfs_successors(self.graph.reverse(), cfgnode, depth_limit).values())
+        predecessors = set().union(
+            *networkx.dfs_successors(self.graph.to_networkx().reverse(), cfgnode, depth_limit).values()
+        )
         return list(predecessors)
 
     def get_all_successors(self, cfgnode, depth_limit=None):
@@ -555,7 +557,7 @@ class CFGModel(Serializable):
         :rtype: list
         """
         # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
-        successors = set().union(*networkx.dfs_successors(self.graph, cfgnode, depth_limit).values())
+        successors = set().union(*networkx.dfs_successors(self.graph.to_networkx(), cfgnode, depth_limit).values())
         return list(successors)
 
     def get_branching_nodes(self):

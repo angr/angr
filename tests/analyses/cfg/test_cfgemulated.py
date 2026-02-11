@@ -402,7 +402,7 @@ class TestCfgemulate(unittest.TestCase):
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(max_steps=5, fail_fast=True)
 
-        dfs_edges = networkx.dfs_edges(cfg.graph)
+        dfs_edges = networkx.dfs_edges(cfg.graph.to_networkx())
 
         depth_map = {}
         for src, dst in dfs_edges:
