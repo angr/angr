@@ -2553,11 +2553,25 @@ class CFGBase(Analysis):
                 if not belong_to_same_section:
                     self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
 
-            if blockaddr_to_funcaddr.get(dst_addr) == dst_addr or (
-                self._detect_tail_calls
-                and all_edges is not None
-                and self._is_tail_call_optimization(
-                    g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
+            if (
+                blockaddr_to_funcaddr.get(dst_addr) == dst_addr
+                or (
+                    self._detect_tail_calls
+                    and all_edges is not None
+                    and self._is_tail_call_optimization(
+                        g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
+                    )
+                )
+                or (
+                    # A single-instruction block at function entry with a single Ijk_Boring successor is a thunk
+                    # (e.g. jmp <target>). During initial scanning, this pattern may not have been detected by
+                    # _is_branching_to_outside (case 2) because the block was incorrectly assigned to a different
+                    # function (src_addr != current_function_addr). Now that make_functions() has corrected the
+                    # function assignment, re-evaluate: the jump target should be a separate function.
+                    src_addr == src_funcaddr
+                    and len(src.instruction_addrs) == 1
+                    and all_edges is not None
+                    and sum(1 for _, _, d in all_edges if d["jumpkind"] != "Ijk_FakeRet") == 1
                 )
             ):
                 l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
