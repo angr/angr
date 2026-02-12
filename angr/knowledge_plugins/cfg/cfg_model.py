@@ -297,9 +297,12 @@ class CFGModel(Serializable):
     # CFG View
     #
 
+    def has_node_id(self, node_id) -> bool:
+        return node_id in self._blockid_to_blockkey
+
     def get_node(self, block_id) -> CFGNode | None:
         """
-        Get a single node from node key.
+        Get a single node from Block ID.
 
         :param BlockID block_id: Block ID of the node.
         :return:                 The CFGNode, or None if the node does not exist.

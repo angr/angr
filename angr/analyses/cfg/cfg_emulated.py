@@ -1055,8 +1055,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         self._deregister_analysis_job(pending_job.caller_func_addr, pending_job)
 
         # Let's check whether this address has been traced before.
-        if pending_job_key in self._nodes:
-            node = self._nodes[pending_job_key]
+        if self.model.has_node_id(pending_job_key):
+            node = self.model.get_node(pending_job_key)
             if node in self.graph:
                 pending_exit_addr = self._block_id_addr(pending_job_key)
                 # That block has been traced before. Let's forget about it
@@ -1201,13 +1201,13 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 # oh this is the very first basic block on this path
                 depth = 0
             else:
-                src_cfgnode = self._nodes[src_block_id]
+                src_cfgnode = self.model.get_node(src_block_id)
                 depth = src_cfgnode.depth + 1
                 # the depth will not be updated later on even if this block has a greater depth on another path.
                 # consequently, the `max_steps` limit is not very precise - I didn't see a need to make it precise
                 # though.
 
-        if block_id not in self._nodes:
+        if not self.model.has_node_id(block_id):
             # Create the CFGNode object
             cfg_node = self._create_cfgnode(
                 sim_successors, job.call_stack, job.func_addr, block_id=block_id, depth=depth
@@ -1233,7 +1233,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             # "call eax" should be traced twice with *different* sim_successors keys, which requires block ID being flow
             # sensitive, but it is way too expensive.
 
-            cfg_node = self._nodes[block_id]
+            cfg_node = self.model.get_node(block_id)
 
         # Increment tracing count for this block
         self._traced_addrs[job.call_stack_suffix][addr] += 1
@@ -1461,7 +1461,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     # Things might be a bit difficult here. _graph_add_edge() requires both nodes to exist, but here
                     # the return target node may not exist yet. If that's the case, we will put it into a "delayed edge
                     # list", and add this edge later when the return target CFGNode is created.
-                    if return_target_key in self._nodes:
+                    if self.model.has_node_addr(return_target_key):
                         self._graph_add_edge(
                             job.block_id,
                             return_target_key,
@@ -2009,7 +2009,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
         :return:
         """
 
-        if node_key not in self._nodes:
+        if not self.model.has_node_id(node_key):
             if not terminator_for_nonexistent_node:
                 return None
             # Generate a PathTerminator node
@@ -2045,7 +2045,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
             l.debug("Block ID %s does not exist. Create a PathTerminator instead.", self._block_id_repr(node_key))
 
-        return self._nodes[node_key]
+        return self.model.get_node(node_key)
 
     def _graph_add_edge(self, src_node_key, dst_node_key, **kwargs):
         """
