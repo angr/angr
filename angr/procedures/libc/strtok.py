@@ -18,7 +18,7 @@ class strtok(angr.SimProcedure):
         malloc = angr.SIM_PROCEDURES["libc"]["malloc"]
 
         # Allocate the static save pointer on first use
-        if self.KEY not in self.state.globals:
+        if self.KEY not in self.state.globals:  # type: ignore[reportOperatorIssue]
             l.debug("strtok: allocating static save pointer")
             save_ptr = self.inline_call(malloc, self.state.arch.bytes).ret_expr
             self.state.memory.store(
@@ -26,7 +26,7 @@ class strtok(angr.SimProcedure):
                 claripy.BVV(0, self.state.arch.bits),
                 endness=self.state.arch.memory_endness,
             )
-            self.state.globals[self.KEY] = save_ptr
+            self.state.globals[self.KEY] = save_ptr  # type: ignore[reportIndexIssue]
 
-        save_ptr = self.state.globals[self.KEY]
+        save_ptr = self.state.globals[self.KEY]  # type: ignore[reportIndexIssue]
         return self.inline_call(strtok_r, s, delim, save_ptr).ret_expr

@@ -21,7 +21,7 @@ class memccpy(angr.SimProcedure):
         if not self.state.solver.symbolic(n):
             max_copy = self.state.solver.eval(n)
         else:
-            max_copy = min(self.state.solver.max_int(n), self.state.libc.max_buffer_size)
+            max_copy = min(self.state.solver.max_int(n), self.state.libc.max_buffer_size)  # type: ignore[reportAttributeAccessIssue]
 
         if max_copy == 0:
             return claripy.BVV(0, self.state.arch.bits)

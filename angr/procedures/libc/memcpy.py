@@ -19,7 +19,7 @@ class memcpy(angr.SimProcedure):
             conditional_size = self.state.solver.eval(limit)
         else:
             # constraints on the limit are added during the store
-            max_memcpy_size = self.state.libc.max_memcpy_size
+            max_memcpy_size = self.state.libc.max_memcpy_size  # type: ignore[reportAttributeAccessIssue]
             max_limit = self.state.solver.max_int(limit)
             min_limit = self.state.solver.min_int(limit)
             conditional_size = min(max_memcpy_size, max(min_limit, max_limit))
@@ -41,5 +41,5 @@ class memcpy(angr.SimProcedure):
 
 
 class __memcpy_chk(memcpy):
-    def run(self, dst_addr, src_addr, limit, _destlen):
+    def run(self, dst_addr, src_addr, limit, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
         return super().run(dst_addr, src_addr, limit)

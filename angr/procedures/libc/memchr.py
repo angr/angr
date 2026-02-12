@@ -23,7 +23,7 @@ class memchr(angr.SimProcedure):
         if not self.state.solver.symbolic(n):
             max_search = self.state.solver.eval(n)
         else:
-            max_search = min(self.state.solver.max_int(n), self.state.libc.max_buffer_size)
+            max_search = min(self.state.solver.max_int(n), self.state.libc.max_buffer_size)  # type: ignore[reportAttributeAccessIssue]
 
         if max_search == 0:
             return claripy.BVV(0, self.state.arch.bits)
@@ -36,7 +36,7 @@ class memchr(angr.SimProcedure):
 
         if self.state.solver.symbolic(n):
             l.debug("symbolic n")
-            max_sym = min(self.state.solver.max_int(n), self.state.libc.max_symbolic_memchr)
+            max_sym = min(self.state.solver.max_int(n), self.state.libc.max_symbolic_memchr)  # type: ignore[reportAttributeAccessIssue]
             a, constraints, i = self.state.memory.find(s_addr, c, max_search, max_symbolic_bytes=max_sym, default=0)
         else:
             l.debug("concrete n")

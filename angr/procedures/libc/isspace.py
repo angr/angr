@@ -9,8 +9,10 @@ class isspace(angr.SimProcedure):
     def run(self, c):
         is_space_char = c == 32
         is_tab_to_cr = claripy.And(c >= 9, c <= 13)
+        int_size = self.arch.sizeof["int"]  # type: ignore[reportOptionalMemberAccess]
+
         return claripy.If(
             claripy.Or(is_space_char, is_tab_to_cr),
-            claripy.BVV(1, self.arch.sizeof["int"]),
-            claripy.BVV(0, self.arch.sizeof["int"]),
+            claripy.BVV(1, int_size),
+            claripy.BVV(0, int_size),
         )

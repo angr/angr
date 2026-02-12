@@ -9,8 +9,10 @@ class isblank(angr.SimProcedure):
     def run(self, c):
         is_space = c == 32
         is_tab = c == 9
+        int_size = self.arch.sizeof["int"]  # type: ignore[reportOptionalMemberAccess]
+
         return claripy.If(
             claripy.Or(is_space, is_tab),
-            claripy.BVV(1, self.arch.sizeof["int"]),
-            claripy.BVV(0, self.arch.sizeof["int"]),
+            claripy.BVV(1, int_size),
+            claripy.BVV(0, int_size),
         )

@@ -15,7 +15,7 @@ class memmove(angr.SimProcedure):
         if not self.state.solver.symbolic(limit):
             conditional_size = self.state.solver.eval(limit)
         else:
-            max_memcpy_size = self.state.libc.max_memcpy_size
+            max_memcpy_size = self.state.libc.max_memcpy_size  # type: ignore[reportAttributeAccessIssue]
             max_limit = self.state.solver.max_int(limit)
             min_limit = self.state.solver.min_int(limit)
             conditional_size = min(max_memcpy_size, max(min_limit, max_limit))
@@ -38,5 +38,5 @@ class memmove(angr.SimProcedure):
 
 class __memmove_chk(memmove):
     # pylint:disable=arguments-differ, missing-class-docstring
-    def run(self, dst_addr, src_addr, limit, _destlen):
+    def run(self, dst_addr, src_addr, limit, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
         return super().run(dst_addr, src_addr, limit)
