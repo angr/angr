@@ -314,8 +314,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             stackvar_defs.assign(full_offset, full_offset + full_size, def_as)
 
         return (
-            self.state.live_stackvars[offset]
-            if not has_conflicting_value_types(self.state.live_stackvars[offset])
+            self.state.live_stackvars.get(offset, set())
+            if not has_conflicting_value_types(self.state.live_stackvars.get(offset, set()))
             else set()
         )
 
@@ -545,13 +545,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         def_size = None
         def_size_arg = None
-        if target == "memset":
-            # TODO other intrinsics that do a def
-            assert expr.args is not None
-            def_size_values = self._expr(expr.args[2])
-            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
-                def_size = max(def_size_values)[1]
-                def_size_arg = expr.args[2]
 
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
@@ -563,6 +556,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             proto = target_proto
         else:
             proto = None
+
+        if isinstance(target, str) and target in ("memset", "memcpy"):
+            # TODO other intrinsics that do a def
+            assert expr.args is not None
+            def_size_values = self._expr(expr.args[2])
+            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
+                def_size = max(def_size_values)[1]
+                def_size_arg = expr.args[2]
 
         if proto is not None:
             extra_nones = [None] * max(len(expr.args or []) - len(proto.args), 0)

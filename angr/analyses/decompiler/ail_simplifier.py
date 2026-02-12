@@ -2385,6 +2385,8 @@ class AILSimplifier(Analysis):
                 else:
                     assert codeloc.block_addr is not None and codeloc.stmt_idx is not None
                     def_stmt = blocks[(codeloc.block_addr, codeloc.block_idx)].statements[codeloc.stmt_idx]
+	            if def_stmt.tags.get("extra_defs", []):
+	                continue
                 if is_vvar_eliminatable(vvar, def_stmt):
                     uses = rd.all_vvar_uses[vvar_id]
                 elif vvar.was_stack:
