@@ -791,7 +791,6 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
             "project": self.project,
             "indirect_jumps": self.indirect_jumps,
             "_loop_back_edges": self._loop_back_edges,
-            "_nodes_by_addr": self._nodes_by_addr,
             "_thumb_addrs": self._thumb_addrs,
             "_unresolvable_runs": self._unresolvable_runs,
             "_executable_address_ranges": self._executable_address_ranges,

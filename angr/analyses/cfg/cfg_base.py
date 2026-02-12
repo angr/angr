@@ -285,10 +285,6 @@ class CFGBase(Analysis):
         return self._model._nodes
 
     @property
-    def _nodes_by_addr(self):
-        return self._model._nodes_by_addr
-
-    @property
     def model(self) -> CFGModel:
         """
         Get the CFGModel instance.
@@ -1648,10 +1644,11 @@ class CFGBase(Analysis):
         called_function_addrs = {n.addr for n in function_nodes}
         # Any function addresses that appear as symbols won't be removed
         predetermined_function_addrs = called_function_addrs
+        node_addrs_set = set(self.model.node_addrs)
         for saddr in self._function_addresses_from_symbols:
             if saddr in predetermined_function_addrs:
                 continue
-            if saddr in self.model._nodes_by_addr:
+            if saddr in node_addrs_set:
                 predetermined_function_addrs.add(saddr)
 
         removed_functions_a = self._process_irrational_functions(

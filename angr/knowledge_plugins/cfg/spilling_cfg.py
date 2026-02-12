@@ -11,7 +11,7 @@ import pickle
 import logging
 import threading
 import weakref
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, TypeVar
 
@@ -648,6 +648,7 @@ class SpillingCFG:
             cache_limit=effective_cache_limit,
             db_batch_size=db_batch_size,
         )
+        self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
         self._spilling_enabled = cache_limit is not None
 
     @property
@@ -692,6 +693,8 @@ class SpillingCFG:
         self._nodes[block_key] = node
         # Store node reference in graph data for fallback lookup
         self._graph.add_node(block_key, _node=node, **attr)
+        # update _keys_by_addr
+        self._keys_by_addr[node.addr].add(block_key)
 
     def remove_node(self, node: CFGNode) -> None:
         block_key = self._get_block_key(node)
@@ -706,6 +709,9 @@ class SpillingCFG:
                 should_remove_from_graph = False
             else:
                 del self._nodes[block_key]
+                self._keys_by_addr[node.addr].discard(block_key)
+                if not self._keys_by_addr[node.addr]:
+                    del self._keys_by_addr[node.addr]
 
         if should_remove_from_graph and block_key in self._graph:
             self._graph.remove_node(block_key)
@@ -713,6 +719,13 @@ class SpillingCFG:
     def has_node(self, node: CFGNode) -> bool:
         block_key = self._get_block_key(node)
         return block_key in self._graph
+
+    def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
+        for block_key in self._keys_by_addr.get(addr, []):
+            yield self._get_node_by_key(block_key)
+
+    def has_node_addr(self, addr: int) -> bool:
+        return addr in self._keys_by_addr
 
     def __contains__(self, node: CFGNode) -> bool:
         return self.has_node(node)
@@ -835,6 +848,9 @@ class SpillingCFG:
 
         new_graph._nodes = self._nodes.copy()
         new_graph._spilling_enabled = self._spilling_enabled
+        new_graph._keys_by_addr = defaultdict()
+        for addr, keys in self._keys_by_addr.items():
+            new_graph._keys_by_addr[addr] = set(keys)
         new_graph._graph = self._graph.copy()
 
         return new_graph
@@ -943,7 +959,12 @@ class SpillingCFG:
         self._spilling_enabled = state["spilling_enabled"]
         self._cfg_model_ref = None
         self._rtdb = None
+        self._keys_by_addr = defaultdict(set)
 
         nodes_state = state["nodes"]
         self._nodes = SpillingCFGNodeDict.__new__(SpillingCFGNodeDict)
         self._nodes.__setstate__(nodes_state)
+
+        # initialize _keys_by_addr
+        for node_key, node in self._nodes.items():
+            self._keys_by_addr[node.addr].add(node_key)

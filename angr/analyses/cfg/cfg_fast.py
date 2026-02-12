@@ -1455,7 +1455,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # Initialize variables used during analysis
         self._pending_jobs: PendingJobs = PendingJobs(self.kb, self._deregister_analysis_job)
-        self._traced_addresses: set[int] = {a for a, n in self._nodes_by_addr.items() if n}
+        self._traced_addresses: set[int] = set(self.model.node_addrs)
         self._function_returns = defaultdict(set)
 
         # Populate known objects in segment tracker
@@ -2272,7 +2272,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 assert procedure is not None
                 name = procedure.display_name
 
-            if addr not in self._nodes:
+            if not self.model.has_node_addr(addr):
                 cfg_node = CFGNode(
                     addr,
                     0,
@@ -2285,7 +2285,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._model.add_node(addr, cfg_node)
 
             else:
-                cfg_node = self._nodes[addr]
+                cfg_node = next(self.model.nodes_by_addr(addr))
 
         except (SimMemoryError, SimEngineError):
             return []
@@ -3421,7 +3421,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self.kb.functions.function(target_func_addr, create=True)  # make sure the target function exists
             else:
                 target_func_addr = jump.func_addr if not to_outside else addr
-            src_node = self._nodes[source_addr]
+            src_node = next(self.model.nodes_by_addr(source_addr))
             if jump.jumpkind == "Ijk_Call":
                 func_edge = FunctionCallEdge(
                     src_node,
@@ -3466,7 +3466,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         # add a node from this node to UnresolvableJumpTarget or UnresolvableCallTarget node,
         # depending on its jump kind
-        src_node = self._nodes[jump.addr]
+        src_node = next(self.model.nodes_by_addr(jump.addr))
         if jump.jumpkind == "Ijk_Boring":
             unresolvable_target_addr = self._unresolvable_jump_target_addr
             simprocedure_name = "UnresolvableJumpTarget"
@@ -3488,7 +3488,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         )
 
         # add the dst_node to self._nodes
-        if unresolvable_target_addr not in self._nodes:
+        if not self.model.has_node_addr(unresolvable_target_addr):
             self.model.add_node(unresolvable_target_addr, dst_node)
 
         self._graph_add_edge(dst_node, src_node, jump.jumpkind, jump.ins_addr, jump.stmt_idx)
@@ -3619,7 +3619,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                     # leading nop for alignment.
                     next_node_addr = a.addr + nop_length
-                    if nop_length < a.size and not (next_node_addr in self._nodes or next_node_addr in nodes_to_append):
+                    if nop_length < a.size and not (
+                        self.model.has_node_addr(next_node_addr) or next_node_addr in nodes_to_append
+                    ):
                         # create a new CFGNode that starts there
                         next_node_size = a.size - nop_length
                         next_node = CFGNode(
@@ -3826,8 +3828,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             self.graph.add_edge(src, new_node, **data)
 
         successor_node_addr = node.addr + new_size
-        if successor_node_addr in self._nodes:
-            successor = self._nodes[successor_node_addr]
+        if self.model.has_node_addr(successor_node_addr):
+            successor = next(self.model.nodes_by_addr(successor_node_addr))
         else:
             successor_size = node.size - new_size
             successor = CFGNode(
@@ -3917,11 +3919,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         if self.kb.functions.get_by_addr(fr.caller_func_addr, meta_only=True).returning is not True:
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
-                        return_to_node = self._nodes.get(fr.return_to, None)
+                        return_to_node = next(self.model.nodes_by_addr(fr.return_to), None)
                         if return_to_node is None:
                             return_to_snippet = self._to_snippet(addr=fr.return_to, base_state=self._base_state)
                         else:
-                            return_to_snippet = self._to_snippet(cfg_node=self._nodes[fr.return_to])
+                            return_to_snippet = self._to_snippet(cfg_node=return_to_node)
 
                         self.kb.functions._add_return_from_call(
                             fr.caller_func_addr, fr.callee_func_addr, return_to_snippet
@@ -4153,7 +4155,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         """
 
         try:
-            target_node = self._nodes.get(dst_addr, None)
+            target_node = next(self.model.nodes_by_addr(dst_addr), None)
             if target_node is None:
                 target_snippet = self._to_snippet(addr=dst_addr, base_state=self._base_state)
             else:
@@ -4237,7 +4239,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
-        target_node = self._nodes.get(addr, None)
+        target_node = next(self.model.nodes_by_addr(addr))
         if target_node is None:
             target_snippet = self._to_snippet(addr=addr, base_state=self._base_state)
         else:
@@ -4258,11 +4260,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param int function_addr: address of function
         :return: None
         """
-        try:
-            target = self._to_snippet(self._nodes[addr])
-        except KeyError:
-            target = addr
-
+        node = next(self.model.nodes_by_addr(addr), None)
+        target = self._to_snippet(node) if node is not None else addr
         self.kb.functions._add_return_from(function_addr, target)
 
     def _function_add_return_edge(self, return_from_addr, return_to_addr, function_addr):
@@ -4276,7 +4275,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
-        return_to_node = self._nodes.get(return_to_addr, None)
+        return_to_node = next(self.model.nodes_by_addr(return_to_addr), None)
         if return_to_node is None:
             return_to_snippet = self._to_snippet(addr=return_to_addr, base_state=self._base_state)
             to_outside = False
@@ -4572,8 +4571,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         addr = cfg_job.addr
 
         try:
-            if addr in self._nodes:
-                cfg_node = self._nodes[addr]
+            if self.model.has_node_addr(addr):
+                cfg_node = next(self.model.nodes_by_addr(addr))
                 irsb = cfg_node.irsb
 
                 if cfg_node.function_address != current_function_addr:
@@ -4747,9 +4746,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     nodecode = False
                     addr_0 = addr + 1 if addr % 2 == 0 else addr - 1
 
-                    if addr_0 in self._nodes:
+                    if self.model.has_node_addr(addr_0):
                         # it has been analyzed before
-                        cfg_node = self._nodes[addr_0]
+                        cfg_node = next(self.model.nodes_by_addr(addr_0))
                         irsb = cfg_node.irsb
                         return addr_0, cfg_node.function_address, cfg_node, irsb
 
@@ -5245,18 +5244,14 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 for data_seg_addr, data_seg_size in assumption.data_segs:
                     self._seg_list.release(data_seg_addr, data_seg_size)
             self._update_unscanned_addr(assumption.addr)
-            try:
-                existing_node_arm = self._nodes[assumption_addr]
+            existing_node_arm = next(self.model.nodes_by_addr(assumption_addr), None)
+            if existing_node_arm is not None:
                 self._model.remove_node(assumption_addr, existing_node_arm)
-            except KeyError:
-                existing_node_arm = None
             existing_node_thumb = None
             if existing_node_arm is None:
-                try:
-                    existing_node_thumb = self._nodes[assumption_addr + 1]
+                existing_node_thumb = next(self.model.nodes_by_addr(assumption_addr + 1), None)
+                if existing_node_thumb is not None:
                     self._model.remove_node(assumption_addr + 1, existing_node_thumb)
-                except KeyError:
-                    existing_node_thumb = None
 
             for existing_node in [existing_node_arm, existing_node_thumb]:
                 if existing_node is None:
@@ -5275,7 +5270,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 self._remove_jobs_by_source_node_addr(existing_node.addr)
 
-            if assumption_addr not in self._nodes and assumption_addr + 1 not in self._nodes:
+            if not self.model.has_node_addr(assumption_addr) and not self.model.has_node_addr(assumption_addr + 1):
                 # remove the address (the real address) from the traced addresses set. only remove this address if both
                 # the ARM node and the THUMB node no longer exist.
                 self._traced_addresses.discard(assumption.addr)
