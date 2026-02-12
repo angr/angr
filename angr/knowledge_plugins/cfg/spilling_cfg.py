@@ -399,6 +399,7 @@ class SpillingCFGNodeDict:
         self._cfg_model_ref = None
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
+        self._all_keys = set()
         self._nodesdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
