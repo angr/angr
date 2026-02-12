@@ -2580,14 +2580,11 @@ class CFGBase(Analysis):
                 if not belong_to_same_section:
                     self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
 
-            if (
-                blockaddr_to_funcaddr.get(dst_addr) == dst_addr
-                or (
-                    self._detect_tail_calls
-                    and all_edges is not None
-                    and self._is_tail_call_optimization(
-                        g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
-                    )
+            if blockaddr_to_funcaddr.get(dst_addr) == dst_addr or (
+                self._detect_tail_calls
+                and all_edges is not None
+                and self._is_tail_call_optimization(
+                    g, src_addr, dst_addr, src_function, all_edges, known_functions, blockaddr_to_funcaddr
                 )
             ):
                 l.debug("Possible tail-call optimization detected at function %#x.", dst_addr)
