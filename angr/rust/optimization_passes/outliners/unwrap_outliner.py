@@ -3,10 +3,9 @@ from collections import defaultdict
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral
 from angr.ailment.statement import Assignment, Call, ConditionalJump
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
-from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption
+from angr.rust.sim_type import RustSimTypeResult, RustSimTypeOption, RustSimTypeFunction, RustSimTypeInt
 from angr.rust.mixins import CFAMixin, SRDAMixin, DFAMixin, CFGTransformationMixin, SSAVariableMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-
 
 RESULT_UNWRAP_FAILED_FUNCTION = "core::result::unwrap_failed"
 OPTION_UNWRAP_FAILED_FUNCTION = "core::option::unwrap_failed"
@@ -127,13 +126,13 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                             dst_vvar = self.new_stack_vvar(offset, size * 8, cmp_vvar.tags)
                             unwrap_func_name = UNWRAP_FUNCTIONS[unwrap_failed_func_name]
                             first_block, second_block = self.split_block(pred, last_stmt)
-                            assert self.remove_block(unwrap_failed_block)
+                            self.remove_block(unwrap_failed_block)
                             replacement = Call(
                                 idx=last_stmt.idx,
                                 target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
-                                prototype=self.librust.get_prototype(unwrap_func_name)
-                                .with_arch(self.project.arch)
-                                .normalize(),
+                                prototype=RustSimTypeFunction(
+                                    args=[RustSimTypeInt(cmp_vvar.bits)], returnty=variant.type
+                                ).with_arch(self.project.arch),
                                 args=[cmp_vvar],
                                 ret_expr=None,
                                 **last_stmt.tags,
@@ -149,7 +148,9 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
                 replacement = Call(
                     idx=last_stmt.idx,
                     target=StringLiteral(None, unwrap_func_name, self.project.arch.bits),
-                    prototype=self.librust.get_prototype(unwrap_func_name).with_arch(self.project.arch).normalize(),
+                    prototype=RustSimTypeFunction(args=[RustSimTypeInt(cmp_vvar.bits)], returnty=None).with_arch(
+                        self.project.arch
+                    ),
                     args=[cmp_vvar],
                     ret_expr=None,
                     **last_stmt.tags,
