@@ -5,7 +5,7 @@ import angr
 
 
 class isxdigit(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_digit = claripy.And(c >= 48, c <= 57)
         is_upper_hex = claripy.And(c >= 65, c <= 70)

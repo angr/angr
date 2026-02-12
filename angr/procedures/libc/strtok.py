@@ -10,8 +10,7 @@ l = logging.getLogger(name=__name__)
 
 
 class strtok(angr.SimProcedure):
-    # pylint:disable=arguments-differ
-
+    # pylint:disable=arguments-differ, missing-class-docstring
     KEY = "strtok_save_ptr"
 
     def run(self, s, delim):

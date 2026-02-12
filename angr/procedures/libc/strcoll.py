@@ -4,9 +4,7 @@ import angr
 
 
 class strcoll(angr.SimProcedure):
-    """Locale-aware string comparison."""
-
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, s1, s2):
         strcmp = angr.SIM_PROCEDURES["libc"]["strcmp"]

@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 
 
 class mempcpy(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, dst_addr, src_addr, limit):
         if not self.state.solver.symbolic(limit):
@@ -37,5 +37,6 @@ class mempcpy(angr.SimProcedure):
 
 
 class __mempcpy_chk(mempcpy):
+    # pylint:disable=arguments-differ, missing-class-docstring
     def run(self, dst_addr, src_addr, limit, _destlen):
         return super().run(dst_addr, src_addr, limit)

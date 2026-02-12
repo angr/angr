@@ -5,7 +5,7 @@ import angr
 
 
 class isblank(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_space = c == 32
         is_tab = c == 9

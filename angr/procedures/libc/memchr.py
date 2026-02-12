@@ -12,7 +12,7 @@ l = logging.getLogger(name=__name__)
 
 
 class memchr(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, s_addr, c_int, n):
         c = c_int[7:0]

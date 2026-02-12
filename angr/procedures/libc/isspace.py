@@ -5,7 +5,7 @@ import angr
 
 
 class isspace(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_space_char = c == 32
         is_tab_to_cr = claripy.And(c >= 9, c <= 13)

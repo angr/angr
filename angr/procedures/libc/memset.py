@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 
 
 class memset(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     @staticmethod
     def _repeat_bytes(byt, rep):
@@ -73,5 +73,6 @@ class memset(angr.SimProcedure):
 
 
 class __memset_chk(memset):
+    # pylint:disable=arguments-differ, missing-class-docstring
     def run(self, dst_addr, char, num, _destlen):
         return super().run(dst_addr, char, num)

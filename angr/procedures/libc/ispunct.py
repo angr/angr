@@ -5,7 +5,7 @@ import angr
 
 
 class ispunct(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_punct_1 = claripy.And(c >= 33, c <= 47)  # ! to /
         is_punct_2 = claripy.And(c >= 58, c <= 64)  # : to @

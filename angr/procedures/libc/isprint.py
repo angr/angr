@@ -5,7 +5,7 @@ import angr
 
 
 class isprint(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_printable = claripy.And(c >= 32, c <= 126)
         return claripy.If(

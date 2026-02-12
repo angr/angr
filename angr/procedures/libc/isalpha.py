@@ -5,7 +5,7 @@ import angr
 
 
 class isalpha(angr.SimProcedure):
-    # pylint: disable=arguments-differ
+    # pylint: disable=arguments-differ, missing-class-docstring
     def run(self, c):
         is_upper = claripy.And(c >= 65, c <= 90)
         is_lower = claripy.And(c >= 97, c <= 122)

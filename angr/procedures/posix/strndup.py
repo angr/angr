@@ -3,7 +3,7 @@ import angr
 
 
 class strndup(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, s, n):
         strnlen = angr.SIM_PROCEDURES["libc"]["strnlen"]

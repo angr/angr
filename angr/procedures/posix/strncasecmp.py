@@ -4,7 +4,7 @@ import angr
 
 
 class strncasecmp(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, a_addr, b_addr, n):
         strlen = angr.SIM_PROCEDURES["libc"]["strlen"]
