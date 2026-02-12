@@ -1822,6 +1822,8 @@ class AILSimplifier(Analysis):
                         def_stmt = blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[
                             def_codeloc.stmt_idx
                         ]
+                        if def_stmt.tags.get("extra_defs", []):
+                            continue
                     if is_vvar_eliminatable(vvar, def_stmt):
                         uses = rd.all_vvar_uses[vvar_id]
                     elif vvar.was_stack:

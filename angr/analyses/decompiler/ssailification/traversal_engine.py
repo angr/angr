@@ -128,8 +128,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 def_,
                 full_offset,
                 full_endoffset - full_offset,
-                stack_offset,
-                0,
+                full_offset,
+                full_endoffset - full_offset,
                 loc,
             )
 
@@ -285,7 +285,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             for suboff in range(full_offset, full_offset + full_size):
                 self.state.stackvar_defs[suboff] = def_as
 
-        return self.state.live_stackvars[offset]
+        return self.state.live_stackvars.get(offset, set())
 
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
@@ -474,23 +474,33 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
         def_size = None
         def_size_arg = None
-        if target == "memset":
-            # TODO other intrinsics that do a def
-            assert expr.args is not None
-            def_size_values = self._expr(expr.args[2])
-            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
-                def_size = max(def_size_values)[1]
-                def_size_arg = expr.args[2]
 
         if isinstance(target, Const) and isinstance(target.value, int):
             target = target.value
-        target = self.functions(target) if self.functions is not None and isinstance(target, (str, int)) else None
+        if isinstance(target, str):
+            target_name = target
+            target = None
+        elif isinstance(target, int) and self.functions is not None:
+            target = self.functions(target)
+            target_name = target.name if target is not None else None
+        else:
+            target = None
+            target_name = None
+
         if expr.prototype is not None:
             proto = expr.prototype
         elif target is not None and target.prototype is not None:
             proto = target.prototype
         else:
             proto = None
+
+        if target_name in ("memset", "memcpy"):
+            # TODO other intrinsics that do a def
+            assert expr.args is not None
+            def_size_values = self._expr(expr.args[2])
+            if len(def_size_values) == 1 and max(def_size_values)[0] is None:
+                def_size = max(def_size_values)[1]
+                def_size_arg = expr.args[2]
 
         if proto is not None:
             extra_nones = [None] * max(len(expr.args or []) - len(proto.args), 0)
