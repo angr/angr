@@ -190,7 +190,17 @@ class SpillingCFGNodeDict:
     def cache_limit(self, value: int) -> None:
         self._cache_limit = value
         # Trigger eviction if we're over the new limit
-        if self.cached_count > value:
+        if self.cached_count > value + self._db_batch_size:
+            self._evict_lru()
+
+    @property
+    def db_batch_size(self) -> int:
+        return self._db_batch_size
+
+    @db_batch_size.setter
+    def db_batch_size(self, value: int) -> None:
+        self._db_batch_size = value
+        if self.cached_count > self._cache_limit + value:
             self._evict_lru()
 
     @property
@@ -629,7 +639,6 @@ class SpillingCFG:
         self._graph: networkx.DiGraph = networkx.DiGraph()
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
         self._rtdb = rtdb
-        self._db_batch_size = db_batch_size
 
         effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
         self._nodes: SpillingCFGNodeDict = SpillingCFGNodeDict(
@@ -820,7 +829,7 @@ class SpillingCFG:
             rtdb=self._rtdb,
             cfg_model=self._cfg_model,
             cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
-            db_batch_size=self._db_batch_size,
+            db_batch_size=self._nodes.db_batch_size,
         )
 
         new_graph._nodes = self._nodes.copy()
@@ -892,6 +901,14 @@ class SpillingCFG:
             self._spilling_enabled = False
 
     @property
+    def db_batch_size(self) -> int:
+        return self._nodes.db_batch_size
+
+    @db_batch_size.setter
+    def db_batch_size(self, value: int) -> None:
+        self._nodes.db_batch_size = value
+
+    @property
     def cached_count(self) -> int:
         return self._nodes.cached_count
 
@@ -917,7 +934,7 @@ class SpillingCFG:
             "graph": self._graph,
             "nodes": nodes_state,
             "spilling_enabled": self._spilling_enabled,
-            "db_batch_size": self._db_batch_size,
+            "db_batch_size": self._nodes.db_batch_size,
         }
 
     def __setstate__(self, state: dict):
@@ -925,7 +942,6 @@ class SpillingCFG:
         self._spilling_enabled = state["spilling_enabled"]
         self._cfg_model_ref = None
         self._rtdb = None
-        self._db_batch_size = state.get("db_batch_size", 1000)
 
         nodes_state = state["nodes"]
         self._nodes = SpillingCFGNodeDict.__new__(SpillingCFGNodeDict)

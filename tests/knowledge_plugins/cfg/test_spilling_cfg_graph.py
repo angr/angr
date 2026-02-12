@@ -57,10 +57,11 @@ class TestSpillingCFGNodeDict(unittest.TestCase):
 
         # Set small cache limit to trigger eviction
         graph.cache_limit = 5
+        graph.db_batch_size = 1
 
         # Check that spilling occurred
         assert graph.spilled_count > 0, "Should have spilled some nodes"
-        assert graph.cached_count <= 5, "Cache limit should be respected"
+        assert graph.cached_count <= 6, "Cache limit should be respected"
         # All nodes should still be accessible
         assert len(graph) == total_nodes, "Graph node count should be preserved"
 
@@ -200,7 +201,7 @@ class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
         if total <= 5:
             self.skipTest("Binary too small to test spilling")
 
-        # Enable spilling by setting cache limit
+        graph.db_batch_size = 1
         graph.cache_limit = 5
 
         assert graph.cache_limit == 5, "Cache limit should be set"
@@ -219,6 +220,7 @@ class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
             self.skipTest("Binary too small to test spilling")
 
         # Enable spilling
+        graph.db_batch_size = 1
         graph.cache_limit = 3
 
         if graph.spilled_count == 0:
