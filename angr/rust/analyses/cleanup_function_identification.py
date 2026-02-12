@@ -29,6 +29,8 @@ class CleanupFunctionIdentification(Analysis):
                 "ret",
             ]:
                 return True
+            if len(block.capstone.insns) == 1 and [insn.mnemonic for insn in block.capstone.insns] == ["ret"]:
+                return True
         return False
 
     def _is_cleanup_function(self, func: Function):
