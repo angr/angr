@@ -93,7 +93,8 @@ class RustCallingConventionAnalysis(Analysis):
                 clinic = self.project.kb.clinic_factory.get(
                     self.func, optimization_passes=[CleanupCodeRemover], end_stage=ClinicStage.POST_CALLSITES
                 )
-                self.graph = clinic.graph
+                if clinic:
+                    self.graph = clinic.graph
             except Exception as e:
                 l.error(f"Failed to recover AIL graph for {normalize(self.func.name)}")
                 l.error("".join(traceback.format_exception(e)))
@@ -236,7 +237,7 @@ class RustCallingConventionAnalysis(Analysis):
 
         def callback(call: Call, block, stmt, is_expr):
             i = 0
-            while i + 1 < len(call.args):
+            while i + 1 < len(call.args or []):
                 arg = call.args[i]
                 next_arg = call.args[i + 1]
                 if isinstance(arg, VirtualVariable) and isinstance(next_arg, VirtualVariable):
