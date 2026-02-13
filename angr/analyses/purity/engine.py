@@ -232,7 +232,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
             self._expr_single(stmt.false_target)
 
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType:
-        results = self._do_call(stmt.expr)
+        results = self._expr(stmt.expr)
         if stmt.ret_expr is not None:
             assert 0 in results
             self._do_assign(stmt.ret_expr, results[0])
@@ -309,7 +309,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         self._expr(expr.condition)
         return self._expr(expr.iftrue) | self._expr(expr.iffalse)
 
-    def _do_call(self, expr: ailment.expression.Call, is_expr: bool = False) -> MutableMapping[int, DataType_co]:
+    def _do_call(self, expr: ailment.expression.Call) -> MutableMapping[int, DataType_co]:
         args = [self._expr(arg) for arg in expr.args or []]
         seen = None
 
@@ -359,7 +359,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         return {0: frozenset((DataSource(callee_return=func),))}
 
     def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co:
-        r = self._do_call(expr, is_expr=True)
+        r = self._do_call(expr)
         assert 0 in r
         return r[0]
 
