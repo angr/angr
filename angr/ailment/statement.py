@@ -533,44 +533,6 @@ class SideEffectStatement(Statement):
         self.ret_expr = ret_expr
         self.fp_ret_expr = fp_ret_expr
 
-    # Convenience properties for backward compatibility when wrapping a Call expression
-
-    @property
-    def target(self):
-        return self.expr.target if isinstance(self.expr, Call) else None
-
-    @target.setter
-    def target(self, value):
-        if isinstance(self.expr, Call):
-            self.expr.target = value
-
-    @property
-    def args(self):
-        return self.expr.args if isinstance(self.expr, Call) else None
-
-    @args.setter
-    def args(self, value):
-        if isinstance(self.expr, Call):
-            self.expr.args = value
-
-    @property
-    def calling_convention(self):
-        return self.expr.calling_convention if isinstance(self.expr, Call) else None
-
-    @calling_convention.setter
-    def calling_convention(self, value):
-        if isinstance(self.expr, Call):
-            self.expr.calling_convention = value
-
-    @property
-    def prototype(self):
-        return self.expr.prototype if isinstance(self.expr, Call) else None
-
-    @prototype.setter
-    def prototype(self, value):
-        if isinstance(self.expr, Call):
-            self.expr.prototype = value
-
     @property
     def bits(self):
         return self.expr.bits if isinstance(self.expr, Expression) else 0
