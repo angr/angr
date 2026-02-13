@@ -165,7 +165,7 @@ class RustCallingConventionAnalysis(Analysis):
                         self.project.arch
                     )
                     return result_ty, False
-            return self.func.prototype.returnty, False
+            return self.func.prototype.returnty if self.func.prototype else None, False
 
         memory_writes = self.model.memory_writes[0]
         candidates_and_paths = []
