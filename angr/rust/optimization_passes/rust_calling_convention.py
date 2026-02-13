@@ -25,3 +25,4 @@ class RustCallingConvention(OptimizationPass):
         rcc = self.project.analyses.RustCallingConvention(self._func)
         self._func.prototype = rcc.prototype
         self._func.calling_convention = rcc.calling_convention
+        self._func.is_prototype_guessed = False
