@@ -115,6 +115,8 @@ class RustCallingConventionAnalysis(Analysis):
     # -- core ----------------------------------------------------------------
 
     def _analyze(self):
+        if self.func.prototype is None:
+            return
         self._fact_collector.collect()
         self.model.inferred_prototype = self._infer_prototype()
         self.kb.rust_calling_conventions[self.func.addr] = self.model
@@ -165,7 +167,7 @@ class RustCallingConventionAnalysis(Analysis):
                         self.project.arch
                     )
                     return result_ty, False
-            return self.func.prototype.returnty if self.func.prototype else None, False
+            return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
         candidates_and_paths = []
