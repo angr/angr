@@ -52,6 +52,7 @@ from .indirect_jump_resolvers.jumptable import JumpTableResolver
 
 if TYPE_CHECKING:
     from angr.block import Block
+    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
 
 
@@ -921,7 +922,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     #
 
     @property
-    def graph(self):
+    def graph(self) -> SpillingCFG:
         return self._model.graph
 
     @property
