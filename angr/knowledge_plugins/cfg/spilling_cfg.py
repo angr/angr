@@ -848,7 +848,7 @@ class SpillingCFG:
 
         new_graph._nodes = self._nodes.copy()
         new_graph._spilling_enabled = self._spilling_enabled
-        new_graph._keys_by_addr = defaultdict()
+        new_graph._keys_by_addr = defaultdict(set)
         for addr, keys in self._keys_by_addr.items():
             new_graph._keys_by_addr[addr] = set(keys)
         new_graph._graph = self._graph.copy()
