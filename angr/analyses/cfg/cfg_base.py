@@ -405,12 +405,12 @@ class CFGBase(Analysis):
         assert cfgnode_0.addr + cfgnode_0.size == cfgnode_1.addr
         new_node = cfgnode_0.merge(cfgnode_1)
 
-        # Update the graph and the nodes dict accordingly
-        self._model.remove_node(cfgnode_1.block_id, cfgnode_1)
-        self._model.remove_node(cfgnode_0.block_id, cfgnode_0)
-
+        # Update the graph accordingly
         in_edges = list(self.graph.in_edges(cfgnode_0, data=True))
         out_edges = list(self.graph.out_edges(cfgnode_1, data=True))
+
+        self._model.remove_node(cfgnode_1.block_id, cfgnode_1)
+        self._model.remove_node(cfgnode_0.block_id, cfgnode_0)
 
         self.graph.remove_node(cfgnode_0)
         self.graph.remove_node(cfgnode_1)
