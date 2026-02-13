@@ -4,7 +4,7 @@ from __future__ import annotations
 from archinfo import Endness
 from angr.ailment.constant import UNDETERMINED_SIZE
 from angr.ailment.expression import Const, VirtualVariable, BinaryOp, UnaryOp, Load
-from angr.ailment.statement import Call, WeakAssignment
+from angr.ailment.statement import WeakAssignment, SideEffectStatement
 
 from angr.sim_type import SimTypeReference, SimCppClass
 from angr.knowledge_plugins.key_definitions import atoms
@@ -19,9 +19,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
     NAME = "Rewrite C++ operator function calls into operations"
-    stmt_classes = (Call,)
+    stmt_classes = (SideEffectStatement,)
 
-    def optimize(self, stmt: Call, block=None, **kwargs):  # type: ignore
+    def optimize(self, stmt: SideEffectStatement, block=None, **kwargs):  # type: ignore
         assert self.project is not None
 
         # are we calling a function that we deem as an overridden operator function?
@@ -38,7 +38,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
 
         return None
 
-    def _optimize_operator_equal(self, stmt: Call) -> WeakAssignment | None:
+    def _optimize_operator_equal(self, stmt: SideEffectStatement) -> WeakAssignment | None:
         if stmt.args and len(stmt.args) == 2 and isinstance(stmt.args[0], UnaryOp) and stmt.args[0].op == "Reference":
             dst = stmt.args[0].operand
             if isinstance(dst, VirtualVariable):
@@ -62,7 +62,7 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
         return None
 
-    def _optimize_operator_add(self, stmt: Call) -> WeakAssignment | None:
+    def _optimize_operator_add(self, stmt: SideEffectStatement) -> WeakAssignment | None:
         if (
             stmt.args
             and len(stmt.args) == 3

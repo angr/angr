@@ -6,7 +6,7 @@ import networkx
 
 import angr.ailment as ailment
 from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
+from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label, SideEffectStatement
 from angr.ailment.expression import Const, Phi, VirtualVariable
 
 from angr.utils.ail import is_phi_assignment
@@ -419,8 +419,8 @@ class ReturnDuplicatorBase:
             if node.statements:
                 stmts += node.statements
 
-        # all statements must be either a return, a jump, or an assignment
-        type_white_list = (Return, Jump, Assignment)
+        # all statements must be either a return, a jump, an assignment, or a side-effect statement (e.g. a call)
+        type_white_list = (Return, Jump, Assignment, SideEffectStatement)
         for stmt in stmts:
             if not isinstance(stmt, type_white_list):
                 return False

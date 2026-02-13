@@ -4,8 +4,8 @@ from collections import defaultdict
 import logging
 
 from angr.ailment import AILBlockRewriter, AILBlockWalker, Const
-from angr.ailment.statement import Assignment, Call
-from angr.ailment.expression import Atom, VirtualVariable, Convert, BinaryOp, Phi, Extract
+from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.ailment.expression import Atom, Call, VirtualVariable, Convert, BinaryOp, Phi, Extract
 from angr.ailment.utils import is_none_or_likeable
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -136,7 +136,7 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                 if not handled:
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         if stmt.args is not None:
             for i, arg in enumerate(stmt.args):
                 handled = False
@@ -346,9 +346,11 @@ class ExpressionNarrower(AILBlockRewriter):
             )
         return expr
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Call:
-        new_stmt = super()._handle_Call(stmt_idx, stmt, block)
-        assert isinstance(new_stmt, Call)
+    def _handle_SideEffectStatement(
+        self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None
+    ) -> SideEffectStatement:
+        new_stmt = super()._handle_SideEffectStatement(stmt_idx, stmt, block)
+        assert isinstance(new_stmt, SideEffectStatement)
         changed = new_stmt is not stmt
 
         if (

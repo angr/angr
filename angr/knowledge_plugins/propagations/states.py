@@ -35,7 +35,7 @@ class CallExprFinder(ailment.AILBlockRewriter):
     def _handle_CallExpr(
         self,
         expr_idx: int,
-        expr: ailment.Stmt.Call,
+        expr: ailment.Expr.Call,
         stmt_idx: int,
         stmt: ailment.Stmt.Statement,
         block: ailment.Block | None,

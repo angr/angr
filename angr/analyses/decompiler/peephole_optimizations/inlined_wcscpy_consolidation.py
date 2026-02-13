@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
-from angr.ailment.statement import Call, Store, Assignment
+from angr.ailment.statement import Call, Store, Assignment, SideEffectStatement
 
 from angr.ailment.tagged_object import TagDict
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
@@ -19,7 +19,7 @@ def match_statements(stmts: list[Statement], index: int) -> int:
     has_wcsncpy = False
     for i in range(index, len(stmts)):
         stmt = stmts[i]
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             if InlinedWcscpy.is_inlined_wcsncpy(stmt):
                 has_wcsncpy = True
             else:
@@ -55,7 +55,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
     stmt_classes = (match_statements,)
 
     def optimize(  # type: ignore
-        self, stmts: list[Call | Store | Assignment], stmt_idx: int | None = None, block=None, **kwargs
+        self, stmts: list[SideEffectStatement | Store | Assignment], stmt_idx: int | None = None, block=None, **kwargs
     ):  # pylint:disable=unused-argument
         reordered_stmts = self._reorder_stmts(stmts)
         if not reordered_stmts or len(reordered_stmts) <= 1:
@@ -108,7 +108,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         updated_offsets: set[int] = set()
         known_base = None
         for stmt in stmts:
-            if isinstance(stmt, Call):
+            if isinstance(stmt, SideEffectStatement):
                 assert (
                     stmt.args is not None
                     and len(stmt.args) == 3
@@ -149,11 +149,11 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         return [offset_to_stmt[k] for k in sorted(offset_to_stmt)]
 
     def _optimize_pair(
-        self, last_stmt: Call | Store | Assignment, stmt: Call | Store | Assignment
-    ) -> list[Call] | None:
+        self, last_stmt: SideEffectStatement | Store | Assignment, stmt: SideEffectStatement | Store | Assignment
+    ) -> list[SideEffectStatement] | None:
         # convert (store, wcsncpy()) to (wcsncpy(), store) if they do not overlap
         if (
-            isinstance(stmt, Call)
+            isinstance(stmt, SideEffectStatement)
             and InlinedWcscpy.is_inlined_wcsncpy(stmt)
             and stmt.args is not None
             and len(stmt.args) == 3
@@ -194,7 +194,7 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             addr_last = last_stmt.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
+            if isinstance(stmt, SideEffectStatement) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
                 assert stmt.args is not None
                 # consolidating two calls
                 s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
@@ -273,7 +273,11 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     tags["extra_defs"] = [args[0].operand.varid]
                 else:
                     tags.pop("extra_defs", None)
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **tags)]
+                return [
+                    SideEffectStatement(
+                        stmt.idx, Call(stmt.idx, call_name, args=args, prototype=prototype, **tags), **tags
+                    )
+                ]
 
         return None
 

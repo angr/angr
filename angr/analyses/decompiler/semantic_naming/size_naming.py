@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 
 from angr.ailment import Block
-from angr.ailment.statement import Call
+from angr.ailment.statement import SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
@@ -91,10 +91,10 @@ class SizeNaming(ClinicNamingBase):
                 continue
 
             for stmt in node.statements:
-                if isinstance(stmt, Call):
+                if isinstance(stmt, SideEffectStatement):
                     self._analyze_call_params(stmt)
 
-    def _analyze_call_params(self, call: Call) -> None:
+    def _analyze_call_params(self, call: SideEffectStatement) -> None:
         """
         Analyze a function call for size parameters.
         """

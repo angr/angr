@@ -820,7 +820,7 @@ def structured_node_is_simple_return_strict(node: BaseNode | SequenceNode | Mult
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
     if isinstance(stmt, ailment.Stmt.Return):
         return True
-    if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+    if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.target, ailment.Expr.Const):
         # is it calling a non-returning function?
         target_func_addr = stmt.target.value
         try:
@@ -1139,7 +1139,10 @@ def calls_in_graph(graph: networkx.DiGraph, consider_conditions: bool = False) -
 
 def call_stmts_in_graph(
     graph: networkx.DiGraph, consider_conditions: bool = False
-) -> tuple[list[tuple[tuple[Address, int], ailment.Stmt.Call]], list[tuple[tuple[Address, int], ailment.Stmt.Call]]]:
+) -> tuple[
+    list[tuple[tuple[Address, int], ailment.Stmt.SideEffectStatement]],
+    list[tuple[tuple[Address, int], ailment.Expr.Call]],
+]:
     """
     Return lists of call statements and call expressions in a given AIL graph.
     """

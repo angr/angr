@@ -22,7 +22,7 @@ from angr.ailment.expression import (
     ITE,
     UnaryOp,
 )
-from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
+from angr.ailment.statement import Statement, Assignment, Call, Store, CAS, SideEffectStatement
 from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms
@@ -112,7 +112,7 @@ def get_vvar_deflocs(
                     phi_vvars[stmt.dst.varid] = {
                         vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
                     }
-            elif isinstance(stmt, Call):
+            elif isinstance(stmt, SideEffectStatement):
                 if isinstance(stmt.ret_expr, VirtualVariable):
                     vvar_to_loc[stmt.ret_expr.varid] = (
                         stmt.ret_expr,
@@ -322,8 +322,8 @@ def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
 
 
 def stmt_is_simple_call(stmt: Statement) -> Call | None:
-    if isinstance(stmt, Call):
-        return stmt
+    if isinstance(stmt, SideEffectStatement):
+        return stmt.expr if isinstance(stmt.expr, Call) else None
     if not isinstance(stmt, Assignment):
         return None
     src = stmt.src
@@ -394,7 +394,7 @@ def has_call_in_between_stmts(
     skip_if_contains_vvar: int | None = None,
 ) -> bool:
     def _contains_call(stmt: Statement) -> bool:
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             return True
         # walk the statement and check if there is a call expression
         walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)

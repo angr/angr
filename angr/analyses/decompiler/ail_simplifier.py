@@ -15,13 +15,14 @@ from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
-    Call,
+    SideEffectStatement,
     ConditionalJump,
     DirtyStatement,
     WeakAssignment,
     Return,
 )
 from angr.ailment.expression import (
+    Call,
     Insert,
     Register,
     Convert,
@@ -367,7 +368,7 @@ class AILSimplifier(Analysis):
                 elif isinstance(stmt, WeakAssignment):
                     codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
-                elif isinstance(stmt, Call):
+                elif isinstance(stmt, SideEffectStatement):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
                         codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
@@ -627,9 +628,9 @@ class AILSimplifier(Analysis):
                 return ExprNarrowingInfo(False)
             stmt = block.statements[loc.stmt_idx]
 
-            # special case: if the statement is a Call statement and expr is None, it means we have not been able to
-            # determine if the expression is really used by the call or not. skip it in this case
-            if isinstance(stmt, Call) and expr is None:
+            # special case: if the statement is a SideEffectStatement and expr is None, it means we have not been
+            # able to determine if the expression is really used by the call or not. skip it in this case
+            if isinstance(stmt, SideEffectStatement) and expr is None:
                 all_used_sizes.add(atom.size)
                 continue
             if expr is None:
@@ -1492,7 +1493,7 @@ class AILSimplifier(Analysis):
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
-                if isinstance(eq.atom1, Call):
+                if isinstance(eq.atom1, (Call, SideEffectStatement)):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
@@ -1597,12 +1598,10 @@ class AILSimplifier(Analysis):
                     src = used_expr
                     dst: Expression = call.copy()
 
-                    if isinstance(dst, Call) and dst.ret_expr is not None:
-                        dst_bits = dst.ret_expr.bits
-                        # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an
-                        # expression
-                        dst.ret_expr = None
-                        dst.fp_ret_expr = None
+                    if isinstance(dst, SideEffectStatement):
+                        dst_bits = dst.ret_expr.bits if dst.ret_expr is not None else dst.bits
+                        # extract the Call expression from the SideEffectStatement
+                        dst = dst.expr
                         dst.bits = dst_bits
 
                     if src.bits != dst.bits and not eq.is_weakassignment:
@@ -1663,7 +1662,7 @@ class AILSimplifier(Analysis):
 
         encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
         while True:
-            if terminate_with_calls and b.statements and isinstance(b.statements[-1], Call):
+            if terminate_with_calls and b.statements and isinstance(b.statements[-1], SideEffectStatement):
                 return False
 
             encountered_block_addrs.add((b.addr, b.idx))
@@ -1788,7 +1787,9 @@ class AILSimplifier(Analysis):
                 for _, loc in uses:
                     if loc in dead_vvar_codelocs and loc.block_addr is not None and loc.stmt_idx is not None:
                         stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
-                        if not self._statement_has_call_exprs(stmt) and not isinstance(stmt, (DirtyStatement, Call)):
+                        if not self._statement_has_call_exprs(stmt) and not isinstance(
+                            stmt, (DirtyStatement, SideEffectStatement)
+                        ):
                             continue
                     filtered_uses_count += 1
 
@@ -1858,7 +1859,7 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, Call):
+                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, SideEffectStatement):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
                     if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
@@ -1900,10 +1901,10 @@ class AILSimplifier(Analysis):
                                 # now the things are a bit tricky here
                                 if isinstance(stmt.src, Call):
                                     # replace this assignment statement with a call statement
-                                    stmt = stmt.src
+                                    stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
                                 elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, Call):
                                     # the convert is useless now
-                                    stmt = stmt.src.operand
+                                    stmt = SideEffectStatement(stmt.idx, stmt.src.operand, **stmt.tags)
                                 else:
                                     # we can't change this stmt at all because it has an expression with Calls inside
                                     pass
@@ -1911,7 +1912,7 @@ class AILSimplifier(Analysis):
                             # no calls. remove it
                             simplified = True
                             continue
-                    elif isinstance(stmt, Call):
+                    elif isinstance(stmt, SideEffectStatement):
                         codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed

@@ -73,7 +73,7 @@ class X86GccGetPcSimplifier(OptimizationPass):
         for key, block in self._blocks_by_addr_and_idx.items():
             if (
                 block.statements
-                and isinstance(block.statements[-1], ailment.Stmt.Call)
+                and isinstance(block.statements[-1], ailment.Stmt.SideEffectStatement)
                 and isinstance(block.statements[-1].target, ailment.Expr.Const)
             ):
                 call_func_addr = block.statements[-1].target.value

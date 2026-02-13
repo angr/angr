@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
 from angr.ailment.manager import Manager
-from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
-from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, SideEffectStatement, Store, Jump
+from angr.ailment.expression import Call, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
 from angr.ailment import AILBlockViewer
 from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
@@ -40,7 +40,7 @@ class HasCallExprWalker(AILBlockViewer):
         super().__init__()
         self.has_call_expr = False
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):  # pylint:disable=unused-argument
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):  # pylint:disable=unused-argument
         self.has_call_expr = True
 
     def _handle_CallExpr(  # pylint:disable=unused-argument
@@ -240,17 +240,18 @@ class BlockSimplifier(Analysis):
                 if (
                     not replace_loads
                     and isinstance(old, Load)
-                    and not isinstance(stmt, Call)
+                    and not isinstance(stmt, SideEffectStatement)
                     and not (gp is not None and isinstance(new, Const) and new.value == gp)
                 ):
                     # skip memory-based replacement for non-Call and non-gp-loading statements
                     continue
-                if stmt == old:
+                if isinstance(stmt, SideEffectStatement) and stmt.expr == old:
                     # the replacement must be a call, since replacements can only be expressions
-                    # and call is the only thing which is both a statement and an expression
                     assert isinstance(new, Call)
                     r = True
-                    new_stmt = new
+                    new_stmt = SideEffectStatement(
+                        stmt.idx, new, ret_expr=stmt.ret_expr, fp_ret_expr=stmt.fp_ret_expr, **stmt.tags
+                    )
                 else:
                     # replace the expressions involved in this statement
 
@@ -262,7 +263,7 @@ class BlockSimplifier(Analysis):
                         # never replace an l-value with an r-value
                         r = False
                         new_stmt = None
-                    elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+                    elif isinstance(stmt, SideEffectStatement) and isinstance(new, Call) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
@@ -373,7 +374,7 @@ class BlockSimplifier(Analysis):
 
                     if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
-                        stmt = stmt.src
+                        stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue

@@ -115,10 +115,12 @@ class FindCallsTo(AILBlockViewer):
 
     def __init__(self, *args, target: str | int, **kwargs):
         super().__init__(*args, **kwargs)
-        self.found_calls: list[tuple[ailment.Block, int, ailment.statement.Call]] = []
+        self.found_calls: list[tuple[ailment.Block, int, ailment.statement.SideEffectStatement]] = []
         self.target = target
 
-    def _handle_Call(self, stmt_idx: int, stmt: ailment.statement.Call, block: ailment.Block | None):
+    def _handle_SideEffectStatement(
+        self, stmt_idx: int, stmt: ailment.statement.SideEffectStatement, block: ailment.Block | None
+    ):
         # if I try to make this more readable, pre-commit changes it back to this nonsense...
         # pylint: disable=too-many-boolean-expressions
         if (
@@ -137,7 +139,7 @@ class FindCallsTo(AILBlockViewer):
             assert block is not None
             self.found_calls.append((block, stmt_idx, stmt))
 
-        return super()._handle_Call(stmt_idx, stmt, block)
+        return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_CallExpr(
         self,

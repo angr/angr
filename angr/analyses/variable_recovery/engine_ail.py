@@ -253,7 +253,7 @@ class SimEngineVRAIL(
 
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
-    def _handle_stmt_Call(self, stmt):
+    def _handle_stmt_SideEffectStatement(self, stmt):
         target = stmt.target
         args: list[RichR] = []
         if stmt.args:

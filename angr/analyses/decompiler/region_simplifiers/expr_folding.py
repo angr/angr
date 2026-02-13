@@ -301,7 +301,7 @@ class ExpressionCounter(SequenceWalker):
                     )
                 )
         if (
-            isinstance(stmt, ailment.Stmt.Call)
+            isinstance(stmt, ailment.Stmt.SideEffectStatement)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
             and stmt.ret_expr.was_reg
         ):
@@ -462,11 +462,11 @@ class InterferenceChecker(SequenceWalker):
             the_call = None
             if (
                 isinstance(stmt, Assignment)
-                and isinstance(stmt.src, ailment.Stmt.Call)
+                and isinstance(stmt.src, ailment.Expr.Call)
                 and not isinstance(stmt.src.target, str)
             ):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.target, str):
                 the_call = stmt
             if the_call is not None:
                 assert isinstance(the_call.target, ailment.Stmt.Expression)
@@ -488,7 +488,7 @@ class InterferenceChecker(SequenceWalker):
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
 
-            if isinstance(stmt, ailment.Stmt.Call):
+            if isinstance(stmt, ailment.Stmt.SideEffectStatement):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
@@ -504,7 +504,7 @@ class InterferenceChecker(SequenceWalker):
                 self._assignment_interferences[stmt.dst.varid] = []
 
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
@@ -681,7 +681,7 @@ class ExpressionFolder(SequenceWalker):
                 # remove this statement
                 continue
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None

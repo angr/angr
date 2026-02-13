@@ -6,7 +6,7 @@ from collections.abc import Callable
 from collections import defaultdict
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, Call, Label
+from angr.ailment.statement import Statement, Assignment, Label, SideEffectStatement
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
 from angr.utils.ail import is_phi_assignment
@@ -31,7 +31,7 @@ class RegVVarPredicate:
         self.vvars = vvars
         self.arch = arch
 
-    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
+    def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
         if isinstance(stmt.target, str):
             # pseudo calls do not clobber any registers
             return set()
@@ -59,7 +59,7 @@ class RegVVarPredicate:
             if stmt.dst not in self.vvars:
                 self.vvars.append(stmt.dst)
             return True
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             if (
                 isinstance(stmt.ret_expr, VirtualVariable)
                 and stmt.ret_expr.was_reg
@@ -320,7 +320,11 @@ class SRDAView:
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}
                     reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
+                elif (
+                    isinstance(stmt, SideEffectStatement)
+                    and isinstance(stmt.ret_expr, VirtualVariable)
+                    and stmt.ret_expr.was_reg
+                ):
                     base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}

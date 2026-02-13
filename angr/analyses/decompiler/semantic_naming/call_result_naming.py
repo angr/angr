@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import logging
 
 from angr import ailment
-from angr.ailment.statement import Assignment, Call
+from angr.ailment.statement import Assignment, Call, SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
@@ -140,14 +140,14 @@ class CallResultNaming(ClinicNamingBase):
 
             for stmt in node.statements:
                 # Look for Call statements with return values
-                if isinstance(stmt, Call):
+                if isinstance(stmt, SideEffectStatement):
                     self._analyze_call(stmt)
 
                 # Look for assignments where src is a call
                 elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
                     self._analyze_call_assignment(stmt)
 
-    def _analyze_call(self, call: Call) -> None:
+    def _analyze_call(self, call: SideEffectStatement) -> None:
         """
         Analyze a Call statement for its return value.
         """

@@ -11,7 +11,7 @@ from angr.ailment.statement import (
     Assignment,
     CAS,
     Store,
-    Call,
+    SideEffectStatement,
     Return,
     ConditionalJump,
     DirtyStatement,
@@ -20,6 +20,7 @@ from angr.ailment.statement import (
 )
 from angr.ailment.expression import (
     Atom,
+    Call,
     Expression,
     Extract,
     Insert,
@@ -262,7 +263,7 @@ class SimEngineSSARewriting(
             )
         return None
 
-    def _handle_stmt_Call(self, stmt: Call) -> Statement:
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement:
         new_args = None
         if stmt.args is not None:
             new_args = []
@@ -300,7 +301,7 @@ class SimEngineSSARewriting(
             assert isinstance(stmt.fp_ret_expr, Atom)
             new_stmt = self._replace_def_expr(stmt.fp_ret_expr, replaced_call, stmt)
         if new_stmt is None:
-            new_stmt = replaced_call
+            new_stmt = SideEffectStatement(stmt.idx, replaced_call, **stmt.tags)
 
         return new_stmt
 
@@ -442,11 +443,28 @@ class SimEngineSSARewriting(
         return None
 
     def _handle_expr_Call(self, expr):
-        assert expr.ret_expr is None
-        assert expr.fp_ret_expr is None
-        result = self._handle_stmt_Call(expr)
-        assert isinstance(result, Call)
-        return result
+        new_args = None
+        if expr.args is not None:
+            new_args = []
+            for arg in expr.args:
+                new_arg = self._expr(arg)
+                if new_arg is not None:
+                    new_args.append(new_arg)
+                else:
+                    new_args.append(arg)
+
+        new_target = self._expr(expr.target) if not isinstance(expr.target, str) else None
+        if new_target is not None or new_args is not None:
+            return Call(
+                expr.idx,
+                expr.target if new_target is None else new_target,
+                calling_convention=expr.calling_convention,
+                prototype=expr.prototype,
+                args=new_args if new_args is not None else expr.args,
+                bits=expr.bits,
+                **expr.tags,
+            )
+        return None
 
     def _handle_expr_Const(self, expr):
         return None

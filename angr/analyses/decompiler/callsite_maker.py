@@ -64,26 +64,26 @@ class CallSiteMaker(Analysis):
 
         last_stmt = self.block.statements[-1]
 
-        if type(last_stmt) is Stmt.Call:
+        if type(last_stmt) is Stmt.SideEffectStatement:
             call_stmt = last_stmt
-        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Stmt.Call:
+        elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Expr.Call:
             call_stmt = last_stmt.src
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Convert)
-            and isinstance(last_stmt.src.operand, Stmt.Call)
+            and isinstance(last_stmt.src.operand, Expr.Call)
         ):
             call_stmt = last_stmt.src.operand
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Insert)
-            and isinstance(last_stmt.src.value, Stmt.Call)
+            and isinstance(last_stmt.src.value, Expr.Call)
         ):
             call_stmt = last_stmt.src.value
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Extract)
-            and isinstance(last_stmt.src.base, Stmt.Call)
+            and isinstance(last_stmt.src.base, Expr.Call)
         ):
             call_stmt = last_stmt.src.base
         else:
@@ -255,7 +255,7 @@ class CallSiteMaker(Analysis):
             # check if the last statement is storing the return address onto the top of the stack
             for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
                 stmt_idx = len(new_stmts) - 1 - stmt_idx_r
-                if isinstance(the_stmt, Stmt.Call):
+                if isinstance(the_stmt, Stmt.SideEffectStatement):
                     break
                 if isinstance(the_stmt, Stmt.Assignment):
                     if not (isinstance(the_stmt.dst, Expr.VirtualVariable) and the_stmt.dst.was_stack):
@@ -284,7 +284,7 @@ class CallSiteMaker(Analysis):
             if lr_offset is not None:
                 for stmt_idx_r, the_stmt in enumerate(reversed(new_stmts)):
                     stmt_idx = len(new_stmts) - 1 - stmt_idx_r
-                    if isinstance(the_stmt, Stmt.Call):
+                    if isinstance(the_stmt, Stmt.SideEffectStatement):
                         break
                     if not isinstance(the_stmt, Stmt.Assignment):
                         continue
@@ -326,8 +326,12 @@ class CallSiteMaker(Analysis):
                     for arg in stack_arg_locs
                 }
 
-        ret_expr = call_stmt.ret_expr
-        fp_ret_expr = call_stmt.fp_ret_expr
+        if isinstance(call_stmt, Stmt.SideEffectStatement):
+            ret_expr = call_stmt.ret_expr
+            fp_ret_expr = call_stmt.fp_ret_expr
+        else:
+            ret_expr = None
+            fp_ret_expr = None
         # if ret_expr and fp_ret_expr are None, it means in previous steps (such as during AIL simplification) we have
         # deemed the return value of this call statement as useless and is removed.
 
@@ -360,21 +364,32 @@ class CallSiteMaker(Analysis):
 
         tags = call_stmt.tags.copy()
         tags.pop("arg_vvars", None)
-        new_stmt = Stmt.Call(
+        new_call = Expr.Call(
             call_stmt.idx,
             call_stmt.target,
             calling_convention=cc,
             prototype=prototype,
             args=args,
-            ret_expr=ret_expr,
-            fp_ret_expr=fp_ret_expr,
             arg_vvars=arg_vvars,
             **tags,
         )
         if isinstance(last_stmt, Stmt.Assignment):
-            if not new_stmt.bits:
-                new_stmt.bits = last_stmt.src.bits
-            new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_stmt, **last_stmt.tags)
+            if not new_call.bits:
+                new_call.bits = last_stmt.src.bits
+            new_stmt = Stmt.Assignment(last_stmt.idx, last_stmt.dst, new_call, **last_stmt.tags)
+        else:
+            if not new_call.bits:
+                if ret_expr is not None:
+                    new_call.bits = ret_expr.bits
+                elif fp_ret_expr is not None:
+                    new_call.bits = fp_ret_expr.bits
+            new_stmt = Stmt.SideEffectStatement(
+                call_stmt.idx,
+                new_call,
+                ret_expr=ret_expr,
+                fp_ret_expr=fp_ret_expr,
+                **tags,
+            )
 
         new_stmts.append(new_stmt)
 

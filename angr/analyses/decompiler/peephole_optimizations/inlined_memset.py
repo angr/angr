@@ -4,7 +4,7 @@ from typing import Literal, Any
 from collections import defaultdict
 
 from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, BinaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement
+from angr.ailment.statement import Call, Assignment, Store, Statement, SideEffectStatement
 from angr.ailment.utils import is_none_or_likeable
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase
@@ -113,15 +113,19 @@ class InlinedMemset(PeepholeOptimizationStmtBase):
                     block.statements[i] = None  # remove these statements
 
                 assert self.project is not None
-                call_stmt = Call(
+                call_stmt = SideEffectStatement(
                     stmt.idx,
-                    "memset",
-                    args=[
-                        base_expr,
-                        Const(self.manager.next_atom(), None, candidate.value, 8),
-                        Const(self.manager.next_atom(), None, candidate.count, self.project.arch.bits),
-                    ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
+                    Call(
+                        stmt.idx,
+                        "memset",
+                        args=[
+                            base_expr,
+                            Const(self.manager.next_atom(), None, candidate.value, 8),
+                            Const(self.manager.next_atom(), None, candidate.count, self.project.arch.bits),
+                        ],
+                        prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memset", arch=self.project.arch),
+                        **stmt.tags,
+                    ),
                     **stmt.tags,
                 )
                 if start_stmt_idx == stmt_idx:

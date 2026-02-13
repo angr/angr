@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement, Call
+from angr.ailment.statement import DirtyStatement, Statement, Call, SideEffectStatement
 from angr.ailment.expression import Const, DirtyExpression, Expression
 from angr import sim_type
 from .rewriter_base import DirtyRewriterBase
@@ -15,7 +15,10 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
 
     def _rewrite_stmt(self, dirty: DirtyStatement) -> Statement | None:
         # TODO: Rewrite more dirty statements
-        return self._rewrite_expr_to_call(dirty.dirty)
+        call_expr = self._rewrite_expr_to_call(dirty.dirty)
+        if call_expr is None:
+            return None
+        return SideEffectStatement(dirty.idx, call_expr, **dirty.tags)
 
     def _rewrite_expr(self, dirty: DirtyExpression) -> Expression | None:
         return self._rewrite_expr_to_call(dirty)
@@ -37,7 +40,6 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                         [self._inout_intrinsic_type(16)], self._inout_intrinsic_type(bits)
                     ).with_arch(self.arch),
                     args=(portno,),
-                    ret_expr=None,
                     bits=dirty.bits,
                     **dirty.tags,
                 )
@@ -56,7 +58,6 @@ class AMD64DirtyRewriter(DirtyRewriterBase):
                         [self._inout_intrinsic_type(16), self._inout_intrinsic_type(bits)], sim_type.SimTypeBottom()
                     ).with_arch(self.arch),
                     args=(portno, data),
-                    ret_expr=None,
                     bits=None,
                     **dirty.tags,
                 )
