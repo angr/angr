@@ -84,6 +84,9 @@ class RustSimTypeSize(RustSimTypeInt):
         name += "size"
         return name
 
+    def copy(self):
+        return RustSimTypeSize(signed=self.signed, label=self.label).with_arch(self._arch)
+
     def to_json(self, fields=None, memo=None):
         d = {"_t": self._ident, "signed": self.signed}
         if self.label:

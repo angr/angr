@@ -47,6 +47,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                 )
                 call.prototype = rcc.model.inferred_prototype
                 func.prototype = call.prototype
+                func.is_prototype_guessed = False
 
         if call and isinstance(call.prototype, RustSimTypeFunction):
             is_arg0_retbuf = call.prototype.is_arg0_retbuf
