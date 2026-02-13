@@ -17,6 +17,7 @@ from angr.rust.sim_type import (
     RustSimEnum,
     EnumVariant,
 )
+from angr.sim_type import SimTypeNum
 
 
 class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
@@ -186,6 +187,8 @@ class RustTypeTranslator(TypeTranslator):
     def ctype2rust(self, simtype: Union[sim_type.SimType, RustSimType]):
         if isinstance(simtype, RustSimType):
             return simtype
+        if isinstance(simtype, SimTypeNum):
+            simtype = RustSimTypeInt(size=simtype.size, signed=simtype.signed).with_arch(self.arch)
         tc = self.simtype2tc(simtype)
         return self.tc2simtype(tc)[0]
 
