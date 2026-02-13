@@ -230,7 +230,7 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
         raw_type_str = ty.c_repr(name=name)
         assert name in raw_type_str
 
-        type_pre, type_post = raw_type_str.split(name, 1)
+        type_pre, type_post = raw_type_str.rsplit(name, 1)
 
         if type_pre.endswith(" "):
             type_pre_spaces = " " * (len(type_pre) - len(type_pre.rstrip(" ")))
