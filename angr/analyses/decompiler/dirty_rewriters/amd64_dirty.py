@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from angr.ailment.statement import DirtyStatement, Statement, Call, SideEffectStatement
-from angr.ailment.expression import Const, DirtyExpression, Expression
+from angr.ailment.statement import DirtyStatement, Statement, SideEffectStatement
+from angr.ailment.expression import Call, Const, DirtyExpression, Expression
 from angr import sim_type
 from .rewriter_base import DirtyRewriterBase
 

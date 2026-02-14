@@ -1,22 +1,15 @@
 # pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
 from __future__ import annotations
-from typing import TYPE_CHECKING
 from collections.abc import Iterable
 from abc import ABC, abstractmethod
+
+import claripy
 from typing_extensions import Self
 
-
-try:
-    import claripy
-except ImportError:
-    claripy = None
-
+from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
-from .expression import Atom, Call, Expression, DirtyExpression
-
-if TYPE_CHECKING:
-    pass
+from .expression import Atom, Expression, DirtyExpression
 
 
 class Statement(TaggedObject, ABC):
@@ -39,7 +32,7 @@ class Statement(TaggedObject, ABC):
         raise NotImplementedError
 
     def eq(self, expr0, expr1):  # pylint:disable=no-self-use
-        if claripy is not None and (isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base)):
+        if isinstance(expr0, claripy.ast.Base) or isinstance(expr1, claripy.ast.Base):
             return expr0 is expr1
         return expr0 == expr1
 
@@ -522,7 +515,7 @@ class SideEffectStatement(Statement):
     def __init__(
         self,
         idx: int | None,
-        expr: Call,
+        expr: ailment.expression.Call,
         ret_expr: Expression | None = None,
         fp_ret_expr: Expression | None = None,
         **kwargs,

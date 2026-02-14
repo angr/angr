@@ -7,8 +7,8 @@ import networkx
 import claripy
 from angr import sim_options
 from angr.ailment import Block
-from angr.ailment.statement import Assignment, Call, SideEffectStatement
-from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Const, UnaryOp
+from angr.ailment.statement import Assignment, SideEffectStatement
+from angr.ailment.expression import Call, VirtualVariable, VirtualVariableCategory, Const, UnaryOp
 from angr.sim_type import SimTypeBottom, SimTypePointer, SimTypeChar
 from angr.sim_variable import SimRegisterVariable, SimStackVariable
 from angr.analyses import Analysis

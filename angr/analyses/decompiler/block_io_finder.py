@@ -4,7 +4,6 @@ from typing import Any
 
 from angr.ailment import Block
 from angr.ailment.statement import (
-    Call,
     SideEffectStatement,
     Statement,
     ConditionalJump,
@@ -14,6 +13,7 @@ from angr.ailment.statement import (
     Jump,
 )
 from angr.ailment.expression import (
+    Call,
     Load,
     VirtualVariable,
     Expression,

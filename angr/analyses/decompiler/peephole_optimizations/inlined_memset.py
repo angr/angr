@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Literal, Any
 from collections import defaultdict
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, BinaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement, SideEffectStatement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, BinaryOp
+from angr.ailment.statement import Assignment, Store, Statement, SideEffectStatement
 from angr.ailment.utils import is_none_or_likeable
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase

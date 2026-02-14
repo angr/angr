@@ -1,8 +1,8 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store, SideEffectStatement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
+from angr.ailment.statement import Assignment, Store, SideEffectStatement
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase
 

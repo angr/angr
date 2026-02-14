@@ -2,8 +2,17 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
-from angr.ailment.statement import Call, Store, Assignment, SideEffectStatement
+from angr.ailment.expression import (
+    Call,
+    Expression,
+    BinaryOp,
+    Const,
+    Register,
+    StackBaseOffset,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.statement import Store, Assignment, SideEffectStatement
 
 from angr.ailment.tagged_object import TagDict
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar

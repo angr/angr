@@ -22,7 +22,8 @@ from angr.ailment.expression import (
     ITE,
     UnaryOp,
 )
-from angr.ailment.statement import Statement, Assignment, Call, Store, CAS, SideEffectStatement
+from angr.ailment.expression import Call
+from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement
 from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms

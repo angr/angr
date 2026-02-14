@@ -6,8 +6,8 @@ from typing import Any, TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment import Expression, Block, AILBlockRewriter
-from angr.ailment.expression import ITE, Atom, Load, VirtualVariable
-from angr.ailment.statement import Statement, Assignment, Call, Return
+from angr.ailment.expression import Call, ITE, Atom, Load, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, Return
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector

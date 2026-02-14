@@ -4,8 +4,8 @@ import string
 
 from archinfo import Endness
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement, SideEffectStatement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, UnaryOp
+from angr.ailment.statement import Assignment, Store, Statement, SideEffectStatement
 
 from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be

@@ -1,8 +1,17 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
-from angr.ailment.statement import Call, Store, SideEffectStatement
+from angr.ailment.expression import (
+    Call,
+    Expression,
+    BinaryOp,
+    Const,
+    Register,
+    StackBaseOffset,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.statement import Store, SideEffectStatement
 
 from angr import SIM_LIBRARIES
 from angr.ailment.tagged_object import TagDict

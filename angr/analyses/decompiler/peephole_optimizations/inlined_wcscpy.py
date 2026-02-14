@@ -5,8 +5,8 @@ import string
 from archinfo import Endness
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Call, Assignment, Statement, Store, SideEffectStatement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable
+from angr.ailment.statement import Assignment, Statement, Store, SideEffectStatement
 
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be

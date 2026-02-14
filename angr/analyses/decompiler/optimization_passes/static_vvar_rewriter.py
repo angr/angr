@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
-from angr.ailment.expression import Const, VirtualVariable, Load
+from angr.ailment.expression import Call, Const, VirtualVariable, Load
 from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
-from angr.ailment.statement import Call, SideEffectStatement
+from angr.ailment.statement import SideEffectStatement
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage

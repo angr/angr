@@ -4,8 +4,8 @@ from __future__ import annotations
 import networkx
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Assignment, Call, Return, SideEffectStatement
-from angr.ailment.expression import VirtualVariable
+from angr.ailment.expression import Call, VirtualVariable
+from angr.ailment.statement import Assignment, Return, SideEffectStatement
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.code_location import AILCodeLocation

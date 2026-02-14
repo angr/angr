@@ -12,8 +12,8 @@ import logging
 from collections import defaultdict
 
 from angr import ailment
-from angr.ailment.expression import BinaryOp, UnaryOp, Const, Load
-from angr.ailment.statement import Assignment, Store, Call, SideEffectStatement
+from angr.ailment.expression import BinaryOp, Call, UnaryOp, Const, Load
+from angr.ailment.statement import Assignment, Store, SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase

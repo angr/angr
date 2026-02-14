@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 import logging
 
 from angr import ailment
-from angr.ailment.statement import Assignment, Call, SideEffectStatement
+from angr.ailment.expression import Call
+from angr.ailment.statement import Assignment, SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase

@@ -4,8 +4,8 @@ from __future__ import annotations
 import archinfo
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Call, Assignment, SideEffectStatement
-from angr.ailment.expression import Const, Register, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, SideEffectStatement
+from angr.ailment.expression import Call, Const, Register, VirtualVariable
 
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
