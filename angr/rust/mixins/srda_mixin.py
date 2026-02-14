@@ -44,22 +44,22 @@ class SRDAMixin:
         return self.get_vvar_value(self.get_terminal_vvar(vvar, visited))
 
     def get_terminal_vvar(self, vvar, visited=None):
-        visited = visited or set()
+        visited = visited or set()  # set of varid ints
         cur_vvar = vvar
-        while cur_vvar not in visited:
-            visited.add(cur_vvar)
+        while isinstance(cur_vvar, VirtualVariable) and cur_vvar.varid not in visited:
+            visited.add(cur_vvar.varid)
             value = self.get_vvar_value(cur_vvar)
             if isinstance(value, VirtualVariable):
                 cur_vvar = value
                 continue
             elif isinstance(value, Phi):
-                result = set()
+                result = {}  # varid -> VirtualVariable
                 for _, phi_vvar in value.src_and_vvars:
-                    terminal_phi_vvar = self.get_terminal_vvar(phi_vvar, set(visited))
-                    if terminal_phi_vvar:
-                        result.add(terminal_phi_vvar)
+                    terminal = self.get_terminal_vvar(phi_vvar, set(visited))
+                    if isinstance(terminal, VirtualVariable) and terminal.varid not in visited:
+                        result[terminal.varid] = terminal
                 if len(result) == 1:
-                    cur_vvar = next(iter(result))
+                    cur_vvar = next(iter(result.values()))
                 else:
                     return cur_vvar
             else:
