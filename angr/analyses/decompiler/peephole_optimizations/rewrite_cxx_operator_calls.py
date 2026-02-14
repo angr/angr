@@ -30,9 +30,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             if not self.project.kb.functions.contains_addr(func_addr):
                 return None
             func = self.project.kb.functions[func_addr]
-            if "operator=" in func.demangled_name and stmt.args is not None:
+            if "operator=" in func.demangled_name and stmt.expr.args is not None:
                 return self._optimize_operator_equal(stmt)
-            if "operator+" in func.demangled_name and stmt.args is not None:
+            if "operator+" in func.demangled_name and stmt.expr.args is not None:
                 return self._optimize_operator_add(stmt)
             # TODO: Support other types of C++ operator functions
 
@@ -49,8 +49,8 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
             if isinstance(dst, VirtualVariable):
                 self.preserve_vvar_ids.add(dst.varid)
                 atom = atoms.VirtualVariable(dst.varid, dst.size, dst.category, dst.oident)
-                if stmt.prototype is not None and isinstance(stmt.prototype.returnty, SimTypeReference):
-                    type_hint = self._type_hint_from_typeref(stmt.prototype.returnty)
+                if stmt.expr.prototype is not None and isinstance(stmt.expr.prototype.returnty, SimTypeReference):
+                    type_hint = self._type_hint_from_typeref(stmt.expr.prototype.returnty)
                     if type_hint is not None:
                         self.type_hints.append((atom, type_hint))
             arg1 = (
@@ -59,11 +59,11 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 else stmt.expr.args[1]
             )
             type_ = None
-            if stmt.prototype is not None:
-                dst_ty = stmt.prototype.returnty
+            if stmt.expr.prototype is not None:
+                dst_ty = stmt.expr.prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
+                type_ = {"dst": dst_ty, "src": stmt.expr.prototype.args[1]}
             return WeakAssignment(stmt.idx, stmt.expr.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
         return None
 

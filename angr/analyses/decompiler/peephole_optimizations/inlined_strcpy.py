@@ -224,10 +224,10 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     def is_inlined_strcpy(stmt: Statement) -> bool:
         return (
             isinstance(stmt, SideEffectStatement)
-            and isinstance(stmt.target, str)
-            and stmt.target == "strncpy"
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and "custom_string" in stmt.args[1].tags
+            and isinstance(stmt.expr.target, str)
+            and stmt.expr.target == "strncpy"
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], Const)
+            and "custom_string" in stmt.expr.args[1].tags
         )

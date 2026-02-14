@@ -431,9 +431,11 @@ class Clinic(Analysis):
     def _inline_child_functions(self, ail_graph):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
-                if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.target, ailment.Expr.Const):
+                if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                    stmt.expr.target, ailment.Expr.Const
+                ):
                     assert self.function._function_manager is not None
-                    callee = self.function._function_manager.function(stmt.target.value)
+                    callee = self.function._function_manager.function(stmt.expr.target.value)
                     if (
                         callee is None
                         or callee.addr == self.function.addr
@@ -2568,7 +2570,7 @@ class Clinic(Analysis):
                     if callee_func.info.get("jmp_rax", False) is True:
                         # rewrite this statement into Call(rax)
                         call_stmt = last_stmt.copy()
-                        call_stmt.target = ailment.Expr.Register(
+                        call_stmt.expr.target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             None,
                             self.project.arch.registers["rax"][0],

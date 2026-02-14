@@ -326,9 +326,9 @@ class CallSiteMaker(Analysis):
                     for arg in stack_arg_locs
                 }
 
-        if isinstance(call_expr, Stmt.SideEffectStatement):
-            ret_expr = call_expr.ret_expr
-            fp_ret_expr = call_expr.fp_ret_expr
+        if isinstance(last_stmt, Stmt.SideEffectStatement):
+            ret_expr = last_stmt.ret_expr
+            fp_ret_expr = last_stmt.fp_ret_expr
         else:
             ret_expr = None
             fp_ret_expr = None

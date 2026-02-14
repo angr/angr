@@ -74,9 +74,9 @@ class X86GccGetPcSimplifier(OptimizationPass):
             if (
                 block.statements
                 and isinstance(block.statements[-1], ailment.Stmt.SideEffectStatement)
-                and isinstance(block.statements[-1].target, ailment.Expr.Const)
+                and isinstance(block.statements[-1].expr.target, ailment.Expr.Const)
             ):
-                call_func_addr = block.statements[-1].target.value
+                call_func_addr = block.statements[-1].expr.target.value
                 try:
                     call_func = self.kb.functions.get_by_addr(call_func_addr)
                 except KeyError:

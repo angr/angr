@@ -32,14 +32,14 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
     def optimize(self, stmts: list[SideEffectStatement], **kwargs):
         last_stmt, stmt = stmts
         if InlinedStrcpy.is_inlined_strcpy(last_stmt):
-            s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
-            addr_last = last_stmt.args[0]
+            s_last: bytes = self.kb.custom_strings[last_stmt.expr.args[1].value]
+            addr_last = last_stmt.expr.args[0]
             new_str = None  # will be set if consolidation should happen
 
             if isinstance(stmt, SideEffectStatement) and InlinedStrcpy.is_inlined_strcpy(stmt):
                 # consolidating two calls
-                s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
-                addr_curr = stmt.args[0]
+                s_curr: bytes = self.kb.custom_strings[stmt.expr.args[1].value]
+                addr_curr = stmt.expr.args[0]
                 # determine if the two addresses are consecutive
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
@@ -66,16 +66,16 @@ class InlinedStrcpyConsolidation(PeepholeOptimizationMultiStmtBase):
                     call_name = "strcpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-1])
                     args = [
-                        last_stmt.args[0],
-                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
+                        last_stmt.expr.args[0],
+                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
                     ]
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strcpy")
                 else:
                     call_name = "strncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
                     args = [
-                        last_stmt.args[0],
-                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True),
+                        last_stmt.expr.args[0],
+                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True),
                         Const(None, None, len(new_str), self.project.arch.bits),
                     ]
                     prototype = SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy")
