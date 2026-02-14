@@ -29,7 +29,7 @@ class PairAILBlockRewriter:
 
         _default_stmt_handlers = {
             Assignment: self._handle_Assignment_pair,
-            SideEffectStatement: self._handle_Call_pair,
+            Call: self._handle_Call_pair,
             Store: self._handle_Store_pair,
             ConditionalJump: self._handle_ConditionalJump_pair,
             Return: self._handle_Return_pair,
@@ -167,7 +167,7 @@ class ConstPropOptReverter(OptimizationPass):
         self.out_graph = self._graph.copy()
 
         _pair_stmt_handlers = {
-            SideEffectStatement: self._handle_Call_pair,
+            Call: self._handle_Call_pair,
             Return: self._handle_Return_pair,
         }
 

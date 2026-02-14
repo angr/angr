@@ -108,7 +108,7 @@ class CallResultNaming(ClinicNamingBase):
     based on the called function.
     """
 
-    PRIORITY = 60  # After loop counters, before generic patterns
+    PRIORITY = 40  # Before pointer naming, since call results are more specific
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
