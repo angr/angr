@@ -153,6 +153,10 @@ class CFGModel(Serializable):
             memory_data.append(data.serialize_to_cmessage())
         cmsg.memory_data.extend(memory_data)
 
+        # jump tables
+        for ij in self.jump_tables.values():
+            cmsg.jump_tables.append(ij.serialize_to_cmessage())
+
         cmsg.normalized = self.normalized
 
         return cmsg
@@ -197,6 +201,11 @@ class CFGModel(Serializable):
                 # fill in the content
                 md.fill_content(loader)
             model.memory_data[md.addr] = md
+
+        # jump tables
+        for ij_pb2 in cmsg.jump_tables:
+            ij = IndirectJump.parse_from_cmessage(ij_pb2)
+            model.jump_tables[ij.addr] = ij
 
         model.normalized = cmsg.normalized
 

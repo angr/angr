@@ -19,6 +19,7 @@ message CFG {
     repeated Edge           edges = 3; // All edges in this CFG
     repeated MemoryData     memory_data = 4;
     bool                    normalized = 5; // Whether the control flow graph has been normalized or not
+    repeated IndirectJump   jump_tables = 6; // Jump tables / indirect jumps
 }
 
 message MemoryData {
@@ -41,4 +42,23 @@ message MemoryData {
     optional uint32 size = 2; // Size of the memory data item in memory
     MemoryDataType  type = 3; // Type of the data (reference)
     optional uint32 reference_size = 4; // Reference size of the data
+}
+
+message JumptableInfo {
+    optional uint64 addr = 1; // Address of the jump table (None if unknown)
+    int32           size = 2; // Size of the jump table
+    int32           entry_size = 3; // Size of each entry
+    repeated uint64 entries = 4; // Target addresses
+}
+
+message IndirectJump {
+    uint64                  addr = 1; // Address of the indirect jump/call
+    uint64                  ins_addr = 2; // Instruction address
+    uint64                  func_addr = 3; // Function address
+    string                  jumpkind = 4; // Kind of jump
+    int32                   stmt_idx = 5; // Statement index
+    repeated uint64         resolved_targets = 6; // Resolved target addresses
+    bool                    jumptable = 7; // Whether this is a jump table
+    repeated JumptableInfo  jumptables = 8; // Jump table info entries
+    int32                   type = 9; // IndirectJumpType value
 }
