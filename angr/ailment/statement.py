@@ -522,7 +522,7 @@ class SideEffectStatement(Statement):
     def __init__(
         self,
         idx: int | None,
-        expr: Expression,
+        expr: Call,
         ret_expr: Expression | None = None,
         fp_ret_expr: Expression | None = None,
         **kwargs,

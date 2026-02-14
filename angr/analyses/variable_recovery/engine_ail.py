@@ -254,10 +254,10 @@ class SimEngineVRAIL(
         return RichR(self.state.top(ret_expr_bits), typevar=ret_ty)
 
     def _handle_stmt_SideEffectStatement(self, stmt):
-        target = stmt.target
+        target = stmt.expr.target
         args: list[RichR] = []
-        if stmt.args:
-            for arg in stmt.args:
+        if stmt.expr.args:
+            for arg in stmt.expr.args:
                 self._reference_spoffset = True
                 richr = self._expr(arg)
                 self._reference_spoffset = False
@@ -288,10 +288,10 @@ class SimEngineVRAIL(
         # discover the prototype
         prototype: SimTypeFunction | None = None
         prototype_libname: str | None = None
-        if stmt.prototype is not None:
-            prototype = stmt.prototype
-        if isinstance(stmt.target, ailment.Expr.Const):
-            func_addr = stmt.target.value
+        if stmt.expr.prototype is not None:
+            prototype = stmt.expr.prototype
+        if isinstance(stmt.expr.target, ailment.Expr.Const):
+            func_addr = stmt.expr.target.value
             if isinstance(func_addr, self.kb.functions.address_types) and func_addr in self.kb.functions:
                 func = self.kb.functions[func_addr]
                 if prototype is None:
@@ -301,10 +301,10 @@ class SimEngineVRAIL(
         ret_ty = None
         if prototype is not None:
             if (
-                isinstance(stmt.target, (ailment.Expr.Const, str))
+                isinstance(stmt.expr.target, (ailment.Expr.Const, str))
                 or stmt.tags.get("is_prototype_guessed", True) is False
             ):
-                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.args)
+                self._call_add_arg_based_type_constraints(prototype, prototype_libname, args, stmt.expr.args)
             # handle return type
             return_ty = self.type_lifter.lift(prototype.returnty)  # type: ignore
             ret_ty = typevars.TypeVariable()

@@ -12,8 +12,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import logging
 
-from angr.ailment.statement import Call, SideEffectStatement
-from angr.ailment.expression import Const
+from angr.ailment.expression import Call, Const
 from angr.sim_variable import SimVariable
 
 if TYPE_CHECKING:
@@ -110,7 +109,7 @@ class SemanticNamingBase(ABC):
             return self._variable_manager.unified_variable(expr.variable)
         return None
 
-    def _get_function_name(self, call: Call | SideEffectStatement) -> str | None:
+    def _get_function_name(self, call: Call) -> str | None:
         """
         Extract the function name from a Call expression.
         """

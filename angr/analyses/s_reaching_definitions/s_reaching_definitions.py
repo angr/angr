@@ -118,7 +118,7 @@ class SReachingDefinitionsAnalysis(Analysis):
             for block in blocks.values():
                 for stmt_idx, stmt in enumerate(block.statements):
                     if (  # pylint:disable=too-many-boolean-expressions
-                        (isinstance(stmt, SideEffectStatement) and stmt.args is None)
+                        (isinstance(stmt, SideEffectStatement) and stmt.expr.args is None)
                         or (isinstance(stmt, Assignment) and isinstance(stmt.src, Call) and stmt.src.args is None)
                         or (isinstance(stmt, Return) and stmt.ret_exprs and isinstance(stmt.ret_exprs[0], Call))
                     ):

@@ -466,8 +466,8 @@ class InterferenceChecker(SequenceWalker):
                 and not isinstance(stmt.src.target, str)
             ):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.target, str):
-                the_call = stmt
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.expr.target, str):
+                the_call = stmt.expr
             if the_call is not None:
                 assert isinstance(the_call.target, ailment.Stmt.Expression)
                 spotter.walk_expression(the_call.target)

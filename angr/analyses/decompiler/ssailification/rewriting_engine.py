@@ -265,27 +265,27 @@ class SimEngineSSARewriting(
 
     def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement) -> Statement:
         new_args = None
-        if stmt.args is not None:
+        if stmt.expr.args is not None:
             new_args = []
-            for arg in stmt.args:
+            for arg in stmt.expr.args:
                 new_arg = self._expr(arg)
                 if new_arg is not None:
                     new_args.append(new_arg)
                 else:
                     new_args.append(arg)
 
-        new_target = self._expr(stmt.target) if not isinstance(stmt.target, str) else None
+        new_target = self._expr(stmt.expr.target) if not isinstance(stmt.expr.target, str) else None
         replaced_call = Call(
             stmt.idx,
-            stmt.target if new_target is None else new_target,
-            calling_convention=stmt.calling_convention,
-            prototype=stmt.prototype,
+            stmt.expr.target if new_target is None else new_target,
+            calling_convention=stmt.expr.calling_convention,
+            prototype=stmt.expr.prototype,
             args=new_args,
             bits=stmt.bits,
             **stmt.tags,
         )
 
-        cc = stmt.calling_convention if stmt.calling_convention is not None else self.project.factory.cc()
+        cc = stmt.expr.calling_convention if stmt.expr.calling_convention is not None else self.project.factory.cc()
         if cc is not None:
             # clean up all caller-saved registers (and their subregisters)
             for reg_name in cc.CALLER_SAVED_REGS:

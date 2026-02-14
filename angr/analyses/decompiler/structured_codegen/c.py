@@ -3552,9 +3552,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            target = self._handle(stmt.target, lvalue=True) if not isinstance(stmt.target, str) else stmt.target
+            target = (
+                self._handle(stmt.expr.target, lvalue=True)
+                if not isinstance(stmt.expr.target, str)
+                else stmt.expr.target
+            )
         except UnsupportedNodeTypeError:
-            target = stmt.target
+            target = stmt.expr.target
 
         if (
             isinstance(target, CUnaryOp)
@@ -3570,8 +3574,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
         args = []
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
+        if stmt.expr.args is not None:
+            for i, arg in enumerate(stmt.expr.args):
                 type_ = None
                 if (
                     target_func is not None

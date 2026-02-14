@@ -25,8 +25,8 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         assert self.project is not None
 
         # are we calling a function that we deem as an overridden operator function?
-        if isinstance(stmt.target, Const):
-            func_addr = stmt.target.value
+        if isinstance(stmt.expr.target, Const):
+            func_addr = stmt.expr.target.value
             if not self.project.kb.functions.contains_addr(func_addr):
                 return None
             func = self.project.kb.functions[func_addr]
@@ -39,8 +39,13 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
         return None
 
     def _optimize_operator_equal(self, stmt: SideEffectStatement) -> WeakAssignment | None:
-        if stmt.args and len(stmt.args) == 2 and isinstance(stmt.args[0], UnaryOp) and stmt.args[0].op == "Reference":
-            dst = stmt.args[0].operand
+        if (
+            stmt.expr.args
+            and len(stmt.expr.args) == 2
+            and isinstance(stmt.expr.args[0], UnaryOp)
+            and stmt.expr.args[0].op == "Reference"
+        ):
+            dst = stmt.expr.args[0].operand
             if isinstance(dst, VirtualVariable):
                 self.preserve_vvar_ids.add(dst.varid)
                 atom = atoms.VirtualVariable(dst.varid, dst.size, dst.category, dst.oident)
@@ -49,9 +54,9 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                     if type_hint is not None:
                         self.type_hints.append((atom, type_hint))
             arg1 = (
-                Load(None, stmt.args[1], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
-                if isinstance(stmt.args[1], Const)
-                else stmt.args[1]
+                Load(None, stmt.expr.args[1], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
+                if isinstance(stmt.expr.args[1], Const)
+                else stmt.expr.args[1]
             )
             type_ = None
             if stmt.prototype is not None:
@@ -59,27 +64,27 @@ class RewriteCxxOperatorCalls(PeepholeOptimizationStmtBase):
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
                 type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
-            return WeakAssignment(stmt.idx, stmt.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
+            return WeakAssignment(stmt.idx, stmt.expr.args[0].operand, arg1, type=type_, **stmt.tags)  # type: ignore
         return None
 
     def _optimize_operator_add(self, stmt: SideEffectStatement) -> WeakAssignment | None:
         if (
-            stmt.args
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], UnaryOp)
-            and stmt.args[1].op == "Reference"
-            and isinstance(stmt.args[1].operand, VirtualVariable)
-            and isinstance(stmt.args[2], Const)
+            stmt.expr.args
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], UnaryOp)
+            and stmt.expr.args[1].op == "Reference"
+            and isinstance(stmt.expr.args[1].operand, VirtualVariable)
+            and isinstance(stmt.expr.args[2], Const)
             and isinstance(stmt.ret_expr, VirtualVariable)
         ):
-            arg2 = Load(None, stmt.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
-            addition = BinaryOp(None, "Add", [stmt.args[1].operand, arg2], **stmt.tags)
+            arg2 = Load(None, stmt.expr.args[2], UNDETERMINED_SIZE, Endness.BE, **stmt.tags)
+            addition = BinaryOp(None, "Add", [stmt.expr.args[1].operand, arg2], **stmt.tags)
             type_ = None
-            if stmt.prototype is not None:
-                dst_ty = stmt.prototype.returnty
+            if stmt.expr.prototype is not None:
+                dst_ty = stmt.expr.prototype.returnty
                 if isinstance(dst_ty, SimTypeReference):
                     dst_ty = dst_ty.refs
-                type_ = {"dst": dst_ty, "src": stmt.prototype.args[1]}
+                type_ = {"dst": dst_ty, "src": stmt.expr.prototype.args[1]}
             return WeakAssignment(stmt.idx, stmt.ret_expr, addition, type=type_, **stmt.tags)
         return None
 

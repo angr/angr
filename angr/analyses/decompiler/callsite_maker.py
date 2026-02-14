@@ -65,32 +65,32 @@ class CallSiteMaker(Analysis):
         last_stmt = self.block.statements[-1]
 
         if type(last_stmt) is Stmt.SideEffectStatement:
-            call_stmt = last_stmt
+            call_expr = last_stmt.expr
         elif isinstance(last_stmt, Stmt.Assignment) and type(last_stmt.src) is Expr.Call:
-            call_stmt = last_stmt.src
+            call_expr = last_stmt.src
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Convert)
             and isinstance(last_stmt.src.operand, Expr.Call)
         ):
-            call_stmt = last_stmt.src.operand
+            call_expr = last_stmt.src.operand
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Insert)
             and isinstance(last_stmt.src.value, Expr.Call)
         ):
-            call_stmt = last_stmt.src.value
+            call_expr = last_stmt.src.value
         elif (
             isinstance(last_stmt, Stmt.Assignment)
             and isinstance(last_stmt.src, Expr.Extract)
             and isinstance(last_stmt.src.base, Expr.Call)
         ):
-            call_stmt = last_stmt.src.base
+            call_expr = last_stmt.src.base
         else:
             self.result_block = self.block
             return
 
-        if isinstance(call_stmt.target, str):
+        if isinstance(call_expr.target, str):
             # custom function calls
             self.result_block = self.block
             return
@@ -101,7 +101,7 @@ class CallSiteMaker(Analysis):
         stack_arg_locs: list[SimStackArg] = []
         stackarg_sp_diff = 0
 
-        target = self._get_call_target(call_stmt)
+        target = self._get_call_target(call_expr)
         if target is not None and target in self.kb.functions:
             # function-specific logic when the calling target is known
             func = self.kb.functions[target]
@@ -152,7 +152,7 @@ class CallSiteMaker(Analysis):
                 if prototype.variadic:
                     # determine the number of variadic arguments
                     assert func is not None
-                    variadic_args = self._determine_variadic_arguments(func, cc, call_stmt)
+                    variadic_args = self._determine_variadic_arguments(func, cc, call_expr)
                     if variadic_args:
                         callsite_ty = copy.copy(prototype)
                         callsite_ty.args = tuple(callsite_ty.args) + tuple(variadic_args)
@@ -161,8 +161,8 @@ class CallSiteMaker(Analysis):
         if arg_locs is not None and cc is not None:
             expanded_arg_locs = self._expand_arglocs(arg_locs)
             for arg_idx, arg_loc in enumerate(expanded_arg_locs):
-                if call_stmt.args is not None and arg_idx < len(call_stmt.args):
-                    args.append(call_stmt.args[arg_idx])
+                if call_expr.args is not None and arg_idx < len(call_expr.args):
+                    args.append(call_expr.args[arg_idx])
                     continue
                 if isinstance(arg_loc, SimReferenceArgument):
                     if not isinstance(arg_loc.ptr_loc, (SimRegArg, SimStackArg)):
@@ -238,7 +238,7 @@ class CallSiteMaker(Analysis):
                         arg_expr = reg
                 elif isinstance(arg_loc, SimStackArg):
                     stack_arg_locs.append(arg_loc)
-                    _, the_arg = self._resolve_stack_argument(call_stmt, arg_loc)
+                    _, the_arg = self._resolve_stack_argument(call_expr, arg_loc)
                     arg_expr = the_arg if the_arg is not None else None
                 else:
                     assert False, "Unreachable"
@@ -309,12 +309,12 @@ class CallSiteMaker(Analysis):
         if stack_arg_locs:
             assert self._stack_pointer_tracker is not None
             sp_offset = self._stack_pointer_tracker.offset_before(
-                call_stmt.tags["ins_addr"], self.project.arch.sp_offset
+                call_expr.tags["ins_addr"], self.project.arch.sp_offset
             )
             if sp_offset is None:
                 l.warning(
                     "Failed to calculate the stack pointer offset at pc %#x. You may find redundant Store statements.",
-                    call_stmt.tags["ins_addr"],
+                    call_expr.tags["ins_addr"],
                 )
                 self.stack_arg_offsets = None
             else:
@@ -322,13 +322,13 @@ class CallSiteMaker(Analysis):
                     # make it a signed integer
                     sp_offset -= 1 << self.project.arch.bits
                 self.stack_arg_offsets = {
-                    (call_stmt.tags["ins_addr"], sp_offset + arg.stack_offset - stackarg_sp_diff)
+                    (call_expr.tags["ins_addr"], sp_offset + arg.stack_offset - stackarg_sp_diff)
                     for arg in stack_arg_locs
                 }
 
-        if isinstance(call_stmt, Stmt.SideEffectStatement):
-            ret_expr = call_stmt.ret_expr
-            fp_ret_expr = call_stmt.fp_ret_expr
+        if isinstance(call_expr, Stmt.SideEffectStatement):
+            ret_expr = call_expr.ret_expr
+            fp_ret_expr = call_expr.fp_ret_expr
         else:
             ret_expr = None
             fp_ret_expr = None
@@ -362,11 +362,11 @@ class CallSiteMaker(Analysis):
                 ret_expr.bits = ret_type_bits
             # TODO: Support narrowing virtual variables
 
-        tags = call_stmt.tags.copy()
+        tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
         new_call = Expr.Call(
-            call_stmt.idx,
-            call_stmt.target,
+            call_expr.idx,
+            call_expr.target,
             calling_convention=cc,
             prototype=prototype,
             args=args,
@@ -384,7 +384,7 @@ class CallSiteMaker(Analysis):
                 elif fp_ret_expr is not None:
                     new_call.bits = fp_ret_expr.bits
             new_stmt = Stmt.SideEffectStatement(
-                call_stmt.idx,
+                call_expr.idx,
                 new_call,
                 ret_expr=ret_expr,
                 fp_ret_expr=fp_ret_expr,

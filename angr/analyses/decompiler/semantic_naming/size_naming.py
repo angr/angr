@@ -92,7 +92,7 @@ class SizeNaming(ClinicNamingBase):
 
             for stmt in node.statements:
                 if isinstance(stmt, SideEffectStatement):
-                    self._analyze_call_params(stmt)
+                    self._analyze_call_params(stmt.expr)
 
     def _analyze_call_params(self, call: SideEffectStatement) -> None:
         """

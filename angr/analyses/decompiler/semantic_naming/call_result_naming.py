@@ -160,7 +160,7 @@ class CallResultNaming(ClinicNamingBase):
             return
 
         # Get the function name
-        func_name = self._get_function_name(call)
+        func_name = self._get_function_name(call.expr)
         if func_name is None:
             return
 

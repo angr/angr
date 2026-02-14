@@ -137,8 +137,8 @@ class EffectiveSizeExtractor(AILBlockWalker[None, None, None]):
                     self._handle_expr(i, arg, stmt_idx, stmt, block)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
+        if stmt.expr.args is not None:
+            for i, arg in enumerate(stmt.expr.args):
                 handled = False
                 if self._ignore_call_args:
                     if (

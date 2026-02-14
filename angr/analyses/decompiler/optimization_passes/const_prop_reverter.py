@@ -41,7 +41,7 @@ class PairAILBlockRewriter:
     def _walk_block(self, block):
         walked_objs = {
             Assignment: set(),
-            SideEffectStatement: set(),
+            Call: set(),
             Store: set(),
             ConditionalJump: set(),
             Return: set(),
@@ -55,7 +55,6 @@ class PairAILBlockRewriter:
         walker = AILBlockViewer()
         _default_stmt_handlers = {
             Assignment: walker._handle_Assignment,
-            SideEffectStatement: walker._handle_SideEffectStatement,
             Store: walker._handle_Store,
             ConditionalJump: walker._handle_ConditionalJump,
             Return: walker._handle_Return,
@@ -67,7 +66,7 @@ class PairAILBlockRewriter:
 
         # pylint: disable=unused-argument
         def _handle_call_expr(expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block_):
-            walked_objs[SideEffectStatement].add(expr)
+            walked_objs[Call].add(expr)
 
         _stmt_handlers = dict.fromkeys(walked_objs, _handle_ail_obj)
         walker.stmt_handlers = _stmt_handlers
@@ -323,7 +322,7 @@ class ConstPropOptReverter(OptimizationPass):
     # Handle Similar Calls
     #
 
-    def _handle_Call_pair(self, obj0: SideEffectStatement | Call, blk0, obj1: SideEffectStatement | Call, blk1):
+    def _handle_Call_pair(self, obj0: Call, blk0, obj1: Call, blk1):
         if obj0 is obj1:
             return
 
