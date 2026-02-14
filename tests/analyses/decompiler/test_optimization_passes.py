@@ -12,7 +12,8 @@ import networkx as nx
 import angr
 from angr.ailment.manager import Manager
 from angr.ailment import Block, Assignment, Register, Const, BinaryOp
-from angr.ailment.statement import Return, Store, ConditionalJump, Call
+from angr.ailment.expression import Call
+from angr.ailment.statement import Return, Store, ConditionalJump
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
 from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode
 
