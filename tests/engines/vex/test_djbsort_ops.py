@@ -11,6 +11,8 @@ from angr.engines import HeavyVEXMixin
 
 
 class TestDjbsortOps(unittest.TestCase):
+    """Tests for Iop_SliceV128 and Iop_Reverse32sIn64_x2 VEX IR operations."""
+
     def setUp(self):
         p = load_shellcode(b"\xc3", arch="AMD64")
         self.state = SimState(project=p)
