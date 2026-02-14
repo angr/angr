@@ -56,13 +56,10 @@ class TestAngrDBJumpTables(unittest.TestCase):
 
             # compare the JumptableInfo list
             assert len(orig.jumptables) == len(loaded.jumptables), (
-                f"jumptables count mismatch at {hex(addr)}: "
-                f"{len(orig.jumptables)} vs {len(loaded.jumptables)}"
+                f"jumptables count mismatch at {hex(addr)}: {len(orig.jumptables)} vs {len(loaded.jumptables)}"
             )
             for i, (jt_orig, jt_loaded) in enumerate(zip(orig.jumptables, loaded.jumptables)):
-                assert jt_orig.addr == jt_loaded.addr, (
-                    f"jumptable[{i}].addr mismatch at {hex(addr)}"
-                )
+                assert jt_orig.addr == jt_loaded.addr, f"jumptable[{i}].addr mismatch at {hex(addr)}"
                 assert jt_orig.size == jt_loaded.size
                 assert jt_orig.entry_size == jt_loaded.entry_size
                 assert jt_orig.entries == jt_loaded.entries
