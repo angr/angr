@@ -11,6 +11,7 @@ class SRDAMixin:
         self._graph = graph
         self.srda = project.analyses.SReachingDefinitions(subject=subject, func_graph=graph)
         self.srda_view = SRDAView(self.srda.model)
+        self._gtv_cache = {}  # varid -> terminal VirtualVariable
 
     def get_vvar_value(self, vvar: VirtualVariable) -> Expression | None:
         if not vvar:
@@ -45,8 +46,13 @@ class SRDAMixin:
 
     def get_terminal_vvar(self, vvar, visited=None):
         visited = visited or set()  # set of varid ints
+        if isinstance(vvar, VirtualVariable) and vvar.varid in self._gtv_cache:
+            return self._gtv_cache[vvar.varid]
         cur_vvar = vvar
         while isinstance(cur_vvar, VirtualVariable) and cur_vvar.varid not in visited:
+            if cur_vvar.varid in self._gtv_cache:
+                cur_vvar = self._gtv_cache[cur_vvar.varid]
+                break
             visited.add(cur_vvar.varid)
             value = self.get_vvar_value(cur_vvar)
             if isinstance(value, VirtualVariable):
@@ -61,9 +67,15 @@ class SRDAMixin:
                 if len(result) == 1:
                     cur_vvar = next(iter(result.values()))
                 else:
-                    return cur_vvar
+                    break
             else:
-                return cur_vvar
+                break
+        else:
+            # Loop ended due to cycle (varid in visited) or non-VV — don't cache
+            return cur_vvar
+        # Reached here via break — successful resolution, cache it
+        if isinstance(vvar, VirtualVariable):
+            self._gtv_cache[vvar.varid] = cur_vvar
         return cur_vvar
 
     def get_stack_vvar_by_insn(
