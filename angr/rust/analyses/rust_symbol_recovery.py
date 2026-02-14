@@ -1,4 +1,5 @@
 import os
+import struct
 import time
 from pathlib import Path
 import logging
@@ -19,6 +20,10 @@ class RustSymbolRecovery(Analysis):
 
     # OPT_LEVELS = ["0", "1", "2", "3", "s", "z"]
     OPT_LEVELS = ["0", "1", "2", "3"]
+    # Minimum function size (in bytes) to count as a match during optimization level detection.
+    # Small functions are excluded because O0 has many more small functions (due to less inlining),
+    # which would bias the detection toward O0.
+    MIN_MATCH_FUNC_SIZE = 128
 
     def __init__(self, sig_dir=None):
         super().__init__()
@@ -53,28 +58,52 @@ class RustSymbolRecovery(Analysis):
         v_parts = version.split(".")
         return tuple(int(x) for x in v_parts), opt_level
 
+    @staticmethod
+    def _get_sig_nfuncs(sig_path):
+        """Read nfuncs from a FLIRT signature file header without parsing the full tree."""
+        with open(sig_path, "rb") as f:
+            header_fmt = "<6sBBIHHHHH12sBH"
+            sz = struct.calcsize(header_fmt)
+            header = f.read(sz)
+            unpacked = struct.unpack(header_fmt, header)
+            version = unpacked[1]
+            if version >= 6:
+                return max(struct.unpack("<I", f.read(4))[0], 1)
+        return 1
+
     def _match_signature(self, sig_path):
-        """Match a single signature file and return count."""
+        """Match a single signature file and return (match_count, match_score).
+
+        match_score = match_count / nfuncs, normalized so that signature files with
+        more patterns (e.g. O0) don't have an unfair advantage.
+        """
         try:
             fa = self.project.analyses.Flirt(sig_path, dry_run=True)
-            matched_functions = fa.matched_suggestions["Temporary"][1].values()
-            matched_functions = [demangle(name) for name in matched_functions]
-            matched_functions = [
-                name
-                for name in matched_functions
-                if name.startswith("core::") or name.startswith("std::") or name.startswith("alloc::")
-            ]
-            return len(matched_functions)
+            matched = fa.matched_suggestions["Temporary"][1]  # {addr: name}
+            nfuncs = self._get_sig_nfuncs(sig_path)
+            count = 0
+            for addr, name in matched.items():
+                name = demangle(name)
+                if not (name.startswith("core::") or name.startswith("std::") or name.startswith("alloc::")):
+                    continue
+                # Skip small functions to avoid biasing toward O0
+                func = self.project.kb.functions.get_by_addr(addr)
+                if func is not None and func.size < self.MIN_MATCH_FUNC_SIZE:
+                    continue
+                count += 1
+            score = count / nfuncs
+            return count, score
         except Exception:
-            return 0
+            return 0, 0.0
 
-    def _cached_count(self, sig_file):
+    def _cached_score(self, sig_file):
+        """Return the match score (match_count / nfuncs) for comparison between opt levels."""
         if sig_file not in self._cache:
             sig_path = os.path.join(self.sig_dir, sig_file)
-            count = self._match_signature(sig_path)
-            self._cache[sig_file] = count
-            l.info("[%d] Testing %s: %d matches", len(self._cache), sig_file, count)
-        return self._cache[sig_file]
+            count, score = self._match_signature(sig_path)
+            self._cache[sig_file] = (count, score)
+            l.info("[%d] Testing %s: %d matches (score=%.4f)", len(self._cache), sig_file, count, score)
+        return self._cache[sig_file][1]
 
     def _identify_rustc_version_and_optimization_level(self):
         # Ensure CFG exists
@@ -101,7 +130,7 @@ class RustSymbolRecovery(Analysis):
         step = max(1, len(probe_sigs) // n_samples)
         sample_indices = list(range(0, len(probe_sigs), step))[:n_samples]
 
-        version_scores = [(idx, self._cached_count(probe_sigs[idx])) for idx in sample_indices]
+        version_scores = [(idx, self._cached_score(probe_sigs[idx])) for idx in sample_indices]
         best_probe_idx = max(version_scores, key=lambda x: x[1])[0]
         best_probe_version = self._parse_version(probe_sigs[best_probe_idx])[0]
         l.info("Best probe version: %s at index %d", probe_sigs[best_probe_idx], best_probe_idx)
@@ -131,8 +160,8 @@ class RustSymbolRecovery(Analysis):
                     closest_idx = i
 
             test_range = range(max(0, closest_idx - 2), min(len(sigs), closest_idx + 3))
-            opt_scores[opt] = max(self._cached_count(sigs[i]) for i in test_range)
-            l.info("O%s: max score = %d", opt, opt_scores[opt])
+            opt_scores[opt] = max(self._cached_score(sigs[i]) for i in test_range)
+            l.info("O%s: max score = %.4f", opt, opt_scores[opt])
 
         best_opt = max(opt_scores, key=opt_scores.get)
         l.info("Best opt level: O%s", best_opt)
@@ -145,7 +174,7 @@ class RustSymbolRecovery(Analysis):
         while right - left > 3:
             mid1 = left + (right - left) // 3
             mid2 = right - (right - left) // 3
-            if self._cached_count(filtered_sigs[mid1]) < self._cached_count(filtered_sigs[mid2]):
+            if self._cached_score(filtered_sigs[mid1]) < self._cached_score(filtered_sigs[mid2]):
                 left = mid1
             else:
                 right = mid2
@@ -153,9 +182,9 @@ class RustSymbolRecovery(Analysis):
         # Fine search in remaining range
         l.info("Fine search in range [%d, %d]", left, right)
         best_idx = left
-        best_count = self._cached_count(filtered_sigs[left])
+        best_count = self._cached_score(filtered_sigs[left])
         for i in range(left, right + 1):
-            c = self._cached_count(filtered_sigs[i])
+            c = self._cached_score(filtered_sigs[i])
             if c > best_count:
                 best_count = c
                 best_idx = i
@@ -163,7 +192,7 @@ class RustSymbolRecovery(Analysis):
         best_version, _ = self._parse_version(filtered_sigs[best_idx])
         self.project.rustc_version = ".".join(str(x) for x in best_version)
         self.project.rustc_optimization_level = best_opt
-        self.matched_count = self._cache[filtered_sigs[best_idx]]
+        self.matched_count = self._cache[filtered_sigs[best_idx]][0]
         l.info(
             "Best match: %s, matched %d functions (tested %d/%d sig files)",
             filtered_sigs[best_idx].replace(".sig", ""),

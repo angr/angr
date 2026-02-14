@@ -357,6 +357,8 @@ class TypeDBLoader(Analysis):
                 func_name = func_data["name"]
                 prototypes[func_name].append(prototype)
 
+        l.info("Loaded %d functions from type database.", len(prototypes))
+
         for func_name, prototypes in prototypes.items():
             for prototype in prototypes:
                 for func_addr in name_to_func_addrs[func_name]:
@@ -374,7 +376,6 @@ class TypeDBLoader(Analysis):
                             func.prototype = negotiated_prototype
                             func.calling_convention = default_cc(self.project.arch.name)(self.project.arch)
                             func.is_prototype_guessed = False
-        l.info("Loaded %d functions from type database.", len(prototypes))
 
 
 AnalysesHub.register_default("TypeDBLoader", TypeDBLoader)
