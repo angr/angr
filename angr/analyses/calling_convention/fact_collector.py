@@ -18,7 +18,7 @@ from angr.codenode import BlockNode, FuncNode, HookNode
 from angr.engines.light import SimEngineLight, SimEngineNostmtVEX
 from angr.knowledge_plugins.functions import Function
 from angr.knowledge_plugins.functions.function import PrototypeSource
-from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction
+from angr.sim_type import SimTypeBottom, SimTypeFloat, SimTypeFunction, PointerDisposition, SimTypePointer
 from angr.utils.bits import u2s
 from angr.utils.types import dereference_simtype_by_lib
 
@@ -278,7 +278,7 @@ class SimEngineFactCollectorVEX(
 
         if stmt.offset == self.arch.sp_offset and v is not None and v[0] == KIND_SP:
             self.state.sp_value = v[2]
-        elif stmt.offset == self.arch.bp_offset and v is not None and v[1] == KIND_SP:
+        elif stmt.offset == self.arch.bp_offset and v is not None and v[0] == KIND_SP:
             self.state.bp_value = v[2]
         else:
             self.state.register_written(stmt.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
@@ -332,7 +332,11 @@ class SimEngineFactCollectorVEX(
         """Record a load (kind 1) or store (kind 2) of ``size`` bytes through a pointer argument."""
         if not self.track_arg_uses or addr is None or addr[0] not in (KIND_REG, KIND_STACKVAL):
             return
-        self.state.pointer_arg_derefs[addr] |= kind
+        for suboff in range(addr[2], addr[2] + min(size, 1)):
+            subaddr = (addr[0], addr[1], suboff)
+            self.state.pointer_arg_derefs[subaddr] |= kind
+            if kind == 1 and not (self.state.pointer_arg_derefs[subaddr] & 2):
+                self.state.pointer_arg_derefs[subaddr] |= 4
         self.state.pointer_arg_deref_sizes[addr] = max(self.state.pointer_arg_deref_sizes.get(addr, 0), size)
 
     def _handle_stmt_Store(self, stmt: pyvex.IRStmt.Store):
@@ -787,7 +791,7 @@ class FactCollector(Analysis):
 
         if self._track_arg_passthru:
             self.callsites[state.ins_addr] = (func, [])
-        for arg_loc in arg_locs:
+        for arg_ty, arg_loc in zip(func.prototype.args, arg_locs):
             val: FactData = None
             for loc in arg_loc.get_footprint():
                 if is_x87_stack_arg(loc):
@@ -808,6 +812,24 @@ class FactCollector(Analysis):
                 if val is not None and val[0] == KIND_REG:
                     self._seen_reg_uses[val[1]] += 1
                 self.callsites[state.ins_addr][1].append(val)
+            if val is not None and val[0] in (KIND_REG, KIND_STACKVAL) and isinstance(arg_ty, SimTypePointer):
+                match arg_ty.disposition:
+                    case PointerDisposition.OUT | PointerDisposition.OUTMAYBE:
+                        flags = 2
+                    case PointerDisposition.IN:
+                        flags = 1
+                    case PointerDisposition.IN_OUT | PointerDisposition.IN_OUTMAYBE:
+                        flags = 3
+                    case _:
+                        flags = 0
+
+                size = (arg_ty.pts_to.size or 8) // 8
+                for _subaddr in range(val[2], val[2] + size):
+                    subaddr = (val[0], val[1], _subaddr)
+                    _flags = flags
+                    if not (state.pointer_arg_derefs[subaddr] & 2) and flags != 2:
+                        _flags |= 4
+                    state.pointer_arg_derefs[subaddr] |= _flags
 
         # clobber caller-saved regs; FP argument and return registers are volatile under every ABI, so a read of
         # xmm0 after the call is the callee's result, not an input of this function
