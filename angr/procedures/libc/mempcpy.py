@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-# pylint: disable=missing-class-docstring
-
 import logging
 
 import angr
@@ -10,25 +8,23 @@ from angr.sim_options import ABSTRACT_MEMORY
 l = logging.getLogger(name=__name__)
 
 
-class memcpy(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+class mempcpy(angr.SimProcedure):
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     def run(self, dst_addr, src_addr, limit):
         if not self.state.solver.symbolic(limit):
-            # not symbolic so we just take the value
             conditional_size = self.state.solver.eval(limit)
         else:
-            # constraints on the limit are added during the store
             max_memcpy_size = self.state.libc.max_memcpy_size  # type: ignore[reportAttributeAccessIssue]
             max_limit = self.state.solver.max_int(limit)
             min_limit = self.state.solver.min_int(limit)
             conditional_size = min(max_memcpy_size, max(min_limit, max_limit))
             if max_limit > max_memcpy_size and conditional_size < max_limit:
                 l.warning(
-                    "memcpy upper bound of %#x outside limit, limiting to %#x instead", max_limit, conditional_size
+                    "mempcpy upper bound of %#x outside limit, limiting to %#x instead", max_limit, conditional_size
                 )
 
-        l.debug("Memcpy running with conditional_size %#x", conditional_size)
+        l.debug("mempcpy running with conditional_size %#x", conditional_size)
 
         if conditional_size > 0:
             src_mem = self.state.memory.load(src_addr, conditional_size, endness="Iend_BE")
@@ -37,9 +33,10 @@ class memcpy(angr.SimProcedure):
             else:
                 self.state.memory.store(dst_addr, src_mem, size=limit, endness="Iend_BE")
 
-        return dst_addr
+        return dst_addr + limit
 
 
-class __memcpy_chk(memcpy):
+class __mempcpy_chk(mempcpy):
+    # pylint:disable=arguments-differ, missing-class-docstring
     def run(self, dst_addr, src_addr, limit, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
         return super().run(dst_addr, src_addr, limit)
