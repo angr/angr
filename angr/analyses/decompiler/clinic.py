@@ -1192,7 +1192,7 @@ class Clinic(Analysis, Serializable):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=self._removed_vvar_ids,
@@ -1215,9 +1215,22 @@ class Clinic(Analysis, Serializable):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stackarg_offset_manager=self._stackarg_offset_manager,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             narrow_rounds=None,
+            fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
+            arg_vvars=self.arg_vvars,
+            preserve_vvar_ids=self._preserve_vvar_ids,
+        )
+
+        # Simplify the entire function for the fourth time
+        self._update_progress(78.0, text="Simplifying function 4")
+        self._simplify_function(
+            self._ail_graph,
+            remove_dead_memdefs=self._remove_dead_memdefs,
+            stackarg_offset_manager=self._stackarg_offset_manager,
+            unify_variables=self._fold_expressions,
+            narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
             preserve_vvar_ids=self._preserve_vvar_ids,
