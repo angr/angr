@@ -214,10 +214,13 @@ class SimType:
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
             t = cls.from_json(d)
-            if isinstance(t, SimTypeRef) and type_collection is not None and t.name is not None and t.name not in memo:
-                # attempt to resolve the type ref
-                with contextlib.suppress(AngrMissingTypeError):
-                    return type_collection.get(t.name, memo=memo)
+            if isinstance(t, SimTypeRef):
+                if type_collection is not None and t.name is not None and t.name not in memo:
+                    # attempt to resolve the type ref
+                    with contextlib.suppress(AngrMissingTypeError):
+                        return type_collection.get(t.name, memo=memo)
+                if t.name in ALL_TYPES:
+                    return ALL_TYPES[t.name]
             return t
 
         kwargs = {}
@@ -1696,9 +1699,10 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
+        sname = "struct " + self.name
         if self.name in memo:
-            return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, self.__class__)
+            return memo[sname].to_json(fields=fields, memo=memo)
+        memo[sname] = SimTypeRef(sname, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
@@ -2773,6 +2777,25 @@ GLIBC_EXTERNAL_BASIC_TYPES = {
 }
 ALL_TYPES.update(GLIBC_EXTERNAL_BASIC_TYPES)
 
+TIME_TYPES = {
+    "time_t": ALL_TYPES["__time_t"],
+    "struct timespec": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timespec",
+    ),
+    "struct timeval": SimStruct(
+        {
+            "tv_sec": ALL_TYPES["__time_t"],
+            "tv_usec": ALL_TYPES["long"],
+        },
+        "timeval",
+    ),
+}
+ALL_TYPES.update(TIME_TYPES)
+
 # TODO: switch to stl types declared in types_stl
 CXX_TYPES = {
     "string": SimTypeString(),
@@ -2948,17 +2971,6 @@ GLIBC_INTERNAL_TYPES.update(
                 # TODO: This should be architecture dependent
                 "tv_sec": ALL_TYPES["__time_t"],
                 "tv_usec": ALL_TYPES["__suseconds_t"],
-            },
-            name="timeval",
-        ),
-        # https://github.com/bminor/glibc/blob/a01a13601c95f5d111d25557656d09fe661cfc89/time/bits/types/struct_timespec.h#L11
-        "timespec": SimStruct(
-            {
-                # TODO: This should be architecture dependent
-                "tv_sec": ALL_TYPES["__time_t"],
-                "tv_nsec": ALL_TYPES["long int"],
-                # TODO: This should be architecture dependent (byte order)
-                "_pad0": ALL_TYPES["uint32_t"],
             },
             name="timeval",
         ),
@@ -3237,21 +3249,22 @@ GLIBC_TYPES = {
         },
         name="dirent64",
     ),
-    # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
+    # https://www.man7.org/linux/man-pages/man3/stat.3type.html
     "struct stat": SimStruct(
         {
-            "st_mode": ALL_TYPES["__mode_t"],
-            # TODO: This should be architecture dependent
-            "st_ino": ALL_TYPES["__ino_t"],
             "st_dev": ALL_TYPES["__dev_t"],
+            "st_ino": ALL_TYPES["__ino_t"],
+            "st_mode": ALL_TYPES["__mode_t"],
             "st_nlink": ALL_TYPES["__nlink_t"],
             "st_uid": ALL_TYPES["__uid_t"],
             "st_gid": ALL_TYPES["__gid_t"],
-            # TODO: This should be architecture dependent
+            "st_rdev": ALL_TYPES["__dev_t"],
             "st_size": ALL_TYPES["__off_t"],
-            "st_atime": ALL_TYPES["__time_t"],
-            "st_mtime": ALL_TYPES["__time_t"],
-            "st_ctime": ALL_TYPES["__time_t"],
+            "st_blksize": ALL_TYPES["__off_t"],
+            "st_blocks": ALL_TYPES["__off_t"],
+            "st_atim": ALL_TYPES["struct timespec"],
+            "st_mtim": ALL_TYPES["struct timespec"],
+            "st_ctim": ALL_TYPES["struct timespec"],
         },
         name="stat",
     ),
@@ -4459,21 +4472,5 @@ def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable
 if pycparser is not None:
     _accepts_scope_stack()
 
-with contextlib.suppress(ImportError):
-    register_types(
-        parse_types("""
-typedef long time_t;
-
-struct timespec {
-    time_t tv_sec;
-    long tv_nsec;
-};
-
-struct timeval {
-    time_t tv_sec;
-    long tv_usec;
-};
-""")
-    )
 
 from .state_plugins.view import SimMemView
