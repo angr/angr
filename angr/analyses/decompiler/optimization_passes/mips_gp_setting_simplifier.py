@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import logging
 
-import angr.ailment as ailment
-
+from angr import ailment
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
 _l = logging.getLogger(name=__name__)
@@ -18,7 +17,7 @@ class MipsGpSettingSimplifier(OptimizationPass):
     PLATFORMS = ["linux"]
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Remove MIPS $gp-setting statements"
-    DESCRIPTION = __doc__.strip()
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

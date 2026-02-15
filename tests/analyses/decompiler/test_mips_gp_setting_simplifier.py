@@ -35,6 +35,7 @@ class TestMipsGpSettingSimplifier(unittest.TestCase):
         dec = proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         code = dec.codegen.text
+        assert code is not None
 
         # The GP value (0x418ca0 = 4295840) should not appear in the decompiled output
         assert str(gp_value) not in code, (
@@ -66,6 +67,7 @@ class TestMipsGpSettingSimplifier(unittest.TestCase):
         dec = proj.analyses[Decompiler].prep()(func, cfg=cfg.model)
         assert dec.codegen is not None, f"Failed to decompile function {func!r}."
         code = dec.codegen.text
+        assert code is not None
 
         # The GP computation should not appear in the decompiled output.
         # The PIC pattern looks like: v0 = <offset> + vvar_5{r108|4b}
