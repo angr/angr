@@ -403,7 +403,7 @@ class FactCollector(Analysis):
                         if succ not in traversed:
                             successor_added = True
                             queue.append((depth + 1, state.copy(), succ, None))
-                    elif edge_type == "call" or (edge_type == "transition" and outside):
+                    elif edge_type in {"call", "syscall"} or (edge_type == "transition" and outside):
                         # a call or a tail-call
                         # note that it's ok to traverse a called function multiple times
                         if not isinstance(succ, FuncNode) and not self.kb.functions.contains_addr(succ.addr):
@@ -598,7 +598,7 @@ class FactCollector(Analysis):
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
                     if pred not in traversed and depth + 1 <= self._max_depth:
-                        if edge_type == "call":
+                        if edge_type in {"call", "syscall"}:
                             continue
                         if edge_type in {"transition", "fake_return"}:
                             queue.append((depth + 1, pred))
