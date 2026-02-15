@@ -38,12 +38,10 @@ class TestMipsGpSettingSimplifier(unittest.TestCase):
 
         # The GP value (0x418ca0 = 4295840) should not appear in the decompiled output
         assert str(gp_value) not in code, (
-            f"GP value {gp_value} ({hex(gp_value)}) should not appear in decompiled output.\n"
-            f"Decompiled code:\n{code}"
+            f"GP value {gp_value} ({hex(gp_value)}) should not appear in decompiled output.\nDecompiled code:\n{code}"
         )
         assert hex(gp_value) not in code, (
-            f"GP value {hex(gp_value)} should not appear in decompiled output.\n"
-            f"Decompiled code:\n{code}"
+            f"GP value {hex(gp_value)} should not appear in decompiled output.\nDecompiled code:\n{code}"
         )
 
         # Basic sanity: the decompiled output should still contain expected function calls
@@ -72,8 +70,7 @@ class TestMipsGpSettingSimplifier(unittest.TestCase):
         # The GP computation should not appear in the decompiled output.
         # The PIC pattern looks like: v0 = <offset> + vvar_5{r108|4b}
         assert "vvar_" not in code, (
-            f"GP computation (t9 + offset) should not appear in decompiled output.\n"
-            f"Decompiled code:\n{code}"
+            f"GP computation (t9 + offset) should not appear in decompiled output.\nDecompiled code:\n{code}"
         )
 
         # Basic sanity
