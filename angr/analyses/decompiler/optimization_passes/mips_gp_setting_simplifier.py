@@ -94,9 +94,8 @@ class MipsGpSettingSimplifier(OptimizationPass):
                         const_op = op
                     elif isinstance(op, ailment.Expr.VirtualVariable) and op.was_reg and op.reg_offset == t9_offset:
                         vvar_op = op
-                if const_op is not None and vvar_op is not None:
+                if const_op is not None and vvar_op is not None and self._func.addr + const_op.value == gp_value:
                     # Verify the offset matches: func_addr + offset == gp_value
-                    if self._func.addr + const_op.value == gp_value:
-                        return first_block, idx
+                    return first_block, idx
 
         return None
