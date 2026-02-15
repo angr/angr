@@ -828,6 +828,8 @@ class Decompiler(Analysis):
         if changed:
             self.codegen.regenerate_text()
 
+        self.llm_summarize_function(llm_client=llm_client, code_text=self.codegen.text)
+
         return changed
 
     def llm_suggest_variable_names(self, llm_client=None, code_text: str | None = None) -> bool:
