@@ -135,39 +135,40 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         return False
 
     def _try_find_arguments_struct(self, call: Call):
-        if call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[0])):
-            arg_value = self.get_terminal_vvar_value(arg_vvar)
-            def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
-            if isinstance(arg_value, Struct) and arg_value.name == "core::fmt::Arguments":
-                return arg_value, def_block, def_stmt
-            elif (
-                isinstance(arg_value, Call)
-                and isinstance(arg_value.target, Const)
-                and arg_value.target.value in self.project.kb.functions
-            ):
-                arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
-                func = self.project.kb.functions[arg_value.target.value]
-                clinic = self.project.kb.clinic_factory.get(func)
-                srda_mixin = SRDAMixin(func, clinic.graph, self.project)
-                fields = {}
-                for block in clinic.graph.nodes:
-                    for stmt in block.statements:
-                        if isinstance(stmt, Store):
-                            vvar, offset = extract_vvar_and_offset(stmt.addr)
-                            if vvar:
-                                data = stmt.data
-                                if isinstance(data, VirtualVariable):
-                                    data = srda_mixin.get_terminal_vvar_value(data) or data
-                                fields[offset] = data
-                for offset, data in fields.copy().items():
-                    if (
-                        isinstance(data, VirtualVariable)
-                        and data.was_parameter
-                        and data.varid - 1 < len(arg_value.args)
-                    ):
-                        fields[offset] = arg_value.args[data.varid - 1]
-                struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, arguments_ty)
-                return struct, def_block, def_stmt
+        for i in [0, 1]:
+            if call.args and len(call.args) > i and (arg_vvar := unwrap_stack_vvar_reference(call.args[i])):
+                arg_value = self.get_terminal_vvar_value(arg_vvar)
+                def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
+                if isinstance(arg_value, Struct) and arg_value.name == "core::fmt::Arguments":
+                    return arg_value, def_block, def_stmt
+                elif (
+                    isinstance(arg_value, Call)
+                    and isinstance(arg_value.target, Const)
+                    and arg_value.target.value in self.project.kb.functions
+                ):
+                    arguments_ty = self.project.kb.known_structs["core::fmt::Arguments"]
+                    func = self.project.kb.functions[arg_value.target.value]
+                    clinic = self.project.kb.clinic_factory.get(func)
+                    srda_mixin = SRDAMixin(func, clinic.graph, self.project)
+                    fields = {}
+                    for block in clinic.graph.nodes:
+                        for stmt in block.statements:
+                            if isinstance(stmt, Store):
+                                vvar, offset = extract_vvar_and_offset(stmt.addr)
+                                if vvar:
+                                    data = stmt.data
+                                    if isinstance(data, VirtualVariable):
+                                        data = srda_mixin.get_terminal_vvar_value(data) or data
+                                    fields[offset] = data
+                    for offset, data in fields.copy().items():
+                        if (
+                            isinstance(data, VirtualVariable)
+                            and data.was_parameter
+                            and data.varid - 1 < len(arg_value.args)
+                        ):
+                            fields[offset] = arg_value.args[data.varid - 1]
+                    struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, arguments_ty)
+                    return struct, def_block, def_stmt
         return None, None, None
 
     def _try_find_argument_structs(self, arguments_struct: Struct, arguments_def_block: Block, arguments_def_stmt):
