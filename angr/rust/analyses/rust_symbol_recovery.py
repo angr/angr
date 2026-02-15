@@ -20,10 +20,10 @@ class RustSymbolRecovery(Analysis):
 
     OPT_LEVELS = ["0", "1", "2", "3"]
 
-    def __init__(self, sig_dir=None):
+    def __init__(self, inline=False, sig_dir=None):
         super().__init__()
 
-        self.sig_dir = sig_dir or Path(__file__).parent / "flirt_sigs"
+        self.sig_dir = sig_dir or Path(__file__).parent / ("flirt_sigs_no_inline" if not inline else "flirt_sigs")
         self._cache = {}
         self.matched_count = 0
         self.rust_symbols = {}
@@ -124,22 +124,13 @@ class RustSymbolRecovery(Analysis):
         best_probe_idx = max(version_scores, key=lambda x: x[1])[0]
         l.info("Best probe version: %s at index %d", probe_sigs[best_probe_idx], best_probe_idx)
 
-        # Phase 2: Ternary search for best version
-        l.info("Phase 2: Ternary search for best version in O%s", probe_opt)
-        left, right = 0, len(probe_sigs) - 1
+        # Phase 2: Fine search around best probe region
+        left = max(0, best_probe_idx - step)
+        right = min(len(probe_sigs) - 1, best_probe_idx + step)
+        l.info("Phase 2: Fine search in range [%d, %d] around best probe", left, right)
 
-        while right - left > 3:
-            mid1 = left + (right - left) // 3
-            mid2 = right - (right - left) // 3
-            if self._cached_score(probe_sigs[mid1]) < self._cached_score(probe_sigs[mid2]):
-                left = mid1
-            else:
-                right = mid2
-
-        # Fine search in remaining range
-        l.info("Fine search in range [%d, %d]", left, right)
-        best_idx = left
-        best_score = self._cached_score(probe_sigs[left])
+        best_idx = best_probe_idx
+        best_score = self._cached_score(probe_sigs[best_probe_idx])
         for i in range(left, right + 1):
             s = self._cached_score(probe_sigs[i])
             if s > best_score:
