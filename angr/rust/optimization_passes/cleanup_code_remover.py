@@ -5,6 +5,7 @@ from angr.ailment.statement import Return, Label, Call
 from angr.rust.mixins import CFAMixin, CFGTransformationMixin, SRDAMixin
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.utils.ail import find_call, get_terminal_call
+from angr.rust.utils.demangler import demangle
 
 CLEANUP_FUNCTIONS = (
     "free",
@@ -48,10 +49,26 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
     def _should_remove(self, call):
         return self.match_call(call, CLEANUP_FUNCTIONS)
 
+    def _collect_type_hint(self, call):
+        name = self.get_call_target(call)
+        if name:
+            name = demangle(name)
+            struct_ty = None
+            if name.startswith("core::ptr::drop_in_place<") and name.endswith(">"):
+                type_str = name[len("core::ptr::drop_in_place<") : -1].replace(",", ", ")
+                struct_ty = self.project.kb.known_structs[type_str]
+            elif name.startswith("core::ops::drop::Drop::drop<") and name.endswith(">"):
+                type_str = name[len("core::ops::drop::Drop::drop<") : -1].replace(",", ", ")
+                struct_ty = self.project.kb.known_structs[type_str]
+            if struct_ty and call.args and isinstance(call.args[0], VirtualVariable):
+                self.project.kb.type_hints.add_type_hint(call.args[0], struct_ty)
+
     def _remove_cleanup_calls(self):
         blocks_to_remove = set()
         for block in self._graph.nodes:
-            if self._should_remove(get_terminal_call(block)):
+            call = get_terminal_call(block)
+            if self._should_remove(call):
+                self._collect_type_hint(call)
                 if isinstance(block.statements[-1], Return):
                     block.statements[-1].ret_exprs = []
                 elif not self._is_simple_block(block):

@@ -56,6 +56,14 @@ class CFAMixin:
             finder.walk_statement(stmt, block)
         return finder.call
 
+    def get_call_target(self, call: Call) -> Optional[str]:
+        if isinstance(call.target, str):
+            return call.target
+        elif isinstance(call.target, Const) and call.target.value in self._project.kb.functions:
+            func = self._project.kb.functions[call.target.value]
+            return func.name
+        return None
+
     def match_call(self, block_or_stmt, expected, monopolize=True, use_trait_name=True):
         stmt = self.terminal_call(block_or_stmt) if isinstance(block_or_stmt, Block) else block_or_stmt
         if isinstance(expected, str):
