@@ -1116,10 +1116,25 @@ class RustSwitchCase(RustStatement):
                 yield f"{id_or_ids}", self
                 yield " => {\n", None
             else:
-                for i, case_id in enumerate(id_or_ids):
-                    yield f"{case_id}", self
+                # fold consecutive case IDs into ranges
+                sorted_ids = sorted(id_or_ids)
+                ranges = []
+                start = end = sorted_ids[0]
+                for v in sorted_ids[1:]:
+                    if v == end + 1:
+                        end = v
+                    else:
+                        ranges.append((start, end))
+                        start = end = v
+                ranges.append((start, end))
+
+                for i, (rstart, rend) in enumerate(ranges):
+                    if rstart == rend:
+                        yield f"{rstart}", self
+                    else:
+                        yield f"{rstart}..={rend}", self
                     yield " ", None
-                    if i != len(id_or_ids) - 1:
+                    if i != len(ranges) - 1:
                         yield "| ", None
                 yield "=> {\n", None
             yield from case.c_repr_chunks(indent=indent + INDENT_DELTA * 2)
