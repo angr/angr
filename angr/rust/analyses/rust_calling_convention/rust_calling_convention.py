@@ -4,6 +4,7 @@ from typing import Tuple, List
 from collections import OrderedDict
 
 from angr.analyses.decompiler.clinic import ClinicStage
+from angr.analyses.decompiler.optimization_passes import CallStatementRewriter
 from angr.calling_conventions import default_cc
 from angr.ailment import Const
 from angr.ailment.block import Block
@@ -12,7 +13,7 @@ from angr.ailment.statement import Call
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins.functions import Function
 from angr.rust.optimization_passes.cleanup_code_remover import CleanupCodeRemover
-from angr.rust.optimization_passes.utils import extract_str_from_addr
+from angr.rust.optimization_passes.utils import extract_str, extract_str_from_addr
 from angr.rust.sim_type import (
     RustSimEnum,
     RustSimTypeOption,
@@ -84,14 +85,10 @@ class RustCallingConventionAnalysis(Analysis):
 
         if self.func.normalized and self.func.size:
             try:
-                # cfg = self.kb.cfgs.get_most_accurate()
-                # clinic = self.project.analyses.Clinic(
-                #     self.func,
-                #     cfg=cfg,
-                #     optimization_passes=[CleanupCodeRemover],
-                # )
                 clinic = self.project.kb.clinic_factory.get(
-                    self.func, optimization_passes=[CleanupCodeRemover], end_stage=ClinicStage.POST_CALLSITES
+                    self.func,
+                    optimization_passes=[CallStatementRewriter, CleanupCodeRemover],
+                    end_stage=ClinicStage.POST_CALLSITES,
                 )
                 if clinic:
                     self.graph = clinic.graph
@@ -157,9 +154,16 @@ class RustCallingConventionAnalysis(Analysis):
             or not self.model.has_write_to_arg0
             or self.is_call_expr is True
         ):
+            # const_ret_values is a set of (ret_value, overflow_ret_value|None) tuples
+            ret_values = {ret_value for ret_value, _ in self.model.const_ret_values}
+
+            # Heuristics: check if the return type is &str (ptr, len pair in two registers)
+            if self._is_str_ref_return():
+                return RustSimTypeStrRef().with_arch(self.project.arch), False
+
             # Heuristics: check if the return type could be Result<(), &str> (std::io::Result<()>)
-            if len(self.model.const_ret_values) == 2 and 0 in self.model.const_ret_values:
-                _, another_const = sorted(self.model.const_ret_values)
+            if len(ret_values) == 2 and 0 in ret_values:
+                _, another_const = sorted(ret_values)
                 error_msg = extract_str_from_addr(self.project, another_const)
                 if error_msg is not None:
                     ok_type = RustSimStruct(OrderedDict(), "()", True).with_arch(self.project.arch)
@@ -168,7 +172,7 @@ class RustCallingConventionAnalysis(Analysis):
                         self.project.arch
                     )
                     return result_ty, False
-            # 16-byte struct/enum returned via two registers (e.g., rax + rdx on x64)
+            # 16-byte struct/enum returned via two registers
             # Infer the return type based on const return values (discriminants) found across return sites:
             #   0 const values → plain struct (no discriminant, two register-sized fields)
             #   1 const value  → Option<T>, the const is None's discriminant
@@ -187,10 +191,10 @@ class RustCallingConventionAnalysis(Analysis):
                     name=f"struct{arch_bytes * 2}",
                     pack=True,
                 ).with_arch(self.project.arch)
-                if len(self.model.const_ret_values) == 0:
+                if len(ret_values) == 0:
                     return payload_ty, False
-                elif len(self.model.const_ret_values) == 1 and 0 in self.model.const_ret_values:
-                    none_discriminant = next(iter(self.model.const_ret_values))
+                elif len(ret_values) == 1 and 0 in ret_values:
+                    none_discriminant = next(iter(ret_values))
                     return (
                         RustSimTypeOption(
                             none_discriminant,
@@ -201,8 +205,8 @@ class RustCallingConventionAnalysis(Analysis):
                         ).with_arch(self.project.arch),
                         False,
                     )
-                elif len(self.model.const_ret_values) == 2:
-                    smaller, larger = sorted(self.model.const_ret_values)
+                elif len(ret_values) == 2:
+                    smaller, larger = sorted(ret_values)
                     payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
                     if larger - smaller == 1:
                         # Discriminants differ by 1 → Result<T, E>
@@ -217,18 +221,6 @@ class RustCallingConventionAnalysis(Analysis):
                             ).with_arch(self.project.arch),
                             False,
                         )
-                    # else:
-                    #     # Discriminants differ by >1 → Option<T>, smaller value is None's discriminant
-                    #     return (
-                    #         RustSimTypeOption(
-                    #             smaller,
-                    #             arch_bytes,
-                    #             payload_ty,
-                    #             None,
-                    #             0,
-                    #         ).with_arch(self.project.arch),
-                    #         False,
-                    #     )
             return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
@@ -256,6 +248,13 @@ class RustCallingConventionAnalysis(Analysis):
         if not returnty and candidates_and_paths:
             returnty = next(iter(sorted(candidates_and_paths, key=lambda item: item[0][0].size, reverse=True)))[0][0]
         return returnty, True
+
+    def _is_str_ref_return(self) -> bool:
+        """Check if const_ret_values contains a (str_ptr, str_len) pair indicating a &str return type."""
+        for ret_value, overflow_ret_value in self.model.const_ret_values:
+            if overflow_ret_value is not None and extract_str(self.project, ret_value, overflow_ret_value) is not None:
+                return True
+        return False
 
     def _infer_arg_type(self, arg_idx):
         memory_writes = self.model.memory_writes[arg_idx] | self.model.callsite_memory_writes[arg_idx]

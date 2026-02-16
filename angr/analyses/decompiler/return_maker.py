@@ -55,18 +55,33 @@ class ReturnMaker(AILGraphWalker):
                 )
             elif isinstance(ret_val, SimComboArg):
                 # TODO: we currently only support the first register in the combo, but we should support all of them
-                ret_val = ret_val.locations[0]
-                reg = self.arch.registers[ret_val.reg_name]
-                new_stmt.ret_exprs.append(
-                    ailment.Expr.Register(
-                        self._next_atom(),
-                        None,
-                        reg[0],
-                        ret_val.size * self.arch.byte_width,
-                        reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
-                        ins_addr=stmt.tags["ins_addr"],
-                    )
-                )
+                # ret_val = ret_val.locations[0]
+                # reg = self.arch.registers[ret_val.reg_name]
+                # new_stmt.ret_exprs.append(
+                #     ailment.Expr.Register(
+                #         self._next_atom(),
+                #         None,
+                #         reg[0],
+                #         ret_val.size * self.arch.byte_width,
+                #         reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
+                #         ins_addr=stmt.tags["ins_addr"],
+                #     )
+                # )
+                for ret_val in ret_val.locations:
+                    if isinstance(ret_val, SimRegArg):
+                        reg = self.arch.registers[ret_val.reg_name]
+                        new_stmt.ret_exprs.append(
+                            ailment.Expr.Register(
+                                self._next_atom(),
+                                None,
+                                reg[0],
+                                ret_val.size * self.arch.byte_width,
+                                reg_name=self.arch.translate_register_name(reg[0], ret_val.size),
+                                ins_addr=stmt.tags["ins_addr"],
+                            )
+                        )
+                    else:
+                        l.warning("Unsupported type of return expression %s.", type(ret_val))
             else:
                 l.warning("Unsupported type of return expression %s.", type(ret_val))
             return new_stmt
