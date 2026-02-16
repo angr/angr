@@ -291,7 +291,12 @@ class CFGModel(Serializable):
         self._blockid_to_blockkey.pop(block_id, None)
         self.graph.remove_node(node)
         # Only remove from _node_addrs if no other nodes exist at this address
-        if self._node_addrs is not None and isinstance(node.addr, int) and node.addr in self._node_addrs and not self.graph.has_node_addr(node.addr):
+        if (
+            self._node_addrs is not None
+            and isinstance(node.addr, int)
+            and node.addr in self._node_addrs
+            and not self.graph.has_node_addr(node.addr)
+        ):
             self._node_addrs.remove(node.addr)
 
     #
