@@ -177,20 +177,19 @@ class RustCallingConventionAnalysis(Analysis):
             #                                  (the other value is a concrete payload, not a discriminant)
             if self.func.prototype.returnty and self.func.prototype.returnty.size == self.project.arch.bits * 2:
                 arch_bytes = self.project.arch.bytes
-                payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
+                payload_ty = RustSimStruct(
+                    OrderedDict(
+                        {
+                            "field_0": RustSimTypeInt(self.project.arch.bits, signed=False),
+                            f"field_{arch_bytes}": RustSimTypeInt(self.project.arch.bits, signed=False),
+                        }
+                    ),
+                    name=f"struct{arch_bytes * 2}",
+                    pack=True,
+                ).with_arch(self.project.arch)
                 if len(self.model.const_ret_values) == 0:
-                    struct_ty = RustSimStruct(
-                        OrderedDict(
-                            {
-                                "field_0": RustSimTypeInt(self.project.arch.bits, signed=False),
-                                f"field_{arch_bytes}": RustSimTypeInt(self.project.arch.bits, signed=False),
-                            }
-                        ),
-                        name=f"struct{arch_bytes * 2}",
-                        pack=True,
-                    ).with_arch(self.project.arch)
-                    return struct_ty, False
-                elif len(self.model.const_ret_values) == 1:
+                    return payload_ty, False
+                elif len(self.model.const_ret_values) == 1 and 0 in self.model.const_ret_values:
                     none_discriminant = next(iter(self.model.const_ret_values))
                     return (
                         RustSimTypeOption(
@@ -204,6 +203,7 @@ class RustCallingConventionAnalysis(Analysis):
                     )
                 elif len(self.model.const_ret_values) == 2:
                     smaller, larger = sorted(self.model.const_ret_values)
+                    payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
                     if larger - smaller == 1:
                         # Discriminants differ by 1 → Result<T, E>
                         return (
