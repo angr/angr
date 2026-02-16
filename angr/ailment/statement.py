@@ -76,6 +76,7 @@ class Assignment(Statement):
 
 
 
+
     def likes(self, other):
         return type(other) is Assignment and self.dst.likes(other.dst) and self.src.likes(other.src)
 
