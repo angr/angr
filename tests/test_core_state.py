@@ -15,6 +15,8 @@ Core dumps are generated at test time (not committed to git):
   - crasher_qemu.core: QEMU-user core dump (trimmed to guest-only segments)
 """
 
+from __future__ import annotations
+
 import os
 import shutil
 import struct
@@ -555,9 +557,7 @@ class TestCoreStateQEMU(unittest.TestCase):
 
     def test_global_marker(self):
         """global_marker should be 0xBEEF (runtime value from guest memory)."""
-        val = self.state.solver.eval(
-            self.state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE")
-        )
+        val = self.state.solver.eval(self.state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE"))
         self.assertEqual(val, GLOBAL_MARKER_VAL)
 
     def test_symbols_available(self):
@@ -615,9 +615,7 @@ class TestCoreStateCrossCore(unittest.TestCase):
         val_seg = self.segfault_state.solver.eval(
             self.segfault_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE")
         )
-        val_gdb = self.gdb_state.solver.eval(
-            self.gdb_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE")
-        )
+        val_gdb = self.gdb_state.solver.eval(self.gdb_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE"))
         self.assertEqual(val_seg, val_gdb)
         self.assertEqual(val_seg, GLOBAL_MARKER_VAL)
 
@@ -637,20 +635,14 @@ class TestCoreStateCrossQEMU(unittest.TestCase):
         val_native = self.native_state.solver.eval(
             self.native_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE")
         )
-        val_qemu = self.qemu_state.solver.eval(
-            self.qemu_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE")
-        )
+        val_qemu = self.qemu_state.solver.eval(self.qemu_state.memory.load(GLOBAL_MARKER_ADDR, 4, endness="Iend_LE"))
         self.assertEqual(val_native, val_qemu)
         self.assertEqual(val_native, GLOBAL_MARKER_VAL)
 
     def test_text_matches_native(self):
         """QEMU and native cores should have the same .text content."""
-        native_byte = self.native_state.solver.eval(
-            self.native_state.memory.load(CRASH_ADDR, 1)
-        )
-        qemu_byte = self.qemu_state.solver.eval(
-            self.qemu_state.memory.load(CRASH_ADDR, 1)
-        )
+        native_byte = self.native_state.solver.eval(self.native_state.memory.load(CRASH_ADDR, 1))
+        qemu_byte = self.qemu_state.solver.eval(self.qemu_state.memory.load(CRASH_ADDR, 1))
         self.assertEqual(native_byte, qemu_byte)
 
 
