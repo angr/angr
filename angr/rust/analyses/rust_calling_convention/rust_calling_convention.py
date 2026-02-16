@@ -168,6 +168,67 @@ class RustCallingConventionAnalysis(Analysis):
                         self.project.arch
                     )
                     return result_ty, False
+            # 16-byte struct/enum returned via two registers (e.g., rax + rdx on x64)
+            # Infer the return type based on const return values (discriminants) found across return sites:
+            #   0 const values → plain struct (no discriminant, two register-sized fields)
+            #   1 const value  → Option<T>, the const is None's discriminant
+            #   2 const values, differ by 1 → Result<T, E>, smaller discriminant is Ok
+            #   2 const values, differ by >1 → Option<T>, smaller value is None's discriminant
+            #                                  (the other value is a concrete payload, not a discriminant)
+            if self.func.prototype.returnty and self.func.prototype.returnty.size == self.project.arch.bits * 2:
+                arch_bytes = self.project.arch.bytes
+                payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
+                if len(self.model.const_ret_values) == 0:
+                    struct_ty = RustSimStruct(
+                        OrderedDict(
+                            {
+                                "field_0": RustSimTypeInt(self.project.arch.bits, signed=False),
+                                f"field_{arch_bytes}": RustSimTypeInt(self.project.arch.bits, signed=False),
+                            }
+                        ),
+                        name=f"struct{arch_bytes * 2}",
+                        pack=True,
+                    ).with_arch(self.project.arch)
+                    return struct_ty, False
+                elif len(self.model.const_ret_values) == 1:
+                    none_discriminant = next(iter(self.model.const_ret_values))
+                    return (
+                        RustSimTypeOption(
+                            none_discriminant,
+                            arch_bytes,
+                            payload_ty,
+                            None,
+                            0,
+                        ).with_arch(self.project.arch),
+                        False,
+                    )
+                elif len(self.model.const_ret_values) == 2:
+                    smaller, larger = sorted(self.model.const_ret_values)
+                    if larger - smaller == 1:
+                        # Discriminants differ by 1 → Result<T, E>
+                        return (
+                            RustSimTypeResult(
+                                payload_ty,
+                                smaller,
+                                arch_bytes,
+                                payload_ty,
+                                larger,
+                                arch_bytes,
+                            ).with_arch(self.project.arch),
+                            False,
+                        )
+                    else:
+                        # Discriminants differ by >1 → Option<T>, smaller value is None's discriminant
+                        return (
+                            RustSimTypeOption(
+                                smaller,
+                                arch_bytes,
+                                payload_ty,
+                                None,
+                                0,
+                            ).with_arch(self.project.arch),
+                            False,
+                        )
             return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
