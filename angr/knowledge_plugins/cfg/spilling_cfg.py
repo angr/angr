@@ -698,22 +698,12 @@ class SpillingCFG:
 
     def remove_node(self, node: CFGNode) -> None:
         block_key = self._get_block_key(node)
-        # Check if the stored node is the same as the one being removed
-        # If a different node with the same block_id exists (replacement happened),
-        # don't remove from the graph to preserve edges
-        should_remove_from_graph = True
         if block_key in self._nodes:
-            stored_node = self._nodes[block_key]
-            if stored_node is not node:
-                # A replacement happened - don't remove from graph
-                should_remove_from_graph = False
-            else:
-                del self._nodes[block_key]
-                self._keys_by_addr[node.addr].discard(block_key)
-                if not self._keys_by_addr[node.addr]:
-                    del self._keys_by_addr[node.addr]
-
-        if should_remove_from_graph and block_key in self._graph:
+            del self._nodes[block_key]
+        self._keys_by_addr[node.addr].discard(block_key)
+        if not self._keys_by_addr.get(node.addr):
+            self._keys_by_addr.pop(node.addr, None)
+        if block_key in self._graph:
             self._graph.remove_node(block_key)
 
     def has_node(self, node: CFGNode) -> bool:
