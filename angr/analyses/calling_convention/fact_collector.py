@@ -382,7 +382,7 @@ class FactCollector(Analysis):
                 else:
                     # enqueue the retnode, but we don't increment the depth
                     new_state = state.copy()
-                    if self.project.arch.call_pushes_ret:
+                    if self.project.arch.call_pushes_ret and not func.is_syscall:
                         new_state.sp_value += self.project.arch.bytes
                     queue.append((depth, new_state, retnode, None))
                 continue
