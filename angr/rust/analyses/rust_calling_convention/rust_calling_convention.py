@@ -217,18 +217,18 @@ class RustCallingConventionAnalysis(Analysis):
                             ).with_arch(self.project.arch),
                             False,
                         )
-                    else:
-                        # Discriminants differ by >1 → Option<T>, smaller value is None's discriminant
-                        return (
-                            RustSimTypeOption(
-                                smaller,
-                                arch_bytes,
-                                payload_ty,
-                                None,
-                                0,
-                            ).with_arch(self.project.arch),
-                            False,
-                        )
+                    # else:
+                    #     # Discriminants differ by >1 → Option<T>, smaller value is None's discriminant
+                    #     return (
+                    #         RustSimTypeOption(
+                    #             smaller,
+                    #             arch_bytes,
+                    #             payload_ty,
+                    #             None,
+                    #             0,
+                    #         ).with_arch(self.project.arch),
+                    #         False,
+                    #     )
             return self.func.prototype.returnty, False
 
         memory_writes = self.model.memory_writes[0]
