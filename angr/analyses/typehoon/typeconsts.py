@@ -98,6 +98,13 @@ class Int32(Int):
         return "int32"
 
 
+class Fd(Int):
+    SIZE = 4
+
+    def __repr__(self, memo=None) -> str:
+        return "fd"
+
+
 class Int64(Int):
     SIZE = 8
 

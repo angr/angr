@@ -115,29 +115,31 @@ class FindCallsTo(AILBlockViewer):
 
     def __init__(self, *args, target: str | int, **kwargs):
         super().__init__(*args, **kwargs)
-        self.found_calls: list[tuple[ailment.Block, int, ailment.statement.Call]] = []
+        self.found_calls: list[tuple[ailment.Block, int, ailment.statement.SideEffectStatement]] = []
         self.target = target
 
-    def _handle_Call(self, stmt_idx: int, stmt: ailment.statement.Call, block: ailment.Block | None):
+    def _handle_SideEffectStatement(
+        self, stmt_idx: int, stmt: ailment.statement.SideEffectStatement, block: ailment.Block | None
+    ):
         # if I try to make this more readable, pre-commit changes it back to this nonsense...
         # pylint: disable=too-many-boolean-expressions
         if (
-            (isinstance(self.target, str) and stmt.target == self.target)
+            (isinstance(self.target, str) and stmt.expr.target == self.target)
             or (
                 isinstance(self.target, int)
-                and isinstance(stmt.target, ailment.expression.Const)
-                and stmt.target.value == self.target
+                and isinstance(stmt.expr.target, ailment.expression.Const)
+                and stmt.expr.target.value == self.target
             )
             or (
                 isinstance(self.target, sim_type.SimType)
-                and stmt.prototype is not None
-                and stmt.prototype.returnty == self.target
+                and stmt.expr.prototype is not None
+                and stmt.expr.prototype.returnty == self.target
             )
         ):
             assert block is not None
             self.found_calls.append((block, stmt_idx, stmt))
 
-        return super()._handle_Call(stmt_idx, stmt, block)
+        return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_CallExpr(
         self,

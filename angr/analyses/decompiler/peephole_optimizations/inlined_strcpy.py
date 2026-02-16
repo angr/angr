@@ -4,8 +4,8 @@ import string
 
 from archinfo import Endness
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store, Statement
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, UnaryOp
+from angr.ailment.statement import Assignment, Store, Statement, SideEffectStatement
 
 from angr import SIM_LIBRARIES
 from angr.utils.endness import ail_const_to_be
@@ -71,15 +71,19 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
 
                 # replace it with a call to strncpy
                 str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                return Call(
+                return SideEffectStatement(
                     stmt.idx,
-                    "strncpy",
-                    args=[
-                        strcpy_dst,
-                        Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                        Const(None, None, len(s), self.project.arch.bits),
-                    ],
-                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                    Call(
+                        stmt.idx,
+                        "strncpy",
+                        args=[
+                            strcpy_dst,
+                            Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                            Const(None, None, len(s), self.project.arch.bits),
+                        ],
+                        prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                        **stmt.tags,
+                    ),
                     **stmt.tags,
                 )
 
@@ -125,15 +129,19 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
                         block.statements = [ss for ss in block.statements if ss is not None]
 
                         str_id = self.kb.custom_strings.allocate(s.encode("ascii"))
-                        return Call(
+                        return SideEffectStatement(
                             stmt.idx,
-                            "strncpy",
-                            args=[
-                                strcpy_dst,
-                                Const(None, None, str_id, self.project.arch.bits, custom_string=True),
-                                Const(None, None, len(s), self.project.arch.bits),
-                            ],
-                            prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                            Call(
+                                stmt.idx,
+                                "strncpy",
+                                args=[
+                                    strcpy_dst,
+                                    Const(None, None, str_id, self.project.arch.bits, custom_string=True),
+                                    Const(None, None, len(s), self.project.arch.bits),
+                                ],
+                                prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("strncpy", arch=self.project.arch),
+                                **stmt.tags,
+                            ),
                             **stmt.tags,
                         )
 
@@ -215,11 +223,11 @@ class InlinedStrcpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_strcpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
-            and isinstance(stmt.target, str)
-            and stmt.target == "strncpy"
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and "custom_string" in stmt.args[1].tags
+            isinstance(stmt, SideEffectStatement)
+            and isinstance(stmt.expr.target, str)
+            and stmt.expr.target == "strncpy"
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], Const)
+            and "custom_string" in stmt.expr.args[1].tags
         )

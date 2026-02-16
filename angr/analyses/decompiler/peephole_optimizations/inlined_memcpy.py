@@ -1,8 +1,8 @@
 # pylint:disable=arguments-differ
 from __future__ import annotations
 
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
-from angr.ailment.statement import Call, Assignment, Store
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable, Load, UnaryOp
+from angr.ailment.statement import Assignment, Store, SideEffectStatement
 from angr import SIM_LIBRARIES
 from .base import PeepholeOptimizationStmtBase
 
@@ -64,15 +64,19 @@ class InlinedMemcpy(PeepholeOptimizationStmtBase):
             assert dst_offset is not None and src_offset is not None and store_size is not None
             # replace it with a call to memcpy
             assert self.project is not None
-            return Call(
+            return SideEffectStatement(
                 stmt.idx,
-                "memcpy",
-                args=[
-                    StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
-                    StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
-                    Const(self.manager.next_atom(), None, store_size, self.project.arch.bits),
-                ],
-                prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
+                Call(
+                    stmt.idx,
+                    "memcpy",
+                    args=[
+                        StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, dst_offset),
+                        StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, src_offset),
+                        Const(self.manager.next_atom(), None, store_size, self.project.arch.bits),
+                    ],
+                    prototype=SIM_LIBRARIES["libc.so"][0].get_prototype("memcpy", arch=self.project.arch),
+                    **stmt.tags,
+                ),
                 **stmt.tags,
             )
 

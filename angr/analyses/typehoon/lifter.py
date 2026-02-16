@@ -17,6 +17,7 @@ from angr.sim_type import (
     SimCppClass,
     SimTypeEnum,
     SimTypeWideChar,
+    SimTypeFd,
 )
 from .typeconsts import (
     BottomType,
@@ -31,6 +32,7 @@ from .typeconsts import (
     Float32,
     Float64,
     Enum,
+    Fd,
 )
 
 if TYPE_CHECKING:
@@ -146,6 +148,9 @@ class TypeLifter:
             name=ty.name,
         )
 
+    def _lift_SimTypeFd(self, ty: SimTypeFd) -> Fd:  # pylint:disable=no-self-use
+        return Fd(name=ty.label)
+
 
 _mapping = {
     SimTypeChar: TypeLifter._lift_SimTypeChar,
@@ -161,4 +166,5 @@ _mapping = {
     SimTypeFloat: TypeLifter._lift_SimTypeFloat,
     SimTypeDouble: TypeLifter._lift_SimTypeDouble,
     SimTypeEnum: TypeLifter._lift_SimTypeEnum,
+    SimTypeFd: TypeLifter._lift_SimTypeFd,
 }

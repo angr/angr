@@ -609,5 +609,106 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
             self.proj.llm_client = None
 
 
+class TestDecompilerLLMSummarizeFunction(TestDecompilerLLMRefineBase):
+    """Tests for llm_summarize_function."""
+
+    def test_returns_summary(self):
+        """Should return a summary string from the LLM."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.return_value = "This function authenticates a user by reading credentials."
+
+        result = dec.llm_summarize_function(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result == "This function authenticates a user by reading credentials."
+        mock_client.completion.assert_called_once()
+
+    def test_stores_summary_in_cache(self):
+        """Should store the summary in the DecompilationCache."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+        assert dec.cache is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.return_value = "This function does something useful."
+
+        result = dec.llm_summarize_function(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result == "This function does something useful."
+        assert dec.cache.function_summary == "This function does something useful."
+
+    def test_returns_none_when_no_client(self):
+        """Should return None when no LLM client is available."""
+        dec = self._decompile("main")
+        self.proj.llm_client = None
+        result = dec.llm_summarize_function()
+        assert result is None
+
+    def test_returns_none_when_no_codegen(self):
+        """Should return None when no decompiled text is available."""
+        dec = self._decompile("main")
+        dec.codegen = None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        result = dec.llm_summarize_function(llm_client=mock_client)
+        assert result is None
+        mock_client.completion.assert_not_called()
+
+    def test_returns_none_on_empty_response(self):
+        """Should return None when the LLM returns an empty string."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.return_value = ""
+
+        result = dec.llm_summarize_function(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result is None
+
+    def test_returns_none_on_llm_exception(self):
+        """Should return None and not raise when the LLM call fails."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.side_effect = RuntimeError("LLM exploded")
+
+        result = dec.llm_summarize_function(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result is None
+
+    def test_strips_whitespace_from_summary(self):
+        """Should strip leading/trailing whitespace from the summary."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.return_value = "  \n  A summary with whitespace.  \n  "
+
+        result = dec.llm_summarize_function(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result == "A summary with whitespace."
+
+    def test_cache_summary_initially_none(self):
+        """The function_summary field should be None before summarization."""
+        dec = self._decompile("main")
+        assert dec.cache is not None
+        assert dec.cache.function_summary is None
+
+    def test_uses_project_llm_client_by_default(self):
+        """Should use the project's LLM client when none is explicitly passed."""
+        dec = self._decompile("main")
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        mock_client = mock.MagicMock(spec=LLMClient)
+        mock_client.completion.return_value = "A summary."
+
+        try:
+            self.proj.llm_client = mock_client
+            result = dec.llm_summarize_function()
+            assert result == "A summary."
+            mock_client.completion.assert_called_once()
+        finally:
+            self.proj.llm_client = None
+
+
 if __name__ == "__main__":
     unittest.main()

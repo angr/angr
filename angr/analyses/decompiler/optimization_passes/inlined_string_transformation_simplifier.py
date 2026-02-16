@@ -408,7 +408,7 @@ class InlinedStringTransformationAILEngine(
     def _handle_binop_CmpORD(self, expr):
         return None
 
-    def _handle_stmt_Call(self, stmt):
+    def _handle_stmt_SideEffectStatement(self, stmt):
         pass
 
     def _handle_expr_Call(self, expr):
