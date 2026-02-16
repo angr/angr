@@ -29,7 +29,7 @@ class TestAPIObfFinder(TestCase):
         proj.analyses.CompleteCallingConventions()
 
         # it will update kb.obfuscations
-        finder = proj.analyses.APIObfuscationFinder()
+        finder = proj.analyses.APIObfuscationFinder(fail_fast=True)
         assert finder.type1_candidates
         assert proj.kb.obfuscations.type1_deobfuscated_apis == {
             0x40A030: ("Advapi32.dll", "AllocateAndInitializeSid"),
