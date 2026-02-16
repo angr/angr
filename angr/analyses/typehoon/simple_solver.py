@@ -53,6 +53,7 @@ from .typeconsts import (
     Float32,
     Float64,
     Enum,
+    Fd,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -78,6 +79,7 @@ Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
 Enum_ = Enum()
+Fd_ = Fd()
 
 
 PRIMITIVE_TYPES = {
@@ -99,6 +101,7 @@ PRIMITIVE_TYPES = {
     Float32_,
     Float64_,
     Enum_,
+    Fd_,
 }
 
 
@@ -122,6 +125,8 @@ BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
 BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Enum_)
 BASE_LATTICE_64.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Fd_)
+BASE_LATTICE_64.add_edge(Fd_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
@@ -143,6 +148,8 @@ BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
 BASE_LATTICE_32.add_edge(Int32_, Enum_)
 BASE_LATTICE_32.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Fd_)
+BASE_LATTICE_64.add_edge(Fd_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,

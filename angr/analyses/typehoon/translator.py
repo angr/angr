@@ -187,6 +187,9 @@ class TypeTranslator:
             base_type=base_simtype,
         ).with_arch(self.arch)
 
+    def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimTypeFd:
+        return sim_type.SimTypeFd(label=tc.name).with_arch(self.arch)
+
     #
     # Backpatching
     #
@@ -278,6 +281,9 @@ class TypeTranslator:
             name=st.name,
         )
 
+    def _translate_SimTypeFd(self, st: sim_type.SimTypeFd) -> typeconsts.Fd:
+        return typeconsts.Fd(name=st.label)
+
 
 TypeConstHandlers = {
     typeconsts.Pointer64: TypeTranslator._translate_Pointer64,
@@ -295,6 +301,7 @@ TypeConstHandlers = {
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
     typeconsts.Float32: TypeTranslator._translate_Float32,
     typeconsts.Float64: TypeTranslator._translate_Float64,
+    typeconsts.Fd: TypeTranslator._translate_Fd,
 }
 
 
@@ -314,4 +321,5 @@ SimTypeHandlers = {
     sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
     sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
     sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
+    sim_type.SimTypeFd: TypeTranslator._translate_SimTypeFd,
 }

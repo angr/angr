@@ -118,7 +118,7 @@ class APIObfuscationFinder(Analysis):
         )
 
     def _hash_lookup_api_deobfuscator_lifter(self, func):
-        d = self.project.analyses.Decompiler(func)
+        d = self.project.analyses.Decompiler(func, fail_fast=self._fail_fast)
         assert d.clinic is not None
         return d.clinic
 

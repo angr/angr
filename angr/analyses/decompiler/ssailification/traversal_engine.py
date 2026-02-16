@@ -133,10 +133,18 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         # sketchy situation. we want to make sure everything in the extern set
         # has exactly the same extents if they overlap at all. this is sorta a redo
         # of the unify code.
-        mapping: defaultdict[int, set[Def]] = defaultdict(set)
+        reg_mapping: defaultdict[int, set[Def]] = defaultdict(set)
+        stack_mapping: defaultdict[int, set[Def]] = defaultdict(set)
         for def_, definfo in self.def_info.items():
-            if definfo.kind != "stack" or not definfo.loc.is_extern:
+            if not definfo.loc.is_extern:
                 continue
+            match definfo.kind:
+                case "stack":
+                    mapping = stack_mapping
+                case "reg":
+                    mapping = reg_mapping
+                case _:
+                    raise ValueError(f"Unsupported def kind {definfo.kind} in finalize")
             for suboffset in definfo.variable_range:
                 mapping[suboffset].add(def_)
 
@@ -150,20 +158,21 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 definfo.variable_offset = current_extent[0]
                 definfo.variable_size = size2
 
-        for offset in sorted(mapping):
-            for def_ in mapping[offset]:
-                definfo = self.def_info[def_]
+        for mapping in [reg_mapping, stack_mapping]:
+            for offset in sorted(mapping):
+                for def_ in mapping[offset]:
+                    definfo = self.def_info[def_]
 
-                if definfo.variable_offset >= current_extent[1] or current_extent[0] == current_extent[1]:
-                    flush()
-                    current_defs.clear()
-                    current_extent = definfo.variable_offset, definfo.variable_endoffset
+                    if definfo.variable_offset >= current_extent[1] or current_extent[0] == current_extent[1]:
+                        flush()
+                        current_defs.clear()
+                        current_extent = definfo.variable_offset, definfo.variable_endoffset
 
-                current_defs.add(def_)
-                current_extent = (
-                    min(current_extent[0], definfo.variable_offset),
-                    max(current_extent[1], definfo.variable_endoffset),
-                )
+                    current_defs.add(def_)
+                    current_extent = (
+                        min(current_extent[0], definfo.variable_offset),
+                        max(current_extent[1], definfo.variable_endoffset),
+                    )
         flush()
 
     def _acodeloc(self):
