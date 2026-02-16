@@ -2,9 +2,9 @@ from __future__ import annotations
 import logging
 
 from angr.ailment import Statement, Block, Assignment, BinaryOp
-from angr.ailment.expression import Const, VirtualVariable, Load
+from angr.ailment.expression import Call, Const, VirtualVariable, Load
 from angr.ailment.block_walker import AILBlockViewer, AILBlockRewriter
-from angr.ailment.statement import Call
+from angr.ailment.statement import SideEffectStatement
 from angr.sim_type import SimTypeWideChar, SimTypeChar, SimTypePointer
 from angr.utils.graph import GraphUtils
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -185,8 +185,6 @@ class VVarRewritingVisitor(AILBlockRewriter):
                     calling_convention=expr.calling_convention,
                     prototype=expr.prototype,
                     args=new_args,
-                    ret_expr=expr.ret_expr,
-                    fp_ret_expr=expr.fp_ret_expr,
                     bits=expr.bits,
                     **expr.tags,
                 )
@@ -224,7 +222,7 @@ class VVarAliasVisitor(AILBlockViewer):
     def _handle_Const(self, expr_idx: int, expr: Const, stmt_idx: int, stmt: Statement, block: Block | None):
         return Offset(expr.value, expr.bits)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
         if (
             stmt.target == "memcpy"
             and isinstance(stmt.args[0], VirtualVariable)
@@ -240,12 +238,12 @@ class VVarAliasVisitor(AILBlockViewer):
                     fixed_buffer = FixedBuffer(ident, size.value_int, buf)
                 else:
                     # TODO: Support other cases
-                    return super()._handle_Call(stmt_idx, stmt, block)
+                    return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
                 if ident not in self._static_buffers:
                     self._static_buffers[ident] = fixed_buffer
                 self._static_vvars[dst.varid] = FixedBufferPtr(ident, 0)
 
-        return super()._handle_Call(stmt_idx, stmt, block)
+        return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
         op0 = self._handle_expr(0, expr.operands[0], stmt_idx, stmt, block)

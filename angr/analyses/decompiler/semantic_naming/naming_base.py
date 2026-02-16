@@ -12,8 +12,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 import logging
 
-from angr.ailment.statement import Call
-from angr.ailment.expression import Const
+from angr.ailment.expression import Call, Const
 from angr.sim_variable import SimVariable
 
 if TYPE_CHECKING:

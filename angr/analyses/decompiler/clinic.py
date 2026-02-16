@@ -431,9 +431,11 @@ class Clinic(Analysis):
     def _inline_child_functions(self, ail_graph):
         for blk in ail_graph.nodes():
             for idx, stmt in enumerate(blk.statements):
-                if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+                if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                    stmt.expr.target, ailment.Expr.Const
+                ):
                     assert self.function._function_manager is not None
-                    callee = self.function._function_manager.function(stmt.target.value)
+                    callee = self.function._function_manager.function(stmt.expr.target.value)
                     if (
                         callee is None
                         or callee.addr == self.function.addr
@@ -1161,7 +1163,7 @@ class Clinic(Analysis):
                         if callsite_ail_block is not None and callsite_ail_block.statements:
                             last_stmt = callsite_ail_block.statements[-1]
                             if (
-                                isinstance(last_stmt, ailment.Stmt.Call)
+                                isinstance(last_stmt, ailment.Stmt.SideEffectStatement)
                                 and last_stmt.ret_expr is None
                                 and isinstance(cc.cc.RETURN_VAL, SimRegArg)
                             ):
@@ -1324,7 +1326,9 @@ class Clinic(Analysis):
             if not block.statements:
                 continue
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.Call) and not isinstance(last_stmt.target, ailment.Expr.Const):
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and not isinstance(
+                last_stmt.expr.target, ailment.Expr.Const
+            ):
                 # indirect call
                 # consult CFG to see if this is a call with a single successor
                 node = self._cfg.get_any_node(block.addr)
@@ -1341,10 +1345,12 @@ class Clinic(Analysis):
                         self.project.hooked_by(successors[0].addr), UnresolvableCallTarget
                     ):
                         # found a single successor - replace the last statement
-                        assert isinstance(last_stmt.target, ailment.Expr.Expression)  # not a string
+                        assert isinstance(last_stmt.expr.target, ailment.Expr.Expression)  # not a string
                         new_last_stmt = last_stmt.copy()
                         assert isinstance(successors[0].addr, int)
-                        new_last_stmt.target = ailment.Expr.Const(None, None, successors[0].addr, last_stmt.target.bits)
+                        new_last_stmt.expr.target = ailment.Expr.Const(
+                            None, None, successors[0].addr, last_stmt.expr.target.bits
+                        )
                         block.statements[-1] = new_last_stmt
 
             elif isinstance(last_stmt, ailment.Stmt.Jump) and not isinstance(last_stmt.target, ailment.Expr.Const):
@@ -1403,11 +1409,15 @@ class Clinic(Analysis):
                 else:
                     ret_expr = None
 
-                call_stmt = ailment.Stmt.Call(
+                call_stmt = ailment.Stmt.SideEffectStatement(
                     None,
-                    target.copy(),
-                    calling_convention=None,  # target_func.calling_convention,
-                    prototype=None,  # target_func.prototype,
+                    ailment.Expr.Call(
+                        None,
+                        target.copy(),
+                        calling_convention=None,  # target_func.calling_convention,
+                        prototype=None,  # target_func.prototype,
+                        **last_stmt.tags,
+                    ),
                     ret_expr=ret_expr,
                     **last_stmt.tags,
                 )
@@ -1434,8 +1444,10 @@ class Clinic(Analysis):
         """
         for block in list(ail_graph.nodes()):
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
-                target = last_stmt.target.value
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                last_stmt.expr.target, ailment.Expr.Const
+            ):
+                target = last_stmt.expr.target.value
             else:
                 continue
 
@@ -1453,16 +1465,20 @@ class Clinic(Analysis):
                     **last_stmt.tags,
                 )
                 IntCls = SimTypeInt if self.project.arch.bits == 32 else SimTypeLongLong
-                call_stmt = ailment.Stmt.Call(
+                call_stmt = ailment.Stmt.SideEffectStatement(
                     None,
-                    last_stmt.target.copy(),
-                    calling_convention=SimCCUsercall(self.project.arch, [arg], []),
-                    prototype=SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(
-                        self.project.arch
+                    ailment.Expr.Call(
+                        None,
+                        last_stmt.expr.target.copy(),
+                        calling_convention=SimCCUsercall(self.project.arch, [arg], []),
+                        prototype=SimTypeFunction([IntCls(signed=False)], SimTypeBottom(label="void")).with_arch(
+                            self.project.arch
+                        ),
+                        args=[arg_expr],
+                        is_prototype_guessed=False,
+                        **last_stmt.tags,
                     ),
-                    args=[arg_expr],
                     ret_expr=None,
-                    is_prototype_guessed=False,
                     **last_stmt.tags,
                 )
                 block.statements[-1] = call_stmt
@@ -1475,11 +1491,11 @@ class Clinic(Analysis):
                 continue
 
             last_stmt = block.statements[-1]
-            if not isinstance(last_stmt, ailment.Stmt.Call):
+            if not isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
                 continue
 
-            cc = last_stmt.calling_convention
-            prototype = last_stmt.prototype
+            cc = last_stmt.expr.calling_convention
+            prototype = last_stmt.expr.prototype
             if cc and prototype:
                 continue
 
@@ -1495,8 +1511,8 @@ class Clinic(Analysis):
             func = None
             if cc is None or prototype is None:
                 target = None
-                if isinstance(last_stmt.target, ailment.Expr.Const):
-                    target = last_stmt.target.value
+                if isinstance(last_stmt.expr.target, ailment.Expr.Const):
+                    target = last_stmt.expr.target.value
 
                 if target is not None and target in self.kb.functions:
                     # function-specific logic when the calling target is known
@@ -1523,8 +1539,8 @@ class Clinic(Analysis):
                 l.warning("Call site %#x (callee %s) has an unknown calling convention.", block.addr, repr(func))
 
             new_last_stmt = last_stmt.copy()
-            new_last_stmt.calling_convention = cc
-            new_last_stmt.prototype = prototype
+            new_last_stmt.expr.calling_convention = cc
+            new_last_stmt.expr.prototype = prototype
             new_last_stmt.tags["is_prototype_guessed"] = True
             if func is not None:
                 new_last_stmt.tags["is_prototype_guessed"] = func.is_prototype_guessed
@@ -2236,8 +2252,12 @@ class Clinic(Analysis):
             elif stmt_type is ailment.Stmt.Jump and not isinstance(stmt.target, ailment.Expr.Const):
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
 
-            elif stmt_type is ailment.Stmt.Call:
-                self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False)
+            elif stmt_type is ailment.Stmt.SideEffectStatement:
+                self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.expr)
+                if stmt.ret_expr:
+                    self._link_variables_on_expr(
+                        variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr
+                    )
 
             elif stmt_type is ailment.Stmt.Return:
                 assert isinstance(stmt, ailment.Stmt.Return)
@@ -2250,14 +2270,20 @@ class Clinic(Analysis):
             for ret_expr in stmt.ret_exprs:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, ret_expr)
 
-    def _link_variables_on_call(self, variable_manager, global_variables, block, stmt_idx, stmt, is_expr=False):
-        if not isinstance(stmt.target, ailment.Expr.Const):
-            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.target)
-        if stmt.args:
-            for arg in stmt.args:
+    def _link_variables_on_call(
+        self,
+        variable_manager,
+        global_variables,
+        block,
+        stmt_idx,
+        stmt,
+        call_expr: ailment.expression.Call,
+    ):
+        if not isinstance(call_expr.target, ailment.Expr.Const):
+            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, call_expr.target)
+        if call_expr.args:
+            for arg in call_expr.args:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
-        if not is_expr and stmt.ret_expr:
-            self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, stmt.ret_expr)
 
     def _link_variables_on_expr(
         self, variable_manager: VariableManagerInternal, global_variables, block, stmt_idx, stmt, expr
@@ -2420,8 +2446,8 @@ class Clinic(Analysis):
                         expr.variable = var
                         expr.variable_offset = offset
 
-        elif isinstance(expr, ailment.Stmt.Call):
-            self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, expr, is_expr=True)
+        elif isinstance(expr, ailment.Expr.Call):
+            self._link_variables_on_call(variable_manager, global_variables, block, stmt_idx, stmt, expr)
 
         elif isinstance(expr, ailment.Expr.VEXCCallExpression):
             for operand in expr.operands:
@@ -2529,7 +2555,7 @@ class Clinic(Analysis):
                 continue
             assert block.addr is not None
             last_stmt = block.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.Call):
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement):
                 # we can't examine the call target at this point because constant propagation hasn't run yet; we consult
                 # the CFG instead
                 callsite_node = self._cfg.get_any_node(block.addr, anyaddr=True)
@@ -2544,7 +2570,7 @@ class Clinic(Analysis):
                     if callee_func.info.get("jmp_rax", False) is True:
                         # rewrite this statement into Call(rax)
                         call_stmt = last_stmt.copy()
-                        call_stmt.target = ailment.Expr.Register(
+                        call_stmt.expr.target = ailment.Expr.Register(
                             self._ail_manager.next_atom(),
                             None,
                             self.project.arch.registers["rax"][0],
@@ -3443,10 +3469,12 @@ class Clinic(Analysis):
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
             last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                last_stmt.expr.target, ailment.Expr.Const
+            ):
                 func = (
-                    self.project.kb.functions.get_by_addr(last_stmt.target.value)
-                    if self.project.kb.functions.contains_addr(last_stmt.target.value)
+                    self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
+                    if self.project.kb.functions.contains_addr(last_stmt.expr.target.value)
                     else None
                 )
                 if func is not None and func.info.get("is_rust_probestack", False) is True:
@@ -3482,10 +3510,12 @@ class Clinic(Analysis):
             if not node.statements or ail_graph.out_degree[node] != 1:
                 continue
             last_stmt = node.statements[-1]
-            if isinstance(last_stmt, ailment.Stmt.Call) and isinstance(last_stmt.target, ailment.Expr.Const):
+            if isinstance(last_stmt, ailment.Stmt.SideEffectStatement) and isinstance(
+                last_stmt.expr.target, ailment.Expr.Const
+            ):
                 func = (
-                    self.project.kb.functions.get_by_addr(last_stmt.target.value)
-                    if self.project.kb.functions.contains_addr(last_stmt.target.value)
+                    self.project.kb.functions.get_by_addr(last_stmt.expr.target.value)
+                    if self.project.kb.functions.contains_addr(last_stmt.expr.target.value)
                     else None
                 )
                 if func is not None and (func.name == "__chkstk" or func.info.get("is_alloca_probe", False) is True):
@@ -3569,7 +3599,11 @@ class Clinic(Analysis):
         if alloca_node is not None and sp_equal_to is not None:
             stmt0 = alloca_node.statements[1]
             statements: list[ailment.Statement] = [
-                ailment.Stmt.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags)
+                ailment.Stmt.SideEffectStatement(
+                    stmt0.idx,
+                    ailment.Expr.Call(stmt0.idx, "alloca", args=[sp_equal_to], **stmt0.tags),
+                    **stmt0.tags,
+                )
             ]
             new_node = ailment.Block(alloca_node.addr, alloca_node.original_size, statements=statements)
             # replace the node
@@ -3587,17 +3621,24 @@ class Clinic(Analysis):
         variables = self.variable_kb.variables[self.function.addr]
         func_proto_candidates: defaultdict[int, list[tuple[list[SimType | None], SimType | None]]] = defaultdict(list)
 
-        def _handle_Call_stmt_or_expr(call_: ailment.Stmt.Call):
+        # pylint:disable=unused-argument
+        def _handle_CallExpr(
+            expr_idx: int,
+            expr: ailment.Expr.Call,
+            stmt_idx: int,
+            stmt: ailment.Stmt.Statement | None,
+            block: ailment.Block | None,
+        ):
             assert self.arg_vvars is not None
 
             if (
-                isinstance(call_.target, ailment.Expr.Const)
-                and call_.tags.get("is_prototype_guessed", True)
-                and call_.args is not None
+                isinstance(expr.target, ailment.Expr.Const)
+                and expr.tags.get("is_prototype_guessed", True)
+                and expr.args is not None
             ):
                 # derive the actual prototype
                 arg_types = []
-                for arg_expr in call_.args:
+                for arg_expr in expr.args:
                     arg_type = None
                     if hasattr(arg_expr, "variable") and arg_expr.variable is not None:
                         # the type is type(a)
@@ -3636,26 +3677,11 @@ class Clinic(Analysis):
 
                     arg_types.append(arg_type)
 
-                func_proto_candidates[call_.target.value_int].append((arg_types, None))
-
-        # pylint:disable=unused-argument
-        def _handle_Call(stmt_idx: int, stmt: ailment.Stmt.Call, block: ailment.Block | None):
-            _handle_Call_stmt_or_expr(stmt)
-
-        # pylint:disable=unused-argument
-        def _handle_CallExpr(
-            expr_idx: int,
-            expr: ailment.Stmt.Call,
-            stmt_idx: int,
-            stmt: ailment.Stmt.Statement | None,
-            block: ailment.Block | None,
-        ):
-            _handle_Call_stmt_or_expr(expr)
+                func_proto_candidates[expr.target.value_int].append((arg_types, None))
 
         def _visit_ail_node(node: ailment.Block):
             w = AILBlockViewer()
-            w.stmt_handlers[ailment.Stmt.Call] = _handle_Call
-            w.expr_handlers[ailment.Stmt.Call] = _handle_CallExpr
+            w.expr_handlers[ailment.Expr.Call] = _handle_CallExpr
             w.walk(node)
 
         AILGraphWalker(self._ail_graph, _visit_ail_node).walk()

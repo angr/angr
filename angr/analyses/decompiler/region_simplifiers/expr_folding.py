@@ -6,8 +6,8 @@ from typing import Any, TYPE_CHECKING
 
 from angr import ailment
 from angr.ailment import Expression, Block, AILBlockRewriter
-from angr.ailment.expression import ITE, Atom, Load, VirtualVariable
-from angr.ailment.statement import Statement, Assignment, Call, Return
+from angr.ailment.expression import Call, ITE, Atom, Load, VirtualVariable
+from angr.ailment.statement import Statement, Assignment, Return
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.ssa import VVarUsesCollector
@@ -301,7 +301,7 @@ class ExpressionCounter(SequenceWalker):
                     )
                 )
         if (
-            isinstance(stmt, ailment.Stmt.Call)
+            isinstance(stmt, ailment.Stmt.SideEffectStatement)
             and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
             and stmt.ret_expr.was_reg
         ):
@@ -462,12 +462,12 @@ class InterferenceChecker(SequenceWalker):
             the_call = None
             if (
                 isinstance(stmt, Assignment)
-                and isinstance(stmt.src, ailment.Stmt.Call)
+                and isinstance(stmt.src, ailment.Expr.Call)
                 and not isinstance(stmt.src.target, str)
             ):
                 the_call = stmt.src
-            elif isinstance(stmt, ailment.Stmt.Call) and not isinstance(stmt.target, str):
-                the_call = stmt
+            elif isinstance(stmt, ailment.Stmt.SideEffectStatement) and not isinstance(stmt.expr.target, str):
+                the_call = stmt.expr
             if the_call is not None:
                 assert isinstance(the_call.target, ailment.Stmt.Expression)
                 spotter.walk_expression(the_call.target)
@@ -488,7 +488,7 @@ class InterferenceChecker(SequenceWalker):
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
 
-            if isinstance(stmt, ailment.Stmt.Call):
+            if isinstance(stmt, ailment.Stmt.SideEffectStatement):
                 # mark all existing assignments as interfered
                 for vid in self._assignment_interferences:
                     self._assignment_interferences[vid].append(stmt)
@@ -504,7 +504,7 @@ class InterferenceChecker(SequenceWalker):
                 self._assignment_interferences[stmt.dst.varid] = []
 
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None
@@ -681,7 +681,7 @@ class ExpressionFolder(SequenceWalker):
                 # remove this statement
                 continue
             if (
-                isinstance(stmt, ailment.Stmt.Call)
+                isinstance(stmt, ailment.Stmt.SideEffectStatement)
                 and isinstance(stmt.ret_expr, ailment.Expr.VirtualVariable)
                 and stmt.ret_expr.was_reg
                 and stmt.ret_expr.variable is not None

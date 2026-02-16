@@ -3,8 +3,8 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
-from angr.ailment.expression import ITE, Const, VirtualVariable, Phi
+from angr.ailment.statement import Statement, SideEffectStatement, ConditionalJump, Assignment, Jump
+from angr.ailment.expression import ITE, Call, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes
@@ -333,5 +333,5 @@ class ITERegionConverter(OptimizationPass):
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
         return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
-            isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable)
+            isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable)
         )

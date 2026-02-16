@@ -2661,7 +2661,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
             Stmt.WeakAssignment: self._handle_Stmt_Assignment,
-            Stmt.Call: self._handle_Stmt_Call,
+            Stmt.SideEffectStatement: self._handle_Stmt_SideEffectStatement,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
@@ -2681,6 +2681,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.VEXCCallExpression: self._handle_Expr_VEXCCallExpression,
             Expr.DirtyExpression: self._handle_Expr_Dirty,
             Expr.ITE: self._handle_Expr_ITE,
+            Expr.Call: self._handle_Expr_Call,
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
@@ -3322,7 +3323,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # special case for Call
             converted = (
                 handler(node, is_expr=is_expr)
-                if isinstance(node, Stmt.Call)
+                if isinstance(node, Stmt.SideEffectStatement)
                 else handler(node, lvalue=lvalue, likely_signed=likely_signed, type_=type_, ref=ref)
             )
             self.ailexpr2cnode[(node, is_expr)] = converted
@@ -3548,12 +3549,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            target = self._handle(stmt.target, lvalue=True) if not isinstance(stmt.target, str) else stmt.target
+            target = (
+                self._handle(stmt.expr.target, lvalue=True)
+                if not isinstance(stmt.expr.target, str)
+                else stmt.expr.target
+            )
         except UnsupportedNodeTypeError:
-            target = stmt.target
+            target = stmt.expr.target
 
         if (
             isinstance(target, CUnaryOp)
@@ -3569,8 +3574,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
         args = []
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
+        if stmt.expr.args is not None:
+            for i, arg in enumerate(stmt.expr.args):
                 type_ = None
                 if (
                     target_func is not None
@@ -3625,6 +3630,67 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # Standalone call statement
         return CExpressionStatement(call_expr, returning=returning, tags=stmt.tags, codegen=self)
+
+    def _handle_Expr_Call(self, expr: Expr.Call, **kwargs):
+        """Handle a Call expression (not wrapped in SideEffectStatement)."""
+        try:
+            target = self._handle(expr.target, lvalue=True) if not isinstance(expr.target, str) else expr.target
+        except UnsupportedNodeTypeError:
+            target = expr.target
+
+        if (
+            isinstance(target, CUnaryOp)
+            and target.op == "Reference"
+            and isinstance(target.operand, CVariable)
+            and isinstance(target.operand.variable, SimMemoryVariable)
+            and not isinstance(target.operand.variable, SimStackVariable)
+            and target.operand.variable.size == 1
+        ):
+            target = target.operand
+
+        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
+
+        args = []
+        if expr.args is not None:
+            for i, arg in enumerate(expr.args):
+                type_ = None
+                if (
+                    target_func is not None
+                    and target_func.prototype is not None
+                    and i < len(target_func.prototype.args)
+                ):
+                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                    if target_func.prototype_libname is not None:
+                        type_ = dereference_simtype_by_lib(type_, target_func.prototype_libname)
+
+                if isinstance(arg, Expr.Const):
+                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
+                        type_ = guess_value_type(arg.value, self.project) or type_
+                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                else:
+                    new_arg = self._handle(arg, type_=type_)
+                args.append(new_arg)
+
+        call_expr = CFunctionCall(
+            target,
+            target_func,
+            args,
+            tags=expr.tags,
+            show_demangled_name=self.show_demangled_name,
+            show_disambiguated_name=self.show_disambiguated_name,
+            codegen=self,
+        )
+
+        if expr.bits and call_expr.type.size != expr.size * self.project.arch.byte_width:
+            call_expr = CTypeCast(
+                call_expr.type,
+                self.default_simtype_from_bits(
+                    expr.size * self.project.arch.byte_width, signed=getattr(call_expr.type, "signed", False)
+                ),
+                call_expr,
+                codegen=self,
+            )
+        return call_expr
 
     def _handle_Stmt_Jump(self, stmt: Stmt.Jump, **kwargs):
         return CGoto(self._handle(stmt.target), stmt.target_idx, tags=stmt.tags, codegen=self)

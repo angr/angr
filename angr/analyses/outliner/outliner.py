@@ -6,8 +6,8 @@ from typing import TypeVar
 import networkx
 
 from angr.ailment import Block, Address
-from angr.ailment.statement import Call, Assignment, ConditionalJump, Return, Jump
-from angr.ailment.expression import Const, BinaryOp, VirtualVariable, VirtualVariableCategory
+from angr.ailment.statement import Assignment, ConditionalJump, Return, Jump
+from angr.ailment.expression import Call, Const, BinaryOp, VirtualVariable, VirtualVariableCategory
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.utils.ssa import is_phi_assignment
 from angr.analyses import Analysis, AnalysesHub

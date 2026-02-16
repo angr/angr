@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from collections import defaultdict
 from collections.abc import Iterable, Callable
 
-from angr.ailment.statement import Call, Store, ConditionalJump, CAS
+from angr.ailment.statement import SideEffectStatement, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
     Const,
     Convert,
@@ -434,8 +434,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         ):
             self.hclb_side_exit_state = self.state.copy()
 
-    def _handle_stmt_Call(self, stmt: Call):
-        result = self._handle_expr_Call(stmt)
+    def _handle_stmt_SideEffectStatement(self, stmt: SideEffectStatement):
+        result = self._handle_expr_Call(stmt.expr)
 
         if stmt.ret_expr is not None and isinstance(stmt.ret_expr, Register):
             self.register_set(stmt.ret_expr.reg_offset, stmt.ret_expr.size, result, stmt.ret_expr)

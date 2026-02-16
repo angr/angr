@@ -6,9 +6,9 @@ from collections.abc import Callable
 
 from . import Block
 from .statement import (
-    Call,
     CAS,
     Statement,
+    SideEffectStatement,
     ConditionalJump,
     Assignment,
     Store,
@@ -18,6 +18,7 @@ from .statement import (
     WeakAssignment,
 )
 from .expression import (
+    Call,
     Load,
     Expression,
     BinaryOp,
@@ -53,7 +54,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             Assignment: self._handle_Assignment,
             WeakAssignment: self._handle_WeakAssignment,
             CAS: self._handle_CAS,
-            Call: self._handle_Call,
+            SideEffectStatement: self._handle_SideEffectStatement,
             Store: self._handle_Store,
             ConditionalJump: self._handle_ConditionalJump,
             Jump: self._handle_Jump,
@@ -160,12 +161,8 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
         return self._stmt_top(stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> StmtType:
-        if not isinstance(stmt.target, str):
-            self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> StmtType:
+        self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
         return self._stmt_top(stmt_idx, stmt, block)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None) -> StmtType:
@@ -350,12 +347,8 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         if stmt.old_hi is not None:
             self._handle_expr(6, stmt.old_hi, stmt_idx, stmt, block)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if not isinstance(stmt.target, str):
-            self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
 
     def _handle_Store(self, stmt_idx: int, stmt: Store, block: Block | None):
         self._handle_expr(0, stmt.addr, stmt_idx, stmt, block)
@@ -575,28 +568,16 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             )
         return stmt
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None) -> Statement:
-        changed = False
-
-        if isinstance(stmt.target, str):
-            new_target = None
-        else:
-            new_target = self._handle_expr(-1, stmt.target, stmt_idx, stmt, block)
-            changed = new_target is not stmt.target
-
-        new_args = None
-        if stmt.args is not None:
-            new_args = [self._handle_expr(idx, arg, stmt_idx, stmt, block) for idx, arg in enumerate(stmt.args)]
-            changed |= any(old is not new for new, old in zip(new_args, stmt.args))
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None) -> Statement:
+        new_expr = self._handle_expr(0, stmt.expr, stmt_idx, stmt, block)
+        changed = new_expr is not stmt.expr
 
         if changed:
-            return Call(
+            return SideEffectStatement(
                 stmt.idx,
-                new_target if new_target is not None else stmt.target,
-                calling_convention=stmt.calling_convention,
-                prototype=stmt.prototype,
-                args=new_args,
+                new_expr,
                 ret_expr=stmt.ret_expr,
+                fp_ret_expr=stmt.fp_ret_expr,
                 **stmt.tags,
             )
         return stmt

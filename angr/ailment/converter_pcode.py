@@ -7,8 +7,8 @@ import pypcode
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.engines.pcode.lifter import IRSB
 from .block import Block
-from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, Call
-from .expression import Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
+from .statement import Statement, Assignment, Store, Jump, ConditionalJump, Return, SideEffectStatement
+from .expression import Call, Expression, DirtyExpression, Const, Register, Tmp, UnaryOp, BinaryOp, Load, Convert
 
 # FIXME: Convert, ITE
 from .manager import Manager
@@ -567,9 +567,16 @@ class PCodeIRSBConverter(Converter):
             dest = Const(self._manager.next_atom(), None, self._irsb.next.con.value, self._manager.arch.bits)
         else:
             dest = None
-        stmt = Call(
+        call_expr = Call(
             self._manager.next_atom(),
             dest,
+            ins_addr=self._manager.ins_addr,
+            vex_block_addr=self._manager.block_addr,
+            vex_stmt_idx=DEFAULT_STATEMENT,
+        )
+        stmt = SideEffectStatement(
+            self._manager.next_atom(),
+            call_expr,
             ret_expr=ret_expr,
             ins_addr=self._manager.ins_addr,
             vex_block_addr=self._manager.block_addr,
@@ -584,9 +591,16 @@ class PCodeIRSBConverter(Converter):
         ret_reg_offset = self._manager.arch.ret_offset
         ret_expr = Register(None, None, ret_reg_offset, self._manager.arch.bits, ins_addr=self._manager.ins_addr)  # ???
         dest = self._get_value(self._current_op.inputs[0])
-        stmt = Call(
+        call_expr = Call(
             self._manager.next_atom(),
             dest,
+            ins_addr=self._manager.ins_addr,
+            vex_block_addr=self._manager.block_addr,
+            vex_stmt_idx=DEFAULT_STATEMENT,
+        )
+        stmt = SideEffectStatement(
+            self._manager.next_atom(),
+            call_expr,
             ret_expr=ret_expr,
             ins_addr=self._manager.ins_addr,
             vex_block_addr=self._manager.block_addr,

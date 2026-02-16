@@ -5,8 +5,8 @@ import string
 from archinfo import Endness
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Call, Assignment, Statement, Store
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable
+from angr.ailment.statement import Assignment, Statement, Store, SideEffectStatement
 
 from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
@@ -54,16 +54,20 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
             str_id = self.kb.custom_strings.allocate(s)
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
             wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
-            return Call(
+            return SideEffectStatement(
                 stmt.idx,
-                "wcsncpy",
-                args=[
-                    dst,
-                    Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
-                    Const(None, None, len(s) // 2, self.project.arch.bits),
-                ],
-                prototype=SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
-                    self.project.arch
+                Call(
+                    stmt.idx,
+                    "wcsncpy",
+                    args=[
+                        dst,
+                        Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
+                        Const(None, None, len(s) // 2, self.project.arch.bits),
+                    ],
+                    prototype=SimTypeFunction(
+                        [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
+                    ).with_arch(self.project.arch),
+                    **stmt.tags,
                 ),
                 **stmt.tags,
             )
@@ -101,17 +105,21 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
                     str_id = self.kb.custom_strings.allocate(s)
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
                     wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
-                    return Call(
+                    return SideEffectStatement(
                         stmt.idx,
-                        "wcsncpy",
-                        args=[
-                            dst,
-                            Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
-                            Const(None, None, len(s) // 2, self.project.arch.bits),
-                        ],
-                        prototype=SimTypeFunction(
-                            [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
-                        ).with_arch(self.project.arch),
+                        Call(
+                            stmt.idx,
+                            "wcsncpy",
+                            args=[
+                                dst,
+                                Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
+                                Const(None, None, len(s) // 2, self.project.arch.bits),
+                            ],
+                            prototype=SimTypeFunction(
+                                [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
+                            ).with_arch(self.project.arch),
+                            **stmt.tags,
+                        ),
                         **stmt.tags,
                     )
 
@@ -253,11 +261,11 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_wcsncpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
-            and isinstance(stmt.target, str)
-            and stmt.target == "wcsncpy"
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and "custom_string" in stmt.args[1].tags
+            isinstance(stmt, SideEffectStatement)
+            and isinstance(stmt.expr.target, str)
+            and stmt.expr.target == "wcsncpy"
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], Const)
+            and "custom_string" in stmt.expr.args[1].tags
         )

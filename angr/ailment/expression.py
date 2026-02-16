@@ -13,6 +13,8 @@ from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
 
 if TYPE_CHECKING:
+    from angr.calling_conventions import SimCC
+    from angr.sim_type import SimTypeFunction
     from .statement import Statement
 
 
@@ -1857,3 +1859,156 @@ class Insert(Expression):
         if base_replaced or offset_replaced or value_replaced:
             return True, Insert(self.idx, new_base, new_offset, new_value, self.endness, **self.tags)
         return False, self
+
+
+class Call(Expression):
+    """
+    Call expression. Represents a function call that produces a value.
+
+    When used as a standalone statement (not part of an assignment), wrap it in a SideEffectStatement.
+    """
+
+    __slots__ = (
+        "args",
+        "calling_convention",
+        "prototype",
+        "target",
+    )
+
+    def __init__(
+        self,
+        idx: int | None,
+        target: Expression | str,
+        calling_convention: SimCC | None = None,
+        prototype: SimTypeFunction | None = None,
+        args: Sequence[Expression] | None = None,
+        bits: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
+
+        self.target = target
+        self.calling_convention = calling_convention
+        self.prototype = prototype
+        self.args = args
+        if bits is not None:
+            self.bits = bits
+        else:
+            self.bits = 0
+
+    def likes(self, other):
+        return (
+            type(other) is Call
+            and is_none_or_likeable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_likeable(self.args, other.args, is_list=True)
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is Call
+            and is_none_or_matchable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_matchable(self.args, other.args, is_list=True)
+        )
+
+    def _hash_core(self):
+        return stable_hash((Call, self.idx, self.target))
+
+    def __repr__(self):
+        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+
+    def __str__(self):
+        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
+        if self.args is None:
+            if self.calling_convention is not None:
+                s = (
+                    (f"{cc}")
+                    if self.prototype is None
+                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
+                )
+            else:
+                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
+        else:
+            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
+
+        return f"Call({self.target}, {s})"
+
+    @property
+    def verbose_op(self):
+        return "call"
+
+    @property
+    def op(self):
+        return "call"
+
+    def has_atom(self, atom, identity=True):
+        if identity:
+            if self is atom:
+                return True
+        elif self.likes(atom):
+            return True
+        if isinstance(self.target, Expression) and self.target.has_atom(atom, identity=identity):
+            return True
+        if self.args:
+            for arg in self.args:
+                if arg.has_atom(atom, identity=identity):
+                    return True
+        return False
+
+    def replace(self, old_expr: Expression, new_expr: Expression):
+        if isinstance(self.target, Expression):
+            r0, replaced_target = self.target.replace(old_expr, new_expr)
+        else:
+            r0 = False
+            replaced_target = self.target
+
+        r = r0
+
+        new_args = None
+        if self.args:
+            new_args = []
+            for arg in self.args:
+                if arg == old_expr:
+                    r_arg = True
+                    replaced_arg = new_expr
+                else:
+                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
+                r |= r_arg
+                new_args.append(replaced_arg)
+
+        if r:
+            return True, Call(
+                self.idx,
+                replaced_target,
+                calling_convention=self.calling_convention,
+                prototype=self.prototype,
+                args=new_args,
+                bits=self.bits,
+                **self.tags,
+            )
+        return False, self
+
+    def copy(self):
+        return Call(
+            self.idx,
+            self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=self.args[::] if self.args is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Call(
+            manager.next_atom(),
+            self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )

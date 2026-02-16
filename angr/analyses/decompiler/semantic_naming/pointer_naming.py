@@ -12,8 +12,8 @@ import logging
 from collections import defaultdict
 
 from angr import ailment
-from angr.ailment.expression import BinaryOp, UnaryOp, Const, Load
-from angr.ailment.statement import Assignment, Store, Call
+from angr.ailment.expression import BinaryOp, Call, UnaryOp, Const, Load
+from angr.ailment.statement import Assignment, Store, SideEffectStatement
 from angr.sim_variable import SimVariable
 
 from .naming_base import ClinicNamingBase
@@ -220,18 +220,18 @@ class PointerNaming(ClinicNamingBase):
                 continue
 
             for stmt in node.statements:
-                if isinstance(stmt, Call):
-                    self._analyze_call_for_pointers(stmt)
+                if isinstance(stmt, SideEffectStatement):
+                    self._analyze_call_for_pointers(stmt.expr, ret_expr=stmt.ret_expr)
                 elif isinstance(stmt, Assignment) and isinstance(stmt.src, Call):
-                    self._analyze_call_for_pointers(stmt.src)
+                    self._analyze_call_for_pointers(stmt.src, ret_expr=stmt.dst)
 
-    def _analyze_call_for_pointers(self, call: Call) -> None:
+    def _analyze_call_for_pointers(self, call: Call, ret_expr=None) -> None:
         """Analyze a function call for pointer parameters and return values."""
         func_name = self._get_function_name(call)
 
         # Check return value
-        if call.ret_expr is not None:
-            ret_var = self._get_linked_variable(call.ret_expr)
+        if ret_expr is not None:
+            ret_var = self._get_linked_variable(ret_expr)
             if ret_var is not None and func_name and self._normalize_name(func_name) in POINTER_RETURNING_FUNCTIONS:
                 self._record_pointer(ret_var, "return_value", "write")
 

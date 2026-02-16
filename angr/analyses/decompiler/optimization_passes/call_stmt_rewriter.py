@@ -1,7 +1,7 @@
 from __future__ import annotations
 import logging
 
-from angr.ailment.statement import Call, Assignment
+from angr.ailment.statement import SideEffectStatement, Assignment
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
@@ -33,9 +33,8 @@ class CallStatementRewriter(OptimizationPass):
         for block in self._graph.nodes:
             for idx in range(len(block.statements)):  # pylint:disable=consider-using-enumerate
                 stmt = block.statements[idx]
-                if isinstance(stmt, Call) and stmt.ret_expr is not None and stmt.fp_ret_expr is None:
-                    src = stmt.copy()
-                    src.ret_expr = None
+                if isinstance(stmt, SideEffectStatement) and stmt.ret_expr is not None and stmt.fp_ret_expr is None:
+                    src = stmt.expr.copy()
                     new_stmt = Assignment(stmt.idx, stmt.ret_expr, src, **stmt.tags)
                     block.statements[idx] = new_stmt
                     changed = True

@@ -222,7 +222,12 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         assert isinstance(result, claripy.ast.FP)
         return result
 
-    def _do_call(self, call: ailment.statement.Call, is_expr: bool = False):
+    def _do_call(
+        self,
+        call: ailment.expression.Call,
+        is_expr: bool = False,
+        stmt: ailment.statement.SideEffectStatement | None = None,
+    ):
         arguments = tuple(self._expr_bits(e) for e in (call.args or []))
 
         if angr.options.CALLLESS in self.state.options:
@@ -230,13 +235,13 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
                 # ????? if doing ret emulation and this is an expr (no lvalue expression)
                 # how do I tell if this is a float ret or not?
                 return (claripy.BVS(f"callless_stub_{call.target}", call.bits),)
-            if call.ret_expr is not None:
-                return (claripy.BVS(f"callless_stub_{call.target}", call.ret_expr.bits),)
-            if call.fp_ret_expr is not None:
+            if stmt is not None and stmt.ret_expr is not None:
+                return (claripy.BVS(f"callless_stub_{call.target}", stmt.ret_expr.bits),)
+            if stmt is not None and stmt.fp_ret_expr is not None:
                 return (
                     claripy.FPS(
                         f"callless_stub_{call.target}",
-                        claripy.FSORT_FLOAT if call.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
+                        claripy.FSORT_FLOAT if stmt.fp_ret_expr.bits == 32 else claripy.FSORT_DOUBLE,
                     ),
                 )
             return ()
@@ -378,8 +383,9 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> bool:
         return True
 
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> bool:
-        results = self._do_call(stmt)
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> bool:
+        assert isinstance(stmt.expr, ailment.expression.Call)
+        results = self._do_call(stmt.expr, stmt=stmt)
         ret_expr = stmt.ret_expr or stmt.fp_ret_expr
         ret_exprs = [] if ret_expr is None else [ret_expr]
         if len(results) < len(ret_exprs):
@@ -393,7 +399,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
 
     ### Expressions
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType:
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType:
         results = self._do_call(expr, True)
         if len(results) != 1:
             raise errors.AngrRuntimeError(f"Call expression returned with {len(results)} return values, expected 1")
