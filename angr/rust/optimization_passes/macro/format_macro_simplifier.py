@@ -135,8 +135,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         return False
 
     def _try_find_arguments_struct(self, call: Call):
-        for i in [0, 1]:
-            if call.args and len(call.args) > i and (arg_vvar := unwrap_stack_vvar_reference(call.args[i])):
+        for i in range(len(call.args or [])):
+            if call.args and (arg_vvar := unwrap_stack_vvar_reference(call.args[i])):
                 arg_value = self.get_terminal_vvar_value(arg_vvar)
                 def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
                 if isinstance(arg_value, Struct) and arg_value.name == "core::fmt::Arguments":
