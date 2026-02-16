@@ -255,16 +255,19 @@ class AngrObjectFactory:
                 l.debug("Could not read core segment at 0x%x (size 0x%x), skipping", seg_addr, seg_size)
                 continue
 
-            # Check if this segment overlaps with the project's binary.
-            # If so, only write it if the core actually has different data (runtime modifications).
-            # For .text segments that match the binary, we skip to preserve the project's backing.
+            # Skip read-only core segments that overlap with the project's binary.
+            # These contain .text/.rodata which we already have from the original binary.
+            # We only want writable segments (stack, heap, .data) which have runtime state.
+            # Note: We use overlap detection rather than exact match because core dumps
+            # (especially from QEMU-user) may have different segment granularity than the binary.
             skip = False
+            seg_end = seg_addr + seg_size
             for obj in self.project.loader.all_objects:
                 if hasattr(obj, "segments"):
                     for bin_seg in obj.segments:
-                        if bin_seg.min_addr == seg_addr and bin_seg.memsize == seg_size:
-                            if not bin_seg.is_writable:
-                                # Read-only segment (likely .text) - skip if it matches the binary
+                        if not bin_seg.is_writable:
+                            bin_end = bin_seg.min_addr + bin_seg.memsize
+                            if seg_addr < bin_end and bin_seg.min_addr < seg_end:
                                 skip = True
                                 break
                     if skip:
