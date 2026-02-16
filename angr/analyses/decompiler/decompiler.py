@@ -828,6 +828,8 @@ class Decompiler(Analysis):
         if changed:
             self.codegen.regenerate_text()
 
+        self.llm_summarize_function(llm_client=llm_client, code_text=self.codegen.text)
+
         return changed
 
     def llm_suggest_variable_names(self, llm_client=None, code_text: str | None = None) -> bool:
@@ -1007,6 +1009,52 @@ class Decompiler(Analysis):
             self.codegen.reload_variable_types()
 
         return changed
+
+    def llm_summarize_function(self, llm_client=None, code_text: str | None = None) -> str | None:
+        """
+        Ask the LLM to produce a natural-language summary of what the decompiled function does.
+        The summary is stored in the DecompilationCache and returned.
+
+        Returns the summary string, or None if summarization failed.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            l.warning("llm_summarize_function: no LLM client configured.")
+            return None
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            l.warning("llm_summarize_function: no decompiled text available.")
+            return None
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, write a concise "
+            "natural-language summary of what the function does. Focus on the function's purpose, its inputs "
+            "and outputs, and any important side effects. Keep the summary to a short paragraph.\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            "Respond with ONLY the summary text, no extra formatting."
+        )
+
+        try:
+            summary = llm_client.completion([{"role": "user", "content": prompt}])
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("llm_summarize_function: LLM call failed", exc_info=True)
+            return None
+
+        if not summary or not isinstance(summary, str):
+            return None
+
+        summary = summary.strip()
+        if not summary:
+            return None
+
+        l.info("LLM generated function summary for %s", self.func.name)
+
+        if self.cache is not None:
+            self.cache.function_summary = summary
+
+        return summary
 
     @staticmethod
     def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:
