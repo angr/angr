@@ -999,7 +999,9 @@ class CFGModel(Serializable):
         for block in func.blocks:
             irsb = block.vex
             if (
-                irsb.jumpkind == "Ijk_Call" and irsb.addr + irsb.size == addr
+                irsb.jumpkind == "Ijk_Call"
+                and irsb.addr + irsb.size == addr
+                and func.get_node(block.addr) not in func.callout_sites
             ) or addr in irsb.constant_jump_targets_and_jumpkinds:
                 return func
 
