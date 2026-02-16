@@ -161,6 +161,120 @@ class AngrObjectFactory:
         """
         return self.project.simos.state_full_init(**kwargs)
 
+    def core_state(self, core_path, thread_idx=None, **kwargs) -> SimState:
+        """
+        Returns a state object initialized from a core dump file. The project should be loaded with the original
+        binary so that .text/.data segments are available. Register state and runtime memory (stack, heap, etc.)
+        are restored from the core dump.
+
+        :param core_path:       Path to the ELF core dump file.
+        :param thread_idx:      Which thread's register state to use (default: first/main thread).
+        :param kwargs:          Any additional keyword args will be passed to the blank_state constructor.
+        :return:                A SimState with registers and memory restored from the core dump.
+        :rtype:                 SimState
+        """
+        import cle
+        from cle.backends.elf.elfcore import ELFCore
+
+        # Load the core dump with CLE to parse notes and memory
+        core_loader = cle.Loader(core_path)
+        core_obj = core_loader.main_object
+        if not isinstance(core_obj, ELFCore):
+            raise AngrError(f"The file at {core_path} is not an ELF core dump")
+
+        # Get register state from the core
+        thread_name = core_obj.threads[thread_idx] if thread_idx is not None else None
+        core_regs = core_obj.thread_registers(thread_name)
+        if not core_regs:
+            raise AngrError("No register state found in core dump")
+
+        # Determine the instruction pointer from the core
+        ip_reg = self.project.arch.ip_offset
+        ip_name = None
+        for rname, (offset, _size) in self.project.arch.registers.items():
+            if offset == ip_reg:
+                ip_name = rname
+                break
+
+        # Get the IP value from the core registers
+        ip_val = None
+        if ip_name and ip_name in core_regs:
+            ip_val = core_regs[ip_name]
+        elif "rip" in core_regs:
+            ip_val = core_regs["rip"]
+        elif "eip" in core_regs:
+            ip_val = core_regs["eip"]
+        elif "pc" in core_regs:
+            ip_val = core_regs["pc"]
+
+        # Create a blank state from the project (which has the original binary loaded)
+        # Set addr to the core's IP so execution starts at the crash point
+        if "addr" not in kwargs and ip_val is not None:
+            kwargs["addr"] = ip_val
+        state = self.project.simos.state_blank(**kwargs)
+
+        # Set all registers from the core dump
+        for reg, val in core_regs.items():
+            if reg in ("fs", "gs", "cs", "ds", "es", "ss") and state.arch.name == "X86":
+                state.registers.store(reg, val >> 16)
+            elif reg in state.arch.registers or reg in ("flags", "eflags", "rflags"):
+                state.registers.store(reg, val)
+            elif reg == "fctrl":
+                state.regs.fpround = (val & 0xC00) >> 10
+            elif reg == "fstat":
+                state.regs.fc3210 = val & 0x4700
+            elif reg == "ftag":
+                import claripy
+
+                empty_bools = [((val >> (x * 2)) & 3) == 3 for x in range(8)]
+                tag_chars = [claripy.BVV(0 if x else 1, 8) for x in empty_bools]
+                for i, tag in enumerate(tag_chars):
+                    setattr(state.regs, f"fpu_t{i}", tag)
+            elif reg in ("fiseg", "fioff", "foseg", "fooff", "fop", "mxcsr"):
+                if reg == "mxcsr":
+                    state.regs.sseround = (val & 0x600) >> 9
+            elif reg in ("fs_base", "gs_base"):
+                # These are not standard VEX registers on AMD64, skip them
+                pass
+            else:
+                l.debug("Skipping unknown core register: %s", reg)
+
+        # Map memory from the core dump into the state.
+        # We iterate over LOAD segments in the core and write their data into the state's memory.
+        # This overlays core memory (stack, heap, modified .data) on top of the binary's backing.
+        for seg in core_loader.main_object.segments:
+            seg_addr = seg.min_addr
+            seg_size = seg.memsize
+            if seg_size == 0:
+                continue
+
+            # Read data from the core's memory backing
+            try:
+                data = core_loader.memory.load(seg_addr, seg_size)
+            except Exception:
+                l.debug("Could not read core segment at 0x%x (size 0x%x), skipping", seg_addr, seg_size)
+                continue
+
+            # Check if this segment overlaps with the project's binary.
+            # If so, only write it if the core actually has different data (runtime modifications).
+            # For .text segments that match the binary, we skip to preserve the project's backing.
+            skip = False
+            for obj in self.project.loader.all_objects:
+                if hasattr(obj, "segments"):
+                    for bin_seg in obj.segments:
+                        if bin_seg.min_addr == seg_addr and bin_seg.memsize == seg_size:
+                            if not bin_seg.is_writable:
+                                # Read-only segment (likely .text) - skip if it matches the binary
+                                skip = True
+                                break
+                    if skip:
+                        break
+
+            if not skip:
+                state.memory.store(seg_addr, data)
+
+        return state
+
     def call_state(self, addr, *args, **kwargs):
         """
         Returns a state object initialized to the start of a given function, as if it were called with given parameters.
