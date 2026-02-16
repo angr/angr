@@ -191,9 +191,14 @@ class RustCallingConventionAnalysis(Analysis):
                     name=f"struct{arch_bytes * 2}",
                     pack=True,
                 ).with_arch(self.project.arch)
+                # Check if discriminant 0 has any concrete overflow value
+                none_has_concrete_overflow = any(
+                    ov is not None for rv, ov in self.model.const_ret_values if rv == 0
+                )
+
                 if len(ret_values) == 0:
                     return payload_ty, False
-                elif len(ret_values) == 1 and 0 in ret_values:
+                elif len(ret_values) == 1 and 0 in ret_values and not none_has_concrete_overflow:
                     none_discriminant = next(iter(ret_values))
                     return (
                         RustSimTypeOption(
@@ -207,9 +212,9 @@ class RustCallingConventionAnalysis(Analysis):
                     )
                 elif len(ret_values) == 2:
                     smaller, larger = sorted(ret_values)
-                    payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
                     if larger - smaller == 1:
                         # Discriminants differ by 1 → Result<T, E>
+                        payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
                         return (
                             RustSimTypeResult(
                                 payload_ty,
@@ -218,6 +223,19 @@ class RustCallingConventionAnalysis(Analysis):
                                 payload_ty,
                                 larger,
                                 arch_bytes,
+                            ).with_arch(self.project.arch),
+                            False,
+                        )
+                    elif 0 in ret_values and not none_has_concrete_overflow:
+                        # Discriminants differ by >1 → Option<T>
+                        none_discriminant = smaller
+                        return (
+                            RustSimTypeOption(
+                                none_discriminant,
+                                arch_bytes,
+                                payload_ty,
+                                None,
+                                0,
                             ).with_arch(self.project.arch),
                             False,
                         )
