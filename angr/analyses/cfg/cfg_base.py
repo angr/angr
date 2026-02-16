@@ -1689,6 +1689,20 @@ class CFGBase(Analysis):
             if func.returning is not True and self._updated_nonreturning_functions is not None:
                 self._updated_nonreturning_functions.add(func_addr)
 
+        # Pre-identify thunk targets: for each function node that is a single-instruction thunk (jmp <target>),
+        # register the target as a separate function BEFORE BFS so that it won't be incorrectly absorbed into
+        # another function during traversal.
+        thunk_targets: set[CFGNode] = set()
+        for fn in function_nodes:
+            if self._is_likely_function_thunk(fn, fn.addr, list(self.graph.out_edges(fn, data=True))):
+                for _, dst, data in self.graph.out_edges(fn, data=True):
+                    if data.get("jumpkind", "") != "Ijk_FakeRet":
+                        if dst.addr not in blockaddr_to_funcaddr and dst.addr in tmp_functions:
+                            self._addr_to_funcaddr(dst.addr, blockaddr_to_funcaddr, tmp_functions)
+                            thunk_targets.add(dst)
+                        break
+        function_nodes |= thunk_targets
+
         # traverse the graph starting from each node, not following call edges
         # it's important that we traverse all functions in order so that we have a greater chance to come across
         # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
@@ -2421,6 +2435,19 @@ class CFGBase(Analysis):
                         dst not in stack and dst not in traversed
                     ):
                         stack.add(dst)
+
+    def _is_likely_function_thunk(self, src: CFGNode, src_funcaddr: int, all_edges: list | None) -> bool:
+        # A single-instruction block at function entry with a single Ijk_Boring successor is a thunk
+        # (e.g. jmp <target>). During initial scanning, this pattern may not have been detected by
+        # _is_branching_to_outside (case 2) because the block was incorrectly assigned to a different
+        # function (src_addr != current_function_addr). Now that make_functions() has corrected the
+        # function assignment, re-evaluate: the jump target should be a separate function.
+        return (
+            src.addr == src_funcaddr
+            and len(src.instruction_addrs) == 1
+            and all_edges is not None
+            and sum(1 for _, _, d in all_edges if d["jumpkind"] != "Ijk_FakeRet") == 1
+        )
 
     def _graph_traversal_handler(
         self,
