@@ -125,6 +125,23 @@ class ConstRetValueCollector:
     def __init__(self, fc: "FactCollector"):
         self._fc = fc
 
+    def _resolve_const_values(self, expr):
+        """Resolve an expression to a set of constant integer values."""
+        if isinstance(expr, Const):
+            return {expr.value}
+        if isinstance(expr, VirtualVariable):
+            return {value.value for value in self._fc.get_terminal_vvar_values(expr) if isinstance(value, Const)}
+        return set()
+
+    def _collect_tail_calls(self, expr, block):
+        """Find and process any tail calls in expr."""
+        if isinstance(expr, Call):
+            self._collect_from_tail_call(expr, block)
+        elif isinstance(expr, VirtualVariable):
+            for value in self._fc.get_terminal_vvar_values(expr):
+                if isinstance(value, Call):
+                    self._collect_from_tail_call(value, block)
+
     def collect(self):
         for block in self._fc.graph.nodes:
             if not block.statements or not isinstance(block.statements[-1], Return):
@@ -132,18 +149,19 @@ class ConstRetValueCollector:
             ret_stmt: Return = block.statements[-1]
             if not ret_stmt.ret_exprs:
                 continue
-            ret_expr = ret_stmt.ret_exprs[0]
 
-            if isinstance(ret_expr, Const):
-                self._fc.const_ret_values.add(ret_expr.value)
-            elif isinstance(ret_expr, VirtualVariable):
-                for value in self._fc.get_terminal_vvar_values(ret_expr):
-                    if isinstance(value, Const):
-                        self._fc.const_ret_values.add(value.value)
-                    elif isinstance(value, Call):
-                        self._collect_from_tail_call(value, block)
-            elif isinstance(ret_expr, Call):
-                self._collect_from_tail_call(ret_expr, block)
+            ret_expr = ret_stmt.ret_exprs[0]
+            overflow_ret_expr = ret_stmt.ret_exprs[1] if len(ret_stmt.ret_exprs) >= 2 else None
+
+            # Handle tail calls (merges callee's tuples directly)
+            self._collect_tail_calls(ret_expr, block)
+
+            # Resolve const values and build (ret_value, overflow_ret_value|None) tuples
+            ret_values = self._resolve_const_values(ret_expr)
+            overflow_ret_values = (self._resolve_const_values(overflow_ret_expr) if overflow_ret_expr else set()) or {None}
+            for ret_value in ret_values:
+                for overflow_ret_value in overflow_ret_values:
+                    self._fc.const_ret_values.add((ret_value, overflow_ret_value))
 
     def _collect_from_tail_call(self, call: Call, ret_block: Block):
         if not isinstance(call.target, Const) or call.target.value not in self._fc.project.kb.functions:
@@ -238,7 +256,7 @@ class FactCollector(CFAMixin, SRDAMixin, DFAMixin):
         self.memory_writes = defaultdict(dict)
         self.callsite_memory_writes = defaultdict(dict)
         self.has_write_to_arg0 = False
-        self.const_ret_values = set()
+        self.const_ret_values = set()  # set of (ret_value, overflow_ret_value|None) tuples
 
     def collect(self):
         """Run all sub-collectors, then flush results to the model."""
