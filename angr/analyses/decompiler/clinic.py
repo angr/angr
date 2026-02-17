@@ -17,22 +17,10 @@ import networkx
 import pyvex
 
 from angr import ailment
-from angr.ailment import AILBlockRewriter, Assignment, Block, Statement
+from angr.ailment import AILBlockRewriter, Assignment, Block, Expression, Statement
 from angr.ailment.block_walker import AILBlockViewer
-from angr.ailment.expression import (
-    Array,
-    Call,
-    Expression,
-    FunctionLikeMacro,
-    Let,
-    RustEnum,
-    Struct,
-    Tmp,
-    VirtualVariable,
-)
-from angr.ailment.expression import (
-    Register as AILRegister,
-)
+from angr.ailment.expression import Array, Call, FunctionLikeMacro, Let, RustEnum, Struct, Tmp, VirtualVariable
+from angr.ailment.expression import Register as AILRegister
 from angr.analyses.analysis import Analysis, register_analysis
 from angr.analyses.calling_convention.fact_collector import FactCollector
 from angr.analyses.cfg.cfg_base import CFGBase
@@ -73,6 +61,7 @@ from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.protos import clinic_pb2
 from angr.serializable import Serializable
 from angr.sim_type import (
+    PointerDisposition,
     SimCppClass,
     SimStruct,
     SimType,
@@ -3670,7 +3659,7 @@ class Clinic(Analysis, Serializable):
         :return:                    None
         """
 
-        if isinstance(expr, ailment.Expr.Register):
+        if isinstance(expr, AILRegister):
             # find a register variable
             reg_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             final_reg_vars = set()
@@ -5684,7 +5673,15 @@ class Clinic(Analysis, Serializable):
                 func_arg_count = len(func_proto.args) if func_proto is not None and func_proto.args else max(arg_result)
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func_proto is not None:
                             new_arg_types.append(func_proto.args[i])
