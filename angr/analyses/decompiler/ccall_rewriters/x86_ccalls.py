@@ -139,8 +139,8 @@ class X86CCallRewriter(CCallRewriterBase):
                         return Expr.ITE(
                             ccall.idx,
                             ret_cond,
-                            Expr.Const(None, None, 0, 1, **ccall.tags),
-                            Expr.Const(None, None, 1, 1, **ccall.tags),
+                            Expr.Const(None, None, 0, ccall.bits, **ccall.tags),
+                            Expr.Const(None, None, 1, ccall.bits, **ccall.tags),
                             **ccall.tags,
                         )
                 elif cond_v == X86_CondTypes["CondZ"]:
