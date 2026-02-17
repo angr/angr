@@ -1445,9 +1445,11 @@ class SimpleSolver:
                             sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
                             tv_sizes[sz].add(constraint)
                     elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
-                        tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                        if constraint.sub_type.SIZE is not None:
+                            tv_sizes[constraint.sub_type.SIZE].add(constraint)
                     elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
-                        tv_sizes[constraint.super_type.SIZE].add(constraint)
+                        if constraint.super_type.SIZE is not None:
+                            tv_sizes[constraint.super_type.SIZE].add(constraint)
 
             if not tv_sizes:
                 continue
