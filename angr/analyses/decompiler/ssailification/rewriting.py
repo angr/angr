@@ -51,8 +51,10 @@ class RewritingAnalysis:
         incomplete_defs: set[Def],
         vvar_id_start: int = 0,
         stackvars: bool = False,
+        fail_fast: bool = False,
     ):
         self.project = project
+        self._fail_fast = fail_fast
         self._function = func
 
         self._graph = ail_graph
@@ -70,6 +72,7 @@ class RewritingAnalysis:
             vvar_id_start=vvar_id_start,
             def_to_udef=def_to_udef,
             stackvars=stackvars,
+            fail_fast=self._fail_fast,
         )
 
         self._pending_states: dict[ailment.Block, RewritingState] = {}

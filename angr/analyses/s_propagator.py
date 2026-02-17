@@ -171,7 +171,9 @@ class SPropagatorAnalysis(Analysis):
                     src_vvar.varid if src_vvar is not None else None for _, src_vvar in stmt.src.src_and_vvars
                 }
             r, v = is_const_assignment(stmt)
+            const_value = v
             if r and v is not None and v.tags.get("always_propagate", False):
+                # constant propagation
                 pass
             elif (
                 self.stack_arg_offsets is not None
@@ -181,7 +183,7 @@ class SPropagatorAnalysis(Analysis):
                 and stmt.dst.stack_offset in self.stack_arg_offsets
                 and not isinstance(stmt.src, Phi)
             ):
-                # force propagation of stack variables to callsites
+                # force propagation of stack variables to callsites; we set v to stmt.src, but const_value stays None
                 r = True
                 v = stmt.src
             elif not vvar.was_reg and not vvar.was_parameter:
@@ -192,7 +194,8 @@ class SPropagatorAnalysis(Analysis):
             if r:
                 # replace wherever it's used
                 assert v is not None
-                const_vvars[vvar_id] = v
+                if const_value is not None:
+                    const_vvars[vvar_id] = const_value
                 for vvar_at_use, useloc in vvar_uselocs[vvar_id]:
                     self.replace(replacements, useloc, vvar_at_use, v)
 
