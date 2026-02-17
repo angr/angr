@@ -32,10 +32,11 @@ class RegVVarPredicate:
         self.arch = arch
 
     def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
-        if isinstance(stmt.target, str):
+        call = stmt.expr
+        if isinstance(call.target, str):
             # pseudo calls do not clobber any registers
             return set()
-        cc = stmt.calling_convention
+        cc = call.calling_convention
         if cc is None:
             # get the default calling convention
             cc = default_cc(self.arch.name)  # TODO: platform and language
