@@ -67,6 +67,9 @@ class DefInfo:
         return self.variable_offset + self.variable_size
 
 
+MAX_STACK_VAR_SIZE = 2 * 1024 * 1024
+
+
 class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]):
     """
     This engine collects all register and stack variable locations and links them to the block of their creation.
@@ -282,6 +285,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         var_offset = max(extra_offset, 0)
         size = var_offset + base_size
         end_offset = offset + size
+
+        if size >= MAX_STACK_VAR_SIZE:
+            return
 
         self.state.pending_ptr_defines_nonlocal_live.discard(base_offset)
         if base_offset in self.pending_ptr_defines_nonlocal:
