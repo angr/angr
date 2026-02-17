@@ -338,7 +338,8 @@ class SimEngineSSARewriting(
             # vvar assignment
             vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
-            return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
+            if vvar.stack_offset + vvar.size >= expr.addr.offset + expr.size:
+                return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
 
         new_addr = self._expr(expr.addr)
         if new_addr is not None:
