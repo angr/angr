@@ -115,7 +115,7 @@ class FindCallsTo(AILBlockViewer):
 
     def __init__(self, *args, target: str | int, **kwargs):
         super().__init__(*args, **kwargs)
-        self.found_calls: list[tuple[ailment.Block, int, ailment.statement.SideEffectStatement]] = []
+        self.found_calls: list[tuple[ailment.Block, int, ailment.expression.Call]] = []
         self.target = target
 
     def _handle_SideEffectStatement(
@@ -137,14 +137,14 @@ class FindCallsTo(AILBlockViewer):
             )
         ):
             assert block is not None
-            self.found_calls.append((block, stmt_idx, stmt))
+            self.found_calls.append((block, stmt_idx, stmt.expr))
 
         return super()._handle_SideEffectStatement(stmt_idx, stmt, block)
 
     def _handle_CallExpr(
         self,
         expr_idx: int,
-        expr: ailment.statement.Call,
+        expr: ailment.expression.Call,
         stmt_idx: int,
         stmt: ailment.Statement | None,
         block: ailment.Block | None,

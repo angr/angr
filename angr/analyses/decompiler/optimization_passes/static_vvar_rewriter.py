@@ -223,14 +223,15 @@ class VVarAliasVisitor(AILBlockViewer):
         return Offset(expr.value, expr.bits)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        call = stmt.expr
         if (
-            stmt.target == "memcpy"
-            and isinstance(stmt.args[0], VirtualVariable)
-            and isinstance(stmt.args[1], Const)
-            and isinstance(stmt.args[2], Const)
+            call.target == "memcpy"
+            and isinstance(call.args[0], VirtualVariable)
+            and isinstance(call.args[1], Const)
+            and isinstance(call.args[2], Const)
         ):
             # got a new memcpy call that we can handle
-            dst, src, size = stmt.args
+            dst, src, size = call.args
             if dst.varid not in self._static_vvars:
                 if src.tags.get("custom_string", False):
                     ident = f"static_buf_{stmt.tags['ins_addr']}"

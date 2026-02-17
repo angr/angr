@@ -142,8 +142,8 @@ class BlockIOFinder(AILBlockViewer):
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
     def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
+        if stmt.expr.args:
+            for i, arg in enumerate(stmt.expr.args):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
                 self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
