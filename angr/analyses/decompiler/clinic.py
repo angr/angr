@@ -17,6 +17,56 @@ from angr.ailment import AILBlockRewriter, Block, Statement
 from angr.ailment.block_walker import AILBlockViewer
 from angr.ailment.expression import Array, FunctionLikeMacro, Let, RustEnum, Struct, VirtualVariable
 from angr.analyses.analysis import Analysis, register_analysis
+from angr.analyses.decompiler.callsite_maker import CallSiteMaker
+from angr.code_location import ExternalCodeLocation
+from angr.errors import AngrDecompilationError
+from angr.knowledge_base import KnowledgeBase
+from angr.knowledge_plugins.functions import Function
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.key_definitions import atoms
+from angr.knowledge_plugins.functions.function import PrototypeSource
+from angr.codenode import BlockNode, FuncNode
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.utils import timethis
+from angr.utils.ssa import is_phi_assignment
+from angr.utils.graph import GraphUtils
+from angr.utils.types import dereference_simtype_by_lib
+from angr.calling_conventions import (
+    SimRegArg,
+    SimStackArg,
+    SimFunctionArgument,
+    SimStructArg,
+    SimCCUsercall,
+    SimReferenceArgument,
+    SimComboArg,
+)
+from angr.sim_type import (
+    PointerDisposition,
+    SimType,
+    SimTypeChar,
+    SimTypeInt,
+    SimTypeLongLong,
+    SimTypeShort,
+    SimTypeFunction,
+    SimTypeBottom,
+    SimTypeFloat,
+    SimTypePointer,
+    SimStruct,
+    SimTypeArray,
+    SimCppClass,
+)
+from angr.analyses.stack_pointer_tracker import Register, OffsetVal
+from angr.sim_variable import (
+    SimVariable,
+    SimStackVariable,
+    SimRegisterVariable,
+    SimMemoryVariable,
+    SimConstantVariable,
+    SimComboRegisterVariable,
+)
+from angr.procedures.stubs.UnresolvableCallTarget import UnresolvableCallTarget
+from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
+from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.analyses.s_liveness import SLivenessAnalysis
@@ -4017,7 +4067,15 @@ class Clinic(Analysis):
                 )
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func.prototype is not None:
                             new_arg_types.append(func.prototype.args[i])
