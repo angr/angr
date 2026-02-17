@@ -67,8 +67,9 @@ class RemoveRedundantShiftsAroundComparators(PeepholeOptimizationExprBase):
                 if mul_1 is not None:
                     common_shift_amount = self._get_common_shift_amount(mul_0, mul_1)
                     if common_shift_amount > 0:
-                        new_mul_0 = Const(None, None, mul_0 >> common_shift_amount, op0.bits)
-                        new_mul_1 = Const(None, None, mul_1 >> common_shift_amount, op0.bits)
+                        op_bits = op0_op.bits
+                        new_mul_0 = Const(None, None, mul_0 >> common_shift_amount, op_bits)
+                        new_mul_1 = Const(None, None, mul_1 >> common_shift_amount, op_bits)
                         new_cmp_0 = BinaryOp(op0.idx, "Mul", [op0_op, new_mul_0], op0.signed, bits=op0.bits, **op0.tags)
                         new_cmp_1 = (
                             BinaryOp(op1.idx, "Mul", [op1_op, new_mul_1], op1.signed, bits=op1.bits, **op1.tags)

@@ -201,7 +201,7 @@ class EagerEvaluation(PeepholeOptimizationExprBase):
         elif expr.op == "Mul":
             if isinstance(op1, Const) and op1.value == 1:
                 # x * 1 => x
-                return op0
+                return op0 if op0.bits == expr.bits else Convert(expr.idx, op0.bits, expr.bits, False, op0, **expr.tags)
             if isinstance(op0, Const) and op0.is_int and isinstance(op1, Const) and op1.is_int:
                 assert isinstance(op0.value, int) and isinstance(op1.value, int)
                 # constant multiplication
