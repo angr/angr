@@ -35,6 +35,7 @@ class IcicleStateTranslationData:
     registers: set[str]
     writable_pages: set[int]
     initial_cpu_icount: int
+    icicle_arch: str
 
 
 class IcicleEngine(ConcreteEngine):
@@ -50,13 +51,19 @@ class IcicleEngine(ConcreteEngine):
     This class is the base class for the Icicle engine. It implements execution
     by creating an Icicle instance, copying the state from angr to Icicle, and then
     running the Icicle instance. The results are then copied back to the angr
-    state. It is likely the case that this can be improved by re-using the Icicle
-    instance across multiple runs and only copying the state when necessary.
+    state. When snapshot mode is enabled, the Icicle instance is reused across
+    multiple runs, restoring from a snapshot and only syncing changed state.
 
     For a more complete implementation, use the UberIcicleEngine class, which
     intends to provide a more complete set of features, such as hooks and syscalls.
 
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._cached_emu: Icicle | None = None
+        self._base_translation_data: IcicleStateTranslationData | None = None
+        self._snapshot_mode: bool = False
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -179,6 +186,7 @@ class IcicleEngine(ConcreteEngine):
             registers=copied_registers,
             writable_pages=writable_pages,
             initial_cpu_icount=emu.cpu_icount,
+            icicle_arch=icicle_arch,
         )
 
         # 3. Copy edge hitmap
@@ -244,6 +252,71 @@ class IcicleEngine(ConcreteEngine):
 
         return state
 
+    @staticmethod
+    def __sync_angr_state_to_icicle(
+        emu: Icicle,
+        state: HeavyConcreteState,
+        base_translation_data: IcicleStateTranslationData,
+    ) -> IcicleStateTranslationData:
+        """
+        Sync only registers and writable pages from an angr state to an existing
+        Icicle VM. This is much faster than a full conversion since it skips VM
+        creation, memory mapping, and read-only page copies.
+        """
+        icicle_arch = base_translation_data.icicle_arch
+
+        # 1. Copy register values
+        for register in base_translation_data.registers:
+            try:
+                emu.reg_write(
+                    register,
+                    state.solver.eval(state.registers.load(register), cast_to=int),
+                )
+            except KeyError:
+                pass
+
+        # Handle thumb/ARM mode
+        if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
+            emu.pc = state.addr & ~1
+            emu.isa_mode = 1
+        elif "arm" in icicle_arch:
+            emu.pc = state.addr
+
+        # Special case for x86 gs register
+        if state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+
+        # 2. Copy writable page contents only
+        for page_num in base_translation_data.writable_pages:
+            addr = page_num * state.memory.page_size
+            memory = state.memory.concrete_load(addr, state.memory.page_size)
+            emu.mem_write(addr, memory)
+
+        return IcicleStateTranslationData(
+            base_state=state,
+            registers=base_translation_data.registers,
+            writable_pages=base_translation_data.writable_pages,
+            initial_cpu_icount=emu.cpu_icount,
+            icicle_arch=icicle_arch,
+        )
+
+    def enable_snapshot_mode(self) -> None:
+        """Enable snapshot mode for VM reuse across multiple runs."""
+        self._snapshot_mode = True
+
+    def has_snapshot(self) -> bool:
+        """Check if a snapshot is available for fast restore."""
+        return self._cached_emu is not None and self._cached_emu.has_snapshot()
+
+    def restore_and_sync(self, state: HeavyConcreteState) -> None:
+        """Restore the cached VM from snapshot and sync the given state to it."""
+        if self._cached_emu is None or self._base_translation_data is None:
+            raise ValueError("No cached emulator. Run process_concrete first with snapshot mode enabled.")
+        self._cached_emu.restore_snapshot()
+        self._base_translation_data = self.__sync_angr_state_to_icicle(
+            self._cached_emu, state, self._base_translation_data
+        )
+
     @override
     def process_concrete(
         self,
@@ -251,16 +324,30 @@ class IcicleEngine(ConcreteEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
-        emu, translation_data = self.__convert_angr_state_to_icicle(state)
+        if self._cached_emu is not None and self._snapshot_mode:
+            # Fast path: restore snapshot and sync only changed state
+            self._cached_emu.restore_snapshot()
+            translation_data = self.__sync_angr_state_to_icicle(
+                self._cached_emu, state, self._base_translation_data
+            )
+            emu = self._cached_emu
+        else:
+            # Full init path
+            emu, translation_data = self.__convert_angr_state_to_icicle(state)
+            if self._snapshot_mode and self._cached_emu is None:
+                emu.save_snapshot()
+                self._cached_emu = emu
+                self._base_translation_data = translation_data
 
-        # Set extra stop points, skip the current PC. This assumes that if running
-        # with a stop point at the current PC, then the user has already done
-        # the necessary handling and is resuming execution.
+        # Set extra stop points, skip the current PC. Track which ones were
+        # actually added so we can clean them up after the run.
+        added_breakpoints = []
         if extra_stop_points is not None:
             for addr in extra_stop_points:
                 addr = addr & ~1  # Clear thumb bit if set
                 if emu.pc != addr:
-                    emu.add_breakpoint(addr)
+                    if emu.add_breakpoint(addr):
+                        added_breakpoints.append(addr)
 
         # Set the instruction count limit
         if num_inst is not None and num_inst > 0:
@@ -268,6 +355,10 @@ class IcicleEngine(ConcreteEngine):
 
         # Run it
         status = emu.run()
+
+        # Remove extra stop points to prevent accumulation across runs
+        for addr in added_breakpoints:
+            emu.remove_breakpoint(addr)
 
         return IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 

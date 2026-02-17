@@ -16,6 +16,7 @@ pub struct PyExecutorInner<S> {
     apply_fn: Py<PyAny>,
     observers: OT,
     timeout: Option<Duration>,
+    cached_engine: Option<Py<PyAny>>,
     phantom: std::marker::PhantomData<S>,
 }
 
@@ -36,6 +37,7 @@ impl<S> PyExecutorInner<S> {
             apply_fn: apply_fn.unbind(),
             observers,
             timeout,
+            cached_engine: None,
             phantom: std::marker::PhantomData,
         })
     }
@@ -61,16 +63,24 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 let apply_fn = self.apply_fn.bind(py);
                 apply_fn.call1((&copied_state, input.as_ref()))?;
 
-                // Step 2: Use an emulator to run the target
-                let project = copied_state.getattr("project")?;
-                let icicle_engine = py
-                    .import("angr.engines.icicle")?
-                    .getattr("UberIcicleEngine")?
-                    .call1((project,))?;
+                // Step 2: Get or create the icicle engine (reuse across iterations)
+                let icicle_engine = if let Some(ref cached) = self.cached_engine {
+                    cached.bind(py).clone()
+                } else {
+                    let project = copied_state.getattr("project")?;
+                    let engine = py
+                        .import("angr.engines.icicle")?
+                        .getattr("UberIcicleEngine")?
+                        .call1((project,))?;
+                    engine.call_method0("enable_snapshot_mode")?;
+                    self.cached_engine = Some(engine.clone().unbind());
+                    engine
+                };
+
                 let emulator = py
                     .import("angr.emulator")?
                     .getattr("Emulator")?
-                    .call1((icicle_engine, &copied_state))?;
+                    .call1((&icicle_engine, &copied_state))?;
 
                 // Step 2.5: Set return address as breakpoint to detect normal returns
                 let calling_convention = self

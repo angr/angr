@@ -141,10 +141,11 @@ class Icicle:
         :arg data: The data to write to memory as bytes.
         """
 
-    def add_breakpoint(self, addr: int) -> None:
+    def add_breakpoint(self, addr: int) -> bool:
         """Add a breakpoint at a specific address.
 
         :arg addr: The address where the breakpoint should be set.
+        :returns: True if the breakpoint was added, False if it already exists.
         """
 
     def remove_breakpoint(self, addr: int) -> None:
@@ -178,3 +179,22 @@ class Icicle:
     @edge_hitmap.setter
     def edge_hitmap(self, value: bytes | None) -> None:
         """Set the edge hitmap for the current run."""
+
+    def save_snapshot(self) -> None:
+        """Save a snapshot of the current VM state for later restoration."""
+
+    def restore_snapshot(self) -> None:
+        """Restore the VM to a previously saved snapshot.
+
+        Clears the path tracer and zeros the edge hitmap.
+        Raises RuntimeError if no snapshot has been saved.
+        """
+
+    def has_snapshot(self) -> bool:
+        """Check if a snapshot has been saved.
+
+        :returns: True if a snapshot exists, False otherwise.
+        """
+
+    def clear_path_tracer(self) -> None:
+        """Clear the path tracer's recorded execution trace."""
