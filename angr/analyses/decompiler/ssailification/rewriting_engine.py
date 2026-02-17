@@ -69,6 +69,7 @@ class SimEngineSSARewriting(
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
         stackvars: bool = False,
+        fail_fast: bool = False,
     ):
         super().__init__(project)
 
@@ -81,6 +82,7 @@ class SimEngineSSARewriting(
         self.def_to_udef = def_to_udef
         self.stackvars = stackvars
         self.incomplete_defs = incomplete_defs
+        self._fail_fast = fail_fast
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
@@ -603,11 +605,31 @@ class SimEngineSSARewriting(
             # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                return self.state.stackvars[expr.offset]
-            if isinstance(expr, Register):
-                return self.state.registers[expr.reg_offset]
-            raise TypeError(expr)
-        kind, offset, size = udef
+                if expr.offset in self.state.stackvars:
+                    return self.state.stackvars[expr.offset]
+            elif isinstance(expr, Register):
+                if expr.reg_offset in self.state.registers:
+                    return self.state.registers[expr.reg_offset]
+            else:
+                raise TypeError(expr)
+
+            # we got here because expr refers to a non-existent stack offset or register offset.
+            # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
+            if self._fail_fast:
+                raise KeyError(expr)
+            # otherwise, we try our best to guesstimate the udef here
+            kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
+            offset = expr.offset
+            if kind == "stack":
+                next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
+            else:
+                # kind == "reg"
+                next_off = min((o for o in self.state.registers if o >= offset), default=offset + 4)
+            size = next_off - offset
+        else:
+            # unpack udef
+            kind, offset, size = udef
+
         if (varid := self.def_to_vvid_cache.get(expr, None)) is None:
             varid = self.def_to_vvid_cache[expr] = self._current_vvar_id
             self._current_vvar_id += 1
