@@ -7,9 +7,7 @@ __package__ = __package__ or "tests.engines"  # pylint:disable=redefined-builtin
 import gc
 import os
 import pickle
-import platform
 import re
-import sys
 import unittest
 
 import claripy
@@ -41,8 +39,6 @@ def _compare_trace(trace, expected):
         assert trace_item_str == expected_str
 
 
-@unittest.skipIf(sys.platform == "win32", "broken on windows")
-@unittest.skipIf(platform.system() == "Darwin" and platform.machine() == "arm64", "broken on apple silicon")
 class TestUnicorn(unittest.TestCase):
     def test_stops(self):
         p = angr.Project(os.path.join(test_location, "i386", "uc_stop"), auto_load_libs=False)

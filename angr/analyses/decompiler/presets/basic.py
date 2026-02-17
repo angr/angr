@@ -9,11 +9,11 @@ from angr.analyses.decompiler.optimization_passes import (
     RetAddrSaveSimplifier,
     RegisterSaveAreaSimplifierAdvanced,
     X86GccGetPcSimplifier,
+    MipsGpSettingSimplifier,
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
     PostStructuringPeepholeOptimizationPass,
 )
-
 
 preset_basic = DecompilationPreset(
     "basic",
@@ -26,6 +26,7 @@ preset_basic = DecompilationPreset(
         RetAddrSaveSimplifier,
         RegisterSaveAreaSimplifierAdvanced,
         X86GccGetPcSimplifier,
+        MipsGpSettingSimplifier,
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         PostStructuringPeepholeOptimizationPass,

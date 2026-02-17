@@ -10,7 +10,6 @@ from angr.utils.graph import subgraph_between_nodes
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph, update_labels
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(__name__)
 
 
@@ -32,8 +31,8 @@ class ReturnDeduplicator(OptimizationPass):
     DESCRIPTION = __doc__.strip()
     STRUCTURING = [SAILRStructurer.NAME, DreamStructurer.NAME]
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -97,7 +96,7 @@ class ReturnDeduplicator(OptimizationPass):
         # create a new return block
         true_ret: Return = true_child.statements[-1]
         false_ret: Return = false_child.statements[-1]
-        ret_stmt = true_ret if true_ret.ins_addr > false_ret.ins_addr else false_ret
+        ret_stmt = true_ret if true_ret.tags["ins_addr"] > false_ret.tags["ins_addr"] else false_ret
         # XXX: this size is wrong, but unknown how to fix
         ret_block = Block(self.new_block_addr(), 1, [ret_stmt])
 
@@ -189,7 +188,7 @@ class ReturnDeduplicator(OptimizationPass):
                     continue
 
                 last_stmt = block.statements[-1]
-                ids[(last_stmt.ins_addr, hash(last_stmt))] = block
+                ids[(last_stmt.tags["ins_addr"], hash(last_stmt))] = block
 
         super_block_map = {}
         for block in self._graph.nodes():
@@ -197,7 +196,7 @@ class ReturnDeduplicator(OptimizationPass):
                 continue
 
             last_stmt = block.statements[-1]
-            stmt_id = (last_stmt.ins_addr, hash(last_stmt))
+            stmt_id = (last_stmt.tags["ins_addr"], hash(last_stmt))
             if stmt_id in ids:
                 super_block = ids[stmt_id]
                 super_block_map[super_block] = block

@@ -1,9 +1,11 @@
 from __future__ import annotations
+from collections.abc import Callable
 
 from angr import ailment
 from angr.analyses import Analysis
 from angr.analyses.decompiler.clinic import Clinic
 from angr.analyses.forward_analysis.forward_analysis import ForwardAnalysisForClinic
+from angr.errors import AngrAnalysisError
 from angr.knowledge_plugins.functions.function import Function
 from .engine import PurityEngineAIL, ResultType, StateType
 
@@ -16,16 +18,35 @@ class AILPurityAnalysis(Analysis, ForwardAnalysisForClinic[StateType]):
     def __init__(
         self,
         subject: str | int | Function | Clinic,
+        memo: dict[Function, ResultType | None] | None = None,
+        lifter: Callable[[Function], Clinic] | None = None,
     ):
+        if memo is None:
+            memo = {}
+        self.memo = memo
+        self._lifter = lifter or self._lift_default
         if isinstance(subject, (str, int)):
             subject = self.kb.functions[subject]
         if isinstance(subject, Function):
-            subject = self.project.analyses.Clinic(subject)
-        self.engine = PurityEngineAIL(self.project, subject)
+            subject = self._lifter(subject)
+        self.engine = PurityEngineAIL(self.project, subject, self._recurse)
         self.result = ResultType()
         ForwardAnalysisForClinic.__init__(self, allow_merging=True, clinic=subject)
 
+        memo[subject.function] = None
         self._analyze()
+        memo[subject.function] = self.result
+
+    def _lift_default(self, function: Function) -> Clinic:
+        return self.project.analyses.Clinic(function)
+
+    def _recurse(self, function: Function) -> ResultType:
+        if function not in self.memo:
+            self.project.analyses[AILPurityAnalysis].prep(kb=self.kb)(function, self.memo, self._lifter)
+        r = self.memo[function]
+        if r is None:
+            raise AngrAnalysisError("Cannot do purity for recursive call tree")
+        return r
 
     def _initial_abstract_state(self, node: ailment.Block) -> StateType:
         return self.engine.initial_state(node)

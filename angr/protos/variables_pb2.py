@@ -23,7 +23,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x61ngr/protos/variables.proto\x12\x0b\x61ngr.protos\"\x90\x01\n\x0cVariableBase\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x06region\x18\x03 \x01(\x04H\x00\x88\x01\x01\x12\x15\n\x08\x63\x61tegory\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x07renamed\x18\x05 \x01(\x08\x12\x0e\n\x06is_phi\x18\x06 \x01(\x08\x42\t\n\x07_regionB\x0b\n\t_category\"L\n\x11TemporaryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0e\n\x06tmp_id\x18\x02 \x01(\r\"V\n\x10RegisterVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0b\n\x03reg\x18\x02 \x01(\r\x12\x0c\n\x04size\x18\x03 \x01(\r\"U\n\x0eMemoryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\"u\n\rStackVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\x12\x0f\n\x07sp_base\x18\x04 \x01(\x08\x12\x0e\n\x06offset\x18\x05 \x01(\x05\"\x9c\x02\n\x0eVariableAccess\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x12\n\nblock_addr\x18\x02 \x01(\x04\x12\x10\n\x08stmt_idx\x18\x03 \x01(\x05\x12\x10\n\x08ins_addr\x18\x04 \x01(\x04\x12\x13\n\x06offset\x18\x05 \x01(\x03H\x00\x88\x01\x01\x12\x43\n\x0b\x61\x63\x63\x65ss_type\x18\x06 \x01(\x0e\x32..angr.protos.VariableAccess.VariableAccessSort\x12\x16\n\tatom_hash\x18\x07 \x01(\rH\x01\x88\x01\x01\"8\n\x12VariableAccessSort\x12\t\n\x05WRITE\x10\x00\x12\x08\n\x04READ\x10\x01\x12\r\n\tREFERENCE\x10\x02\x42\t\n\x07_offsetB\x0c\n\n_atom_hash\"/\n\x0cVariableType\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x10\n\x08var_type\x18\x02 \x01(\t\";\n\x0bVar2Unified\x12\x11\n\tvar_ident\x18\x01 \x01(\t\x12\x19\n\x11unified_var_ident\x18\x02 \x01(\t\"/\n\x07Phi2Var\x12\x11\n\tphi_ident\x18\x01 \x01(\t\x12\x11\n\tvar_ident\x18\x02 \x01(\t\"\xe6\x04\n\x17VariableManagerInternal\x12\x30\n\x08tempvars\x18\x01 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12.\n\x07regvars\x18\x02 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12,\n\x07memvars\x18\x03 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12-\n\tstackvars\x18\x04 \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x08\x61\x63\x63\x65sses\x18\x05 \x03(\x0b\x32\x1b.angr.protos.VariableAccess\x12\x38\n\x10unified_tempvars\x18\x06 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12\x36\n\x0funified_regvars\x18\x07 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12\x34\n\x0funified_memvars\x18\x08 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12\x35\n\x11unified_stackvars\x18\t \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x0bvar2unified\x18\n \x03(\x0b\x32\x18.angr.protos.Var2Unified\x12(\n\x05types\x18\x0b \x03(\x0b\x32\x19.angr.protos.VariableType\x12%\n\x07phi2var\x18\x0c \x03(\x0b\x32\x14.angr.protos.Phi2Varb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x1b\x61ngr/protos/variables.proto\x12\x0b\x61ngr.protos\"\x90\x01\n\x0cVariableBase\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x06region\x18\x03 \x01(\x04H\x00\x88\x01\x01\x12\x15\n\x08\x63\x61tegory\x18\x04 \x01(\tH\x01\x88\x01\x01\x12\x0f\n\x07renamed\x18\x05 \x01(\x08\x12\x0e\n\x06is_phi\x18\x06 \x01(\x08\x42\t\n\x07_regionB\x0b\n\t_category\"Z\n\x11TemporaryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0e\n\x06tmp_id\x18\x02 \x01(\r\x12\x0c\n\x04size\x18\x03 \x01(\r\"\x80\x01\n\x10\x43onstantVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04size\x18\x02 \x01(\r\x12\r\n\x05value\x18\x03 \x01(\x04\x12\x17\n\nlong_value\x18\x04 \x01(\x0cH\x00\x88\x01\x01\x42\r\n\x0b_long_value\"V\n\x10RegisterVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0b\n\x03reg\x18\x02 \x01(\r\x12\x0c\n\x04size\x18\x03 \x01(\r\"U\n\x0eMemoryVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\"u\n\rStackVariable\x12\'\n\x04\x62\x61se\x18\x01 \x01(\x0b\x32\x19.angr.protos.VariableBase\x12\x0c\n\x04\x61\x64\x64r\x18\x02 \x01(\x04\x12\x0c\n\x04size\x18\x03 \x01(\r\x12\x0f\n\x07sp_base\x18\x04 \x01(\x08\x12\x0e\n\x06offset\x18\x05 \x01(\x05\"\x9c\x02\n\x0eVariableAccess\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x12\n\nblock_addr\x18\x02 \x01(\x04\x12\x10\n\x08stmt_idx\x18\x03 \x01(\x05\x12\x10\n\x08ins_addr\x18\x04 \x01(\x04\x12\x13\n\x06offset\x18\x05 \x01(\x03H\x00\x88\x01\x01\x12\x43\n\x0b\x61\x63\x63\x65ss_type\x18\x06 \x01(\x0e\x32..angr.protos.VariableAccess.VariableAccessSort\x12\x16\n\tatom_hash\x18\x07 \x01(\rH\x01\x88\x01\x01\"8\n\x12VariableAccessSort\x12\t\n\x05WRITE\x10\x00\x12\x08\n\x04READ\x10\x01\x12\r\n\tREFERENCE\x10\x02\x42\t\n\x07_offsetB\x0c\n\n_atom_hash\"/\n\x0cVariableType\x12\r\n\x05ident\x18\x01 \x01(\t\x12\x10\n\x08var_type\x18\x02 \x01(\t\";\n\x0bVar2Unified\x12\x11\n\tvar_ident\x18\x01 \x01(\t\x12\x19\n\x11unified_var_ident\x18\x02 \x01(\t\"/\n\x07Phi2Var\x12\x11\n\tphi_ident\x18\x01 \x01(\t\x12\x11\n\tvar_ident\x18\x02 \x01(\t\"\x98\x05\n\x17VariableManagerInternal\x12\x30\n\x08tempvars\x18\x01 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12.\n\x07regvars\x18\x02 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12,\n\x07memvars\x18\x03 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12-\n\tstackvars\x18\x04 \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12\x30\n\tconstvars\x18\r \x03(\x0b\x32\x1d.angr.protos.ConstantVariable\x12-\n\x08\x61\x63\x63\x65sses\x18\x05 \x03(\x0b\x32\x1b.angr.protos.VariableAccess\x12\x38\n\x10unified_tempvars\x18\x06 \x03(\x0b\x32\x1e.angr.protos.TemporaryVariable\x12\x36\n\x0funified_regvars\x18\x07 \x03(\x0b\x32\x1d.angr.protos.RegisterVariable\x12\x34\n\x0funified_memvars\x18\x08 \x03(\x0b\x32\x1b.angr.protos.MemoryVariable\x12\x35\n\x11unified_stackvars\x18\t \x03(\x0b\x32\x1a.angr.protos.StackVariable\x12-\n\x0bvar2unified\x18\n \x03(\x0b\x32\x18.angr.protos.Var2Unified\x12(\n\x05types\x18\x0b \x03(\x0b\x32\x19.angr.protos.VariableType\x12%\n\x07phi2var\x18\x0c \x03(\x0b\x32\x14.angr.protos.Phi2Varb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,23 +33,25 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_VARIABLEBASE']._serialized_start=45
   _globals['_VARIABLEBASE']._serialized_end=189
   _globals['_TEMPORARYVARIABLE']._serialized_start=191
-  _globals['_TEMPORARYVARIABLE']._serialized_end=267
-  _globals['_REGISTERVARIABLE']._serialized_start=269
-  _globals['_REGISTERVARIABLE']._serialized_end=355
-  _globals['_MEMORYVARIABLE']._serialized_start=357
-  _globals['_MEMORYVARIABLE']._serialized_end=442
-  _globals['_STACKVARIABLE']._serialized_start=444
-  _globals['_STACKVARIABLE']._serialized_end=561
-  _globals['_VARIABLEACCESS']._serialized_start=564
-  _globals['_VARIABLEACCESS']._serialized_end=848
-  _globals['_VARIABLEACCESS_VARIABLEACCESSSORT']._serialized_start=767
-  _globals['_VARIABLEACCESS_VARIABLEACCESSSORT']._serialized_end=823
-  _globals['_VARIABLETYPE']._serialized_start=850
-  _globals['_VARIABLETYPE']._serialized_end=897
-  _globals['_VAR2UNIFIED']._serialized_start=899
-  _globals['_VAR2UNIFIED']._serialized_end=958
-  _globals['_PHI2VAR']._serialized_start=960
-  _globals['_PHI2VAR']._serialized_end=1007
-  _globals['_VARIABLEMANAGERINTERNAL']._serialized_start=1010
-  _globals['_VARIABLEMANAGERINTERNAL']._serialized_end=1624
+  _globals['_TEMPORARYVARIABLE']._serialized_end=281
+  _globals['_CONSTANTVARIABLE']._serialized_start=284
+  _globals['_CONSTANTVARIABLE']._serialized_end=412
+  _globals['_REGISTERVARIABLE']._serialized_start=414
+  _globals['_REGISTERVARIABLE']._serialized_end=500
+  _globals['_MEMORYVARIABLE']._serialized_start=502
+  _globals['_MEMORYVARIABLE']._serialized_end=587
+  _globals['_STACKVARIABLE']._serialized_start=589
+  _globals['_STACKVARIABLE']._serialized_end=706
+  _globals['_VARIABLEACCESS']._serialized_start=709
+  _globals['_VARIABLEACCESS']._serialized_end=993
+  _globals['_VARIABLEACCESS_VARIABLEACCESSSORT']._serialized_start=912
+  _globals['_VARIABLEACCESS_VARIABLEACCESSSORT']._serialized_end=968
+  _globals['_VARIABLETYPE']._serialized_start=995
+  _globals['_VARIABLETYPE']._serialized_end=1042
+  _globals['_VAR2UNIFIED']._serialized_start=1044
+  _globals['_VAR2UNIFIED']._serialized_end=1103
+  _globals['_PHI2VAR']._serialized_start=1105
+  _globals['_PHI2VAR']._serialized_end=1152
+  _globals['_VARIABLEMANAGERINTERNAL']._serialized_start=1155
+  _globals['_VARIABLEMANAGERINTERNAL']._serialized_end=1819
 # @@protoc_insertion_point(module_scope)

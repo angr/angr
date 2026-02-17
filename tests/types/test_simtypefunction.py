@@ -14,9 +14,8 @@ class TestSimTypeFunction(unittest.TestCase):
         assert pyproto.c_repr(name="main", full=True) == proto
 
     def test_c_repr_noargs(self):
-        proto = "int (main)()"
-        _, pyproto, _ = convert_cproto_to_py(proto + ";")
-        assert pyproto.c_repr(name="main") == proto
+        _, pyproto, _ = convert_cproto_to_py("int (main)();")
+        assert pyproto.c_repr(name="main") == "int (main)(void)"
 
     def test_c_repr_noname(self):
         _, pyproto, _ = convert_cproto_to_py("int (main)(int argc, char **argv);")
@@ -40,6 +39,25 @@ class TestSimTypeFunction(unittest.TestCase):
         _, pyproto, _ = convert_cproto_to_py("int (main)(void);")  # XXX: pycparser does not support full variadic yet
         pyproto.variadic = True
         assert pyproto.c_repr(name="main", full=True) == "int (main)(...)"
+
+    def test_c_repr_strtok_qual(self):
+        _, pyproto, _ = convert_cproto_to_py(
+            "char * (strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS);"
+        )
+        assert pyproto.c_repr(name="strtok", full=False) == "char *(strtok)(char *restrict, const char *restrict)"
+        assert (
+            pyproto.c_repr(name="strtok", full=True)
+            == "char *(strtok)(char *restrict NEWSTRING, const char *restrict DELIMITERS)"
+        )
+
+    def test_c_repr_strdup_qual(self):
+        _, pyproto, _ = convert_cproto_to_py("char * (strdup)(const char *S);")
+        assert pyproto.c_repr(name="strdup", full=False) == "char *(strdup)(const char *)"
+
+    def test_c_repr_psignal_qual(self):
+        _, pyproto, _ = convert_cproto_to_py("void (psignal) (int SIGNUM, const char *MESSAGE);")
+        assert pyproto.c_repr(name="psignal", full=False) == "void (psignal)(int, const char *)"
+        assert pyproto.c_repr(name="psignal", full=True) == "void (psignal)(int SIGNUM, const char *MESSAGE)"
 
 
 if __name__ == "__main__":

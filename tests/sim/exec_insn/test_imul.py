@@ -10,7 +10,6 @@ from tests.common import run_simple_unicorn_congruency_check
 
 # pylint: disable=missing-class-docstring
 class TestImul(unittest.TestCase):
-
     def test_imul(self):
         values = [
             (0, 0),
@@ -25,7 +24,6 @@ class TestImul(unittest.TestCase):
             (0x3FE00000, -1024),  # -iv, -tv
         ]
         for f0, f1 in values:
-
             # 1-operand
             asm = f"""\
                 mov eax, {f0:#x}

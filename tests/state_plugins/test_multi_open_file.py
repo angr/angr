@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -19,7 +18,7 @@ class TestMultiOpenFile(unittest.TestCase):
     def test_multi_open_file(self):
         test_bin = os.path.join(test_location, "x86_64", "test_multi_open_file")
         # auto_load_libs cannot be disabled as the test fails
-        b = angr.Project(test_bin)
+        b = angr.Project(test_bin, auto_load_libs=True)
 
         pg = b.factory.simulation_manager()
         pg.active[0].options.discard("LAZY_SOLVES")

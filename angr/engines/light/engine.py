@@ -133,7 +133,7 @@ T = TypeVar("T")
 
 def longest_prefix_lookup(haystack: str, mapping: dict[str, T]) -> T | None:
     for l in reversed(range(len(haystack))):
-        handler = mapping.get(haystack[:l], None)
+        handler = mapping.get(haystack[:l])
         if handler is not None:
             return handler
     return None
@@ -414,7 +414,7 @@ class SimEngineLightVEX(
             return self._handle_conversion(simop._from_size, simop._to_size, simop.is_signed, expr.args[0])
 
         if once(expr.op) and self.l is not None:
-            self.l.error("Unsupported Unop %s.", expr.op)
+            self.l.info("Unsupported Unop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     @abstractmethod
@@ -437,7 +437,7 @@ class SimEngineLightVEX(
             return handler(expr)
 
         if once(expr.op) and self.l is not None:
-            self.l.warning("Unsupported Binop %s.", expr.op)
+            self.l.info("Unsupported Binop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_Triop(self, expr: pyvex.expr.Triop) -> DataType_co:
@@ -449,7 +449,7 @@ class SimEngineLightVEX(
         # should we try dispatching some triops with roundingmode as binops?
 
         if once(expr.op) and self.l is not None:
-            self.l.error("Unsupported Triop %s.", expr.op)
+            self.l.info("Unsupported Triop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_Qop(self, expr: pyvex.expr.Qop) -> DataType_co:
@@ -459,7 +459,7 @@ class SimEngineLightVEX(
             return handler(expr)
 
         if once(expr.op) and self.l is not None:
-            self.l.error("Unsupported Qop %s.", expr.op)
+            self.l.info("Unsupported Qop %s.", expr.op)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     def _handle_expr_CCall(self, expr: pyvex.expr.CCall) -> DataType_co:  # pylint:disable=useless-return
@@ -468,7 +468,7 @@ class SimEngineLightVEX(
             return handler(expr)
 
         if once(expr.cee.name) and self.l is not None:
-            self.l.error("Unsupported CCall %s.", expr.cee.name)
+            self.l.info("Unsupported CCall %s.", expr.cee.name)
         return self._top(pyvex.get_type_size(expr.result_type(self.tyenv)))
 
     @abstractmethod
@@ -540,7 +540,7 @@ class SimEngineLightAIL(
             "Store": self._handle_stmt_Store,
             "Jump": self._handle_stmt_Jump,
             "ConditionalJump": self._handle_stmt_ConditionalJump,
-            "Call": self._handle_stmt_Call,
+            "SideEffectStatement": self._handle_stmt_SideEffectStatement,
             "Return": self._handle_stmt_Return,
             "DirtyStatement": self._handle_stmt_DirtyStatement,
             "Label": self._handle_stmt_Label,
@@ -559,6 +559,8 @@ class SimEngineLightAIL(
             "Load": self._handle_expr_Load,
             "Register": self._handle_expr_Register,
             "ITE": self._handle_expr_ITE,
+            "Extract": self._handle_expr_Extract,
+            "Insert": self._handle_expr_Insert,
             "Call": self._handle_expr_Call,
             "DirtyExpression": self._handle_expr_DirtyExpression,
             "VEXCCallExpression": self._handle_expr_VEXCCallExpression,
@@ -693,7 +695,7 @@ class SimEngineLightAIL(
                 continue
 
             self.stmt_idx = stmt_idx
-            self.ins_addr = stmt.ins_addr
+            self.ins_addr = stmt.tags["ins_addr"]
             stmt_result = self._stmt(stmt)
             result.append(stmt_result)
             if self._stmt_diverges(stmt_result):
@@ -724,7 +726,7 @@ class SimEngineLightAIL(
     def _handle_stmt_ConditionalJump(self, stmt: ailment.statement.ConditionalJump) -> StmtDataType: ...
 
     @abstractmethod
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> StmtDataType: ...
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType: ...
 
     @abstractmethod
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType: ...
@@ -783,7 +785,13 @@ class SimEngineLightAIL(
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co: ...
 
     @abstractmethod
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co: ...
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType_co: ...
+
+    @abstractmethod
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co: ...
 
     @abstractmethod
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co: ...
@@ -1041,7 +1049,7 @@ class SimEngineNostmtAIL(
     def _handle_stmt_ConditionalJump(self, stmt) -> StmtDataType | None:
         pass
 
-    def _handle_stmt_Call(self, stmt) -> StmtDataType | None:
+    def _handle_stmt_SideEffectStatement(self, stmt) -> StmtDataType | None:
         pass
 
     def _handle_stmt_Return(self, stmt) -> StmtDataType | None:
@@ -1093,7 +1101,13 @@ class SimEngineNoexprAIL(
     def _handle_expr_ITE(self, expr: ailment.expression.ITE) -> DataType_co | None:
         pass
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co | None:
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType_co | None:
+        pass
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType_co | None:
+        pass
+
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co | None:
         pass
 
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co | None:

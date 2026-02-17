@@ -48,12 +48,11 @@ class FunctionManagerSerializer:
         funcs = FunctionManager(kb)
 
         db_funcs = session.query(DbFunction).filter_by(kb=db_kb)
-        all_func_addrs = {x[0] for x in session.query(DbFunction.addr).filter_by(kb=db_kb)}
 
         for db_func in db_funcs:
-            func = Function.parse(
-                db_func.blob, function_manager=funcs, project=kb._project, all_func_addrs=all_func_addrs
-            )
+            func = Function.parse(db_func.blob, function_manager=funcs, project=kb._project)
+            # Mark as dirty so SpillingFunctionDict will save it to LMDB upon eviction.
+            func.mark_dirty()
             funcs[func.addr] = func
 
         funcs.rebuild_callgraph()

@@ -1,10 +1,10 @@
 from __future__ import annotations
 import random
 from collections import UserDict
+from collections.abc import Iterator
 
 from .plugin import KnowledgeBasePlugin
-from angr.sim_type import ALL_TYPES, TypeRef
-
+from angr.sim_type import ALL_TYPES, TypeRef, SimType
 
 FRUITS = [
     "mango",
@@ -27,7 +27,7 @@ FRUITS = [
 ]
 
 
-class TypesStore(KnowledgeBasePlugin, UserDict):
+class TypesStore(KnowledgeBasePlugin, UserDict[str, TypeRef]):
     """
     A kb plugin that stores a mapping from name to TypeRef. It will return types from angr.sim_type.ALL_TYPES as
     a default.
@@ -41,13 +41,16 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         o.update(super().items())
         return o
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> SimType:
         try:
             return super().__getitem__(item)
         except KeyError:
             return ALL_TYPES[item]
 
-    def __setitem__(self, item, value):
+    def get_own(self, item: str) -> TypeRef:
+        return super().__getitem__(item)
+
+    def __setitem__(self, item: str, value: TypeRef):
         if type(value) is not TypeRef:
             raise TypeError("Can only store TypeRefs in TypesStore")
 
@@ -61,7 +64,7 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
 
         super().__setitem__(item, stored_value)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[str]:
         yield from super().__iter__()
         yield from iter(ALL_TYPES)
 
@@ -78,7 +81,10 @@ class TypesStore(KnowledgeBasePlugin, UserDict):
         for key in super().__iter__():
             yield self[key]
 
-    def rename(self, old, new):
+    def iter_own_keys(self):
+        yield from super().__iter__()
+
+    def rename(self, old: str, new: str):
         value = self.pop(old)
         value._name = new
         self[new] = value

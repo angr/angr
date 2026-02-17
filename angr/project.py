@@ -16,7 +16,9 @@ import angr.sim_type
 import cle
 from cle import ELF
 from .sim_procedure import SimProcedure
+
 from .sim_type import SimType, TypeRef
+from .llm_client import LLMClient
 
 from .errors import AngrNoPluginError
 
@@ -45,6 +47,13 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     if thumb:
         start_offset |= 1
 
+    if "force_tls" not in kwargs:
+        simos = kwargs.get("simos")
+        if simos == "windows":
+            kwargs["force_tls"] = "windows"
+        elif simos == "linux":
+            kwargs["force_tls"] = "linux"
+
     return Project(
         BytesIO(shellcode_bytes),
         main_opts={
@@ -55,6 +64,11 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
         },
         **kwargs,
     )
+
+
+CACHE_CONFIG_KEYS = {"functions"}
+
+_UNSET = object()
 
 
 class Project:
@@ -123,6 +137,7 @@ class Project:
         analyses_preset=None,
         concrete_target=None,
         eager_ifunc_resolution=None,
+        cache_limits: dict[str, int] | None = None,
         **kwargs,
     ):
         # Step 1: Load the binary
@@ -243,6 +258,9 @@ class Project:
 
         # Step 5.3: ...etc
         self._knowledge_bases = {"default": KnowledgeBase(self, name="global")}
+        self.cache_limits = cache_limits if cache_limits is not None else {}
+        if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
+            raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
 
         self._populate_debug_info(**kwargs)
 
@@ -264,6 +282,24 @@ class Project:
 
         # Step 7: Run OS-specific configuration
         self.simos.configure_project()
+
+        # Step 8: LLM client (lazy-initialized from env vars on first access)
+        self._llm_client = _UNSET
+
+    @property
+    def llm_client(self):
+        """
+        The LLM client for this project. Lazy-initialized from environment variables on first access.
+        Set manually via ``project.llm_client = LLMClient(...)`` or configure via environment variables
+        ``ANGR_LLM_MODEL``, ``ANGR_LLM_API_KEY``, ``ANGR_LLM_API_BASE``.
+        """
+        if self._llm_client is _UNSET:
+            self._llm_client = LLMClient.from_env()
+        return self._llm_client
+
+    @llm_client.setter
+    def llm_client(self, value):
+        self._llm_client = value
 
     @property
     def kb(self):
@@ -823,6 +859,7 @@ class Project:
                 if k
                 not in {
                     "analyses",
+                    "_llm_client",
                 }
             }
         finally:
@@ -830,10 +867,13 @@ class Project:
 
     def __setstate__(self, s):
         self.__dict__.update(s)
+        self._llm_client = _UNSET
         try:
             self._initialize_analyses_hub()
         except AngrNoPluginError:
-            l.warning("Plugin preset %s does not exist any more. Fall back to the default preset.")
+            l.warning(
+                "Plugin preset %s does not exist any more. Fall back to the default preset.", self._analyses_preset
+            )
             self._analyses_preset = "default"
             self._initialize_analyses_hub()
 
@@ -881,6 +921,35 @@ class Project:
 
     def __repr__(self):
         return "<Project %s>" % (self.filename if self.filename is not None else "loaded from stream")
+
+    #
+    # Cache limit settings
+    #
+
+    def get_function_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for function-level caches.
+
+        :return: The cache limit.
+        :rtype: int
+        """
+        if "functions" in self.cache_limits:
+            return self.cache_limits["functions"]
+
+        if self.loader.main_object.cached_content is not None:
+            sz = len(self.loader.main_object.cached_content)
+        else:
+            # estimate a size using max address - min address
+            if self.loader.main_object.max_addr is not None and self.loader.main_object.min_addr is not None:
+                sz = self.loader.main_object.max_addr - self.loader.main_object.min_addr
+            else:
+                sz = None
+
+        if sz is None:
+            return 5000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't cache functions
+        return ((sz // 512) // 100 + 1) * 100
 
 
 from .factory import AngrObjectFactory

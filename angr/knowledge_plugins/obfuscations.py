@@ -21,6 +21,7 @@ class Obfuscations(KnowledgeBasePlugin):
         self.obfuscated_apis_analyzed: bool = False
         self.type1_deobfuscated_apis: dict[int, tuple[str, str]] = {}
         self.type2_deobfuscated_apis: dict[int, str] = {}
+        self.type3_deobfuscated_apis: dict[int, tuple[str, str]] = {}
 
     def copy(self):
         o = Obfuscations(self._kb)
@@ -31,6 +32,8 @@ class Obfuscations(KnowledgeBasePlugin):
         o.type3_deobfuscated_strings = self.type3_deobfuscated_strings.copy()
 
         o.type1_deobfuscated_apis = self.type1_deobfuscated_apis.copy()
+        o.type2_deobfuscated_apis = self.type2_deobfuscated_apis.copy()
+        o.type3_deobfuscated_apis = self.type3_deobfuscated_apis.copy()
         return o
 
 

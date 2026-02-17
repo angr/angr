@@ -16,6 +16,7 @@ from angr import SIM_TYPE_COLLECTIONS
 from angr.analyses import AnalysesHub
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.block import Block
+from angr.codenode import FuncNode
 from angr.errors import AngrVariableRecoveryError, SimEngineError, AngrMissingTypeError
 from angr.knowledge_plugins import Function
 from angr.knowledge_plugins.key_definitions import atoms
@@ -29,7 +30,6 @@ from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateB
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
-
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
@@ -242,6 +242,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         low_priority=False,
         track_sp=True,
         func_args: list[SimVariable] | None = None,
+        func_ret_var: SimVariable | None = None,
         store_live_variables=False,
         unify_variables=True,
         func_arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
@@ -281,6 +282,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
         self._track_sp = track_sp and self.project.arch.sp_offset is not None
         self._func_args = func_args
         self._func_arg_vvars = func_arg_vvars
+        self._func_ret_var = func_ret_var
         self._unify_variables = unify_variables
 
         # handle type hints
@@ -296,6 +298,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
             vvar_to_vvar=self.vvar_to_vvar,
             vvar_type_hints=self.vvar_type_hints,
             type_lifter=self.type_lifter,
+            func_ret_var=self._func_ret_var,
         )
         self._vex_engine: SimEngineVRVEX = SimEngineVRVEX(self.project, self.kb, call_info=call_info)
 
@@ -323,6 +326,8 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
     def _pre_analysis(self):
         self.typevars = TypeVariables()
+        if self._func_ret_var is not None:
+            self.typevars.add_type_variable(self._func_ret_var, TypeVariable())
         self.type_constraints = defaultdict(set)
         self.delayed_type_constraints = defaultdict(set)
 
@@ -330,15 +335,18 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         if self._track_sp:
             # initialize node_to_cc map
-            function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, Function)]
+            function_nodes = [n for n in self.function.transition_graph.nodes() if isinstance(n, FuncNode)]
             # all nodes that end with a call must be in the _node_to_cc dict
             for func_node in function_nodes:
+                if not self.kb.functions.contains_addr(func_node.addr):
+                    continue
+                func = self.kb.functions.get_by_addr(func_node.addr)
                 for callsite_node in self.function.transition_graph.predecessors(func_node):
-                    if func_node.calling_convention is None:
+                    if func.calling_convention is None:
                         # l.warning("Unknown calling convention for %r.", func_node)
                         self._node_to_cc[callsite_node.addr] = None
                     else:
-                        self._node_to_cc[callsite_node.addr] = func_node.calling_convention
+                        self._node_to_cc[callsite_node.addr] = func.calling_convention
 
     def _pre_job_handling(self, job):
         self._job_ctr += 1

@@ -1,13 +1,12 @@
 from __future__ import annotations
 from typing import Any
-import copy
 import logging
 
-import angr.ailment as ailment
 import networkx
 
-from angr.ailment import Block, AILBlockWalker
-from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label
+import angr.ailment as ailment
+from angr.ailment import Block, AILBlockRewriter
+from angr.ailment.statement import Jump, ConditionalJump, Assignment, Return, Label, SideEffectStatement
 from angr.ailment.expression import Const, Phi, VirtualVariable
 
 from angr.utils.ail import is_phi_assignment
@@ -20,7 +19,7 @@ from angr.analyses.decompiler.region_identifier import RegionIdentifier
 _l = logging.getLogger(name=__name__)
 
 
-class FreshVirtualVariableRewriter(AILBlockWalker):
+class FreshVirtualVariableRewriter(AILBlockRewriter):
     """
     Helper class to rewrite virtual variables so that they will use fresh virtual variables.
     """
@@ -54,9 +53,9 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
 
         return new_stmt
 
-    def _handle_VirtualVariable(  # type:ignore
+    def _handle_VirtualVariable(
         self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
-    ) -> VirtualVariable | None:
+    ) -> VirtualVariable:
         if expr.varid in self.vvar_mapping:
             return VirtualVariable(
                 expr.idx,
@@ -68,15 +67,7 @@ class FreshVirtualVariableRewriter(AILBlockWalker):
                 variable_offset=expr.variable_offset,
                 **expr.tags,
             )
-        return None
-
-    def _handle_stmt(self, stmt_idx: int, stmt, block: Block):  # type:ignore
-        r = super()._handle_stmt(stmt_idx, stmt, block)
-        if r is not None:
-            # replace the original statement
-            if self.new_block is None:
-                self.new_block = block.copy()
-            self.new_block.statements[stmt_idx] = r
+        return expr
 
 
 class ReturnDuplicatorBase:
@@ -89,6 +80,7 @@ class ReturnDuplicatorBase:
     def __init__(
         self,
         func,
+        manager,
         *,
         vvar_id_start: int,
         max_calls_in_regions: int = 2,
@@ -104,6 +96,7 @@ class ReturnDuplicatorBase:
         # this should also be set by the optimization passes initer
         self.scratch = scratch if scratch is not None else {}
         self._func = func
+        self._manager = manager
         self._ri: RegionIdentifier | None = ri
         self.vvar_id_start = vvar_id_start
         self._max_func_blocks = max_func_blocks
@@ -237,10 +230,9 @@ class ReturnDuplicatorBase:
             if node in copies:
                 node_copy = copies[node]
             else:
+                node_copy = node.deep_copy(self._manager)
                 if node is region_head:
-                    node_copy = self._copy_node_and_update_phi_variables(node, pred)
-                else:
-                    node_copy = copy.deepcopy(node)
+                    node_copy = self._copy_node_and_update_phi_variables(node_copy, pred)
                 node_copy = self._use_fresh_virtual_variables(node_copy, vvar_mapping)
                 node_copy.idx = self.next_node_idx()
                 self._fix_copied_node_labels(node_copy)
@@ -427,8 +419,8 @@ class ReturnDuplicatorBase:
             if node.statements:
                 stmts += node.statements
 
-        # all statements must be either a return, a jump, or an assignment
-        type_white_list = (Return, Jump, Assignment)
+        # all statements must be either a return, a jump, an assignment, or a side-effect statement (e.g. a call)
+        type_white_list = (Return, Jump, Assignment, SideEffectStatement)
         for stmt in stmts:
             if not isinstance(stmt, type_white_list):
                 return False
@@ -625,15 +617,15 @@ class ReturnDuplicatorBase:
             stmt = block.statements[i]
             if isinstance(stmt, Label):
                 # fix the default name by suffixing it with the new block ID
-                new_name = stmt.name if stmt.name else f"Label_{stmt.ins_addr:x}"
-                if stmt.block_idx is not None:
-                    suffix = f"__{stmt.block_idx}"
+                new_name = stmt.name or f"Label_{stmt.tags['ins_addr']:x}"
+                if "block_idx" in stmt.tags:
+                    suffix = f"__{stmt.tags['block_idx']}"
                     new_name = new_name.removesuffix(suffix)
                 else:
                     new_name = stmt.name
                 new_name += f"__{block.idx}"
 
-                block.statements[i] = Label(stmt.idx, new_name, stmt.ins_addr, block_idx=block.idx, **stmt.tags)
+                block.statements[i] = Label(stmt.idx, new_name, **(stmt.tags | {"block_idx": block.idx}))
 
     @staticmethod
     def unwrap_conv(expr):

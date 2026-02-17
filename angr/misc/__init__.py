@@ -7,7 +7,6 @@ from .plugins import PluginHub, PluginPreset
 from .hookset import HookSet
 from .picklable_lock import PicklableLock
 
-
 __all__ = (
     "HookSet",
     "Loggers",

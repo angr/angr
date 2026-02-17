@@ -6,7 +6,7 @@ from collections import defaultdict
 from angr.sim_type import SimStruct, SimTypePointer, SimTypeArray
 from angr.errors import AngrRuntimeError
 from angr.analyses.analysis import Analysis, AnalysesHub
-from angr.sim_variable import SimVariable, SimStackVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable
 from .simple_solver import SimpleSolver
 from .translator import TypeTranslator
 from .typeconsts import Struct, Pointer, TypeConstant, Array, TopType
@@ -85,7 +85,6 @@ class Typehoon(Analysis):
         var_to_typevars: dict[SimVariable, set[TypeVariable]],
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
     ) -> None:
-
         if not self.simtypes_solution:
             return
 
@@ -182,9 +181,11 @@ class Typehoon(Analysis):
     def _analyze(self):
         # convert ground truth into constraints
         if self._ground_truth:
-            translator = TypeTranslator(arch=self.project.arch)
+            translator = TypeTranslator(self.project.arch)
             for tv, sim_type in self._ground_truth.items():
                 self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
+
+        # self.pp_constraints()
 
         self._solve()
         self._specialize()
@@ -194,24 +195,26 @@ class Typehoon(Analysis):
         if self._ground_truth and self.simtypes_solution is not None:
             self.simtypes_solution.update(self._ground_truth)
 
+        # self.pp_solution()
+
     @staticmethod
     def _resolve_derived(tv: TypeVariable | DerivedTypeVariable) -> TypeVariable:
         return tv.type_var if isinstance(tv, DerivedTypeVariable) else tv
 
     def _solve(self):
-        typevars = set()
+        typevars = {self.func_var: set()}
         if self._var_mapping:
             for variable_typevars in self._var_mapping.values():
-                typevars |= variable_typevars
-            typevars |= set(self._stack_offset_tvs.values())
+                typevars[self.func_var] |= variable_typevars
+            typevars[self.func_var] |= set(self._stack_offset_tvs.values())
         else:
             # collect type variables from constraints
             for constraint in self._constraints[self.func_var]:
                 if isinstance(constraint, Subtype):
                     if isinstance(constraint.sub_type, TypeVariable):
-                        typevars.add(self._resolve_derived(constraint.sub_type))
+                        typevars[self.func_var].add(self._resolve_derived(constraint.sub_type))
                     if isinstance(constraint.super_type, TypeVariable):
-                        typevars.add(self._resolve_derived(constraint.super_type))
+                        typevars[self.func_var].add(self._resolve_derived(constraint.super_type))
 
         solver = SimpleSolver(
             self.bits,
@@ -244,6 +247,21 @@ class Typehoon(Analysis):
                 self.solution[tv] = specialized
             else:
                 memo.add(sol)
+
+        # special handling for function argument types; replace ptr(array[N]) with ptr(element)
+        if self._var_mapping is not None:
+            for v, tvs in self._var_mapping.items():
+                if (
+                    isinstance(v, (SimRegisterVariable, SimStackVariable))
+                    and isinstance(v.ident, str)
+                    and v.ident.startswith("arg_")
+                ):
+                    for tv in tvs:
+                        sol = self.solution.get(tv, None)
+                        if sol is None:
+                            continue
+                        if isinstance(sol, Pointer) and isinstance(sol.basetype, Array):
+                            self.solution[tv] = sol.__class__(sol.basetype.element)
 
     def _specialize_struct(self, tc, memo: set | None = None):
         if isinstance(tc, Pointer):
@@ -300,7 +318,7 @@ class Typehoon(Analysis):
             return
 
         simtypes_solution = {}
-        translator = TypeTranslator(arch=self.project.arch)
+        translator = TypeTranslator(self.project.arch)
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():

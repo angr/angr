@@ -2,7 +2,7 @@
 
 set -ex
 
-UNICORN_VERSION="2.0.1.post1"
+UNICORN_VERSION="2.1.4"
 BASE="$PWD"
 rm -rf vendor
 pip download unicorn==$UNICORN_VERSION

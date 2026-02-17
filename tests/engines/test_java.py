@@ -38,7 +38,7 @@ class TestJava(unittest.TestCase):
         # create project
         binary_path = os.path.join(self.test_location, "fauxware_java_jni", "fauxware.jar")
         jni_options = {"jni_libs": ["libfauxware.so"]}
-        project = angr.Project(binary_path, main_opts=jni_options)
+        project = angr.Project(binary_path, main_opts=jni_options, auto_load_libs=True)
         entry = project.factory.entry_state()
         simgr = project.factory.simgr(entry)
 
@@ -122,7 +122,7 @@ class TestJava(unittest.TestCase):
     def test_jni_global_and_local_refs(self):
         project = self.create_project("jni_global_and_local_refs")
 
-        assertions = {"global refs dict": lambda state: (state.jni_references.global_refs == {})}
+        assertions = {"global refs dict": lambda state: state.jni_references.global_refs == {}}
         self.run_method(
             project=project, method="MixedJava.test_jni_global_refs", assert_locals={"i0": 0xA}, assertions=assertions
         )
@@ -156,8 +156,8 @@ class TestJava(unittest.TestCase):
         project = self.create_project("jni_string_operations")
 
         assertions = {
-            "1st string": lambda state: (state.solver.eval_one(self.load_string(state, "r0")) == "mum"),
-            "2nd string": lambda state: (state.solver.eval_one(self.load_string(state, "r1")) == "himum!"),
+            "1st string": lambda state: state.solver.eval_one(self.load_string(state, "r0")) == "mum",
+            "2nd string": lambda state: state.solver.eval_one(self.load_string(state, "r1")) == "himum!",
         }
         self.run_method(
             project=project,
@@ -634,9 +634,9 @@ class TestJava(unittest.TestCase):
         jar_path = os.path.join(self.test_location, binary_dir, "mixedjava.jar")
         if load_native_libs:
             jni_options = {"jni_libs": ["libmixedjava.so"]}
-            project = angr.Project(jar_path, main_opts=jni_options)
+            project = angr.Project(jar_path, main_opts=jni_options, auto_load_libs=True)
         else:
-            project = angr.Project(jar_path)
+            project = angr.Project(jar_path, auto_load_libs=True)
         return project
 
     def load_string(self, state, local_name):

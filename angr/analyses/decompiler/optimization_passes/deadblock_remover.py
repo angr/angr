@@ -12,7 +12,6 @@ from angr.utils.graph import to_acyclic_graph
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 
@@ -27,8 +26,8 @@ class DeadblockRemover(OptimizationPass):
     NAME = "Remove blocks with unsatisfiable conditions"
     DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, node_cutoff: int = 200, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, node_cutoff: int = 200, **kwargs):
+        super().__init__(*args, **kwargs)
         self._node_cutoff = node_cutoff
         self.analyze()
 

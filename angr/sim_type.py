@@ -3,11 +3,13 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import enum
 import re
 import logging
+from typing import Literal, Any, cast, overload, TYPE_CHECKING
 from collections import OrderedDict, defaultdict, ChainMap
 from collections.abc import Iterable
-from typing import Literal, Any, cast, overload
+from collections.abc import MutableMapping
 
 from archinfo import Endness, Arch
 import claripy
@@ -18,7 +20,7 @@ import cxxheaderparser.types
 import pycparser
 from pycparser import c_ast
 
-from angr.errors import AngrTypeError
+from angr.errors import AngrTypeError, AngrMissingTypeError
 from angr.sim_state import SimState
 
 StoreType = int | claripy.ast.BV
@@ -36,13 +38,17 @@ def ite_union(a, b):
     condition = claripy.BoolS("union_sym")
     return claripy.If(condition, a, b)
 
+if TYPE_CHECKING:
+    from angr.procedures.definitions import SimTypeCollection
+
+
 class SimType:
     """
     SimType exists to track type information for SimProcedures.
     """
 
     _fields: tuple[str, ...] = ()
-    _args: tuple[str, ...] = ("label",)
+    _args: tuple[str, ...] = ("label", "qualifier")
     _arch: Arch | None
     _size: int | None = None
     _can_refine_int: bool = False
@@ -50,12 +56,13 @@ class SimType:
     _ident: str = "simtype"
     base: bool = True
 
-    def __init__(self, label=None, arch=None):
+    def __init__(self, label=None, qualifier: Iterable[str] | None = None, arch=None):
         """
         :param label: the type label.
         """
         self.label = label
         self._arch = arch
+        self.qualifier = qualifier
 
     @property
     def arch(self):
@@ -148,12 +155,13 @@ class SimType:
     def _init_str(self):
         return f"NotImplemented({self.__class__.__name__})"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent: int | None = 0, name_parens: bool = True):  # pylint: disable=unused-argument
+        out = f"{str(self) if self.label is None else self.label} {name}"
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
         if name is None:
             return repr(self)
-        return f"{str(self) if self.label is None else self.label} {name}"
+        return out
 
     def copy(self):
         raise NotImplementedError
@@ -346,6 +354,9 @@ class SimType:
         d: dict[str, Any] = {"_t": self._ident}
         for field in fields:
             value = getattr(self, field)
+            if field == "qualifier" and value is None:
+                continue
+            field = "q" if field == "qualifier" else field
             if isinstance(value, SimType):
                 d[field] = value.to_json(memo=memo)
             elif isinstance(value, (list, tuple)):
@@ -356,33 +367,45 @@ class SimType:
                 if field in nullable_fields and value is None:
                     continue
                 d[field] = value
+
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]):
+    def from_json(d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None):
         """
         Deserialize a type class from a JSON-compatible dictionary.
         """
+        if memo is None:
+            memo = set()
 
         assert "_t" in d
-        cls = IDENT_TO_CLS.get(d["_t"], None)
+        cls = IDENT_TO_CLS.get(d["_t"])  # pylint: disable=redefined-outer-name
         assert cls is not None, f"Unknown SimType class identifier {d['_t']}"
         if getattr(cls, "from_json", SimType.from_json) is not SimType.from_json:
-            return cls.from_json(d)
+            t = cls.from_json(d)
+            if isinstance(t, SimTypeRef) and type_collection is not None and t.name is not None and t.name not in memo:
+                # attempt to resolve the type ref
+                with contextlib.suppress(AngrMissingTypeError):
+                    return type_collection.get(t.name, memo=memo)
+            return t
 
         kwargs = {}
+        if "name" in d:
+            memo.add(d["name"])
         for field in cls._args:
-            if field not in d:
+            field_key = "q" if field == "qualifier" else field
+            field_key = "disp" if field == "disposition" else field
+            if field_key not in d:
                 continue
-            value = d[field]
+            value = d[field_key]
             if isinstance(value, dict):
                 if "_t" in value:
-                    value = SimType.from_json(value)
+                    value = SimType.from_json(value, type_collection=type_collection, memo=memo)
                 else:
                     new_value = {}
                     for k, v in value.items():
                         if isinstance(v, dict) and "_t" in v:
-                            new_value[k] = SimType.from_json(v)
+                            new_value[k] = SimType.from_json(v, type_collection=type_collection, memo=memo)
                         else:
                             new_value[k] = v
                     value = new_value
@@ -390,7 +413,7 @@ class SimType:
                 new_value = []
                 for v in value:
                     if isinstance(v, dict) and "_t" in v:
-                        new_value.append(SimType.from_json(v))
+                        new_value.append(SimType.from_json(v, type_collection=type_collection, memo=memo))
                     else:
                         new_value.append(v)
                 value = new_value
@@ -403,18 +426,23 @@ class TypeRef(SimType):
     and having the option to update it later and have all references to it automatically update as well.
     """
 
-    _args = ("name", "ty")
+    _args = ("name", "ty", "qualifier")
     _ident = "tref"
 
-    def __init__(self, name, ty):
+    def __init__(self, name, ty, qualifier: Iterable | None = None):
         super().__init__()
 
         self.type = ty
         self._name = name
+        self.qualifier = qualifier
 
     @property
     def type(self):
         return self._type
+
+    @property
+    def ty(self):
+        return self.type
 
     @type.setter
     def type(self, val):
@@ -448,16 +476,22 @@ class TypeRef(SimType):
 
     def with_arch(self, arch):
         self.type = self.type.with_arch(arch)
+        self._arch = arch
         return self
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full:
+            base_name = self.name
+            if self.qualifier:
+                base_name = f"{' '.join(self.qualifier)} {name}"
+
             if name is not None:
-                return f"{self.name} {name}"
-            return self.name
-        return self.type.c_repr(name=name, full=full, memo=memo, indent=indent)
+                return f"{base_name} {name}"
+            return base_name
+        result = self.type.c_repr(name=name, full=full, memo=memo, indent=indent)
+        if self.qualifier:
+            result = f"{' '.join(sorted(self.qualifier))} {result}"
+        return result
 
     def copy(self):
         raise NotImplementedError("copy() for TypeRef is ill-defined. What do you want this to do?")
@@ -504,12 +538,10 @@ class SimTypeBottom(SimType):
     def __repr__(self):
         return self.label or "BOT"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return "int" if self.label is None else self.label
-        return f'{"int" if self.label is None else self.label} {name}'
+        return f"{'int' if self.label is None else self.label} {name}"
 
     def _init_str(self):
         return "{}({})".format(self.__class__.__name__, (f'label="{self.label}"') if self.label else "")
@@ -524,12 +556,13 @@ class SimTypeTop(SimType):
     """
 
     _fields = ("size",)
-    _args = ("size", "label")
+    _args = ("size", "label", "qualifier")
     _ident = "top"
 
-    def __init__(self, size: int | None = None, label=None):
+    def __init__(self, size: int | None = None, label=None, qualifier: Iterable | None = None):
         SimType.__init__(self, label)
         self._size = size
+        self.qualifier = qualifier
 
     def __repr__(self):
         return "TOP"
@@ -544,16 +577,16 @@ class SimTypeReg(SimType):
     """
 
     _fields = ("size",)
-    _args = ("size", "label")
+    _args = ("size", "label", "qualifier")
     _ident = "reg"
 
-    def __init__(self, size: int | None, label=None, arch=None):
+    def __init__(self, size: int | None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         :param size: the size of the type (e.g. 32bit, 8bit, etc.).
         :param arch: the arch of the type
         """
-        SimType.__init__(self, label=label, arch=arch)
+        SimType.__init__(self, label=label, qualifier=qualifier, arch=arch)
         self._size = size
 
     def __repr__(self):
@@ -587,10 +620,10 @@ class SimTypeNum(SimType):
     """
 
     _fields = (*SimType._fields, "signed", "size")
-    _args = ("size", "signed", "label")
+    _args = ("size", "signed", "label", "qualifier")
     _ident = "num"
 
-    def __init__(self, size: int, signed=True, label=None, arch=None):
+    def __init__(self, size: int, signed=True, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
@@ -600,6 +633,7 @@ class SimTypeNum(SimType):
         super().__init__(label, arch=arch)
         self._size = size
         self.signed = signed
+        self.qualifier = qualifier
 
     @property
     def size(self) -> int:
@@ -649,16 +683,16 @@ class SimTypeInt(SimTypeReg):
     """
 
     _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "signed")
-    _args = ("signed", "label")
+    _args = ("signed", "label", "qualifier")
     _base_name = "int"
     _ident = "int"
 
-    def __init__(self, signed=True, label=None):
+    def __init__(self, signed=True, label=None, qualifier: Iterable | None = None):
         """
         :param signed:  True if signed, False if unsigned
         :param label:   The type label
         """
-        super().__init__(None, label=label)
+        super().__init__(None, label=label, qualifier=qualifier)
         self.signed = signed
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
@@ -667,14 +701,16 @@ class SimTypeInt(SimTypeReg):
         d = super().to_json(fields=fields, memo=memo)
         if "signed" in d and d["signed"] is True:
             del d["signed"]
+        if "q" in d and not d["q"]:
+            d.pop("q")
         return d
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         out = self._base_name
         if not self.signed:
             out = "unsigned " + out
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
         if name is None:
             return out
         return f"{out} {name}"
@@ -819,15 +855,15 @@ class SimTypeChar(SimTypeReg):
     """
 
     _base_name = "char"
-    _args = ("signed", "label")
+    _args = ("signed", "label", "qualifier")
     _ident = "char"
 
-    def __init__(self, signed=True, label=None):
+    def __init__(self, signed=True, label=None, qualifier: Iterable | None = None):
         """
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        super().__init__(8, label=label)
+        super().__init__(8, label=label, qualifier=qualifier)
         self.signed = signed
 
     def __repr__(self) -> str:
@@ -867,7 +903,7 @@ class SimTypeChar(SimTypeReg):
         )
 
     def copy(self):
-        return self.__class__(signed=self.signed, label=self.label)
+        return self.__class__(signed=self.signed, label=self.label, qualifier=self.qualifier)
 
 
 class SimTypeWideChar(SimTypeReg):
@@ -875,15 +911,15 @@ class SimTypeWideChar(SimTypeReg):
     SimTypeWideChar is a type that specifies a wide character (a UTF-16 character).
     """
 
-    _args = ("signed", "label", "endness")
+    _args = ("signed", "label", "endness", "qualifier")
     _base_name = "char"
     _ident = "wchar"
 
-    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE, arch=None):
+    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, 16, label=label, arch=arch)
+        SimTypeReg.__init__(self, 16, label=label, qualifier=qualifier, arch=arch)
         self.signed = signed
         self.endness = endness
 
@@ -923,7 +959,7 @@ class SimTypeWideChar(SimTypeReg):
         )
 
     def copy(self):
-        return self.__class__(signed=self.signed, label=self.label, endness=self.endness)
+        return self.__class__(signed=self.signed, label=self.label, endness=self.endness, qualifier=self.qualifier)
 
 class SimEnumerationCase:
     def __init__(self, value: int, name: str):
@@ -1072,16 +1108,16 @@ class SimEnumerationValue:
         return SimEnumerationValue(self.value, self.cases, self.enumeration)
 
 class SimTypeBool(SimTypeReg):
-    _args = ("signed", "label")
+    _args = ("signed", "label", "qualifier")
     _base_name = "bool"
     _ident = "bool"
 
-    def __init__(self, signed=True, label=None, arch=None):
+    def __init__(self, signed=True, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        super().__init__(8, label=label, arch=arch)
+        super().__init__(8, label=label, qualifier=qualifier, arch=arch)
         self.signed = signed
 
     def __repr__(self):
@@ -1117,16 +1153,16 @@ class SimTypeFd(SimTypeReg):
     """
 
     _fields = SimTypeReg._fields
-    _args = ("label",)
+    _args = ("label", "qualifier")
     _ident = "fd"
 
-    def __init__(self, label=None):
+    def __init__(self, label=None, qualifier: Iterable | None = None):
         """
         :param label: the type label
         """
         # file descriptors are always 32 bits, right?
         # TODO: That's so closed-minded!
-        super().__init__(32, label=label)
+        super().__init__(32, label=label, qualifier=qualifier)
 
     @property
     def size(self):
@@ -1160,24 +1196,46 @@ class SimTypeFd(SimTypeReg):
         return state.solver.eval(out)
 
 
+class PointerDisposition(enum.IntEnum):
+    IN_OUT = 0
+    IN = 1
+    OUT = 2
+    # outmaybe = conditionally overwritten
+    IN_OUTMAYBE = 3
+    OUTMAYBE = 4
+    NONE = 5
+    UNKNOWN = 6
+
+
 class SimTypePointer(SimTypeReg):
     """
     SimTypePointer is a type that specifies a pointer to some other type.
     """
 
-    _fields = (*tuple(x for x in SimTypeReg._fields if x != "size"), "pts_to")
-    _args = ("pts_to", "label", "offset")
+    _fields = (*(x for x in SimTypeReg._fields if x != "size"), "pts_to")
+    _args = ("pts_to", "label", "offset", "qualifier", "disposition")
     _ident = "ptr"
 
-    def __init__(self, pts_to, label=None, offset=0, arch=None):
+    def __init__(
+        self,
+        pts_to: SimType,
+        label=None,
+        offset=0,
+        qualifier: Iterable[str] | None = None,
+        disposition: PointerDisposition | int = PointerDisposition.UNKNOWN,
+        arch=None
+    ):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
         """
-        super().__init__(None, label=label, arch=arch)
+        super().__init__(None, label=label, qualifier=qualifier, arch=arch)
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
+        if not isinstance(disposition, PointerDisposition):
+            disposition = PointerDisposition(disposition)
+        self.disposition = disposition
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         if memo is None:
@@ -1185,25 +1243,34 @@ class SimTypePointer(SimTypeReg):
         d = super().to_json(fields=fields, memo=memo)
         if d["offset"] == 0:
             d.pop("offset")
+        if "q" in d and not d["q"]:
+            d.pop("q")
+        if (disp := d.pop("disposition")) != PointerDisposition.UNKNOWN:
+            d["disp"] = int(disp)
         return d
 
     def __repr__(self):
         return f"{self.pts_to}*" if not self.label else self.label
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         # if pts_to is SimTypeBottom, we return a void*
         if self.label is not None and name is not None:
             return super().c_repr(name=name, full=full, memo=memo, indent=indent, name_parens=name_parens)
         if isinstance(self.pts_to, SimTypeBottom):
             out = "void*"
+            if self.qualifier:
+                out = f"{' '.join(sorted(self.qualifier))} {out}"
             if name is None:
                 return out
             return f"{out} {name}"
         # if it points to an array, we do not need to add a *
+
         deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
-        name_with_deref = deref_chr if name is None else f"{deref_chr}{name}"
+        quals = f"{' '.join(self.qualifier)}" if self.qualifier else ""
+        if quals:
+            name_with_deref = f"{deref_chr}{quals} {name}" if name else f"{deref_chr}{quals}"
+        else:
+            name_with_deref = f"{deref_chr}{name}" if name else deref_chr
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
@@ -1218,16 +1285,21 @@ class SimTypePointer(SimTypeReg):
         return self._arch.bits
 
     def _with_arch(self, arch):
-        out = SimTypePointer(self.pts_to.with_arch(arch), self.label)
+        out = SimTypePointer(
+            self.pts_to.with_arch(arch), self.label, self.offset, qualifier=self.qualifier, disposition=self.disposition
+        )
         out._arch = arch
         return out
 
     def _init_str(self):
         label_str = f', label="{self.label}"' if self.label is not None else ""
-        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}, offset={self.offset})"
+        disposition_str = (
+            f", disposition={int(self.disposition)}" if self.disposition != PointerDisposition.UNKNOWN else ""
+        )
+        return f"{self.__class__.__name__}({self.pts_to._init_str()}{label_str}{disposition_str}, offset={self.offset})"
 
     def copy(self):
-        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset)
+        return SimTypePointer(self.pts_to, label=self.label, offset=self.offset, disposition=self.disposition)
 
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
@@ -1250,21 +1322,22 @@ class SimTypeReference(SimTypeReg):
     SimTypeReference is a type that specifies a reference to some other type.
     """
 
-    _args = ("refs", "label")
+    _args = ("refs", "label", "qualifier")
     _ident = "ref"
 
-    def __init__(self, refs, label=None, arch=None):
-        super().__init__(None, label=label, arch=arch)
+    def __init__(self, refs, label=None, qualifier: Iterable | None = None, arch=None):
+        super().__init__(None, label=label, qualifier=qualifier, arch=arch)
         self.refs: SimType = refs
 
     def __repr__(self):
         return f"{self.refs}&"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         name = "&" if name is None else f"&{name}"
-        return self.refs.c_repr(name, full, memo, indent)
+        out = self.refs.c_repr(name, full, memo, indent)
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     def make(self, refs):
         new = type(self)(refs)
@@ -1371,10 +1444,10 @@ class SimTypeArray(SimType):
     """
 
     _fields = ("elem_type", "length")
-    _args = ("elem_type", "length", "label")
+    _args = ("elem_type", "length", "label", "qualifier")
     _ident = "array"
 
-    def __init__(self, elem_type, length=None, label=None, arch=None):
+    def __init__(self, elem_type, length=None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label:       The type label.
         :param elem_type:   The type of each element in the array.
@@ -1383,18 +1456,20 @@ class SimTypeArray(SimType):
         super().__init__(label=label, arch=arch)
         self.elem_type: SimType = elem_type
         self.length: int | None = length
+        self.qualifier = qualifier
 
     def __repr__(self):
         return "{}[{}]".format(self.elem_type, "" if self.length is None else self.length)
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
         name = "{}[{}]".format(name, self.length if self.length is not None else "")
-        return self.elem_type.c_repr(name, full, memo, indent)
+        out = self.elem_type.c_repr(name, full, memo, indent)
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     @property
     def size(self):
@@ -1465,10 +1540,12 @@ class SimTypeString(NamedTypeMixin, SimType):
     """
 
     _fields = (*SimTypeArray._fields, "length")
-    _args = ("length", "label", "name")
+    _args = ("length", "label", "name", "qualifier")
     _ident = "str"
 
-    def __init__(self, length: int | None = None, label=None, name: str | None = None):
+    def __init__(
+        self, length: int | None = None, label=None, name: str | None = None, qualifier: Iterable | None = None
+    ):
         """
         :param label:   The type label.
         :param length:  An expression of the length of the string, if known.
@@ -1476,18 +1553,20 @@ class SimTypeString(NamedTypeMixin, SimType):
         super().__init__(label=label, name=name)
         self.elem_type = SimTypeChar()
         self.length = length
+        self.qualifier = qualifier
 
     def __repr__(self):
         return "string_t"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
         name = "{}[{}]".format(name, self.length if self.length is not None else "")
-        return self.elem_type.c_repr(name, full, memo, indent)
+        out = self.elem_type.c_repr(name, full, memo, indent)
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     @overload
     def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
@@ -1549,25 +1628,29 @@ class SimTypeWString(NamedTypeMixin, SimType):
     """
 
     _fields = (*SimTypeArray._fields, "length")
-    _args = ("length", "label", "name")
+    _args = ("length", "label", "name", "qualifier")
     _ident = "wstr"
 
-    def __init__(self, length: int | None = None, label=None, name: str | None = None):
+    def __init__(
+        self, length: int | None = None, label=None, name: str | None = None, qualifier: Iterable | None = None
+    ):
         super().__init__(label=label, name=name)
         self.elem_type = SimTypeNum(16, False)
         self.length = length
+        self.qualifier = qualifier
 
     def __repr__(self):
         return "wstring_t"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if name is None:
             return repr(self)
 
         name = "{}[{}]".format(name, self.length if self.length is not None else "")
-        return self.elem_type.c_repr(name, full, memo, indent)
+        out = self.elem_type.c_repr(name, full, memo, indent)
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     def extract(self, state, addr, concrete=False):
         if self.length is None:
@@ -1660,7 +1743,7 @@ class SimTypeFunction(SimType):
         if memo is None:
             memo = {}
         d = super().to_json(fields=fields, memo=memo)
-        if d["variadic"] is False:
+        if "variadic" in d and d["variadic"] is False:
             d.pop("variadic")
         return d
 
@@ -1673,15 +1756,16 @@ class SimTypeFunction(SimType):
             argstrs.append("...")
         return "({}) -> {}".format(", ".join(argstrs), self.returnty)
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True, show_void: bool = True):  # type: ignore[override]
         formatted_args = [
-            a.c_repr(n, full - 1, memo, indent)
+            a.c_repr(n, max(full - 1, 0), memo, indent)
             for a, n in zip(self.args, self.arg_names if self.arg_names and full else (None,) * len(self.args))
         ]
         if self.variadic:
             formatted_args.append("...")
         name_str = f"({name or ''})" if name_parens else name or ""
-        proto = f"{name_str}({', '.join(formatted_args)})"
+        args_str = ", ".join(formatted_args) if formatted_args else "void" if show_void else ""
+        proto = f"{name_str}({args_str})"
         return f"void {proto}" if self.returnty is None else self.returnty.c_repr(proto, full, memo, indent)
 
     @property
@@ -1833,11 +1917,11 @@ class SimTypeFloat(SimTypeReg):
     """
 
     _base_name = "float"
-    _args = ("label",)
+    _args = ("label", "qualifier")
     _ident = "float"
 
-    def __init__(self, size=32, arch=None):
-        super().__init__(size, arch=arch)
+    def __init__(self, size=32, label=None, qualifier: Iterable | None = None, arch=None):
+        super().__init__(size, label=label, qualifier=qualifier, arch=arch)
 
     sort = claripy.FSORT_FLOAT
     signed = True
@@ -1875,12 +1959,13 @@ class SimTypeDouble(SimTypeFloat):
     """
 
     _base_name = "double"
-    _args = ("align_double", "label")
+    _args = ("align_double", "label", "qualifier")
     _ident = "double"
 
-    def __init__(self, align_double=True, label=None):
+    def __init__(self, align_double=True, label=None, qualifier: Iterable | None = None, arch=None):
         self.align_double = align_double
-        super().__init__(64)
+        super().__init__(64, label=label, arch=arch)
+        self.qualifier = qualifier
 
     sort = claripy.FSORT_DOUBLE
 
@@ -1904,7 +1989,7 @@ class SimTypeDouble(SimTypeFloat):
 
 class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields", "anonymous")
-    _args = ("fields", "name", "pack", "align", "anonymous")
+    _args = ("fields", "name", "pack", "align", "anonymous", "qualifier")
     _ident = "struct"
 
     def __init__(
@@ -1916,7 +2001,8 @@ class SimStruct(NamedTypeMixin, SimType):
         align=None,
         anonymous: bool = False,
         offsets: dict[str, int] | None = None,
-        arch=None
+        arch=None,
+        qualifier: Iterable | None = None,
     ):
         super().__init__(label, name="<anon>" if name is None else name, arch=arch)
 
@@ -1924,6 +2010,8 @@ class SimStruct(NamedTypeMixin, SimType):
         self._align = align
         self.anonymous = anonymous
         self.fields: OrderedDict[str, SimType] = OrderedDict(fields)
+        if qualifier:
+            self.qualifier = qualifier
 
         # FIXME: Hack for supporting win32 struct definitions
         if self.name == "_Anonymous_e__Struct":
@@ -1991,8 +2079,7 @@ class SimStruct(NamedTypeMixin, SimType):
 
         if self.name in memo:
             return memo[self.name].to_json(fields=fields, memo=memo)
-        memo[self.name] = SimTypeRef(self.name, SimStruct)
-
+        memo[self.name] = SimTypeRef(self.name, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
         if d["pack"] is False:
             d.pop("pack")
@@ -2000,6 +2087,8 @@ class SimStruct(NamedTypeMixin, SimType):
             d.pop("align")
         if d["anonymous"] is False:
             d.pop("anonymous")
+        if "q" in d and not d["q"]:
+            d.pop("q")
         return d
 
     def extract(self, state, addr, concrete=False) -> SimStructValue:
@@ -2036,9 +2125,7 @@ class SimStruct(NamedTypeMixin, SimType):
     def __repr__(self):
         return f"struct {self.name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -2048,9 +2135,12 @@ class SimStruct(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        return f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     def __hash__(self):
         return hash((SimStruct, self._name, self._align, self._pack, tuple(self.fields.keys())))
@@ -2473,16 +2563,18 @@ class SimVolatile(SimTypeModifier):
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
-    _args = ("members", "name", "label")
+    _args = ("members", "name", "label", "qualifier")
     _ident = "union"
 
-    def __init__(self, members: dict[str, SimType], name=None, label=None, arch=None):
+    def __init__(self, members: dict[str, SimType], name=None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
         """
         super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
         self.members = members
+        if qualifier:
+            self.qualifier = qualifier
 
     @property
     def size(self):
@@ -2526,9 +2618,7 @@ class SimUnion(NamedTypeMixin, SimType):
             self.name, "\n\t".join(f"{name} {ty!s};" for name, ty in self.members.items())
         )
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
             return super().c_repr(name, full, memo, indent)
 
@@ -2538,9 +2628,12 @@ class SimUnion(NamedTypeMixin, SimType):
         newline = "\n" if indent is not None else " "
         new_memo = (self,) + (memo if memo is not None else ())
         members = newline.join(
-            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.members.items()
+            new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.members.items()
         )
-        return f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        out = f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        return out
 
     def _init_str(self):
         return '{}({{{}}}, name="{}", label="{}")'.format(
@@ -2730,8 +2823,277 @@ class SimVariantValue:
         # Construct the final struct containing the tag and the union
         return SimStructValue(typ, {"tag": self.tag, "values": union_val})
 
-class SimCppClass(SimStruct):
+class SimTypeEnum(NamedTypeMixin, SimType):
+    """
+    An enum type with named integer constants.
 
+    :param members: A mapping from member names to their integer values.
+    :param base_type: The underlying integer type (default: SimTypeInt).
+    :param name: The name of the enum type.
+    """
+
+    _fields = ("name", "members")
+    _args = ("members", "base_type", "name", "qualifier")
+    _ident = "enum"
+
+    def __init__(
+        self,
+        members: dict[str, int],
+        base_type: SimType | None = None,
+        name: str | None = None,
+        qualifier: Iterable[str] | None = None,
+    ):
+        super().__init__(name=name if name is not None else "<anon>")
+        self.members: dict[str, int] = dict(members)
+        self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
+        self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
+        if qualifier:
+            self.qualifier = qualifier
+
+    @property
+    def base_type(self) -> SimType:
+        return self._base_type
+
+    @property
+    def size(self) -> int | None:
+        return self._base_type.size
+
+    @property
+    def alignment(self):
+        return self._base_type.alignment
+
+    def resolve(self, value: int) -> str | None:
+        """
+        Resolve an integer value to its enum member name.
+
+        :param value: The integer value to resolve.
+        :return: The member name if found, None otherwise.
+        """
+        return self._reverse_members.get(value)
+
+    def _with_arch(self, arch):
+        out = SimTypeEnum(
+            members=self.members,
+            base_type=self._base_type.with_arch(arch),
+            name=self._name,
+            qualifier=self.qualifier,
+        )
+        out._arch = arch
+        return out
+
+    def __repr__(self):
+        return f"enum {self._name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
+        if not full or (memo is not None and self in memo):
+            out = f"enum {self._name}"
+            if self.qualifier:
+                out = f"{' '.join(sorted(self.qualifier))} {out}"
+            if name is not None:
+                out = f"{out} {name}"
+            return out
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        members_str = ("," + newline).join(
+            f"{new_indented}{member_name} = {member_value}" for member_name, member_value in self.members.items()
+        )
+        out = f"enum {self._name} {{{newline}{members_str}{newline}{indented}}}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        if name is not None:
+            out = f"{out} {name}"
+        return out
+
+    def _init_str(self):
+        members_str = ", ".join(f'"{k}": {v}' for k, v in self.members.items())
+        return f'{self.__class__.__name__}({{{members_str}}}, name="{self._name}")'
+
+    def __hash__(self):
+        return hash((SimTypeEnum, self._name, tuple(sorted(self.members.items()))))
+
+    def copy(self):
+        return SimTypeEnum(
+            members=dict(self.members),
+            base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
+            name=self._name,
+            qualifier=self.qualifier,
+        )
+
+    def extract(self, state, addr, concrete=False):
+        return self._base_type.extract(state, addr, concrete=concrete)
+
+    def store(self, state, addr, value):
+        self._base_type.store(state, addr, value)
+
+
+class SimTypeBitfield(NamedTypeMixin, SimType):
+    """
+    A bitfield/flags type where values can be combinations of named bit flags.
+
+    This is useful for representing flags like PROT_READ | PROT_WRITE where
+    multiple flags can be combined with bitwise OR.
+
+    :param flags: A mapping from flag names to their bitmask values.
+    :param base_type: The underlying integer type (default: SimTypeInt).
+    :param name: The name of the bitfield type.
+    """
+
+    _fields = ("name", "flags")
+    _args = ("flags", "base_type", "name", "qualifier")
+    _ident = "bitfield"
+
+    def __init__(
+        self,
+        flags: dict[str, int],
+        base_type: SimType | None = None,
+        name: str | None = None,
+        qualifier: Iterable[str] | None = None,
+    ):
+        super().__init__(None, name=name if name is not None else "<anon>")
+        self.flags: dict[str, int] = dict(flags)
+        self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
+        # Sort flags by value (descending) to prefer higher-value flags when resolving
+        self._sorted_flags: list[tuple[str, int]] = sorted(flags.items(), key=lambda x: x[1], reverse=True)
+        if qualifier:
+            self.qualifier = qualifier
+
+    @property
+    def base_type(self) -> SimType:
+        return self._base_type
+
+    @property
+    def size(self) -> int | None:
+        return self._base_type.size
+
+    @property
+    def alignment(self):
+        return self._base_type.alignment
+
+    def resolve(self, value: int) -> tuple[list[str], int]:
+        """
+        Resolve an integer value to a combination of flag names.
+
+        :param value: The integer value to resolve.
+        :return: A tuple of (matched_flag_names, unknown_bits).
+                 If unknown_bits != 0, there are bits set that don't match any known flag.
+        """
+        matched_flags: list[str] = []
+        remaining = value
+
+        for flag_name, flag_value in self._sorted_flags:
+            if flag_value == 0:
+                continue  # Skip zero-value flags unless nothing else matches
+            if (remaining & flag_value) == flag_value:
+                matched_flags.append(flag_name)
+                remaining &= ~flag_value
+
+        # Check for a zero flag if nothing matched and value is 0
+        if value == 0 and not matched_flags:
+            for flag_name, flag_value in self.flags.items():
+                if flag_value == 0:
+                    matched_flags.append(flag_name)
+                    break
+
+        return matched_flags, remaining
+
+    def render(self, value: int) -> str:
+        """
+        Render an integer value as a combination of flag names.
+
+        :param value: The integer value to render.
+        :return: A string like "PROT_READ | PROT_WRITE" or "PROT_READ | PROT_WRITE | 0x100"
+                 if there are unknown bits.
+        """
+        matched_flags, unknown_bits = self.resolve(value)
+        parts = matched_flags.copy()
+        if unknown_bits != 0:
+            parts.append(hex(unknown_bits))
+        if not parts:
+            return "0"
+        return " | ".join(parts)
+
+    def has_unknown_bits(self, value: int) -> bool:
+        """
+        Check if a value contains bits that don't match any known flag.
+
+        :param value: The integer value to check.
+        :return: True if there are unknown bits, False otherwise.
+        """
+        _, unknown_bits = self.resolve(value)
+        return unknown_bits != 0
+
+    def validate(self, value: int) -> bool:
+        """
+        Check if a value contains only known flags.
+
+        :param value: The integer value to validate.
+        :return: True if all bits match known flags, False otherwise.
+        """
+        return not self.has_unknown_bits(value)
+
+    def _with_arch(self, arch):
+        out = SimTypeBitfield(
+            flags=self.flags,
+            base_type=self._base_type.with_arch(arch),
+            name=self._name,
+            qualifier=self.qualifier,
+        )
+        out._arch = arch
+        return out
+
+    def __repr__(self):
+        return f"bitfield {self._name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
+        # Bitfields are rendered similarly to enums in C
+        if not full or (memo is not None and self in memo):
+            out = f"enum {self._name}"  # Use enum syntax since C doesn't have bitfield types
+            if self.qualifier:
+                out = f"{' '.join(sorted(self.qualifier))} {out}"
+            if name is not None:
+                out = f"{out} {name}"
+            return out
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        flags_str = ("," + newline).join(
+            f"{new_indented}{flag_name} = {hex(flag_value)}" for flag_name, flag_value in self.flags.items()
+        )
+        out = f"enum {self._name} {{{newline}{flags_str}{newline}{indented}}}"
+        if self.qualifier:
+            out = f"{' '.join(sorted(self.qualifier))} {out}"
+        if name is not None:
+            out = f"{out} {name}"
+        return out
+
+    def _init_str(self):
+        flags_str = ", ".join(f'"{k}": {hex(v)}' for k, v in self.flags.items())
+        return f'{self.__class__.__name__}({{{flags_str}}}, name="{self._name}")'
+
+    def __hash__(self):
+        return hash((SimTypeBitfield, self._name, tuple(sorted(self.flags.items()))))
+
+    def copy(self):
+        return SimTypeBitfield(
+            flags=dict(self.flags),
+            base_type=self._base_type.copy() if hasattr(self._base_type, "copy") else self._base_type,
+            name=self._name,
+            qualifier=self.qualifier,
+        )
+
+    def extract(self, state, addr, concrete=False):
+        return self._base_type.extract(state, addr, concrete=concrete)
+
+    def store(self, state, addr, value):
+        self._base_type.store(state, addr, value)
+
+
+class SimCppClass(SimStruct):
     _args = (
         "unique_name",
         "name",
@@ -2741,6 +3103,7 @@ class SimCppClass(SimStruct):
         "pack",
         "align",
         "size",
+        "anonymous",
     )
     _ident = "cppclass"
 
@@ -2755,8 +3118,9 @@ class SimCppClass(SimStruct):
         pack: bool = False,
         align=None,
         size: int | None = None,
+        anonymous: bool = False,
     ):
-        super().__init__(members or {}, name=name, pack=pack, align=align)
+        super().__init__(members or {}, name=name, pack=pack, align=align, anonymous=anonymous)
         self.unique_name = unique_name
         # these are actually addresses in the binary
         self.function_members = function_members
@@ -2783,6 +3147,24 @@ class SimCppClass(SimStruct):
 
     def __repr__(self):
         return f"class {self.name}" if not self.name.startswith("class") else self.name
+
+    def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
+        if memo is None:
+            memo = {}
+
+        if self.name in memo:
+            return memo[self.name].to_json(fields=fields, memo=memo)
+        memo[self.name] = SimTypeRef(self.name, SimCppClass)
+        d = super().to_json(fields=fields, memo=memo)
+        if "pack" in d and d["pack"] is False:
+            d.pop("pack")
+        if "align" in d and d["align"] is None:
+            d.pop("align")
+        if "anonymous" in d and d["anonymous"] is False:
+            d.pop("anonymous")
+        if "q" in d and not d["q"]:
+            d.pop("q")
+        return d
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
@@ -2910,11 +3292,11 @@ class SimTypeNumOffset(SimTypeNum):
     """
 
     _fields = (*SimTypeNum._fields, "offset")
-    _args = ("size", "signed", "label", "offset")
+    _args = ("size", "signed", "label", "offset", "qualifier")
     _ident = "numoff"
 
-    def __init__(self, size, signed=True, label=None, offset=0):
-        super().__init__(size, signed, label)
+    def __init__(self, size, signed=True, label=None, offset=0, qualifier: Iterable | None = None):
+        super().__init__(size, signed, label, qualifier=qualifier)
         self.offset = offset
 
     @overload
@@ -2953,12 +3335,16 @@ class SimTypeRef(SimType):
     SimTypeRef is not SimTypeReference.
     """
 
-    _args = ("name", "original_type")
+    _args = ("name", "original_type", "qualifier")
     _ident = "_ref"
 
-    def __init__(self, name, original_type: type[SimType]):
+    def __init__(self, name, original_type: type[SimType], qualifier: Iterable | None = None):
         super().__init__(label=name)
         self.original_type = original_type
+        self.qualifier = qualifier
+
+        if isinstance(original_type, SimTypeRef):
+            raise TypeError("SimTypeRef cannot reference another SimTypeRef")
 
     @property
     def name(self) -> str | None:
@@ -2973,15 +3359,16 @@ class SimTypeRef(SimType):
         prefix = "struct " if self.original_type is SimStruct else ""
         return f"{prefix}{self.name}"
 
-    def c_repr(
-        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
-    ) -> str:  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
         if self.original_type is SimStruct:
             prefix = "struct "
         if name is None:
             name = ""
-        return f"{prefix}{self.label} {name}"
+        label = self.label
+        if self.qualifier:
+            label = f"{' '.join(sorted(self.qualifier))} {label}"
+        return f"{prefix}{label} {name}"
 
     def _init_str(self) -> str:
         original_type_name = self.original_type.__name__.split(".")[-1]
@@ -2991,25 +3378,30 @@ class SimTypeRef(SimType):
         d = {"_t": self._ident, "name": self.name, "ot": self.original_type._ident}
         if fields is not None:
             d = {k: d[k] for k in fields}
+        if "q" in d and not d["q"]:
+            d.pop("q")
         return d
 
     @staticmethod
-    def from_json(d: dict[str, Any]) -> SimTypeRef:
+    def from_json(
+        d: dict[str, Any], type_collection: SimTypeCollection | None = None, memo: set[str] | None = None
+    ) -> SimTypeRef:
         if "ot" not in d:
             raise ValueError("Missing original type for SimTypeRef")
-        original_type = IDENT_TO_CLS.get(d["ot"], None)
+        original_type = IDENT_TO_CLS.get(d["ot"])
         if original_type is None:
             raise ValueError(f"Unknown original type {d['ot']} for SimTypeRef")
-        return SimTypeRef(d["name"], original_type)
+        qualifier = d.get("q")
+        return SimTypeRef(d["name"], original_type, qualifier=qualifier)
 
 
 IDENT_TO_CLS: dict[str, type[SimType]] = {}
 _queue = [SimType]
 while _queue:
-    cls = _queue.pop()
-    assert cls._ident not in IDENT_TO_CLS
-    IDENT_TO_CLS[cls._ident] = cls
-    _queue.extend(cls.__subclasses__())
+    _cls = _queue.pop()
+    assert _cls._ident not in IDENT_TO_CLS
+    IDENT_TO_CLS[_cls._ident] = _cls
+    _queue.extend(_cls.__subclasses__())
 
 
 ALL_TYPES: dict[str, SimType] = {}
@@ -3514,6 +3906,7 @@ GLIBC_TYPES = {
         },
         name="FILE_t",
     ),
+    "FILE": SimStruct({}, name="FILE"),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/stdio-common/printf.h#L34
     "printf_info": SimStruct(
         {
@@ -3614,7 +4007,7 @@ GLIBC_TYPES = {
         name="dirent64",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L31
-    "stat": SimStruct(
+    "struct stat": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -3632,7 +4025,7 @@ GLIBC_TYPES = {
         name="stat",
     ),
     # https://github.com/bminor/glibc/blob/2d5ec6692f5746ccb11db60976a6481ef8e9d74f/bits/stat.h#L86
-    "stat64": SimStruct(
+    "struct stat64": SimStruct(
         {
             "st_mode": ALL_TYPES["__mode_t"],
             # TODO: This should be architecture dependent
@@ -4128,73 +4521,62 @@ def register_types(types):
         ALL_TYPES.update(types)
 
 
-def do_preprocess(defn, include_path=()):
-    """
-    Run a string through the C preprocessor that ships with pycparser but is weirdly inaccessible?
-    """
-    from pycparser.ply import lex, cpp  # pylint:disable=import-outside-toplevel
-
-    lexer = lex.lex(cpp)
-    p = cpp.Preprocessor(lexer)
-    for included in include_path:
-        p.add_path(included)
-    p.parse(defn)
-    return "".join(tok.value for tok in p.parser if tok.type not in p.ignore)
-
-
-def parse_signature(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_signature(defn, predefined_types=None, arch=None) -> SimTypeFunction:
     """
     Parse a single function prototype and return its type
     """
     try:
-        parsed = parse_file(
-            defn.strip(" \n\t;") + ";", preprocess=preprocess, predefined_types=predefined_types, arch=arch
-        )
-        return next(iter(parsed[0].values()))
+        parsed = parse_file(defn.strip(" \n\t;") + ";", predefined_types=predefined_types, arch=arch)
+        result = next(iter(parsed[0].values()))
+        assert isinstance(result, SimTypeFunction)
+        return result
     except StopIteration as e:
         raise ValueError("No declarations found") from e
 
 
-def parse_defns(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_defns(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from variable name to variable type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
-def parse_types(defn, preprocess=True, predefined_types=None, arch=None):
+def parse_types(defn, predefined_types=None, arch=None) -> dict[str, SimType]:
     """
     Parse a series of C definitions, returns a mapping from type name to type object
     """
-    return parse_file(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[1]
+    return parse_file(defn, predefined_types=predefined_types, arch=arch)[1]
 
 
 _include_re = re.compile(r"^\s*#include")
 
 
-def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None):
+def parse_file(
+    defn,
+    predefined_types: dict[Any, SimType] | None = None,
+    arch=None,
+    side_effect_types: dict[Any, SimType] | None = None,
+) -> tuple[dict[str, SimType], dict[str, SimType]]:
     """
     Parse a series of C definitions, returns a tuple of two type mappings, one for variable
     definitions and one for type definitions.
     """
+
     if pycparser is None:
         raise ImportError("Please install pycparser in order to parse C definitions")
 
     defn = "\n".join(x for x in defn.split("\n") if _include_re.match(x) is None)
-
-    if preprocess:
-        defn = do_preprocess(defn)
+    # remove comments
+    defn = re.sub(r"/\*.*?\*/", r"", defn, flags=re.DOTALL)
+    defn = re.sub(r"//.*?$", r"", defn, flags=re.MULTILINE)
 
     # pylint: disable=unexpected-keyword-arg
     node = pycparser.c_parser.CParser().parse(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.FileAST):
         raise ValueError("Something went horribly wrong using pycparser")
     out = {}
-    extra_types = {}
-
-    # populate extra_types
-    if predefined_types:
-        extra_types = dict(predefined_types)
+    out_types = {}
+    extra_types = ChainMap(side_effect_types if side_effect_types is not None else out_types, predefined_types or {})
 
     for piece in node.ext:
         if isinstance(piece, c_ast.FuncDef):
@@ -4205,21 +4587,24 @@ def parse_file(defn, preprocess=True, predefined_types: dict[Any, SimType] | Non
                 out[piece.name] = ty
 
             # Don't forget to update typedef types
-            if isinstance(ty, (SimStruct, SimUnion)) and ty.name != "<anon>":
-                for _, i in extra_types.items():
-                    if isinstance(i, type(ty)) and i.name == ty.name:
-                        if isinstance(ty, SimStruct):
+            ty_real = ty.type if isinstance(ty, TypeRef) else ty
+            if isinstance(ty_real, (SimStruct, SimUnion)) and ty_real.name != "<anon>":
+                if piece.name is None:
+                    out_types[("struct " if isinstance(ty, SimStruct) else "union ") + ty_real.name] = ty_real
+                for _, i in out_types.items():
+                    if isinstance(i, type(ty_real)) and i.name == ty_real.name:
+                        if isinstance(ty_real, SimStruct):
                             assert isinstance(i, SimStruct)
-                            i.fields = ty.fields
+                            i.fields = ty_real.fields
                         else:
                             assert isinstance(i, SimUnion)
-                            i.members = ty.members
+                            i.members = ty_real.members
 
         elif isinstance(piece, c_ast.Typedef):
-            extra_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
-            extra_types[piece.name].label = piece.name
+            out_types[piece.name] = copy.copy(_decl_to_type(piece.type, extra_types, arch=arch))
+            out_types[piece.name].label = piece.name
 
-    return out, extra_types
+    return out, out_types
 
 
 _type_parser_singleton = None
@@ -4229,28 +4614,25 @@ def type_parser_singleton() -> pycparser.CParser:
     global _type_parser_singleton  # pylint:disable=global-statement
     if pycparser is not None and _type_parser_singleton is None:
         _type_parser_singleton = pycparser.CParser()
-        _type_parser_singleton.cparser = pycparser.ply.yacc.yacc(
-            module=_type_parser_singleton,
-            start="parameter_declaration",
-            debug=False,
-            optimize=False,
-            errorlog=errorlog,
-        )
     assert _type_parser_singleton is not None
     return _type_parser_singleton
 
 
-def parse_type(defn, preprocess=True, predefined_types=None, arch=None):  # pylint:disable=unused-argument
+def parse_type(defn, predefined_types=None, arch=None):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType
 
     >>> parse_type('int *')
     """
-    return parse_type_with_name(defn, preprocess=preprocess, predefined_types=predefined_types, arch=arch)[0]
+    return parse_type_with_name(defn, predefined_types=predefined_types, arch=arch)[0]
 
 
 def parse_type_with_name(
-    defn, preprocess=True, predefined_types: dict[Any, SimType] | None = None, arch=None
+    defn,
+    preprocess=True,
+    predefined_types: dict[Any, SimType] | None = None,
+    arch=None,
+    side_effect_types: dict[Any, SimType] | None = None,
 ):  # pylint:disable=unused-argument
     """
     Parse a simple type expression into a SimType, returning a tuple of the type object and any associated name
@@ -4265,12 +4647,12 @@ def parse_type_with_name(
         defn = re.sub(r"/\*.*?\*/", r"", defn)
 
     # pylint: disable=unexpected-keyword-arg
-    node = type_parser_singleton().parse(text=defn, scope_stack=_make_scope(predefined_types))
+    node = type_parser_singleton().parse_type_with_name(defn, scope_stack=_make_scope(predefined_types))
     if not isinstance(node, c_ast.Typename) and not isinstance(node, c_ast.Decl):
         raise pycparser.c_parser.ParseError("Got an unexpected type out of pycparser")
 
     decl = node.type
-    extra_types = {} if not predefined_types else dict(predefined_types)
+    extra_types = ChainMap(side_effect_types if side_effect_types is not None else {}, predefined_types or {})
     return _decl_to_type(decl, extra_types=extra_types, arch=arch), node.name
 
 
@@ -4279,18 +4661,38 @@ def _accepts_scope_stack():
     pycparser hack to include scope_stack as parameter in CParser parse method
     """
 
-    def parse(self, text, filename="", debug=False, scope_stack=None):
-        self.clex.filename = filename
-        self.clex.reset_lineno()
+    def parse(self, text, filename="", debug=False, scope_stack=None):  # pylint:disable=unused-argument
+        # debug is not used and only kept for backward compatibility as in pycparser >= 3.0
+
+        self.clex._filename = filename
+        self.clex._lineno = 1
         self._scope_stack = [{}] if scope_stack is None else scope_stack
-        self._last_yielded_token = None
-        return self.cparser.parse(input=text, lexer=self.clex, debug=debug)
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        ast = self._parse_translation_unit_or_empty()
+        tok = self._peek()
+        if tok is not None:
+            self._parse_error(f"before: {tok.value}", self._tok_coord(tok))
+        return ast
+
+    def parse_type_with_name(self, text, filename="", scope_stack=None) -> c_ast.Typename:
+        self.clex._filename = filename
+        self.clex._lineno = 1
+        self._scope_stack = [{}] if scope_stack is None else scope_stack
+
+        self.clex.input(text, filename)
+        self._tokens = pycparser.c_parser._TokenStream(self.clex)
+
+        return self._parse_type_name()  # ignore all tokens that follow the type name
 
     pycparser.CParser.parse = parse
+    pycparser.CParser.parse_type_with_name = parse_type_with_name
 
 
 def _decl_to_type(
-    decl, extra_types: dict[str, SimType] | None = None, bitsize=None, arch: Arch | None = None
+    decl, extra_types: MutableMapping[str, SimType] | None = None, bitsize=None, arch: Arch | None = None
 ) -> SimType:
     if extra_types is None:
         extra_types = {}
@@ -4339,20 +4741,28 @@ def _decl_to_type(
         return r
 
     if isinstance(decl, c_ast.TypeDecl):
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
         if decl.declname == "TOP":
-            r = SimTypeTop()
+            r = SimTypeTop(qualifier=quals)
             r._arch = arch
             return r
-        return _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
+        r = _decl_to_type(decl.type, extra_types, bitsize=bitsize, arch=arch)
+        if quals:
+            r = r.copy()
+            r.qualifier = list(quals)
+        return r
 
     if isinstance(decl, c_ast.PtrDecl):
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None
+
         pts_to = _decl_to_type(decl.type, extra_types, arch=arch)
-        r = SimTypePointer(pts_to)
+        r = SimTypePointer(pts_to, qualifier=quals)
         r._arch = arch
         return r
 
     if isinstance(decl, c_ast.ArrayDecl):
         elem_type = _decl_to_type(decl.type, extra_types, arch=arch)
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.dim is None:
             r = SimTypeArray(elem_type)
@@ -4363,11 +4773,12 @@ def _decl_to_type(
         except ValueError as e:
             l.warning("Got error parsing array dimension, defaulting to zero: %s", e)
             size = 0
-        r = SimTypeFixedSizeArray(elem_type, size)
+        r = SimTypeFixedSizeArray(elem_type, size, qualifier=quals)
         r._arch = arch
         return r
 
     if isinstance(decl, c_ast.Struct):
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
         if decl.decls is not None:
             fields = OrderedDict(
                 (field.name, _decl_to_type(field.type, extra_types, bitsize=field.bitsize, arch=arch))
@@ -4375,7 +4786,6 @@ def _decl_to_type(
             )
         else:
             fields = OrderedDict()
-
         if decl.name is not None:
             key = "struct " + decl.name
             struct = extra_types.get(key)
@@ -4388,30 +4798,38 @@ def _decl_to_type(
             if struct is None:
                 # fallback to using decl.name as key directly
                 struct = ALL_TYPES.get(decl.name)
-                if struct is not None and isinstance(struct, SimStruct):
+                if struct is not None and (
+                    isinstance(struct, SimStruct)
+                    or (isinstance(struct, TypeRef) and isinstance(struct.type, SimStruct))
+                ):
                     from_global = True
                     struct = struct.with_arch(arch)
                 else:
                     # give up
                     struct = None
+            struct_ref = struct
+            if isinstance(struct_ref, TypeRef):
+                struct = struct_ref.type
             if struct is not None and not isinstance(struct, SimStruct):
                 raise AngrTypeError("Provided a non-SimStruct value for a type that must be a struct")
 
             if struct is None:
-                struct = SimStruct(fields, decl.name)
+                struct = SimStruct(fields, decl.name, qualifier=quals)
                 struct._arch = arch
+                struct_ref = struct
             elif not struct.fields:
                 struct.fields = fields
             elif fields and struct.fields != fields:
                 if from_global:
-                    struct = SimStruct(fields, decl.name)
+                    struct = SimStruct(fields, decl.name, qualifier=quals)
                     struct._arch = arch
+                    struct_ref = struct
                 else:
                     raise ValueError("Redefining body of " + key)
-
-            extra_types[key] = struct
+            assert struct_ref is not None
+            extra_types[key] = struct_ref
         else:
-            struct = SimStruct(fields)
+            struct = SimStruct(fields, qualifier=quals)
             struct._arch = arch
         return struct
 
@@ -4420,6 +4838,7 @@ def _decl_to_type(
             fields = {field.name: _decl_to_type(field.type, extra_types, arch=arch) for field in decl.decls}
         else:
             fields = {}
+        quals = list(decl.quals) if hasattr(decl, "quals") and decl.quals else None  # type: ignore
 
         if decl.name is not None:
             key = "union " + decl.name
@@ -4428,40 +4847,80 @@ def _decl_to_type(
             if union is None and key in ALL_TYPES:
                 union = ALL_TYPES[key]
                 from_global = True
+            union_ref = union
+            if isinstance(union_ref, TypeRef):
+                union = union_ref.type
             if union is not None and not isinstance(union, SimUnion):
                 raise AngrTypeError("Provided a non-SimUnion value for a type that must be a union")
 
             if union is None:
-                union = SimUnion(fields, decl.name)
+                union = SimUnion(fields, decl.name, qualifier=quals)
                 union._arch = arch
+                union_ref = union
             elif not union.members:
                 union.members = fields
             elif fields and union.members != fields:
                 if from_global:
-                    union = SimStruct(fields, decl.name)
+                    union = SimStruct(fields, decl.name, qualifier=quals)
                     union._arch = arch
+                    union_ref = union
                 else:
                     raise ValueError("Redefining body of " + key)
 
-            extra_types[key] = union
+            assert union_ref is not None
+            extra_types[key] = union_ref
         else:
-            union = SimUnion(fields)
+            union = SimUnion(fields, qualifier=quals)
             union._arch = arch
         return union
 
     if isinstance(decl, c_ast.IdentifierType):
         key = " ".join(decl.names)
         if bitsize is not None:
-            return SimTypeNumOffset(int(bitsize.value), signed=False)
+            return SimTypeNumOffset(int(bitsize.value), signed=False).with_arch(arch)
         if key in extra_types:
-            return extra_types[key]
+            return extra_types[key].with_arch(arch)
         if key in ALL_TYPES:
             return ALL_TYPES[key].with_arch(arch)
         raise TypeError(f"Unknown type '{key}'")
 
     if isinstance(decl, c_ast.Enum):
         # See C99 at 6.7.2.2
-        return ALL_TYPES["int"].with_arch(arch)
+        # Parse enum members if present
+        members: dict[str, int] = {}
+        if decl.values is not None:
+            next_value = 0
+            for enumerator in decl.values.enumerators:
+                if enumerator.value is not None:
+                    with contextlib.suppress(ValueError):
+                        # Keep the auto-incremented value
+                        next_value = _parse_const(enumerator.value, arch=arch, extra_types=extra_types)
+                assert isinstance(next_value, int)
+                members[enumerator.name] = next_value
+                next_value += 1
+
+        enum_name = decl.name
+        if enum_name is not None:
+            key = "enum " + enum_name
+            existing = extra_types.get(key) if extra_types else None
+            if existing is None:
+                existing = ALL_TYPES.get(key)
+            if existing is not None and isinstance(existing, SimTypeEnum):
+                # Update existing enum with members if it was forward-declared
+                if not existing.members and members:
+                    existing.members = members
+                return existing.with_arch(arch)
+
+            enum_type = SimTypeEnum(members, name=enum_name)
+            enum_type._arch = arch
+            if extra_types is not None:
+                extra_types[key] = enum_type
+            return enum_type
+
+        # Anonymous enum
+        enum_type = SimTypeEnum(members)
+        enum_type._arch = arch
+        return enum_type
 
     raise ValueError("Unknown type!")
 
@@ -4498,6 +4957,12 @@ def _parse_const(c, arch=None, extra_types=None):
     if type(c) is c_ast.UnaryOp:
         if c.op == "sizeof":
             return _decl_to_type(c.expr.type, extra_types=extra_types, arch=arch).size
+        if c.op == "-":
+            return -_parse_const(c.expr, arch, extra_types)
+        if c.op == "+":
+            return _parse_const(c.expr, arch, extra_types)
+        if c.op == "~":
+            return ~_parse_const(c.expr, arch, extra_types)
         raise ValueError(f"Unary op {c.op}")
     if type(c) is c_ast.Cast:
         return _parse_const(c.expr, arch, extra_types)
@@ -4516,8 +4981,28 @@ CPP_DECL_TYPES = (
 )
 
 
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[int]) -> int | None: ...
+
+
+@overload
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type[str]) -> str | None: ...
+
+
+def _cpp_value_to_value(val: cxxheaderparser.types.Value, to_type: type) -> int | str | None:
+    v = val.format()
+    if to_type is int:
+        try:
+            return int(v)
+        except ValueError:
+            return None
+    if to_type is str:
+        return v
+    raise TypeError(f"Unsupported to_type {to_type}")
+
+
 def _cpp_decl_to_type(
-    decl: CPP_DECL_TYPES, extra_types: dict[str, SimType], opaque_classes: bool = True
+    decl: CPP_DECL_TYPES, extra_types: MutableMapping[str, SimType], opaque_classes: bool = True
 ) -> (
     SimTypeCppFunction
     | SimTypeFunction
@@ -4618,11 +5103,14 @@ def _cpp_decl_to_type(
         if isinstance(t, NamedTypeMixin):
             t = t.copy()
             t.name = lbl  # pylint:disable=attribute-defined-outside-init
-        return t  # type:ignore
+        return t  # type: ignore
 
     if isinstance(decl, cxxheaderparser.types.Array):
         subt = _cpp_decl_to_type(decl.array_of, extra_types, opaque_classes=opaque_classes)
-        return SimTypeArray(subt, length=decl.size)
+        size: int | None = (
+            _cpp_value_to_value(decl.size, int) if isinstance(decl.size, cxxheaderparser.types.Value) else decl.size
+        )
+        return SimTypeArray(subt, length=size)
 
     if isinstance(decl, cxxheaderparser.types.MoveReference):
         subt = _cpp_decl_to_type(decl.moveref_to, extra_types, opaque_classes=opaque_classes)
@@ -4641,7 +5129,7 @@ def _cpp_decl_to_type(
             _cpp_decl_to_type(param.type, extra_types, opaque_classes=opaque_classes) for param in decl.parameters
         )
         param_names = (
-            tuple(param.name.format() for param in decl.parameters)  # type:ignore
+            tuple(param.name.format() for param in decl.parameters)  # type: ignore
             if all(param.name is not None for param in decl.parameters)
             else None
         )
@@ -4691,7 +5179,7 @@ def normalize_cpp_function_name(name: str) -> str:
     return name.removesuffix(";")
 
 
-def parse_cpp_file(cpp_decl, with_param_names: bool = False):
+def parse_cpp_file(cpp_decl, with_param_names: bool = False):  # pylint: disable=unused-argument
     #
     # A series of hacks to make cxxheaderparser happy with whatever C++ function prototypes we feed in
     #
@@ -4742,8 +5230,7 @@ if pycparser is not None:
 
 with contextlib.suppress(ImportError):
     register_types(
-        parse_types(
-            """
+        parse_types("""
 typedef long time_t;
 
 struct timespec {
@@ -4755,8 +5242,7 @@ struct timeval {
     time_t tv_sec;
     long tv_usec;
 };
-"""
-        )
+""")
     )
 
 from .state_plugins.view import SimMemView

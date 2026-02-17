@@ -6,7 +6,6 @@ import cle
 
 from .resolver import IndirectJumpResolver
 
-
 l = logging.getLogger(name=__name__)
 
 
@@ -62,9 +61,7 @@ class X86ElfPicPltResolver(IndirectJumpResolver):
 
         return block.instructions == 1
 
-    def resolve(
-        self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs
-    ):  # pylint:disable=unused-argument
+    def resolve(self, cfg, addr, func_addr, block, jumpkind, func_graph_complete: bool = True, **kwargs):  # pylint:disable=unused-argument
         obj = self.project.loader.find_object_containing(addr)
         if obj is None:
             return False, []

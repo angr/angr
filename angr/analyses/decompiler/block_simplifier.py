@@ -4,10 +4,11 @@ import logging
 from typing import TYPE_CHECKING
 from collections.abc import Iterable, Mapping
 
-from angr.ailment.statement import Statement, Assignment, Call, Store, Jump
-from angr.ailment.expression import Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
-from angr.ailment import AILBlockWalkerBase
-from angr.code_location import ExternalCodeLocation, CodeLocation
+from angr.ailment.manager import Manager
+from angr.ailment.statement import Statement, Assignment, SideEffectStatement, Store, Jump
+from angr.ailment.expression import Call, Tmp, Load, Const, Register, Convert, Expression, VirtualVariable
+from angr.ailment import AILBlockViewer
+from angr.code_location import AILCodeLocation
 from angr.knowledge_plugins.key_definitions import atoms
 from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis, SRDAModel
@@ -24,14 +25,13 @@ from .peephole_optimizations import (
 from .utils import peephole_optimize_exprs, peephole_optimize_stmts, peephole_optimize_multistmts
 
 if TYPE_CHECKING:
-    from angr.knowledge_plugins.key_definitions.live_definitions import Definition
     from angr.ailment.block import Block
 
 
 _l = logging.getLogger(name=__name__)
 
 
-class HasCallExprWalker(AILBlockWalkerBase):
+class HasCallExprWalker(AILBlockViewer):
     """
     Test if an expression contains a call expression inside.
     """
@@ -40,11 +40,11 @@ class HasCallExprWalker(AILBlockWalkerBase):
         super().__init__()
         self.has_call_expr = False
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):  # pylint:disable=unused-argument
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):  # pylint:disable=unused-argument
         self.has_call_expr = True
 
     def _handle_CallExpr(  # pylint:disable=unused-argument
-        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         self.has_call_expr = True
 
@@ -57,10 +57,16 @@ class BlockSimplifier(Analysis):
     def __init__(
         self,
         block: Block | None,
+        ail_manager: Manager,
         func_addr: int | None = None,
         stack_pointer_tracker=None,
-        peephole_optimizations: None | (
-            Iterable[type[PeepholeOptimizationStmtBase] | type[PeepholeOptimizationExprBase]]
+        peephole_optimizations: None
+        | (
+            Iterable[
+                type[PeepholeOptimizationStmtBase]
+                | type[PeepholeOptimizationExprBase]
+                | type[PeepholeOptimizationMultiStmtBase]
+            ]
         ) = None,
         preserve_vvar_ids: set[int] | None = None,
         type_hints: list[tuple[atoms.VirtualVariable | atoms.MemoryLocation, str]] | None = None,
@@ -78,33 +84,34 @@ class BlockSimplifier(Analysis):
         self._stack_pointer_tracker = stack_pointer_tracker
         self._preserve_vvar_ids = preserve_vvar_ids
         self._type_hints = type_hints
+        self._ail_manager = ail_manager
 
         if peephole_optimizations is None:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in EXPR_OPTS
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in STMT_OPTS
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in MULTI_STMT_OPTS
             ]
         else:
             self._expr_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationExprBase)
             ]
             self._stmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationStmtBase)
             ]
             self._multistmt_peephole_opts = [
-                cls(self.project, self.kb, self.func_addr, self._preserve_vvar_ids, self._type_hints)
+                cls(self.project, self.kb, ail_manager, self.func_addr, self._preserve_vvar_ids, self._type_hints)
                 for cls in peephole_optimizations
                 if issubclass(cls, PeepholeOptimizationMultiStmtBase)
             ]
@@ -132,10 +139,10 @@ class BlockSimplifier(Analysis):
 
         while True:
             ctr += 1
-            # print(str(block))
+            # block.pp()
             new_block = self._simplify_block_once(block)
             # print()
-            # print(str(new_block))
+            # new_block.pp()
             if new_block == block:
                 break
             self._clear_cache()
@@ -156,6 +163,7 @@ class BlockSimplifier(Analysis):
                 subject=block,
                 func_addr=self.func_addr,
                 stack_pointer_tracker=self._stack_pointer_tracker,
+                ail_manager=self._ail_manager,
             )
         return self._propagator
 
@@ -197,7 +205,9 @@ class BlockSimplifier(Analysis):
             if propagator.model is not None:
                 replacements = propagator.model.replacements
                 if replacements:
-                    _, new_block = self._replace_and_build(block, replacements, replace_registers=True)
+                    _, new_block = self._replace_and_build(
+                        block, replacements, self._ail_manager, replace_registers=True
+                    )
                     new_block = self._eliminate_self_assignments(new_block)
                     self._clear_cache()
         else:
@@ -212,7 +222,8 @@ class BlockSimplifier(Analysis):
     @staticmethod
     def _replace_and_build(
         block: Block,
-        replacements: Mapping[CodeLocation, Mapping[Expression, Expression]],
+        replacements: Mapping[AILCodeLocation, Mapping[Expression, Expression]],
+        ail_manager: Manager,
         replace_assignment_dsts: bool = False,
         replace_loads: bool = False,
         gp: int | None = None,
@@ -223,22 +234,24 @@ class BlockSimplifier(Analysis):
 
         for codeloc, repls in replacements.items():
             for old, new in repls.items():
+                new = new.deep_copy(ail_manager)
                 assert codeloc.stmt_idx is not None
                 stmt = new_statements[codeloc.stmt_idx]
                 if (
                     not replace_loads
                     and isinstance(old, Load)
-                    and not isinstance(stmt, Call)
+                    and not isinstance(stmt, SideEffectStatement)
                     and not (gp is not None and isinstance(new, Const) and new.value == gp)
                 ):
                     # skip memory-based replacement for non-Call and non-gp-loading statements
                     continue
-                if stmt == old:
+                if isinstance(stmt, SideEffectStatement) and stmt.expr == old:
                     # the replacement must be a call, since replacements can only be expressions
-                    # and call is the only thing which is both a statement and an expression
                     assert isinstance(new, Call)
                     r = True
-                    new_stmt = new
+                    new_stmt = SideEffectStatement(
+                        stmt.idx, new, ret_expr=stmt.ret_expr, fp_ret_expr=stmt.fp_ret_expr, **stmt.tags
+                    )
                 else:
                     # replace the expressions involved in this statement
 
@@ -250,7 +263,7 @@ class BlockSimplifier(Analysis):
                         # never replace an l-value with an r-value
                         r = False
                         new_stmt = None
-                    elif isinstance(stmt, Call) and isinstance(new, Call) and old == stmt.ret_expr:
+                    elif isinstance(stmt, SideEffectStatement) and isinstance(new, Call) and old == stmt.ret_expr:
                         # special case: do not replace the ret_expr of a call statement to another call statement
                         r = False
                         new_stmt = None
@@ -303,7 +316,6 @@ class BlockSimplifier(Analysis):
         return block.copy(statements=new_statements)
 
     def _eliminate_dead_assignments(self, block):
-
         def _statement_has_calls(stmt: Statement) -> bool:
             """
             Check if a statement has any Call expressions.
@@ -325,13 +337,13 @@ class BlockSimplifier(Analysis):
             return block
 
         rd = self._compute_reaching_definitions(block)
-        block_loc = CodeLocation(block.addr, None, block_idx=block.idx)
+        block_loc = (block.addr, block.idx)
 
         # Find dead assignments
         dead_defs_stmt_idx = set()
-        all_defs: Iterable[Definition] = rd.get_all_tmp_definitions(block_loc)
+        all_defs = rd.get_all_tmp_definitions(block_loc)
         for d in all_defs:
-            assert not isinstance(d.codeloc, ExternalCodeLocation)
+            assert not d.codeloc.is_extern
             assert not d.dummy
 
             uses = rd.get_tmp_uses(d.atom, block_loc)
@@ -362,7 +374,7 @@ class BlockSimplifier(Analysis):
 
                     if type(stmt.dst) is Tmp and isinstance(stmt.src, Call):
                         # eliminate the assignment and replace it with the call
-                        stmt = stmt.src
+                        stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
 
                 if isinstance(stmt, Assignment) and stmt.src == stmt.dst:
                     continue

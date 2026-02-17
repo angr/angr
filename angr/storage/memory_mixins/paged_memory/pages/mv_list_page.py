@@ -10,7 +10,6 @@ from angr.storage.memory_object import SimMemoryObject, SimLabeledMemoryObject
 from .base import PageBase
 from .cooperation import MemoryObjectSetMixin
 
-
 l = logging.getLogger(name=__name__)
 
 _MOTYPE = SimMemoryObject | SimLabeledMemoryObject
@@ -268,9 +267,7 @@ class MVListPage(
         self.stored_offset |= merged_offsets
         return merged_offsets
 
-    def compare(
-        self, other: MVListPage, page_addr: int | None = None, memory=None, changed_offsets=None
-    ) -> bool:  # pylint: disable=unused-argument
+    def compare(self, other: MVListPage, page_addr: int | None = None, memory=None, changed_offsets=None) -> bool:  # pylint: disable=unused-argument
         compared_to = None
         for b in sorted(changed_offsets):
             if compared_to is not None and not b >= compared_to:

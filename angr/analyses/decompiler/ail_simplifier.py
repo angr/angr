@@ -1,6 +1,7 @@
 # pylint:disable=too-many-boolean-expressions,consider-using-enumerate
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+from collections.abc import Container
 from collections.abc import Iterable
 from collections import defaultdict
 from enum import Enum
@@ -8,19 +9,21 @@ import logging
 
 import networkx
 
-from angr.ailment import AILBlockWalker
+from angr.ailment import AILBlockRewriter, AILBlockViewer, Address
 from angr.ailment.block import Block
 from angr.ailment.statement import (
     Statement,
     Assignment,
     Store,
-    Call,
+    SideEffectStatement,
     ConditionalJump,
     DirtyStatement,
     WeakAssignment,
     Return,
 )
 from angr.ailment.expression import (
+    Call,
+    Insert,
     Register,
     Convert,
     Load,
@@ -36,7 +39,8 @@ from angr.ailment.expression import (
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis
-from angr.analyses.s_reaching_definitions import SRDAModel
+from angr.analyses.s_reaching_definitions import SRDAModel, SReachingDefinitionsAnalysis
+from angr.knowledge_plugins.functions.function import Function
 from angr.utils.ail import is_phi_assignment, HasExprWalker, is_expr_used_as_reg_base_value
 from angr.utils.ssa import (
     has_call_in_between_stmts,
@@ -44,7 +48,7 @@ from angr.utils.ssa import (
     has_load_expr_in_between_stmts,
     is_vvar_eliminatable,
 )
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import AILCodeLocation
 from angr.sim_variable import SimStackVariable, SimMemoryVariable, SimVariable
 from angr.knowledge_plugins.propagations.states import Equivalence
 from angr.knowledge_plugins.key_definitions import atoms
@@ -54,7 +58,7 @@ from angr.errors import AngrRuntimeError
 from angr.analyses import Analysis, AnalysesHub
 from angr.utils.timing import timethis
 from .ailgraph_walker import AILGraphWalker
-from .expression_narrower import ExprNarrowingInfo, NarrowingInfoExtractor, ExpressionNarrower
+from .expression_narrower import ExprNarrowingInfo, EffectiveSizeExtractor, ExpressionNarrower
 from .block_simplifier import BlockSimplifier
 from .ccall_rewriters import CCALL_REWRITERS
 from .dirty_rewriters import DIRTY_REWRITERS
@@ -85,7 +89,7 @@ class HasRefVVarNotification(Exception):
     """
 
 
-class AILBlockTempCollector(AILBlockWalker):
+class AILBlockTempCollector(AILBlockViewer):
     """
     Collects any temporaries used in a block.
     """
@@ -96,7 +100,7 @@ class AILBlockTempCollector(AILBlockWalker):
         self.expr_handlers[Tmp] = self._handle_Tmp
 
     # pylint:disable=unused-argument
-    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement, block) -> None:
+    def _handle_Tmp(self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block):
         if isinstance(expr, Tmp):
             self.temps.add(expr)
 
@@ -112,7 +116,7 @@ class DefEqRelation(Enum):
     DEF_IN_EQ_PRED_BLOCK = 3
 
 
-class PartialConstantExprRewriter(AILBlockWalker):
+class PartialConstantExprRewriter(AILBlockRewriter):
     """
     Rewrites expressions whose high bits are definitely zero to constants (if possible) or mask them with masks
     properly.
@@ -123,7 +127,7 @@ class PartialConstantExprRewriter(AILBlockWalker):
         self.varid = varid
         self.zero_high_bits = zero_high_bits
 
-    def _handle_BinaryOp(  # type:ignore
+    def _handle_BinaryOp(  # type: ignore
         self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         if (
@@ -142,7 +146,7 @@ class PartialConstantExprRewriter(AILBlockWalker):
             high_bits_mask &= mask  # in case high bits of mask are zero
             new_mask = mask ^ high_bits_mask
             if new_mask == mask:
-                return None
+                return expr
             if new_mask == 0:
                 return Const(expr_idx, None, 0, expr.bits, **expr.tags)
             new_mask_expr = Const(mask_expr.idx, mask_expr.variable, new_mask, mask_expr.bits, **mask_expr.tags)
@@ -157,14 +161,15 @@ class AILSimplifier(Analysis):
 
     def __init__(
         self,
-        func,
-        func_graph=None,
+        func: Function,
+        func_graph: networkx.DiGraph[Block],
+        ail_manager: Manager,
         remove_dead_memdefs=False,
         stack_arg_offsets: set[tuple[int, int]] | None = None,
         unify_variables=False,
-        ail_manager: Manager | None = None,
         gp: int | None = None,
         narrow_expressions=False,
+        fold_expressions=True,
         only_consts=False,
         fold_callexprs_into_conditions=False,
         use_callee_saved_regs_at_return=True,
@@ -174,19 +179,19 @@ class AILSimplifier(Analysis):
         removed_vvar_ids: set[int] | None = None,
         arg_vvars: dict[int, tuple[VirtualVariable, SimVariable]] | None = None,
         avoid_vvar_ids: set[int] | None = None,
-        secondary_stackvars: set[int] | None = None,
     ):
         self.func = func
-        self.func_graph = func_graph if func_graph is not None else func.graph
+        self.func_graph = func_graph
         self._reaching_definitions: SRDAModel | None = None
         self._propagator: SPropagatorAnalysis | None = None
 
         self._remove_dead_memdefs = remove_dead_memdefs
         self._stack_arg_offsets = stack_arg_offsets
         self._unify_vars = unify_variables
-        self._ail_manager: Manager | None = ail_manager
+        self._ail_manager = ail_manager
         self._gp = gp
         self._narrow_expressions = narrow_expressions
+        self._fold_expressions = fold_expressions
         self._only_consts = only_consts
         self._fold_callexprs_into_conditions = fold_callexprs_into_conditions
         self._use_callee_saved_regs_at_return = use_callee_saved_regs_at_return
@@ -197,11 +202,10 @@ class AILSimplifier(Analysis):
         self._arg_vvars = arg_vvars
         self._avoid_vvar_ids = avoid_vvar_ids if avoid_vvar_ids is not None else set()
         self._propagator_dead_vvar_ids: set[int] = set()
-        self._secondary_stackvars: set[int] = secondary_stackvars if secondary_stackvars is not None else set()
 
-        self._calls_to_remove: set[CodeLocation] = set()
-        self._assignments_to_remove: set[CodeLocation] = set()
-        self.blocks = {}  # Mapping nodes to simplified blocks
+        self._calls_to_remove: set[AILCodeLocation] = set()
+        self._assignments_to_remove: set[AILCodeLocation] = set()
+        self.blocks: dict[Block, Block] = {}  # Mapping nodes to simplified blocks
 
         self.simplified: bool = False
         self._simplify()
@@ -222,14 +226,15 @@ class AILSimplifier(Analysis):
                 self._rebuild_func_graph()
                 self._clear_cache()
 
-        _l.debug("Folding expressions")
-        folded_exprs = self._fold_exprs()
-        self.simplified |= folded_exprs
-        if folded_exprs:
-            _l.debug("... expressions folded")
-            self._rebuild_func_graph()
-            # reaching definition analysis results are no longer reliable
-            self._clear_cache()
+        if self._fold_expressions:
+            _l.debug("Folding expressions")
+            folded_exprs = self._fold_exprs()
+            self.simplified |= folded_exprs
+            if folded_exprs:
+                _l.debug("... expressions folded")
+                self._rebuild_func_graph()
+                # reaching definition analysis results are no longer reliable
+                self._clear_cache()
 
         _l.debug("Propagating partial-constant expressions")
         pconst_propagated = self._propagate_partial_constant_exprs()
@@ -317,13 +322,17 @@ class AILSimplifier(Analysis):
         if self._reaching_definitions is not None:
             return self._reaching_definitions
         func_args = {vvar for vvar, _ in self._arg_vvars.values()} if self._arg_vvars else set()
-        rd = self.project.analyses.SReachingDefinitions(
-            subject=self.func,
-            func_graph=self.func_graph,
-            func_args=func_args,
-            use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
-            # track_tmps=True,
-        ).model
+        rd = (
+            self.project.analyses[SReachingDefinitionsAnalysis]
+            .prep()(
+                subject=self.func,
+                func_graph=self.func_graph,
+                func_args=func_args,
+                use_callee_saved_regs_at_return=self._use_callee_saved_regs_at_return,
+                # track_tmps=True,
+            )
+            .model
+        )
         self._reaching_definitions = rd
         return rd
 
@@ -339,6 +348,7 @@ class AILSimplifier(Analysis):
             func_args=func_args,
             # gp=self._gp,
             only_consts=self._only_consts,
+            stack_arg_offsets={x for _, x in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None,
         )
         self._propagator = prop
         self._propagator_dead_vvar_ids = prop.dead_vvar_ids
@@ -353,17 +363,17 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.dst, VirtualVariable) and isinstance(
                         stmt.src, (VirtualVariable, Tmp, Call, Convert)
                     ):
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src))
                 elif isinstance(stmt, WeakAssignment):
-                    codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                    codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                     equivalence.add(Equivalence(codeloc, stmt.dst, stmt.src, is_weakassignment=True))
-                elif isinstance(stmt, Call):
+                elif isinstance(stmt, SideEffectStatement):
                     if isinstance(stmt.ret_expr, (VirtualVariable, Load)):
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.ret_expr, stmt))
                     elif isinstance(stmt.fp_ret_expr, (VirtualVariable, Load)):
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, stmt.fp_ret_expr, stmt))
                 elif (
                     isinstance(stmt, Store)
@@ -373,12 +383,12 @@ class AILSimplifier(Analysis):
                     if isinstance(stmt.addr, StackBaseOffset) and isinstance(stmt.addr.offset, int):
                         # stack variable
                         atom = SimStackVariable(stmt.addr.offset, stmt.size)
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, atom, stmt.data))
                     elif isinstance(stmt.addr, Const):
                         # global variable
                         atom = SimMemoryVariable(stmt.addr.value, stmt.size)
-                        codeloc = CodeLocation(block.addr, stmt_idx, block_idx=block.idx, ins_addr=stmt.ins_addr)
+                        codeloc = AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr"))
                         equivalence.add(Equivalence(codeloc, atom, stmt.data))
         return equivalence
 
@@ -420,7 +430,7 @@ class AILSimplifier(Analysis):
         effective_sizes = self._compute_effective_sizes(rd, sorted_defs, addr_and_idx_to_block)
 
         narrowing_candidates: dict[int, tuple[Definition, ExprNarrowingInfo]] = {}
-        for def_ in (d_ for d_ in sorted_defs if d_.codeloc.context is None):
+        for def_ in sorted_defs:
             if isinstance(def_.atom, atoms.VirtualVariable) and (def_.atom.was_reg or def_.atom.was_parameter):
                 # only do this for general purpose register
                 skip_def = False
@@ -456,6 +466,10 @@ class AILSimplifier(Analysis):
             if not repeat:
                 break
 
+        if not narrowables:
+            # nothing to narrow
+            return False
+
         # let's narrow them (finally)
         narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
         for old_block in addr_and_idx_to_block.values():
@@ -479,14 +493,13 @@ class AILSimplifier(Analysis):
 
         return narrowed
 
-    def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block) -> dict[int, int]:
-
+    def _compute_effective_sizes(self, rd, defs, addr_and_idx_to_block: dict[Address, Block]) -> dict[int, int]:
         vvar_effective_sizes: dict[int, int] = {}
 
         # determine effective sizes for non-phi vvars
         for def_ in defs:
             # find its def statement
-            old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx), None)
+            old_block = addr_and_idx_to_block.get((def_.codeloc.block_addr, def_.codeloc.block_idx))
             if old_block is None:
                 continue
             block = self.blocks.get(old_block, old_block)
@@ -502,6 +515,14 @@ class AILSimplifier(Analysis):
                 and def_stmt.src.from_bits < def_stmt.src.to_bits
             ):
                 effective_size = def_stmt.src.from_bits // self.project.arch.byte_width
+                vvar_effective_sizes[def_.atom.varid] = effective_size
+            elif (
+                isinstance(def_stmt, Assignment)
+                and isinstance(def_stmt.src, Insert)
+                and isinstance(def_stmt.src.offset, Const)
+                and def_stmt.src.offset.value == 0  # big endian?
+            ):
+                effective_size = def_stmt.src.value.bits // self.project.arch.byte_width
                 vvar_effective_sizes[def_.atom.varid] = effective_size
 
         # update effective sizes for phi vvars
@@ -522,30 +543,37 @@ class AILSimplifier(Analysis):
 
     @staticmethod
     def _compute_narrowables_once(
-        rd, narrowing_candidates: dict, vvar_to_narrowing_size: dict[int, int], blacklist_varids: set
-    ):
+        rd: SRDAModel,
+        narrowing_candidates: dict[int, tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]],
+        vvar_to_narrowing_size: dict[int, int],
+        blacklist_varids: set[int],
+    ) -> tuple[bool, list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]]]:
         repeat = False
-        narrowable_phivarids = set()
+        narrowable_phivarids: set[int] = set()
         for def_vvarid in narrowing_candidates:
             if def_vvarid in blacklist_varids:
                 continue
             if def_vvarid in rd.phi_vvar_ids:
-                narrowing_sizes = set()
                 src_vvarids = rd.phivarid_to_varids[def_vvarid]
+                narrowed_size = 0
                 for vvarid in src_vvarids:
                     if vvarid in blacklist_varids:
-                        narrowing_sizes.add(None)
-                    else:
-                        narrowing_sizes.add(vvar_to_narrowing_size.get(vvarid))
-                if len(narrowing_sizes) == 1 and None not in narrowing_sizes:
-                    # we can narrow this phi vvar!
-                    narrowable_phivarids.add(def_vvarid)
+                        break
+                    new_size = vvar_to_narrowing_size.get(vvarid)
+                    if new_size is None:
+                        blacklist_varids.add(vvarid)
+                        break
+                    narrowed_size = max(narrowed_size, new_size)
                 else:
-                    # blacklist it for now
-                    blacklist_varids.add(def_vvarid)
+                    if narrowed_size < rd.varid_to_vvar[def_vvarid].size:
+                        # we can narrow this phi vvar!
+                        narrowable_phivarids.add(def_vvarid)
+                    else:
+                        # blacklist it for now
+                        blacklist_varids.add(def_vvarid)
 
         # now determine what to narrow!
-        narrowables = []
+        narrowables: list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]] = []
 
         for def_, narrow_info in narrowing_candidates.values():
             if def_.atom.varid in blacklist_varids:
@@ -568,9 +596,12 @@ class AILSimplifier(Analysis):
         return repeat, narrowables
 
     def _narrowing_needed(
-        self, def_: Definition, rd: SRDAModel, addr_and_idx_to_block, effective_sizes: dict[int, int]
+        self,
+        def_: Definition[atoms.VirtualVariable, AILCodeLocation],
+        rd: SRDAModel,
+        addr_and_idx_to_block: dict[Address, Block],
+        effective_sizes: dict[int, int],
     ) -> ExprNarrowingInfo:
-
         def_size = def_.size
         # find its uses
         # some use locations are phi assignments. we keep tracking the uses of phi variables and update the dictionary
@@ -581,11 +612,11 @@ class AILSimplifier(Analysis):
 
         all_used_sizes = set()
         noncall_used_sizes = set()
-        used_by: list[tuple[atoms.VirtualVariable, CodeLocation, tuple[str, tuple[Expression, ...]]]] = []
+        used_by: list[tuple[atoms.VirtualVariable, AILCodeLocation]] = []
         used_by_loc = defaultdict(list)
 
         for atom, loc, expr in use_and_exprs:
-            old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx), None)
+            old_block = addr_and_idx_to_block.get((loc.block_addr, loc.block_idx))
             if old_block is None:
                 # missing a block for whatever reason
                 return ExprNarrowingInfo(False)
@@ -597,11 +628,15 @@ class AILSimplifier(Analysis):
                 return ExprNarrowingInfo(False)
             stmt = block.statements[loc.stmt_idx]
 
-            # special case: if the statement is a Call statement and expr is None, it means we have not been able to
-            # determine if the expression is really used by the call or not. skip it in this case
-            if isinstance(stmt, Call) and expr is None:
+            # special case: if the statement is a SideEffectStatement and expr is None, it means we have not been
+            # able to determine if the expression is really used by the call or not. skip it in this case
+            if isinstance(stmt, SideEffectStatement) and expr is None:
                 all_used_sizes.add(atom.size)
                 continue
+            if expr is None:
+                # the statement might be "return Call(...)"
+                # just give up
+                return ExprNarrowingInfo(False)
             # special case: if the statement is a phi statement, we ignore it
             if is_phi_assignment(stmt):
                 continue
@@ -611,21 +646,29 @@ class AILSimplifier(Analysis):
             if is_expr_used_as_reg_base_value(stmt, expr, rd):
                 continue
 
-            expr_size, used_by_exprs = self._extract_expression_effective_size(stmt, expr)
+            expr_size, use_type = self._extract_expression_effective_size(stmt, expr)
             if expr_size is None:
+                if use_type == "insert-base":
+                    # don't care
+                    continue
                 # it's probably used in full width
                 return ExprNarrowingInfo(False)
 
             all_used_sizes.add(expr_size)
-            if not isinstance(stmt, Call):
+            if use_type != "call-arg":
                 noncall_used_sizes.add(expr_size)
-            used_by_loc[loc].append((atom, used_by_exprs))
+            used_by_loc[loc].append(atom)
 
         target_size = None
         if len(all_used_sizes) >= 1 and max(all_used_sizes) < def_size:
-            target_size = max(all_used_sizes)
+            if noncall_used_sizes and max(all_used_sizes) not in noncall_used_sizes:
+                # special case: the variable size is greater when used as call arguments; we use the non-call size
+                # instead.
+                target_size = max(noncall_used_sizes)
+            else:
+                target_size = max(all_used_sizes)
         else:
-            effective_size = effective_sizes.get(def_.atom.varid, None)
+            effective_size = effective_sizes.get(def_.atom.varid)
             if (
                 effective_size is not None
                 and any(used_size <= effective_size for used_size in all_used_sizes)
@@ -638,30 +681,8 @@ class AILSimplifier(Analysis):
                 target_size = effective_size
 
         if target_size is not None:
-            for loc, atom_expr_pairs in used_by_loc.items():
-                if len(atom_expr_pairs) == 1:
-                    atom, used_by_exprs = atom_expr_pairs[0]
-                    used_by.append((atom, loc, used_by_exprs))
-                else:
-                    # the order matters - we must replace the outer expressions first, then replace the inner
-                    # expressions. replacing in the wrong order will lead to expressions that are not replaced in the
-                    # end.
-                    ordered = []
-                    for atom, used_by_exprs in atom_expr_pairs:
-                        last_inclusion = len(ordered) - 1  # by default we append at the end of the list
-                        for idx in range(len(ordered)):
-                            if self._is_expr0_included_in_expr1(ordered[idx][1], used_by_exprs):
-                                # this element must be inserted before idx
-                                ordered.insert(idx, (atom, used_by_exprs))
-                                break
-                            if self._is_expr0_included_in_expr1(used_by_exprs, ordered[idx][1]):
-                                # this element can be inserted after this element. record the index
-                                last_inclusion = idx
-                        else:
-                            ordered.insert(last_inclusion + 1, (atom, used_by_exprs))
-
-                    for atom, used_by_exprs in ordered:
-                        used_by.append((atom, loc, used_by_exprs))
+            for loc, atom_list in used_by_loc.items():
+                used_by += [(atom, loc) for atom in atom_list]
 
             return ExprNarrowingInfo(True, to_size=target_size, use_exprs=used_by, phi_vars=phi_vars)
 
@@ -671,7 +692,7 @@ class AILSimplifier(Analysis):
     def _exprs_from_used_by_exprs(used_by_exprs) -> set[Expression]:
         use_type, expr_tuple = used_by_exprs
         match use_type:
-            case "expr" | "mask" | "convert":
+            case "expr" | "mask" | "convert" | "extract":
                 return {expr_tuple[1]} if len(expr_tuple) == 2 else {expr_tuple[0]}
             case "phi-src-expr":
                 return {expr_tuple[0]}
@@ -694,8 +715,8 @@ class AILSimplifier(Analysis):
         return False
 
     def _get_vvar_use_and_exprs_recursive(
-        self, initial_atom: atoms.VirtualVariable, rd, block_dict: dict[tuple[int, int | None], Block]
-    ) -> tuple[list[tuple[atoms.VirtualVariable, CodeLocation, Expression]], set[VirtualVariable]] | None:
+        self, initial_atom: atoms.VirtualVariable, rd: SRDAModel, block_dict: dict[tuple[int, int | None], Block]
+    ) -> tuple[list[tuple[atoms.VirtualVariable, AILCodeLocation, Expression]], set[VirtualVariable]] | None:
         result = []
         atom_queue = [initial_atom]
         phi_vars = set()
@@ -707,12 +728,12 @@ class AILSimplifier(Analysis):
             expr_and_uses = rd.all_vvar_uses[atom.varid]
 
             for expr, loc in set(expr_and_uses):
-                old_block = block_dict.get((loc.block_addr, loc.block_idx), None)
+                old_block = block_dict.get((loc.block_addr, loc.block_idx))
                 if old_block is None:
                     # missing a block for whatever reason
                     return None
 
-                block: Block = self.blocks.get(old_block, old_block)
+                block = self.blocks.get(old_block, old_block)
                 if loc.stmt_idx >= len(block.statements):
                     # missing a statement for whatever reason
                     return None
@@ -730,76 +751,28 @@ class AILSimplifier(Analysis):
                     result.append((atom, loc, expr))
         return result, phi_vars
 
-    def _extract_expression_effective_size(
-        self, statement, expr
-    ) -> tuple[int | None, tuple[str, tuple[Expression, ...]] | None]:
+    def _extract_expression_effective_size(self, statement, expr) -> tuple[int | None, str | None]:
         """
         Determine the effective size of an expression when it's used.
         """
 
-        walker = NarrowingInfoExtractor(expr)
+        walker = EffectiveSizeExtractor(expr)
         walker.walk_statement(statement)
-        if not walker.operations:
-            if expr is None:
-                return None, None
-            return expr.size, ("expr", (expr,))
 
-        ops = walker.operations
-        first_op = ops[0]
-        if isinstance(first_op, BinaryOp) and first_op.op in {"Add", "Sub"}:
-            # expr + x
-            ops = ops[1:]
-            if not ops:
-                if expr is None:
-                    return None, None
-                return expr.size, ("expr", (expr,))
-            first_op = ops[0]
-        if isinstance(first_op, Convert) and first_op.to_bits >= self.project.arch.byte_width:
-            # we need at least one byte!
-            if (
-                len({(op.from_bits, op.to_bits) for op in ops if isinstance(op, Convert) and op.operand.likes(expr)})
-                > 1
-            ):
-                # there are more Convert operations; it's probably because there are multiple expressions involving the
-                # same core expr. just give up (for now)
-                return None, None
-            if any(op for op in ops if isinstance(op, BinaryOp) and op.op == "Shr" and op.operands[0].likes(expr)):
-                # the expression is right-shifted, which means higher bits might be used.
-                return None, None
-            return first_op.to_bits // self.project.arch.byte_width, ("convert", (first_op,))
-        if isinstance(first_op, BinaryOp):
-            second_op = None
-            if len(ops) >= 2:
-                second_op = ops[1]
-            if (
-                first_op.op == "And"
-                and isinstance(first_op.operands[1], Const)
-                and (
-                    second_op is None or (isinstance(second_op, BinaryOp) and isinstance(second_op.operands[1], Const))
-                )
-            ):
-                mask = first_op.operands[1].value
-                if mask == 0xFF:
-                    return 1, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-                if mask == 0xFFFF:
-                    return 2, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-                if mask == 0xFFFF_FFFF:
-                    return 4, ("mask", (first_op, second_op)) if second_op is not None else ("mask", (first_op,))
-            if (
-                (first_op.operands[0] is expr or first_op.operands[1] is expr)
-                and first_op.op not in {"Shr", "Sar"}
-                and isinstance(second_op, Convert)
-                and second_op.from_bits == expr.bits
-                and second_op.to_bits >= self.project.arch.byte_width  # we need at least one byte!
-            ):
-                return min(expr.bits, second_op.to_bits) // self.project.arch.byte_width, (
-                    "binop-convert",
-                    (expr, first_op, second_op),
-                )
+        effective_bit_ranges = set()
+        for expr_, (lo_bits, hi_bits) in walker.expr_to_effective_bits.items():
+            if expr.likes(expr_):
+                effective_bit_ranges.add((lo_bits, hi_bits))
 
-        if expr is None:
-            return None, None
-        return expr.size, ("expr", (expr,))
+        if effective_bit_ranges:
+            highest_bit = max(hi_bits for _, hi_bits in effective_bit_ranges)
+            return highest_bit // self.project.arch.byte_width, "expr"
+        if walker.expr_used_as_call_arg_effective_bits is not None:
+            return walker.expr_used_as_call_arg_effective_bits[1] // self.project.arch.byte_width, "call-arg"
+        if walker.expr_used_as_insert_base:
+            return None, "insert-base"
+
+        return None, None
 
     #
     # Expression folding
@@ -826,7 +799,7 @@ class AILSimplifier(Analysis):
         return self._replace_exprs_in_blocks(replacements_by_block_addrs_and_idx)
 
     def _replace_exprs_in_blocks(
-        self, replacements: dict[tuple[int, int | None], dict[CodeLocation, dict[Expression, Expression]]]
+        self, replacements: dict[tuple[int, int | None], dict[AILCodeLocation, dict[Expression, Expression]]]
     ) -> bool:
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
 
@@ -841,7 +814,7 @@ class AILSimplifier(Analysis):
 
             # only replace loads if there are stack arguments in this block
             replace_loads: bool = insn_addrs_using_stack_args is not None and bool(
-                {stmt.ins_addr for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
+                {stmt.tags.get("ins_addr", None) for stmt in block.statements}.intersection(insn_addrs_using_stack_args)
             )
 
             # remove virtual variables in the avoid list
@@ -855,7 +828,9 @@ class AILSimplifier(Analysis):
                     }
                 reps = filtered_reps
 
-            r, new_block = BlockSimplifier._replace_and_build(block, reps, gp=self._gp, replace_loads=replace_loads)
+            r, new_block = BlockSimplifier._replace_and_build(
+                block, reps, self._ail_manager, gp=self._gp, replace_loads=replace_loads
+            )
             replaced |= r
             self.blocks[block] = new_block
 
@@ -968,7 +943,9 @@ class AILSimplifier(Analysis):
 
         # build the replacement dictionary
         blocks_dict = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
-        replacements: dict[tuple[int, int | None], dict[CodeLocation, dict[Expression, Expression]]] = defaultdict(dict)
+        replacements: dict[tuple[int, int | None], dict[AILCodeLocation, dict[Expression, Expression]]] = defaultdict(
+            dict
+        )
         for vvar_id, (value, bits) in to_replace.items():
             for expr, use_loc in srda.all_vvar_uses[vvar_id]:
                 if expr is None:
@@ -1015,85 +992,80 @@ class AILSimplifier(Analysis):
 
         # keep track of code locations where the statements have been updated; we can then skip Equivalences that are
         # out-of-date
-        updated_locs: set[CodeLocation] = set()
+        updated_locs: set[AILCodeLocation] = set()
 
         for _, atom in sorted_loc_and_atoms:
             eqs = equivalences[atom]
-            if len(eqs) > 1:
-                continue
-
-            eq = next(iter(eqs))
-            if eq.codeloc in updated_locs:
-                continue
-
-            # Acceptable equivalence classes:
-            #
-            # stack variable == register
-            # register variable == register
-            # stack variable == Conv(register, M->N)
-            # global variable == register
-            #
-            # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
-            # eq.atom1 is the use.
-            the_def = None
-            if (isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack) or (
-                isinstance(eq.atom0, SimMemoryVariable)
-                and not isinstance(eq.atom0, SimStackVariable)
-                and isinstance(eq.atom0.addr, int)
-            ):
-                if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
-                    # stack_var == register or global_var == register
-                    to_replace = eq.atom1
-                    to_replace_is_def = False
-                elif (
-                    isinstance(eq.atom0, VirtualVariable)
-                    and eq.atom0.was_stack
-                    and isinstance(eq.atom1, VirtualVariable)
-                    and eq.atom1.was_parameter
-                ):
-                    # stack_var == parameter
-                    to_replace = eq.atom0
-                    to_replace_is_def = True
-                elif (
-                    isinstance(eq.atom1, Convert)
-                    and isinstance(eq.atom1.operand, VirtualVariable)
-                    and eq.atom1.operand.was_reg
-                ):
-                    # stack_var == Conv(register, M->N)
-                    to_replace = eq.atom1.operand
-                    to_replace_is_def = False
-                else:
+            filtered_eqs: list[tuple[Equivalence, VirtualVariable, bool]] = []
+            for eq in eqs:
+                if eq.codeloc in updated_locs:
                     continue
 
-            elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
-                if isinstance(eq.atom1, VirtualVariable):
-                    if eq.atom1.was_reg or eq.atom1.was_parameter:
-                        # register == register
-                        if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
-                            to_replace = eq.atom0
-                            to_replace_is_def = True
-                        else:
-                            to_replace = eq.atom1
-                            to_replace_is_def = False
-                    elif eq.atom1.was_stack:
-                        # register == stack (but we try to replace the register vvar with the stack vvar)
-                        to_replace = eq.atom0
-                        to_replace_is_def = True
+                # Acceptable equivalence classes:
+                #
+                # stack variable == register
+                # register variable == register
+                # stack variable == Conv(register, M->N)
+                # global variable == register
+                #
+                # Equivalence is generally created at assignment sites. Therefore, eq.atom0 is the definition and
+                # eq.atom1 is the use.
+                if (isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_stack) or (
+                    isinstance(eq.atom0, SimMemoryVariable)
+                    and not isinstance(eq.atom0, SimStackVariable)
+                    and isinstance(eq.atom0.addr, int)
+                ):
+                    if isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_reg:
+                        # stack_var == register or global_var == register
+                        filtered_eqs.append((eq, eq.atom1, False))
+                    elif (
+                        isinstance(eq.atom0, VirtualVariable)
+                        and eq.atom0.was_stack
+                        and isinstance(eq.atom1, VirtualVariable)
+                        and eq.atom1.was_parameter
+                    ):
+                        # stack_var == parameter
+                        filtered_eqs.append((eq, eq.atom0, True))
+                    elif (
+                        isinstance(eq.atom1, Convert)
+                        and isinstance(eq.atom1.operand, VirtualVariable)
+                        and eq.atom1.operand.was_reg
+                    ):
+                        # stack_var == Conv(register, M->N)
+                        filtered_eqs.append((eq, eq.atom1.operand, False))
                     else:
                         continue
+
+                elif isinstance(eq.atom0, VirtualVariable) and eq.atom0.was_reg:
+                    if isinstance(eq.atom1, VirtualVariable):
+                        if eq.atom1.was_reg or eq.atom1.was_parameter:
+                            # register == register
+                            if self.project.arch.is_artificial_register(eq.atom0.reg_offset, eq.atom0.size):
+                                filtered_eqs.append((eq, eq.atom0, True))
+                            else:
+                                filtered_eqs.append((eq, eq.atom1, False))
+                        elif eq.atom1.was_stack:
+                            # register == stack (but we try to replace the register vvar with the stack vvar)
+                            filtered_eqs.append((eq, eq.atom0, True))
+                        else:
+                            continue
+                    else:
+                        continue
+
                 else:
                     continue
 
-            else:
+            if len(filtered_eqs) != 1:
                 continue
 
-            assert isinstance(to_replace, VirtualVariable)
+            eq, to_replace, to_replace_is_def = filtered_eqs[0]
 
             # find the definition of this virtual register
             rd = self._compute_reaching_definitions()
+            the_def = None
             if to_replace_is_def:
                 # find defs
-                defs = []
+                defs: Container[Definition[atoms.VirtualVariable, AILCodeLocation]] = []
                 for def_ in rd.all_definitions:
                     if def_.atom.varid == to_replace.varid:
                         defs.append(def_)
@@ -1107,7 +1079,6 @@ class AILSimplifier(Analysis):
                     # there are multiple defs for this register - we do not support replacing all of them
                     continue
                 for def_ in defs:
-                    def_: Definition
                     if (
                         isinstance(def_.atom, atoms.VirtualVariable)
                         and def_.atom.category == to_replace.category
@@ -1118,14 +1089,9 @@ class AILSimplifier(Analysis):
                         break
             if the_def is None:
                 continue
-            if the_def.codeloc.context:  # FIXME: now the_def.codeloc.context is never filled in
-                # the definition is in a callee function
-                continue
 
             def_eq_rel: DefEqRelation = DefEqRelation.UNKNOWN
-            if isinstance(the_def.codeloc, ExternalCodeLocation) or (
-                isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter
-            ):
+            if the_def.codeloc.is_extern or (isinstance(eq.atom1, VirtualVariable) and eq.atom1.was_parameter):
                 # this is a function argument. we enter a slightly different logic and try to eliminate copies of this
                 # argument if
                 # (a) the on-stack or in-register copy of it has never been modified in this function
@@ -1167,9 +1133,7 @@ class AILSimplifier(Analysis):
                             continue
 
                         # find all its uses
-                        all_arg_copy_var_uses: set[tuple[Any, CodeLocation]] = rd.get_vvar_uses_with_expr(
-                            arg_copy_def.atom
-                        )
+                        all_arg_copy_var_uses = rd.get_vvar_uses_with_expr(arg_copy_def.atom)
                         all_uses_with_def = set()
 
                         should_abort = False
@@ -1276,7 +1240,7 @@ class AILSimplifier(Analysis):
 
                 # find all uses of this definition
                 # we make a copy of the set since we may touch the set (uses) when replacing expressions
-                all_uses: set[tuple[Any, CodeLocation]] = set(rd.all_vvar_uses[to_replace_def.atom.varid])
+                all_uses = set(rd.all_vvar_uses[to_replace_def.atom.varid])
                 # make sure none of these uses are phi nodes (depends on more than one def)
                 all_uses_with_unique_def = set()
                 for expr_and_use in all_uses:
@@ -1402,7 +1366,7 @@ class AILSimplifier(Analysis):
                 if u == eq.codeloc:
                     # skip the very initial assignment location
                     continue
-                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx))
                 if old_block is None:
                     continue
                 if used_expr is None:
@@ -1436,6 +1400,7 @@ class AILSimplifier(Analysis):
                     the_block, u.stmt_idx, stmt, used_expr, replace_with_copy
                 )
                 if r:
+                    assert new_block is not None
                     self.blocks[old_block] = new_block
                     updated_locs.add(u)
                 else:
@@ -1452,7 +1417,7 @@ class AILSimplifier(Analysis):
         return simplified
 
     @staticmethod
-    def _find_atom_def_at(atom, rd, codeloc: CodeLocation) -> Definition | None:
+    def _find_atom_def_at(atom, rd, codeloc: AILCodeLocation) -> Definition | None:
         if isinstance(atom, Register):
             defs = rd.get_defs(atom, codeloc, OP_BEFORE)
             return next(iter(defs)) if len(defs) == 1 else None
@@ -1522,13 +1487,13 @@ class AILSimplifier(Analysis):
         for block in self.func_graph.nodes():
             addr_and_idx_to_block[(block.addr, block.idx)] = block
 
-        def_locations_to_remove: set[CodeLocation] = set()
-        updated_use_locations: set[CodeLocation] = set()
+        def_locations_to_remove: set[AILCodeLocation] = set()
+        updated_use_locations: set[AILCodeLocation] = set()
 
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
-                if isinstance(eq.atom1, Call):
+                if isinstance(eq.atom1, (Call, SideEffectStatement)):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
@@ -1562,7 +1527,7 @@ class AILSimplifier(Analysis):
                 assert the_def.codeloc.block_addr is not None
                 assert the_def.codeloc.stmt_idx is not None
 
-                all_uses: set[tuple[Any, CodeLocation]] = rd.get_vvar_uses_with_expr(the_def.atom)
+                all_uses = rd.get_vvar_uses_with_expr(the_def.atom)
                 if eq.is_weakassignment:
                     # eliminate the "use" at the weak assignment site
                     all_uses = {use for use in all_uses if use[1] != eq.codeloc}
@@ -1599,7 +1564,7 @@ class AILSimplifier(Analysis):
 
                 # ensure there are no other calls between the def site and the use site.
                 # this is because we do not want to alter the order of calls.
-                u_inclusive = CodeLocation(u.block_addr, u.stmt_idx + 1, block_idx=u.block_idx)
+                u_inclusive = AILCodeLocation(u.block_addr, u.block_idx, u.stmt_idx + 1)
                 # note that the target statement being a store is fine
                 if (
                     has_call_in_between_stmts(
@@ -1621,7 +1586,7 @@ class AILSimplifier(Analysis):
                     continue
 
                 # replace all uses
-                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx), None)
+                old_block = addr_and_idx_to_block.get((u.block_addr, u.block_idx))
                 if old_block is None:
                     continue
 
@@ -1633,12 +1598,10 @@ class AILSimplifier(Analysis):
                     src = used_expr
                     dst: Expression = call.copy()
 
-                    if isinstance(dst, Call) and dst.ret_expr is not None:
-                        dst_bits = dst.ret_expr.bits
-                        # clear the ret_expr and fp_ret_expr of dst, then set bits so that it can be used as an
-                        # expression
-                        dst.ret_expr = None
-                        dst.fp_ret_expr = None
+                    if isinstance(dst, SideEffectStatement):
+                        dst_bits = dst.ret_expr.bits if dst.ret_expr is not None else dst.bits
+                        # extract the Call expression from the SideEffectStatement
+                        dst = dst.expr
                         dst.bits = dst_bits
 
                     if src.bits != dst.bits and not eq.is_weakassignment:
@@ -1654,6 +1617,7 @@ class AILSimplifier(Analysis):
                 replaced, new_block = self._replace_expr_and_update_block(the_block, u.stmt_idx, stmt, src, dst)
 
                 if replaced:
+                    assert new_block is not None
                     self.blocks[old_block] = new_block
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
@@ -1698,7 +1662,7 @@ class AILSimplifier(Analysis):
 
         encountered_block_addrs: set[tuple[int, int | None]] = {(b.addr, b.idx)}
         while True:
-            if terminate_with_calls and b.statements and isinstance(b.statements[-1], Call):
+            if terminate_with_calls and b.statements and isinstance(b.statements[-1], SideEffectStatement):
                 return False
 
             encountered_block_addrs.add((b.addr, b.idx))
@@ -1748,15 +1712,14 @@ class AILSimplifier(Analysis):
 
     @timethis
     def _remove_dead_assignments(self) -> bool:
-
         # keeping tracking of statements to remove and statements (as well as dead vvars) to keep allows us to handle
         # cases where a statement defines more than one atom, e.g., a call statement that defines both the return
         # value and the floating-point return value.
         stmts_to_remove_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         stmts_to_keep_per_block: dict[tuple[int, int | None], set[int]] = defaultdict(set)
         dead_vvar_ids: set[int] = self._removed_vvar_ids.copy()
-        dead_vvar_codelocs: set[CodeLocation] = set()
-        blocks: dict[tuple[int, int | None], Block] = {
+        dead_vvar_codelocs: set[AILCodeLocation] = set()
+        blocks: dict[Address, Block] = {
             (node.addr, node.idx): self.blocks.get(node, node) for node in self.func_graph.nodes()
         }
 
@@ -1767,7 +1730,7 @@ class AILSimplifier(Analysis):
         stackarg_offsets = (
             {(tpl[1] & mask) for tpl in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None
         )
-        retpoints: set[tuple[int, int]] = {
+        retpoints: set[Address] = {
             (node.addr, node.idx)
             for node in self.func_graph
             if node.statements and isinstance(node.statements[-1], Return) and self.func_graph.out_degree[node] == 0
@@ -1788,7 +1751,7 @@ class AILSimplifier(Analysis):
                 if uses is None:
                     vvar = rd.varid_to_vvar[vvar_id]
                     def_codeloc = rd.all_vvar_definitions[vvar_id]
-                    if isinstance(def_codeloc, ExternalCodeLocation):
+                    if def_codeloc.is_extern:
                         def_stmt = None
                     else:
                         assert def_codeloc.block_addr is not None and def_codeloc.stmt_idx is not None
@@ -1802,11 +1765,8 @@ class AILSimplifier(Analysis):
                             if rd.is_phi_vvar_id(vvar_id):
                                 # we always remove unused phi variables
                                 pass
-                            elif vvar_id in self._secondary_stackvars:
-                                # secondary stack variables are potentially removable
-                                pass
                             elif (def_codeloc.block_addr, def_codeloc.block_idx) in retpoints:
-                                # slack variable assignments in endpoint blocks are potentially removable.
+                                # stack variable assignments in endpoint blocks are potentially removable.
                                 # note that this is a hack! we should rely on more reliable stack variable
                                 # eliminatability detection.
                                 pass
@@ -1827,7 +1787,9 @@ class AILSimplifier(Analysis):
                 for _, loc in uses:
                     if loc in dead_vvar_codelocs and loc.block_addr is not None and loc.stmt_idx is not None:
                         stmt = blocks[(loc.block_addr, loc.block_idx)].statements[loc.stmt_idx]
-                        if not self._statement_has_call_exprs(stmt) and not isinstance(stmt, (DirtyStatement, Call)):
+                        if not self._statement_has_call_exprs(stmt) and not isinstance(
+                            stmt, (DirtyStatement, SideEffectStatement)
+                        ):
                             continue
                     filtered_uses_count += 1
 
@@ -1835,15 +1797,11 @@ class AILSimplifier(Analysis):
                     new_dead_vars_found = True
                     dead_vvar_ids.add(vvar_id)
                     dead_vvar_codelocs.add(codeloc)
-                    if not isinstance(codeloc, ExternalCodeLocation):
-                        assert codeloc.block_addr is not None
-                        assert codeloc.stmt_idx is not None
+                    if not codeloc.is_extern:
                         stmts_to_remove_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
                         stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].discard(codeloc.stmt_idx)
                 else:
-                    if not isinstance(codeloc, ExternalCodeLocation):
-                        assert codeloc.block_addr is not None
-                        assert codeloc.stmt_idx is not None
+                    if not codeloc.is_extern:
                         stmts_to_keep_per_block[(codeloc.block_addr, codeloc.block_idx)].add(codeloc.stmt_idx)
 
             if not new_dead_vars_found:
@@ -1901,7 +1859,7 @@ class AILSimplifier(Analysis):
                 continue
 
             for idx, stmt in enumerate(block.statements):
-                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, Call):
+                if idx in stmts_to_remove and idx in stmts_to_keep and isinstance(stmt, SideEffectStatement):
                     # this statement declares more than one variable. we should handle it surgically
                     # case 1: stmt.ret_expr and stmt.fp_ret_expr are both set, but one of them is not used
                     if isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.varid in dead_vvar_ids:
@@ -1927,7 +1885,7 @@ class AILSimplifier(Analysis):
                             continue
 
                         # if this statement triggers a call, it should only be removed if it's in self._calls_to_remove
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
+                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._assignments_to_remove:
                             # it should be removed
                             simplified = True
@@ -1943,10 +1901,10 @@ class AILSimplifier(Analysis):
                                 # now the things are a bit tricky here
                                 if isinstance(stmt.src, Call):
                                     # replace this assignment statement with a call statement
-                                    stmt = stmt.src
+                                    stmt = SideEffectStatement(stmt.idx, stmt.src, **stmt.tags)
                                 elif isinstance(stmt.src, Convert) and isinstance(stmt.src.operand, Call):
                                     # the convert is useless now
-                                    stmt = stmt.src.operand
+                                    stmt = SideEffectStatement(stmt.idx, stmt.src.operand, **stmt.tags)
                                 else:
                                     # we can't change this stmt at all because it has an expression with Calls inside
                                     pass
@@ -1954,8 +1912,8 @@ class AILSimplifier(Analysis):
                             # no calls. remove it
                             simplified = True
                             continue
-                    elif isinstance(stmt, Call):
-                        codeloc = CodeLocation(block.addr, idx, ins_addr=stmt.ins_addr, block_idx=block.idx)
+                    elif isinstance(stmt, SideEffectStatement):
+                        codeloc = AILCodeLocation(block.addr, block.idx, idx, stmt.tags.get("ins_addr"))
                         if codeloc in self._calls_to_remove:
                             # this call can be removed
                             simplified = True
@@ -2086,7 +2044,7 @@ class AILSimplifier(Analysis):
         if rewriter_cls is None:
             return False
 
-        walker = AILBlockWalker()
+        walker = AILBlockRewriter()
 
         class _any_update:
             """
@@ -2096,16 +2054,14 @@ class AILSimplifier(Analysis):
             v = False
 
         def _handle_VEXCCallExpression(
-            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement, block: Block | None
-        ) -> Expression | None:
-            r_expr = AILBlockWalker._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
-            if r_expr is None:
-                r_expr = expr
+            expr_idx: int, expr: VEXCCallExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
+        ) -> Expression:
+            r_expr = AILBlockRewriter._handle_VEXCCallExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
             rewriter = rewriter_cls(r_expr, self.project, rename_ccalls=self._should_rename_ccalls)
             if rewriter.result is not None:
                 _any_update.v = True
                 return rewriter.result
-            return r_expr if r_expr is not expr else None
+            return r_expr
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[VEXCCallExpression] = _handle_VEXCCallExpression
@@ -2130,7 +2086,7 @@ class AILSimplifier(Analysis):
         if rewriter_cls is None:
             return False
 
-        walker = AILBlockWalker()
+        walker = AILBlockRewriter()
 
         class _any_update:
             """
@@ -2141,25 +2097,28 @@ class AILSimplifier(Analysis):
 
         def _handle_DirtyStatement(  # pylint:disable=unused-argument
             stmt_idx: int, stmt: DirtyStatement, block: Block | None
-        ) -> Expression | None:
+        ) -> Statement:
             # we do not want to trigger _handle_DirtyExpression, which is why we do not call the superclass method
             rewriter = rewriter_cls(stmt, self.project.arch)
             if rewriter.result is not None:
                 _any_update.v = True
-                return rewriter.result  # type:ignore
-            return None
+                if walker._update_block and block is not None:
+                    block.statements[stmt_idx] = rewriter.result  # type: ignore
+                assert isinstance(rewriter.result, Statement)
+                return rewriter.result
+            return stmt
 
         def _handle_DirtyExpression(
-            expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement, block: Block | None
+            expr_idx: int, expr: DirtyExpression, stmt_idx: int, stmt: Statement | None, block: Block | None
         ):
-            r_expr = AILBlockWalker._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
-            if r_expr is None:
-                r_expr = expr
+            r_expr = AILBlockRewriter._handle_DirtyExpression(walker, expr_idx, expr, stmt_idx, stmt, block)
+            assert isinstance(r_expr, DirtyExpression)
             rewriter = rewriter_cls(r_expr, self.project.arch)
             if rewriter.result is not None:
                 _any_update.v = True
+                assert isinstance(rewriter.result, Expression)
                 return rewriter.result
-            return r_expr if r_expr is not expr else None
+            return r_expr
 
         blocks_by_addr_and_idx = {(node.addr, node.idx): node for node in self.func_graph.nodes()}
         walker.expr_handlers[DirtyExpression] = _handle_DirtyExpression
@@ -2185,7 +2144,7 @@ class AILSimplifier(Analysis):
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             raise HasCallNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockViewer()
         walker.expr_handlers[Call] = _handle_callexpr
         try:
             walker.walk_statement(stmt)
@@ -2199,7 +2158,7 @@ class AILSimplifier(Analysis):
         def _handle_callexpr(expr_idx, expr, stmt_idx, stmt, block):  # pylint:disable=unused-argument
             raise HasCallNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockViewer()
         walker.expr_handlers[Call] = _handle_callexpr
         try:
             walker.walk_expression(expr)
@@ -2214,7 +2173,7 @@ class AILSimplifier(Analysis):
             if expr.varid in vvar_ids:
                 raise HasVVarNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockViewer()
         walker.expr_handlers[VirtualVariable] = _handle_VirtualVariable
 
         for expr in exprs:
@@ -2230,7 +2189,7 @@ class AILSimplifier(Analysis):
             if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == vvar_id:
                 raise HasRefVVarNotification
 
-        walker = AILBlockWalker()
+        walker = AILBlockViewer()
         walker.expr_handlers[UnaryOp] = _handle_UnaryOp
         try:
             walker.walk_statement(stmt)

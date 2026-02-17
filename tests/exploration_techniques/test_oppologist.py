@@ -6,12 +6,10 @@ __package__ = __package__ or "tests.exploration_techniques"  # pylint:disable=re
 
 import unittest
 import os
-import sys
 
 import angr
 
 from tests.common import bin_location
-
 
 test_location = os.path.join(bin_location, "tests")
 
@@ -31,7 +29,6 @@ def _ultra_oppologist(p, s):
         angr.engines.vex.claripy.irop.operations.update(old_ops)
 
 
-@unittest.skipIf(sys.platform == "win32", "broken on windows")
 class TestOppologist(unittest.TestCase):
     def test_fauxware_oppologist(self):
         p = angr.Project(os.path.join(test_location, "i386", "fauxware"))

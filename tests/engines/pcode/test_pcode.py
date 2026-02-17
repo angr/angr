@@ -2,20 +2,17 @@
 from __future__ import annotations
 
 import os
-from unittest import TestCase, skipUnless, main
+from unittest import TestCase, main
 
 import archinfo
-import pypcode
 
 import angr
-
 
 test_location = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..", "..", "binaries", "tests")
 
 
 # pylint: disable=missing-class-docstring
 # pylint: disable=no-self-use
-@skipUnless(pypcode, "pypcode not available")
 class TestPcodeEngine(TestCase):
     def test_shellcode(self):
         """

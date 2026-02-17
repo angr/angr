@@ -27,12 +27,7 @@ class TestDisassembly(TestCase):
 
         arch = ArchAArch64NoCapstone()
         proj = angr.load_shellcode(
-            b"\x00\xe4\x00\x6f"
-            b"\x43\x3c\x0b\x0e"
-            b"\x54\x9a\xb7\x72"
-            b"\xfc\x6f\xba\xa9"
-            b"\x88\x03\x98\x1a"
-            b"\x00\x60\x01\x4e",
+            b"\x00\xe4\x00\x6f\x43\x3c\x0b\x0e\x54\x9a\xb7\x72\xfc\x6f\xba\xa9\x88\x03\x98\x1a\x00\x60\x01\x4e",
             arch,
             0,
         )
@@ -50,12 +45,7 @@ class TestDisassembly(TestCase):
 
     def test_arm64_dissect_instructions(self):
         proj = angr.load_shellcode(
-            b"\x00\xe4\x00\x6f"
-            b"\x43\x3c\x0b\x0e"
-            b"\x54\x9a\xb7\x72"
-            b"\xfc\x6f\xba\xa9"
-            b"\x88\x03\x98\x1a"
-            b"\x00\x60\x01\x4e",
+            b"\x00\xe4\x00\x6f\x43\x3c\x0b\x0e\x54\x9a\xb7\x72\xfc\x6f\xba\xa9\x88\x03\x98\x1a\x00\x60\x01\x4e",
             "AARCH64",
             0,
         )
@@ -195,6 +185,15 @@ c  lw      $t9, -0x7ee0($gp)
         assert isinstance(ins0op0.values[1], Register)
         assert isinstance(ins0op0.values[2], str)
         assert ins0.render()[0] == "tbh     [pc,r3,lsl#1]"
+
+    def test_pcode(self):
+        proj = angr.load_shellcode(b"\xaa\x6c\x2d\x61\x82\x80\xef\xd0\x5f\xae", "RISCV", load_address=0x373E)
+        block = proj.factory.block(0x373E)
+        pcode = block.pcode
+        assert pcode.addr == 0x373E
+        assert len(pcode.insns) == 3
+        assert len(pcode.insns) == 3
+        assert pcode.insns[-1].mnemonic == "ret"
 
 
 if __name__ == "__main__":

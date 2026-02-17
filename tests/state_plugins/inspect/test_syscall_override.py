@@ -10,7 +10,6 @@ import angr
 
 from tests.common import bin_location, broken
 
-
 test_location = os.path.join(bin_location, "tests")
 
 target_addrs = {"i386": [0x080485C9], "x86_64": [0x4006ED], "ppc": [0x1000060C], "armel": [0x85F0], "mips": [0x4009FC]}
@@ -35,7 +34,7 @@ corrupt_addrs = {
 class TestSyscallOverride(unittest.TestCase):
     def _run_fauxware_override(self, arch):
         # auto_load_libs can't be disabled as the test fails
-        p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False)
+        p = angr.Project(os.path.join(test_location, arch, "fauxware"), use_sim_procedures=False, auto_load_libs=True)
         s = p.factory.full_init_state()
 
         def overwrite_str(state):

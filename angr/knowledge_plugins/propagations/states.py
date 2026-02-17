@@ -18,12 +18,11 @@ from angr.storage.memory_mixins import LabeledMemory
 from angr.engines.light.engine import SimEngineLight
 from angr.code_location import CodeLocation
 
-
 if TYPE_CHECKING:
     from archinfo import Arch
 
 
-class CallExprFinder(ailment.AILBlockWalker):
+class CallExprFinder(ailment.AILBlockRewriter):
     """
     Walks an AIL expression to find if it contains a call expression anywhere.
     """
@@ -36,7 +35,7 @@ class CallExprFinder(ailment.AILBlockWalker):
     def _handle_CallExpr(
         self,
         expr_idx: int,
-        expr: ailment.Stmt.Call,
+        expr: ailment.Expr.Call,
         stmt_idx: int,
         stmt: ailment.Stmt.Statement,
         block: ailment.Block | None,
@@ -251,7 +250,11 @@ class PropagatorState:
         self._replacements = defaultdict(dict)
 
     def add_replacement(
-        self, codeloc: CodeLocation, old, new, force_replace: bool = False  # pylint:disable=unused-argument
+        self,
+        codeloc: CodeLocation,
+        old,
+        new,
+        force_replace: bool = False,  # pylint:disable=unused-argument
     ) -> bool:
         """
         Add a replacement record: Replacing expression `old` with `new` at program location `codeloc`.

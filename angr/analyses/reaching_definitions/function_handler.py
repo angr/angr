@@ -20,7 +20,6 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from angr.knowledge_plugins.key_definitions.constants import ObservationPointType
 from angr.utils.types import dereference_simtype_by_lib
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins.key_definitions.rd_model import ReachingDefinitionsModel
     from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
@@ -236,9 +235,9 @@ class FunctionCallDataUnwrapped(FunctionCallData):
         d = dict(inner.__dict__)
         annotations = type(self).__annotations__  # pylint: disable=no-member
         for k, v in d.items():
-            assert (
-                v is not None or k not in annotations
-            ), f"Failed to unwrap field {k} - this function is more complicated than you're ready for!"
+            assert v is not None or k not in annotations, (
+                f"Failed to unwrap field {k} - this function is more complicated than you're ready for!"
+            )
             assert v is not None, "Members of FunctionCallDataUnwrapped may not be None"
         super().__init__(**d)
 

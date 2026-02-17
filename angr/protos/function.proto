@@ -18,7 +18,7 @@ message Function {
     bool            is_plt = 7; // If this function is a PLT entry
     bool            is_syscall = 8; // Is this function a syscall function
     bool            is_simprocedure = 9;  // Is this function a SimProcedure
-    bool            returning = 10; // If this function returns
+    optional bool   returning = 10; // If this function returns
     string          binary_name = 11; // Name of the binary where this function belongs to
     BlockGraph      graph = 12; // Graph of this function
     repeated uint64 external_functions = 13; // Address of referenced functions
@@ -29,4 +29,10 @@ message Function {
     bytes           calling_convention = 18;  // the recovered calling convention (pickle serialized, can be None)
     string          prototype_libname = 19; // if we found this prototype in a library, which library?
     bool            is_prototype_guessed = 20; // did we guess this prototype?
+    bytes           info = 21; // a JSON-serialized dictionary
+    repeated Endpoint endpoints = 22; // Endpoints within this function
+    repeated Block  external_blocks = 24; // Referenced blocks outside this function
+    bool            is_default_name = 25; // Whether the function name is a default name (e.g., sub_123456) or not
+    bool            ran_cca = 26;  // Whether calling convention analysis has been performed on this function
+    repeated string previous_names = 27; // Previous names of this function
 }

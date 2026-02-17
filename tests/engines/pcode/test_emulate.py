@@ -6,7 +6,6 @@ import unittest
 from dataclasses import dataclass
 
 import claripy
-import pypcode
 from pypcode import OpCode
 
 import angr
@@ -14,7 +13,6 @@ from angr.engines.pcode.behavior import BehaviorFactory
 from angr.engines.pcode.emulate import PcodeEmulatorMixin
 from angr.sim_state import SimState
 from angr.engines import SimSuccessors
-
 
 log = logging.getLogger(__name__)
 
@@ -84,7 +82,6 @@ OP = MockPcodeOp
 VN = MockVarnode
 
 
-@unittest.skipUnless(pypcode, "pypcode is not available")
 class TestPcodeEmulatorMixin(unittest.TestCase):
     """
     Test P-Code engine emulator mixin

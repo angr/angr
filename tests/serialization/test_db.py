@@ -17,7 +17,6 @@ from angr.angrdb import AngrDB
 
 from tests.common import bin_location, print_decompilation_result
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -53,6 +52,10 @@ class TestDb(unittest.TestCase):
                 x.addr for x in new_func.transition_graph.nodes()
             }
             assert len(func.transition_graph.edges()) == len(new_func.transition_graph.edges())
+
+            # new_func (which is just loaded out of angr db) should be marked as dirty so it can potentially be
+            # saved to LMDB if it's evicted.
+            assert new_func.dirty is True
 
         # compare call graph
         callgraph_nodes_old = set(proj.kb.callgraph.nodes)
@@ -309,6 +312,28 @@ class TestDb(unittest.TestCase):
             assert dec_2.codegen is not None and dec_2.codegen.text is not None
             print_decompilation_result(dec_2)
             assert dec_2.codegen.text.count("0x8") == 1
+
+    def test_angrdb_decompilation_load_variables(self):
+        # https://github.com/angr/angr/issues/5990
+
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        with tempfile.TemporaryDirectory() as td:
+            out_db = os.path.join(td, "out.sqlite")
+
+            proj = angr.Project(bin_path, auto_load_libs=False)
+            cfg = proj.analyses.CFGFast(
+                normalize=True,
+                resolve_indirect_jumps=True,
+                detect_tail_calls=True,
+            )
+            dec = proj.analyses.Decompiler("main", variable_kb=proj.kb, cfg=cfg.model, regen_clinic=False)
+            assert dec.codegen is not None and dec.codegen.text is not None
+
+            adb = AngrDB(proj, nullpool=True)
+            adb.dump(out_db, extra_info={"binary_path": bin_path})
+
+            _proj = AngrDB(nullpool=True).load(out_db)
 
 
 if __name__ == "__main__":

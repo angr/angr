@@ -1,61 +1,69 @@
 from __future__ import annotations
 
+from typing import Any, TypedDict, TYPE_CHECKING
+from typing_extensions import Self
+
+from angr.ailment.manager import Manager
+
+if TYPE_CHECKING:
+    from typing_extensions import Unpack
+
+    from angr.sim_type import SimType
+    from angr.sim_variable import SimVariable
+
+
+class TagDict(TypedDict, total=False):
+    """
+    Typed dict of tags for TaggedObject.
+    """
+
+    always_propagate: bool
+    block_idx: int
+    custom_string: bool
+    deref_src_addr: int
+    extra_def: bool
+    extra_defs: list[int]
+    ins_addr: int
+    is_prototype_guessed: bool
+    keep_in_slice: bool
+    orig_ins_addr: int
+    reference_values: dict[SimType, Any]
+    reference_variable_offset: int
+    reference_variable: SimVariable
+    reg_name: str
+    type: dict[str, SimType]
+    uninitialized: bool
+    vex_block_addr: int
+    vex_stmt_idx: int
+    write_size: int
+
 
 class TaggedObject:
     """
-    A class that takes arbitrary tags.
+    A class that takes tags.
     """
 
     __slots__ = (
         "_hash",
-        "_tags",
         "idx",
+        "tags",
     )
 
-    def __init__(self, idx: int | None, **kwargs):
-        self._tags = None
+    def __init__(self, idx: int | None, **kwargs: Unpack[TagDict]):
+        self.tags: TagDict = kwargs
         self.idx = idx
         self._hash = None
-        if kwargs:
-            self.initialize_tags(kwargs)
-
-    def initialize_tags(self, tags):
-        self._tags = {}
-        for k, v in tags.items():
-            self._tags[k] = v
-
-    def __getattr__(self, item):
-        try:
-            return self.tags[item]
-        except KeyError:
-            return super().__getattribute__(item)
-
-    def __new__(cls, *args, **kwargs):  # pylint:disable=unused-argument
-        """Create a new instance and set `_tags` attribute.
-
-        Since TaggedObject override `__getattr__` method and try to access the
-        `_tags` attribute, infinite recursion could occur if `_tags` not ready
-        to exists.
-
-        This behavior causes an infinite recursion error when copying
-        `TaggedObject` with `copy.deepcopy`.
-
-        Hence, we set `_tags` attribute here to prevent this problem.
-        """
-        self = super().__new__(cls)
-        self._tags = None
-        return self
 
     def __hash__(self) -> int:
         if self._hash is None:
             self._hash = self._hash_core()
         return self._hash
 
-    def _hash_core(self):
+    def _hash_core(self) -> int:
         raise NotImplementedError
 
-    @property
-    def tags(self) -> dict:
-        if not self._tags:
-            self._tags = {}
-        return self._tags
+    def copy(self) -> Self:
+        raise NotImplementedError
+
+    def deep_copy(self, manager: Manager) -> Self:
+        raise NotImplementedError

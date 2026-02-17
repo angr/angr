@@ -12,7 +12,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -48,12 +47,12 @@ class TestCallsiteMaker(unittest.TestCase):
         for block in sorted(main_func.blocks, key=lambda x: x.addr):
             print(block.vex.pp())
             ail_block = ailment.IRSBConverter.convert(block.vex, manager)
-            simp = project.analyses.AILBlockSimplifier(ail_block, main_func.addr)
+            simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)
 
             csm = project.analyses.AILCallSiteMaker(simp.result_block)
             if csm.result_block:
                 ail_block = csm.result_block
-                simp = project.analyses.AILBlockSimplifier(ail_block, main_func.addr)
+                simp = project.analyses.AILBlockSimplifier(ail_block, manager, main_func.addr)
 
             print(simp.result_block)
 

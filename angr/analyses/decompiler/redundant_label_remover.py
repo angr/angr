@@ -66,14 +66,16 @@ class RedundantLabelRemover:
             if isinstance(node_, ailment.Block):
                 if node_.statements:
                     for stmt in node_.statements:
-                        if isinstance(stmt, ailment.Stmt.Label):
+                        if isinstance(stmt, ailment.Stmt.Label) and "ins_addr" in stmt.tags:
                             if last_label_addr is None:
                                 # record the label address
-                                last_label_addr = stmt.ins_addr, stmt.block_idx
+                                last_label_addr = stmt.tags["ins_addr"], stmt.tags.get("block_idx")
                             else:
                                 # this label is useless - we should replace this label with the last label
                                 self._labels_to_remove.add(stmt)
-                                self._new_jump_target[(stmt.ins_addr, stmt.block_idx)] = last_label_addr
+                                self._new_jump_target[(stmt.tags["ins_addr"], stmt.tags.get("block_idx"))] = (
+                                    last_label_addr
+                                )
                         else:
                             last_label_addr = None
                             break
@@ -87,8 +89,13 @@ class RedundantLabelRemover:
             # fixed point remove all labels with no edges in
             while True:
                 for idx, stmt in enumerate(block.statements):
-                    if isinstance(stmt, ailment.Stmt.Label) and (
-                        (stmt.ins_addr, stmt.block_idx) not in self._jump_targets or stmt in self._labels_to_remove
+                    if (
+                        isinstance(stmt, ailment.Stmt.Label)
+                        and "ins_addr" in stmt.tags
+                        and (
+                            (stmt.tags["ins_addr"], stmt.tags.get("block_idx")) not in self._jump_targets
+                            or stmt in self._labels_to_remove
+                        )
                     ):
                         # useless label - update the block in-place
                         block.statements = block.statements[:idx] + block.statements[idx + 1 :]

@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
 from enum import Enum
+from itertools import count
 
 from sortedcontainers import SortedDict
 
@@ -117,7 +118,7 @@ class InstructionMapping:
     def get_nearest_pos(self, ins_addr: int) -> int | None:
         try:
             pre_max = next(self._insmap.irange(maximum=ins_addr, reverse=True))
-            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=True))
+            pre_min = next(self._insmap.irange(minimum=ins_addr, reverse=False))
         except StopIteration:
             return None
 
@@ -141,9 +142,10 @@ class BaseStructuredCodeGenerator:
         self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
         self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
         self.const_formats: dict[IdentType, dict[str, bool]] = const_formats if const_formats is not None else {}
+        self.idx_counters: dict[str, count] = {}
 
+    @staticmethod
     def adjust_mapping_positions(
-        self,
         offset: int,
         pos_to_node: PositionMapping,
         pos_to_addr: PositionMapping,
@@ -181,3 +183,11 @@ class BaseStructuredCodeGenerator:
 
     def reload_variable_types(self) -> None:
         pass
+
+    def next_idx(self, key: str) -> str:
+        if key not in self.idx_counters:
+            self.idx_counters[key] = count()
+        return f"{key}_{next(self.idx_counters[key])}"
+
+    def reset_idx_counters(self) -> None:
+        self.idx_counters = {}

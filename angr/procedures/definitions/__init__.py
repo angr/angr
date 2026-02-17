@@ -14,7 +14,7 @@ import archinfo
 
 from angr.errors import AngrMissingTypeError
 from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
-from angr.calling_conventions import DEFAULT_CC, CC_NAMES
+from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
 from angr.misc.ux import once
 from angr.procedures.stubs.ReturnUnconstrained import ReturnUnconstrained
@@ -57,12 +57,13 @@ class SimTypeCollection:
 
         self.types[name] = t
 
-    def get(self, name: str, bottom_on_missing: bool = False) -> SimType:
+    def get(self, name: str, bottom_on_missing: bool = False, memo: set[str] | None = None) -> SimType:
         """
         Get a SimType object from the collection as identified by the name.
 
         :param name:    Name of the type to get.
         :param bottom_on_missing:    Return a SimTypeBottom object if the required type does not exist.
+        :param memo:    A set of names that have been queried in this call chain (to prevent infinite recursion).
         :return:        The SimType object.
         """
         if bottom_on_missing and name not in self:
@@ -70,11 +71,14 @@ class SimTypeCollection:
         if name not in self:
             raise AngrMissingTypeError(name)
         if name not in self.types and name in self.types_json:
+            if memo is None:
+                memo = {name}
+
             d = self.types_json[name]
             if isinstance(d, str):
                 d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
             try:
-                t = SimType.from_json(d)
+                t = SimType.from_json(d, type_collection=self, memo=memo)
             except (TypeError, ValueError) as ex:
                 l.warning("Failed to load type %s from JSON", name, exc_info=True)
                 # the type is missing
@@ -143,7 +147,7 @@ class SimLibrary:
         self.non_returning = set()
         self.prototypes: dict[str, SimTypeFunction] = {}
         self.prototypes_json: dict[str, Any] = {}
-        self.default_ccs = {}
+        self.default_ccs: dict[str, type[SimCC]] = {}
         self.names = []
         self.fallback_cc = dict(DEFAULT_CC)
         self.fallback_proc = ReturnUnconstrained
@@ -307,17 +311,17 @@ class SimLibrary:
             new_procedure.display_name = alt
             self.procedures[alt] = new_procedure
             if self.has_prototype(name):
-                self.prototypes[alt] = self.get_prototype(name)  # type:ignore
+                self.prototypes[alt] = self.get_prototype(name)  # type: ignore
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
     def _apply_metadata(self, proc, arch):
-        if proc.cc is None and arch.name in self.default_ccs:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.default_ccs:
             proc.cc = self.default_ccs[arch.name](arch)
-        if proc.cc is None and arch.name in self.fallback_cc:
+        if (proc.cc is None or proc.cc.arch != arch) and arch.name in self.fallback_cc:
             proc.cc = self.fallback_cc[arch.name]["Linux"](arch)
         if self.has_prototype(proc.display_name):
-            proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type:ignore
+            proc.prototype = self.get_prototype(proc.display_name, deref=True).with_arch(arch)  # type: ignore
             proc.guessed_prototype = False
             if proc.prototype.arg_names is None:
                 # Use inspect to extract the parameters from the run python function
@@ -446,7 +450,7 @@ class SimCppLibrary(SimLibrary):
     @staticmethod
     def _try_demangle(name):
         ast = pydemumble.demangle(name)
-        return ast if ast else name
+        return ast or name
 
     @staticmethod
     def _proto_from_demangled_name(name: str) -> SimTypeFunction | None:
@@ -637,7 +641,7 @@ class SimSyscallLibrary(SimLibrary):
         self.default_cc_mapping[abi] = cc_cls
 
     # pylint: disable=arguments-differ
-    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # type:ignore
+    def set_prototype(self, abi: str, name: str, proto: SimTypeFunction) -> None:  # type: ignore
         """
         Set the prototype of a function in the form of a SimTypeFunction containing argument and return types
 
@@ -648,7 +652,7 @@ class SimSyscallLibrary(SimLibrary):
         self.syscall_prototypes[abi][name] = proto
 
     # pylint: disable=arguments-differ
-    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # type:ignore
+    def set_prototypes(self, abi: str, protos: dict[str, SimTypeFunction]) -> None:  # type: ignore
         """
         Set the prototypes of many syscalls.
 
@@ -699,7 +703,7 @@ class SimSyscallLibrary(SimLibrary):
             self.procedures[alt] = new_procedure
             for abi in self.syscall_prototypes:
                 if self.has_prototype(abi, name):
-                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)  # type:ignore
+                    self.syscall_prototypes[abi][alt] = self.get_prototype(abi, name)  # type: ignore
             if name in self.non_returning:
                 self.non_returning.add(alt)
 
@@ -709,7 +713,7 @@ class SimSyscallLibrary(SimLibrary):
         pass
 
     # pylint: disable=arguments-differ
-    def get(self, number, arch, abi_list=()):  # type:ignore
+    def get(self, number, arch, abi_list=()):  # type: ignore
         """
         The get() function for SimSyscallLibrary looks a little different from its original version.
 
@@ -731,7 +735,7 @@ class SimSyscallLibrary(SimLibrary):
         self._apply_numerical_metadata(proc, number, arch, abi)
         return proc
 
-    def get_stub(self, number, arch, abi_list=()):  # type:ignore
+    def get_stub(self, number, arch, abi_list=()):  # type: ignore
         """
         Pretty much the intersection of SimLibrary.get_stub() and SimSyscallLibrary.get().
 
@@ -746,7 +750,7 @@ class SimSyscallLibrary(SimLibrary):
         l.debug("unsupported syscall: %s", number)
         return proc
 
-    def get_prototype(  # type:ignore
+    def get_prototype(  # type: ignore
         self, abi: str, name: str, arch=None, deref: bool = False
     ) -> SimTypeFunction | None:
         """
@@ -771,7 +775,7 @@ class SimSyscallLibrary(SimLibrary):
             assert isinstance(proto, SimTypeFunction)
         return proto.with_arch(arch=arch)
 
-    def has_metadata(self, number, arch, abi_list=()):  # type:ignore
+    def has_metadata(self, number, arch, abi_list=()):  # type: ignore
         """
         Pretty much the intersection of SimLibrary.has_metadata() and SimSyscallLibrary.get().
 
@@ -785,7 +789,7 @@ class SimSyscallLibrary(SimLibrary):
             name in self.procedures or name in self.non_returning or (abi is not None and self.has_prototype(abi, name))
         )
 
-    def has_implementation(self, number, arch, abi_list=()):  # type:ignore
+    def has_implementation(self, number, arch, abi_list=()):  # type: ignore
         """
         Pretty much the intersection of SimLibrary.has_implementation() and SimSyscallLibrary.get().
 
@@ -797,7 +801,7 @@ class SimSyscallLibrary(SimLibrary):
         name, _, _ = self._canonicalize(number, arch, abi_list)
         return super().has_implementation(name)
 
-    def has_prototype(self, abi: str, name: str) -> bool:  # type:ignore
+    def has_prototype(self, abi: str, name: str) -> bool:  # type: ignore
         """
         Check if a function has a prototype associated with it. Demangle the function name if it is a mangled C++ name.
 
@@ -863,9 +867,11 @@ def load_type_collections(only=None, skip=None) -> None:
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         _DEFINITIONS_BASEDIR,
-        filter_func=lambda module_name: module_name.startswith("types_")
-        and (only is None or (only is not None and module_name[6:] in only))
-        and module_name[6:] not in skip,
+        filter_func=lambda module_name: (
+            module_name.startswith("types_")
+            and (only is None or (only is not None and module_name[6:] in only))
+            and module_name[6:] not in skip
+        ),
     ):
         pass
 
@@ -900,8 +906,11 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
     for _ in autoimport.auto_import_modules(
         "angr.procedures.definitions",
         base_dir,
-        filter_func=lambda module_name: (only is None or (only is not None and module_name in only))
-        and module_name not in skip,
+        filter_func=lambda module_name: (
+            (only is None or (only is not None and module_name in only))
+            and not module_name.startswith("parse_")
+            and module_name not in skip
+        ),
     ):
         pass
 
@@ -1028,6 +1037,8 @@ COMMON_LIBRARIES = {
     "linux_loader",
     # Windows
     "msvcr",
+    # Mach O
+    "macho_libsystem",
 }
 
 

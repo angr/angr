@@ -342,7 +342,7 @@ class CFGFastSoot(CFGFast):
         if self.project.is_hooked(addr) and jumpkind != "Ijk_NoHook":
             hooker = self.project._sim_procedures[addr]
             size = hooker.kwargs.get("length", 0)
-            return HookNode(addr, size, type(hooker))
+            return HookNode(addr, size, hooker)
 
         soot_block = cfg_node.soot_block if cfg_node is not None else self.project.factory.block(addr).soot
 
@@ -443,9 +443,7 @@ class CFGFastSoot(CFGFast):
 
         return entries
 
-    def _create_jobs(
-        self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx
-    ):  # pylint:disable=arguments-differ
+    def _create_jobs(self, target, jumpkind, current_function_addr, soot_block, addr, cfg_node, stmt_addr, stmt_idx):  # pylint:disable=arguments-differ
         """
         Given a node and details of a successor, makes a list of CFGJobs
         and if it is a call or exit marks it appropriately so in the CFG
@@ -567,7 +565,7 @@ class CFGFastSoot(CFGFast):
         # Clear old functions dict
         self.kb.functions.clear()
 
-        blockaddr_to_function = {}
+        blockaddr_to_funcaddr: dict[SootAddressDescriptor, SootMethodDescriptor] = {}
         traversed_cfg_nodes = set()
 
         function_nodes = set()
@@ -605,7 +603,7 @@ class CFGFastSoot(CFGFast):
                 self.graph,
                 [fn],
                 self._graph_traversal_handler,
-                blockaddr_to_function,
+                blockaddr_to_funcaddr,
                 tmp_functions,
                 traversed_cfg_nodes,
             )
@@ -619,7 +617,7 @@ class CFGFastSoot(CFGFast):
             node = self.model.get_any_node(func_addr)
             if node is None:
                 continue
-            if node.addr not in blockaddr_to_function:
+            if node.addr not in blockaddr_to_funcaddr:
                 secondary_function_nodes.add(node)
 
         missing_cfg_nodes = set(self.graph.nodes()) - traversed_cfg_nodes
@@ -640,7 +638,7 @@ class CFGFastSoot(CFGFast):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(
-                self.graph, [fn], self._graph_traversal_handler, blockaddr_to_function, tmp_functions
+                self.graph, [fn], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
             )
 
         to_remove = set()
@@ -655,8 +653,8 @@ class CFGFastSoot(CFGFast):
 
         # Update CFGNode.function_address
         for node in self.model.nodes():
-            if node.addr in blockaddr_to_function:
-                node.function_address = blockaddr_to_function[node.addr].addr
+            if node.addr in blockaddr_to_funcaddr:
+                node.function_address = blockaddr_to_funcaddr[node.addr]
 
 
 register_analysis(CFGFastSoot, "CFGFastSoot")

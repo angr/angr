@@ -14,8 +14,8 @@ from angr.protos import cfg_pb2
 
 if TYPE_CHECKING:
     from angr.block import Block, SootBlock
+    from angr.analyses.cfg.cfg_job_base import BlockID
     from .cfg_model import CFGModel
-    import angr
 
 _l = logging.getLogger(__name__)
 
@@ -33,6 +33,7 @@ class CFGNodeCreationFailure:
 
     def __init__(self, exc_info=None, to_copy=None):
         if to_copy is None:
+            assert exc_info is not None
             e_type, e, e_traceback = exc_info
             self.short_reason = str(e_type)
             self.long_reason = repr(e)
@@ -79,7 +80,7 @@ class CFGNode(Serializable):
         simprocedure_name=None,
         no_ret=False,
         function_address=None,
-        block_id=None,
+        block_id: BlockID | int | None = None,
         irsb=None,
         soot_block=None,
         instruction_addrs=None,
@@ -99,7 +100,7 @@ class CFGNode(Serializable):
         self.no_ret = no_ret
         self._cfg_model: CFGModel = cfg
         self.function_address = function_address
-        self.block_id: angr.analyses.cfg.cfg_job_base.BlockID | int = block_id
+        self.block_id: BlockID | int | None = block_id
         self.thumb = thumb
         self.byte_string: bytes | None = byte_string
 
@@ -115,7 +116,12 @@ class CFGNode(Serializable):
         if is_syscall is not None:
             self.is_syscall = is_syscall
         else:
-            self.is_syscall = bool(self.simprocedure_name and self._cfg_model.project.simos.is_syscall_addr(addr))
+            self.is_syscall = bool(
+                self.simprocedure_name
+                and self._cfg_model.project is not None
+                and self._cfg_model.project.simos is not None
+                and self._cfg_model.project.simos.is_syscall_addr(addr)
+            )
 
         if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
@@ -133,21 +139,23 @@ class CFGNode(Serializable):
 
     @property
     def name(self):
-        if self._name is None:
-            sym = self._cfg_model.project.loader.find_symbol(self.addr)
-            if sym is not None:
-                self._name = sym.name
-        if self._name is None and isinstance(self._cfg_model.project.arch, archinfo.ArchARM) and self.addr & 1:
-            sym = self._cfg_model.project.loader.find_symbol(self.addr - 1)
-            if sym is not None:
-                self._name = sym.name
-        if self.function_address and self._name is None:
-            sym = self._cfg_model.project.loader.find_symbol(self.function_address)
-            if sym is not None:
-                self._name = sym.name
-            if self._name is not None:
-                offset = self.addr - self.function_address
-                self._name = f"{self._name}{offset:+#x}"
+        proj = self._cfg_model.project
+        if proj is not None:
+            if self._name is None:
+                sym = proj.loader.find_symbol(self.addr)
+                if sym is not None:
+                    self._name = sym.name
+            if self._name is None and isinstance(proj.arch, archinfo.ArchARM) and self.addr & 1:
+                sym = proj.loader.find_symbol(self.addr - 1)
+                if sym is not None:
+                    self._name = sym.name
+            if self.function_address and self._name is None:
+                sym = proj.loader.find_symbol(self.function_address)
+                if sym is not None:
+                    self._name = sym.name
+                if self._name is not None:
+                    offset = self.addr - self.function_address
+                    self._name = f"{self._name}{offset:+#x}"
 
         return self._name
 
@@ -175,7 +183,7 @@ class CFGNode(Serializable):
         """
         if not self._cfg_model.ident.startswith("CFGFast"):
             raise ValueError("Memory data is currently only supported in CFGFast.")
-        if not kb:
+        if not kb and self._cfg_model.project is not None:
             kb = self._cfg_model.project.kb
         if not kb:
             raise ValueError("The Knowledge Base does not exist!")
@@ -343,9 +351,17 @@ class CFGNode(Serializable):
 
     def to_codenode(self):
         if self.is_syscall:
-            return SyscallNode(self.addr, self.size, self.simprocedure_name)
+            if self._cfg_model is not None and self._cfg_model.project is not None:
+                hooker = self._cfg_model.project.hooked_by(self.addr)
+            else:
+                hooker = None
+            return SyscallNode(self.addr, self.size, hooker)
         if self.is_simprocedure:
-            return HookNode(self.addr, self.size, self.simprocedure_name)
+            if self._cfg_model is not None and self._cfg_model.project is not None:
+                hooker = self._cfg_model.project.hooked_by(self.addr)
+            else:
+                hooker = None
+            return HookNode(self.addr, self.size, hooker)
         return BlockNode(self.addr, self.size, thumb=self.thumb)
 
     @property
@@ -353,6 +369,8 @@ class CFGNode(Serializable):
         if self.is_simprocedure or self.is_syscall:
             return None
         project = self._cfg_model.project  # everything in angr is connected with everything...
+        if project is None:
+            return None
         return project.factory.block(self.addr, size=self.size, opt_level=self._cfg_model._iropt_level)
 
 

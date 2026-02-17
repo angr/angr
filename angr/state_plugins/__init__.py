@@ -27,7 +27,7 @@ from .jni_references import SimStateJNIReferences
 from .javavm_classloader import SimJavaVmClassloader
 from .symbolizer import SimSymbolizer
 from .debug_variables import SimDebugVariable, SimDebugVariablePlugin
-
+from .edge_hitmap import SimStateEdgeHitmap
 
 __all__ = (
     "BP_AFTER",
@@ -65,6 +65,7 @@ __all__ = (
     "SimRegNameView",
     "SimSolver",
     "SimStateCGC",
+    "SimStateEdgeHitmap",
     "SimStateGlobals",
     "SimStateHistory",
     "SimStateJNIReferences",

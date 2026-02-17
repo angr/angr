@@ -130,7 +130,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
 
     def __init__(self, kb: KnowledgeBase):
         super().__init__(kb=kb)
-        self._dvar_containers = {}
+        self._dvar_containers: dict[str, DebugVariableContainer] = {}
 
     def from_name_and_pc(self, var_name: str, pc_addr: int) -> Variable:
         """
@@ -149,7 +149,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
             self._dvar_containers[var_name] = DebugVariableContainer()
         return self._dvar_containers[var_name]
 
-    def __getitem__(self, var_name):
+    def __getitem__(self, var_name: str) -> DebugVariableContainer:
         assert isinstance(var_name, str)
         return self.from_name(var_name)
 
@@ -162,6 +162,7 @@ class DebugVariableManager(KnowledgeBasePlugin):
         :param high_pc:         End of the visibility scope of the variable as program counter address (rebased)
         """
         name = cle_var.name
+        assert name is not None
         if name not in self._dvar_containers:
             self._dvar_containers[name] = DebugVariableContainer()
         container = self._dvar_containers[name]
@@ -208,8 +209,8 @@ class DebugVariableManager(KnowledgeBasePlugin):
                         self.add_variable(cle_var, cu_curr.min_addr, cu_curr.max_addr)
                 for subp in cu_curr.functions.values():
                     for cle_var in subp.local_variables:
-                        low_pc = cle_var.lexical_block.low_pc + obj.mapped_base
-                        high_pc = cle_var.lexical_block.high_pc + obj.mapped_base
+                        low_pc = cle_var.lexical_block.low_pc
+                        high_pc = cle_var.lexical_block.high_pc
                         self.add_variable(cle_var, low_pc, high_pc)
 
 

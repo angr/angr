@@ -20,8 +20,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
     NAME = "Simplify getpc()"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.analyze()
 
     def _check(self):
@@ -52,8 +52,8 @@ class X86GccGetPcSimplifier(OptimizationPass):
             old_stmt = block.statements[stmt_idx]
             block.statements[stmt_idx] = ailment.Stmt.Assignment(
                 old_stmt.idx,
-                ailment.Expr.Register(None, None, pcreg_offset, 32, reg_name=getpc_reg),
-                ailment.Expr.Const(None, None, getpc_reg_value, 32),
+                ailment.Expr.Register(self.manager.next_atom(), None, pcreg_offset, 32, reg_name=getpc_reg),
+                ailment.Expr.Const(self.manager.next_atom(), None, getpc_reg_value, 32),
                 **old_stmt.tags,
             )
             # remove the statement that pushes return address onto the stack
@@ -73,10 +73,10 @@ class X86GccGetPcSimplifier(OptimizationPass):
         for key, block in self._blocks_by_addr_and_idx.items():
             if (
                 block.statements
-                and isinstance(block.statements[-1], ailment.Stmt.Call)
-                and isinstance(block.statements[-1].target, ailment.Expr.Const)
+                and isinstance(block.statements[-1], ailment.Stmt.SideEffectStatement)
+                and isinstance(block.statements[-1].expr.target, ailment.Expr.Const)
             ):
-                call_func_addr = block.statements[-1].target.value
+                call_func_addr = block.statements[-1].expr.target.value
                 try:
                     call_func = self.kb.functions.get_by_addr(call_func_addr)
                 except KeyError:

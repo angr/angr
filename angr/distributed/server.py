@@ -7,7 +7,6 @@ import multiprocessing
 
 from .worker import Worker
 
-
 _l = logging.getLogger(__name__)
 
 
@@ -43,10 +42,10 @@ class Server:
     ):
         self.project = project
 
-        self.spill_yard = spill_yard if spill_yard else tempfile.mkdtemp(suffix="angr_spill_yard")
+        self.spill_yard = spill_yard or tempfile.mkdtemp(suffix="angr_spill_yard")
         if not spill_yard:
             _l.info("Temporary spill yard: %s", self.spill_yard)
-        self.db_str = db if db else "sqlite:///" + os.path.join(tempfile.mkdtemp(suffix="angr_server_db"), "db.sqlite3")
+        self.db_str = db or "sqlite:///" + os.path.join(tempfile.mkdtemp(suffix="angr_server_db"), "db.sqlite3")
         if not db:
             _l.info("Database: %s", self.db_str)
 

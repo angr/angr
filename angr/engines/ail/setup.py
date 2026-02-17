@@ -49,7 +49,7 @@ def ail_call_state(
     state.addr = (start_addr, None) if isinstance(start_addr, int) else start_addr
 
     bottom_frame = AILCallStack()
-    top_frame = AILCallStack()
+    top_frame = AILCallStack(func_addr=start_addr)
     top_frame.passed_args = tuple(args)
     state.register_plugin("callstack", bottom_frame)
     state.callstack.push(top_frame)

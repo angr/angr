@@ -21,7 +21,6 @@ from angr.analyses.complete_calling_conventions import CallingConventionAnalysis
 from angr.sim_type import SimTypeFunction, SimTypeInt, SimTypeLongLong, SimTypeBottom, SimTypeFloat
 from tests.common import bin_location, requires_binaries_private
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -105,12 +104,12 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
     def check_args(self, func_name, args, expected_arg_strs):
         assert len(args) == len(expected_arg_strs), (
-            f"Wrong number of arguments for function {func_name}. " f"Got {len(args)}, expect {len(expected_arg_strs)}."
+            f"Wrong number of arguments for function {func_name}. Got {len(args)}, expect {len(expected_arg_strs)}."
         )
 
         for idx, (arg, expected_arg_str) in enumerate(zip(args, expected_arg_strs)):
             r = self.check_arg(arg, expected_arg_str)
-            assert r, f"Incorrect argument {idx} for function {func_name}. " f"Got {arg}, expect {expected_arg_str}."
+            assert r, f"Incorrect argument {idx} for function {func_name}. Got {arg}, expect {expected_arg_str}."
 
     def _a(self, funcs, func_name):
         func = funcs[func_name]
@@ -158,7 +157,8 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         # check args
         expected_args = {
-            "main": ["r_r0", "r_r1"],
+            # main args are not used
+            # "main": ["r_r0", "r_r1"],
             "accepted": [],
             "rejected": [],
             "authenticate": ["r_r0", "r_r1"],
@@ -222,7 +222,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         prototype = cca.prototype
 
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x80494f0."
+            "Calling convention analysis failed to determine the calling convention of function 0x80494f0."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -241,7 +241,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
 
         assert func_exit.returning is False
         assert cc is not None, (
-            "Calling convention analysis failed to determine the calling convention of function " "0x804a1a9."
+            "Calling convention analysis failed to determine the calling convention of function 0x804a1a9."
         )
         assert isinstance(cc, SimCCCdecl)
         assert prototype is not None
@@ -332,13 +332,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             proj.analyses.CompleteCallingConventions(mode=mode, recover_variables=True)
 
             for func in ["target", "direct", "plt"]:
-                # expected prototype: (int) -> long long
-                # technically should be (int) -> int, but the compiler loads all 64 bits and then truncates
                 proto = proj.kb.functions[func].prototype
                 assert proto is not None
                 assert len(proto.args) == 1
                 assert isinstance(proto.args[0], SimTypeInt)
-                assert isinstance(proto.returnty, SimTypeLongLong)
+                assert isinstance(proto.returnty, SimTypeInt)
 
     def test_ls_gcc_O0_timespec_cmp(self):
         binary_path = os.path.join(test_location, "x86_64", "decompiler", "ls_gcc_O0")
@@ -588,6 +586,64 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert isinstance(func_main.calling_convention, SimCCCdecl)
         assert func_main.prototype is not None
         assert len(func_main.prototype.args) == 1
+
+    def _check_return_type_comprehensive(self, funcs, func_name, expected_type_cls):
+        func = funcs[func_name]
+        ret_type = func.prototype.returnty
+        is_match = ret_type == expected_type_cls()
+        self.assertTrue(is_match)
+
+    def test_return_typecheck(self):
+        for arch in ["x86_64", "riscv64", "aarch64"]:
+            binary_path = os.path.join(test_location, arch, f"test_return_type_{arch}.elf")
+            proj = angr.Project(binary_path, auto_load_libs=False)
+            cfg = proj.analyses.CFG(normalize=True)
+            proj.analyses.CompleteCallingConventions(recover_variables=True, cfg=cfg)
+            funcs = proj.kb.functions
+
+            self._check_return_type_comprehensive(funcs, "ret_add_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_sub_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_mul_int", SimTypeInt)
+
+            if arch == "riscv64":
+                self._check_return_type_comprehensive(funcs, "ret_or_int", SimTypeLongLong)
+                self._check_return_type_comprehensive(funcs, "ret_xor_int", SimTypeLongLong)
+            else:
+                self._check_return_type_comprehensive(funcs, "ret_or_int", SimTypeInt)
+                self._check_return_type_comprehensive(funcs, "ret_xor_int", SimTypeInt)
+
+            if arch == "aarch64":
+                self._check_return_type_comprehensive(funcs, "ret_cast_int", SimTypeLongLong)
+            else:
+                self._check_return_type_comprehensive(funcs, "ret_cast_int", SimTypeInt)
+            self._check_return_type_comprehensive(funcs, "ret_add_long", SimTypeLongLong)
+            self._check_return_type_comprehensive(funcs, "ret_or_long", SimTypeLongLong)
+
+            if "ret_ptr" in funcs and funcs["ret_ptr"].prototype:
+                ret_size = funcs["ret_ptr"].prototype.returnty.size
+                self.assertEqual(ret_size, 64)
+
+    @cca_mode("fast")
+    def test_void_tail_call(self, *, mode):
+        binary_path = os.path.join(test_location, "x86_64", "g_game.o")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+
+        cfg = proj.analyses.CFG(normalize=True)
+        proj.analyses.CompleteCallingConventions(
+            mode=mode, recover_variables=True, cfg=cfg.model, analyze_callsites=True
+        )
+
+        func_reborn = cfg.kb.functions["G_PlayerReborn"]
+        assert func_reborn.prototype is not None
+        assert isinstance(func_reborn.prototype.returnty, SimTypeBottom), (
+            f"G_PlayerReborn should be void, got {func_reborn.prototype.returnty}"
+        )
+
+        func_init = cfg.kb.functions["G_InitPlayer"]
+        assert func_init.prototype is not None
+        assert isinstance(func_init.prototype.returnty, SimTypeBottom), (
+            f"G_InitPlayer should be void (tail-calls void function), got {func_init.prototype.returnty}"
+        )
 
 
 if __name__ == "__main__":

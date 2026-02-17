@@ -3,13 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 import logging
 
-import angr.ailment as ailment
 import cle
 
+from angr import ailment
 from angr.utils.funcid import is_function_security_check_cookie
 from angr.analyses.decompiler.stack_item import StackItem, StackItemType
+from angr.utils.ssa import stmt_is_simple_call
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-
 
 _l = logging.getLogger(name=__name__)
 
@@ -29,10 +29,10 @@ class WinStackCanarySimplifier(OptimizationPass):
     PLATFORMS = ["windows"]
     STAGE = OptimizationPassStage.AFTER_SINGLE_BLOCK_SIMPLIFICATION
     NAME = "Simplify stack canaries in Windows PE files"
-    DESCRIPTION = __doc__.strip()  # type:ignore
+    DESCRIPTION = __doc__.strip()  # type: ignore
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._security_cookie_addr: int | None = None
         if isinstance(self.project.loader.main_object, cle.PE):
             self._security_cookie_addr = self.project.loader.main_object.load_config.get("SecurityCookie", None)
@@ -68,7 +68,7 @@ class WinStackCanarySimplifier(OptimizationPass):
         # where is the stack canary stored?
         if not isinstance(canary_init_stmt, ailment.Stmt.Store):
             return
-        store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.ins_addr)
+        store_offset = self._get_bp_offset(canary_init_stmt.addr, canary_init_stmt.tags["ins_addr"])
         if store_offset is None:
             _l.debug(
                 "Unsupported canary storing location %s. Expects a StackBaseOffset or (bp - Const).",
@@ -119,21 +119,19 @@ class WinStackCanarySimplifier(OptimizationPass):
                     _l.debug("Cannot find the canary check statement in the predecessor.")
                     continue
 
-                return_addr_storing_stmt_idx = self._find_return_addr_storing_stmt(pred)
-                if return_addr_storing_stmt_idx is None:
-                    _l.debug("Cannot find the return address storing statement in the predecessor.")
-                    continue
+                # return_addr_storing_stmt_idx = self._find_return_addr_storing_stmt(pred)
+                # if return_addr_storing_stmt_idx is None:
+                #     _l.debug("Cannot find the return address storing statement in the predecessor.")
+                #     continue
 
-                nodes_to_process.append(
-                    (pred, check_call_stmt_idx, canary_storing_stmt_idx, return_addr_storing_stmt_idx)
-                )
+                nodes_to_process.append((pred, check_call_stmt_idx, canary_storing_stmt_idx))
 
             # Now patch this function.
-            for pred, check_call_stmt_idx, canary_storing_stmt_idx, return_addr_storing_stmt_idx in nodes_to_process:
+            for pred, check_call_stmt_idx, canary_storing_stmt_idx in nodes_to_process:
                 # Patch the pred so that it jumps to the one that is not stack_chk_fail_caller
                 stmts = []
                 for stmt_idx, stmt in enumerate(pred.statements):
-                    if stmt_idx in {check_call_stmt_idx, canary_storing_stmt_idx, return_addr_storing_stmt_idx}:
+                    if stmt_idx in {check_call_stmt_idx, canary_storing_stmt_idx}:
                         continue
                     stmts.append(stmt)
                 pred_copy = pred.copy(statements=stmts)
@@ -167,11 +165,11 @@ class WinStackCanarySimplifier(OptimizationPass):
         if (
             first_block.statements
             and first_block.original_size > 0
-            and isinstance(first_block.statements[-1], ailment.statement.Call)
-            and isinstance(first_block.statements[-1].target, ailment.expression.Const)
+            and (call := stmt_is_simple_call(first_block.statements[-1])) is not None
+            and isinstance(call.target, ailment.expression.Const)
         ):
             # check if the target is alloca_probe
-            callee_addr = first_block.statements[-1].target.value
+            callee_addr = call.target.value
             if (
                 self.kb.functions.contains_addr(callee_addr)
                 and self.kb.functions.get_by_addr(callee_addr).info.get("is_alloca_probe", False) is True
@@ -184,10 +182,10 @@ class WinStackCanarySimplifier(OptimizationPass):
         return None
 
     def _extract_canary_init_stmt_from_block(self, block: ailment.Block) -> list[int] | None:
-        load_stmt_idx = None
-        load_reg = None
-        xor_stmt_idx = None
-        xored_reg = None
+        load_stmt_idx: int | None = None
+        load_reg: int | None = None
+        xor_stmt_idx: int | None = None
+        xored_reg: int | None = None
 
         assert self._security_cookie_addr is not None
 
@@ -294,6 +292,7 @@ class WinStackCanarySimplifier(OptimizationPass):
             if (
                 isinstance(stmt, ailment.Stmt.Assignment)
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
+                and stmt.dst.was_reg
                 and stmt.dst.reg_offset == self.project.arch.registers["rcx"][0]
                 and isinstance(stmt.src, ailment.Expr.Load)
                 and isinstance(stmt.src.addr, ailment.Expr.StackBaseOffset)
@@ -336,7 +335,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     op0, op1 = stmt.src.operands
                     if (
                         isinstance(op0, ailment.Expr.Load)
-                        and self._get_bp_offset(op0.addr, stmt.ins_addr) == canary_value_stack_offset
+                        and self._get_bp_offset(op0.addr, stmt.tags["ins_addr"]) == canary_value_stack_offset
                     ) and isinstance(op1, ailment.Expr.StackBaseOffset):
                         # found it
                         return idx
@@ -353,7 +352,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                 and isinstance(stmt.dst, ailment.Expr.VirtualVariable)
                 and not self.project.arch.is_artificial_register(stmt.dst.reg_offset, stmt.dst.size)
                 and isinstance(stmt.src, ailment.Expr.Load)
-                and self._get_bp_offset(stmt.src.addr, stmt.ins_addr) == canary_value_stack_offset
+                and self._get_bp_offset(stmt.src.addr, stmt.tags["ins_addr"]) == canary_value_stack_offset
             ):
                 load_stmt_idx = idx
                 canary_reg_dst_offset = stmt.dst.reg_offset
@@ -372,7 +371,7 @@ class WinStackCanarySimplifier(OptimizationPass):
                     isinstance(stmt.src.operands[0], ailment.Expr.VirtualVariable)
                     and stmt.src.operands[0].was_reg
                     and stmt.src.operands[0].reg_offset == canary_reg_dst_offset
-                    and self._get_bp_offset(stmt.src.operands[1], stmt.ins_addr) is not None
+                    and self._get_bp_offset(stmt.src.operands[1], stmt.tags["ins_addr"]) is not None
                 )
             ):
                 return idx
@@ -422,8 +421,8 @@ class WinStackCanarySimplifier(OptimizationPass):
     def _find_stmt_calling_security_check_cookie(self, node):
         assert self._security_cookie_addr is not None
         for idx, stmt in enumerate(node.statements):
-            if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
-                const_target = stmt.target.value
+            if (call := stmt_is_simple_call(stmt)) is not None and isinstance(call.target, ailment.Expr.Const):
+                const_target = call.target.value
                 if self.kb.functions.contains_addr(const_target):
                     func = self.kb.functions.get_by_addr(const_target)
                     assert func is not None

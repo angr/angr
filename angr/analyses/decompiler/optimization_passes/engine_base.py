@@ -73,7 +73,7 @@ class SimplifierAILEngine(
             self.state.store_variable(dst, src)
 
         if (src, dst) != (stmt.src, stmt.dst):
-            return ailment.statement.Assignment(stmt.idx, dst, src, **stmt.tags)  # type:ignore
+            return ailment.statement.Assignment(stmt.idx, dst, src, **stmt.tags)  # type: ignore
 
         return stmt
 
@@ -82,7 +82,7 @@ class SimplifierAILEngine(
         dst = self._expr(stmt.dst)
 
         if (src, dst) != (stmt.src, stmt.dst):
-            return ailment.statement.WeakAssignment(stmt.idx, dst, src, **stmt.tags)  # type:ignore
+            return ailment.statement.WeakAssignment(stmt.idx, dst, src, **stmt.tags)  # type: ignore
 
         return stmt
 
@@ -125,26 +125,32 @@ class SimplifierAILEngine(
             )
         return stmt
 
-    def _handle_stmt_Call(self, stmt):
-        target = self._expr(stmt.target) if isinstance(stmt.target, ailment.Expr.Expression) else stmt.target
+    def _handle_stmt_SideEffectStatement(self, stmt):
+        target = (
+            self._expr(stmt.expr.target) if isinstance(stmt.expr.target, ailment.Expr.Expression) else stmt.expr.target
+        )
 
         new_args = None
 
-        if stmt.args:
+        if stmt.expr.args is not None:
             new_args = []
-            for arg in stmt.args:
+            for arg in stmt.expr.args:
                 new_arg = self._expr(arg)
                 new_args.append(new_arg)
 
-        return ailment.statement.Call(
+        return ailment.statement.SideEffectStatement(
             stmt.idx,
-            target,
-            calling_convention=stmt.calling_convention,
-            prototype=stmt.prototype,
-            args=new_args,
+            ailment.expression.Call(
+                stmt.idx,
+                target,
+                calling_convention=stmt.expr.calling_convention,
+                prototype=stmt.expr.prototype,
+                args=new_args,
+                bits=stmt.expr.bits,
+                **stmt.tags,
+            ),
             ret_expr=stmt.ret_expr,
             fp_ret_expr=stmt.fp_ret_expr,
-            bits=stmt.bits,
             **stmt.tags,
         )
 
@@ -164,7 +170,7 @@ class SimplifierAILEngine(
     def _handle_stmt_DirtyStatement(self, stmt):
         expr = self._expr(stmt.dirty)
         if expr != stmt.dirty:
-            return ailment.statement.DirtyStatement(stmt.idx, expr, **stmt.tags)  # type:ignore
+            return ailment.statement.DirtyStatement(stmt.idx, expr, **stmt.tags)  # type: ignore
         return stmt
 
     def _handle_stmt_Label(self, stmt):
@@ -333,6 +339,26 @@ class SimplifierAILEngine(
             self._expr(expr.iftrue),
             variable=expr.variable,
             variable_offset=expr.variable_offset,
+            **expr.tags,
+        )
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract):
+        return ailment.expression.Extract(
+            expr.idx,
+            expr.bits,
+            self._expr(expr.base),
+            self._expr(expr.offset),
+            expr.endness,
+            **expr.tags,
+        )
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        return ailment.expression.Insert(
+            expr.idx,
+            self._expr(expr.base),
+            self._expr(expr.offset),
+            self._expr(expr.value),
+            expr.endness,
             **expr.tags,
         )
 

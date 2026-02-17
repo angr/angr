@@ -11,7 +11,6 @@ from angr.knowledge_plugins.cfg import IndirectJumpType
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 
-
 _l = logging.getLogger(name=__name__)
 
 
@@ -28,8 +27,8 @@ class SwitchReusedEntryRewriter(OptimizationPass):
     NAME = "Rewrite switch-case entry nodes with multiple predecessors into goto statements."
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.node_idx = count(start=self._scratch.get("node_idx", 0))
 
@@ -69,7 +68,6 @@ class SwitchReusedEntryRewriter(OptimizationPass):
         return True, cache
 
     def _analyze(self, cache=None):
-
         reused_entries: dict[Block, set[Block]] = cache["reused_entries"]
         out_graph = None
 
@@ -78,7 +76,6 @@ class SwitchReusedEntryRewriter(OptimizationPass):
             sorted_pred_nodes = sorted(pred_nodes, key=lambda x: (x.addr, x.idx))
 
             for head_node in sorted_pred_nodes[1:]:
-
                 # create the new goto node
                 goto_stmt = Jump(
                     None,

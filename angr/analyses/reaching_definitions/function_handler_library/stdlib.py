@@ -26,7 +26,7 @@ class EnvironAtom(Atom):
         return ()
 
     def __repr__(self):
-        return f'<EnvironAtom {self.name if self.name is not None else "(dynamic)"}>'
+        return f"<EnvironAtom {self.name if self.name is not None else '(dynamic)'}>"
 
 
 class SystemAtom(Atom):

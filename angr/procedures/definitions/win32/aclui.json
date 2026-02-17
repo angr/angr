@@ -18,7 +18,7 @@
 			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ISecurityInformation', 'ot': 'bot'}], 'returnty': {'_t': '_ref', 'name': 'BOOL', 'ot': 'int'}, 'arg_names': ['hwndOwner', 'psi']}"
 		},
 		"EditSecurityAdvanced": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ISecurityInformation', 'ot': 'bot'}, {'_t': '_ref', 'name': 'SI_PAGE_TYPE', 'ot': 'int'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndOwner', 'psi', 'uSIPage']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'HWND', 'ot': 'ptr'}, {'_t': '_ref', 'name': 'ISecurityInformation', 'ot': 'bot'}, {'_t': '_ref', 'name': 'SI_PAGE_TYPE', 'ot': 'enum'}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['hwndOwner', 'psi', 'uSIPage']}"
 		}
 	}
 }

@@ -5,13 +5,12 @@ import string
 from archinfo import Endness
 
 from angr.ailment import BinaryOp
-from angr.ailment.expression import Const, StackBaseOffset, VirtualVariable
-from angr.ailment.statement import Call, Assignment, Statement, Store
+from angr.ailment.expression import Call, Const, StackBaseOffset, VirtualVariable
+from angr.ailment.statement import Assignment, Statement, Store, SideEffectStatement
 
-from angr.sim_type import SimTypePointer, SimTypeWideChar
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from angr.utils.endness import ail_const_to_be
 from .base import PeepholeOptimizationStmtBase
-
 
 ASCII_PRINTABLES = {ord(x) for x in string.printable}
 ASCII_DIGITS = {ord(x) for x in string.digits}
@@ -38,7 +37,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
             and isinstance(stmt.src, Const)
             and isinstance(stmt.src.value, int)
         ):
-            dst = StackBaseOffset(None, self.project.arch.bits, stmt.dst.stack_offset)
+            dst = StackBaseOffset(self.manager.next_atom(), self.project.arch.bits, stmt.dst.stack_offset)
             value_size = stmt.src.size
             value = stmt.src.value
         elif isinstance(stmt, Store) and isinstance(stmt.data, Const) and isinstance(stmt.data.value, int):
@@ -48,20 +47,28 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
         else:
             return None
 
-        r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness)
+        r, s = self.is_integer_likely_a_wide_string(value, value_size, self.project.arch.memory_endness, min_length=2)
         if r:
             # replace it with a call to strncpy
             assert s is not None
             str_id = self.kb.custom_strings.allocate(s)
             wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
-            return Call(
+            wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+            return SideEffectStatement(
                 stmt.idx,
-                "wcsncpy",
-                args=[
-                    dst,
-                    Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
-                    Const(None, None, len(s) // 2, self.project.arch.bits),
-                ],
+                Call(
+                    stmt.idx,
+                    "wcsncpy",
+                    args=[
+                        dst,
+                        Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
+                        Const(None, None, len(s) // 2, self.project.arch.bits),
+                    ],
+                    prototype=SimTypeFunction(
+                        [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
+                    ).with_arch(self.project.arch),
+                    **stmt.tags,
+                ),
                 **stmt.tags,
             )
 
@@ -85,7 +92,7 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
                         stride = []
 
                 integer, size = self.stride_to_int(stride)
-                r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=3)
+                r, s = self.is_integer_likely_a_wide_string(integer, size, Endness.BE, min_length=2)
                 if r:
                     assert s is not None
                     # we remove all involved statements whose statement IDs are greater than the current one
@@ -97,14 +104,22 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
 
                     str_id = self.kb.custom_strings.allocate(s)
                     wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
-                    return Call(
+                    wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+                    return SideEffectStatement(
                         stmt.idx,
-                        "wcsncpy",
-                        args=[
-                            dst,
-                            Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
-                            Const(None, None, len(s) // 2, self.project.arch.bits),
-                        ],
+                        Call(
+                            stmt.idx,
+                            "wcsncpy",
+                            args=[
+                                dst,
+                                Const(None, None, str_id, self.project.arch.bits, custom_string=True, type=wstr_type),
+                                Const(None, None, len(s) // 2, self.project.arch.bits),
+                            ],
+                            prototype=SimTypeFunction(
+                                [wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type
+                            ).with_arch(self.project.arch),
+                            **stmt.tags,
+                        ),
                         **stmt.tags,
                     )
 
@@ -246,11 +261,11 @@ class InlinedWcscpy(PeepholeOptimizationStmtBase):
     @staticmethod
     def is_inlined_wcsncpy(stmt: Statement) -> bool:
         return (
-            isinstance(stmt, Call)
-            and isinstance(stmt.target, str)
-            and stmt.target == "wcsncpy"
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[1], Const)
-            and hasattr(stmt.args[1], "custom_string")
+            isinstance(stmt, SideEffectStatement)
+            and isinstance(stmt.expr.target, str)
+            and stmt.expr.target == "wcsncpy"
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[1], Const)
+            and "custom_string" in stmt.expr.args[1].tags
         )

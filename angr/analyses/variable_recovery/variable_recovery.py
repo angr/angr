@@ -492,7 +492,8 @@ class VariableRecovery(ForwardAnalysis, VariableRecoveryBase):  # pylint:disable
 
     def _initial_abstract_state(self, node):
         concrete_state = self.project.factory.blank_state(
-            addr=node.addr, mode="fastpath"  # we don't want to do any solving
+            addr=node.addr,
+            mode="fastpath",  # we don't want to do any solving
         )
 
         # annotate the stack pointer

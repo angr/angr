@@ -6,12 +6,16 @@ from .string_obf_finder import StringObfuscationFinder
 from .string_obf_peephole_optimizer import StringObfType1PeepholeOptimizer
 from .string_obf_opt_passes import StringObfType3Rewriter
 from .api_obf_finder import APIObfuscationFinder
-from .api_obf_peephole_optimizer import APIObfType1PeepholeOptimizer
-
+from .api_obf_peephole_optimizer import APIObfType1PeepholeOptimizer, APIObfType3PeepholeOptimizer
+from .hash_lookup_api_deobfuscator import HashLookupAPIDeobfuscator
+from .data_transformation_embedder import DataTransformationEmbedder
 
 __all__ = (
     "APIObfType1PeepholeOptimizer",
+    "APIObfType3PeepholeOptimizer",
     "APIObfuscationFinder",
+    "DataTransformationEmbedder",
+    "HashLookupAPIDeobfuscator",
     "StringObfType1PeepholeOptimizer",
     "StringObfType3Rewriter",
     "StringObfuscationFinder",

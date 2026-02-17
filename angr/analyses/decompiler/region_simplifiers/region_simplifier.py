@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
 import angr.ailment as ailment
 
 from angr.analyses.decompiler.goto_manager import GotoManager
@@ -8,6 +9,7 @@ from angr.analyses.decompiler.empty_node_remover import EmptyNodeRemover
 from angr.analyses.decompiler.jump_target_collector import JumpTargetCollector
 from angr.analyses.decompiler.redundant_label_remover import RedundantLabelRemover
 from angr.analyses.decompiler.structuring.structurer_nodes import LoopNode
+from angr.analyses.decompiler.semantic_naming.region_loop_counter_naming import RegionLoopCounterNaming
 from .goto import GotoSimplifier
 from .if_ import IfSimplifier
 from .cascading_ifs import CascadingIfsRemover
@@ -25,6 +27,9 @@ from .cascading_cond_transformer import CascadingConditionTransformer
 from .switch_expr_simplifier import SwitchExpressionSimplifier
 from .switch_cluster_simplifier import SwitchClusterFinder, simplify_switch_clusters, simplify_lowered_switches
 
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+
 
 class RegionSimplifier(Analysis):
     """
@@ -38,12 +43,16 @@ class RegionSimplifier(Analysis):
         arg_vvars: set[int] | None = None,
         simplify_switches: bool = True,
         simplify_ifelse: bool = True,
+        variable_manager: VariableManagerInternal | None = None,
+        loopctr_naming: bool = True,
     ):
         self.func = func
         self.region = region
         self.arg_vvars = arg_vvars
         self._simplify_switches = simplify_switches
         self._should_simplify_ifelses = simplify_ifelse
+        self._variable_manager = variable_manager
+        self._apply_loop_counter_naming = loopctr_naming
 
         self.goto_manager: GotoManager | None = None
         self.result = self.region
@@ -91,6 +100,9 @@ class RegionSimplifier(Analysis):
         r = self._simplify_cascading_ifs(r)
         #
         r = self._simplify_loops(r)
+        # Apply loop counter naming after loop simplification (when iterators are identified)
+        if self._apply_loop_counter_naming and self._variable_manager is not None:
+            self._apply_region_loop_counter_naming(r)
         # Remove empty nodes again
         r = self._remove_empty_nodes(r)
         # Find nested if-else constructs and convert them into CascadingIfs
@@ -168,7 +180,7 @@ class RegionSimplifier(Analysis):
             if fail:
                 continue
 
-            if isinstance(definition, ailment.Stmt.Call):
+            if isinstance(definition, ailment.Stmt.SideEffectStatement):
                 # clear the existing variable since we no longer write to this variable after expression folding
                 definition = definition.copy()
                 if definition.ret_expr is not None:
@@ -247,6 +259,12 @@ class RegionSimplifier(Analysis):
     def _simplify_loops(self, region):
         LoopSimplifier(region, self.kb.functions)
         return region
+
+    def _apply_region_loop_counter_naming(self, region) -> None:
+        assert self._variable_manager is not None
+        namer = RegionLoopCounterNaming(region, self._variable_manager, self.kb.functions)
+        namer.analyze()
+        namer.apply_names()
 
 
 AnalysesHub.register_default("RegionSimplifier", RegionSimplifier)

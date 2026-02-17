@@ -5,7 +5,6 @@ from .call_counter import AILBlockCallCounter
 from .seq_cf_structure_counter import ControlFlowStructureCounter
 from .expression_counters import SingleExpressionCounter, RegisterExpressionCounter, OperatorCounter
 
-
 __all__ = (
     "AILBlockCallCounter",
     "BooleanCounter",

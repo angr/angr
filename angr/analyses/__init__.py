@@ -49,8 +49,9 @@ from .pathfinder import Pathfinder
 from .smc import SelfModifyingCodeAnalysis
 from .unpacker import PackingDetector
 from .fcp import FastConstantPropagation
+from .loop_analysis import LoopAnalysis
+from .loop_unroller import LoopUnroller
 from . import deobfuscator
-
 
 __all__ = (
     "CDG",
@@ -85,7 +86,9 @@ __all__ = (
     "ForwardAnalysis",
     "Identifier",
     "InitializationFinder",
+    "LoopAnalysis",
     "LoopFinder",
+    "LoopUnroller",
     "PackingDetector",
     "PatchFinderAnalysis",
     "Pathfinder",

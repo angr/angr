@@ -1,19 +1,18 @@
 from __future__ import annotations
 from collections import defaultdict
 from itertools import count
-import copy
 import logging
 import inspect
 
-from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 from angr.analyses.decompiler.counters import AILBlockCallCounter
+from .optimization_pass import OptimizationPassStage, StructuringOptimizationPass
 
 l = logging.getLogger(__name__)
 
 
 class CrossJumpReverter(StructuringOptimizationPass):
     """
-    This is an implementation to revert the compiler optimization Cross Jumping, and ISC optimization discussed
+    This is an implementation to revert the compiler optimization Cross Jumping, an ISC optimization discussed
     in the USENIX 2024 paper SAILR. This optimization is somewhat aggressive and as such should be run last in your
     decompiler deoptimization chain. This deoptimization will take any goto it finds and attempt to duplicate its
     target block if its target only has one outgoing edge.
@@ -28,7 +27,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
     def __init__(
         self,
-        func,
+        *args,
         # internal parameters that should be used by Clinic
         node_idx_start: int = 0,
         # settings
@@ -36,7 +35,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
         max_call_duplications: int = 1,
         **kwargs,
     ):
-        super().__init__(func, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)
+        super().__init__(*args, max_opt_iters=max_opt_iters, strictly_less_gotos=True, **kwargs)
 
         self.node_idx = count(start=node_idx_start)
         self._max_call_dup = max_call_duplications
@@ -94,7 +93,7 @@ class CrossJumpReverter(StructuringOptimizationPass):
 
             # update the edges
             for src, goto_blk in update_edges:
-                cp = copy.deepcopy(goto_blk)
+                cp = goto_blk.deep_copy(self.manager)
                 cp.idx = next(self.node_idx)
                 self.out_graph.remove_edge(src, goto_blk)
                 self.out_graph.add_edge(src, cp)

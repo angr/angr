@@ -9,7 +9,7 @@ l = logging.getLogger(name=__name__)
 
 
 class memset(angr.SimProcedure):
-    # pylint:disable=arguments-differ
+    # pylint:disable=arguments-differ, missing-class-docstring
 
     @staticmethod
     def _repeat_bytes(byt, rep):
@@ -44,7 +44,7 @@ class memset(angr.SimProcedure):
 
         if self.state.solver.symbolic(num):
             l.debug("symbolic length")
-            max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size
+            max_size = self.state.solver.min_int(num) + self.state.libc.max_buffer_size  # type: ignore[reportAttributeAccessIssue]
             write_bytes = claripy.Concat(*([char] * max_size))
             self.state.memory.store(dst_addr, write_bytes, size=num)
         else:
@@ -70,3 +70,9 @@ class memset(angr.SimProcedure):
                 offset += chunksize
 
         return dst_addr
+
+
+class __memset_chk(memset):
+    # pylint:disable=arguments-differ, missing-class-docstring
+    def run(self, dst_addr, char, num, _destlen):  # type:ignore[reportIncompatibleMethodOverride]
+        return super().run(dst_addr, char, num)

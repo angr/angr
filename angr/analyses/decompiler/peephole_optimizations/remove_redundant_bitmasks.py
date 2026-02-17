@@ -1,6 +1,6 @@
 from __future__ import annotations
-from angr.ailment.expression import BinaryOp, Convert, Const, ITE
 
+from angr.ailment.expression import BinaryOp, Convert, Const, ITE, Extract, Insert
 from .base import PeepholeOptimizationExprBase
 
 _MASKS = {
@@ -20,14 +20,47 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
     __slots__ = ()
 
     NAME = "Remove redundant bitmasks"
-    expr_classes = (BinaryOp, Convert)
+    expr_classes = (BinaryOp, Convert, Extract, Insert)
 
-    def optimize(self, expr: BinaryOp | Convert, **kwargs):
-
+    def optimize(self, expr: BinaryOp | Convert | Extract | Insert, **kwargs):
         if isinstance(expr, BinaryOp):
             return self._optimize_BinaryOp(expr)
         if isinstance(expr, Convert):
             return RemoveRedundantBitmasks._optimize_Convert(expr)
+        if isinstance(expr, Extract):
+            return self._optimize_Extract(expr)
+        if isinstance(expr, Insert):
+            return self._optimize_Insert(expr)
+        return None
+
+    def _optimize_Insert(self, expr: Insert):
+        if (
+            self.project is not None
+            and isinstance(expr.base, BinaryOp)
+            and expr.base.op == "And"
+            and isinstance((mask := expr.base.operands[1]), Const)
+            and isinstance(mask.value, int)
+            and isinstance(expr.offset, Const)
+            and isinstance(expr.offset.value, int)
+            # is this correct for big-endian??
+            and _MASKS.get(expr.value.bits, 0) << (expr.offset.value * self.project.arch.byte_width) == mask
+        ):
+            # Insert(v0 & mask, offset, v1) where mask/offset guarantee
+            # that the only bits we get from v0 will just be replaced with v1
+            return Insert(expr.idx, Const(None, None, 0, expr.bits), expr.offset, expr.value, expr.endness, **expr.tags)
+        return None
+
+    def _optimize_Extract(self, expr: Extract):
+        if (
+            self.project is not None
+            and isinstance(expr.base, BinaryOp)
+            and expr.base.op == "And"
+            and isinstance((mask := expr.base.operands[1]), Const)
+            and isinstance(mask.value, int)
+            and _MASKS.get(expr.bits) == mask.value
+            and expr.is_lsb_extract()
+        ):
+            return Convert(expr.idx, expr.base.bits, expr.bits, False, expr.base, **expr.tags)
         return None
 
     def _optimize_BinaryOp(self, expr: BinaryOp):
@@ -39,7 +72,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
         # And(ITE(?, const_expr, const_expr), bitmask) ==> ITE(?, const_expr, const_expr)
         if expr.op == "And" and isinstance(expr.operands[1], Const):
             inner_expr = expr.operands[0]
-            if expr.operands[1].value == _MASKS.get(inner_expr.bits, None):
+            if expr.operands[1].value == _MASKS.get(inner_expr.bits):
                 return inner_expr
 
             if isinstance(inner_expr, BinaryOp):
@@ -49,7 +82,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                     if (
                         isinstance(shift_val, Const)
                         and shift_val.value in _MASKS
-                        and mask.value == _MASKS.get(int(64 - shift_val.value), None)
+                        and mask.value == _MASKS.get(int(64 - shift_val.value))
                     ):
                         return inner_expr
                 if inner_expr.op == "Div" and isinstance(inner_expr.operands[0], Convert):
@@ -93,7 +126,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 isinstance(op0, BinaryOp)
                 and op0.op == "And"
                 and isinstance(op0.operands[1], Const)
-                and op0.operands[1].value == _MASKS.get(expr.to_bits, None)
+                and op0.operands[1].value == _MASKS.get(expr.to_bits)
             ):
                 new_op0 = op0.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op0, new_op0)
@@ -114,7 +147,7 @@ class RemoveRedundantBitmasks(PeepholeOptimizationExprBase):
                 isinstance(op1, BinaryOp)
                 and op1.op == "And"
                 and isinstance(op1.operands[1], Const)
-                and op1.operands[1].value == _MASKS.get(expr.to_bits, None)
+                and op1.operands[1].value == _MASKS.get(expr.to_bits)
             ):
                 new_op1 = op1.operands[0]
                 replaced, new_operand_expr = operand_expr.replace(op1, new_op1)

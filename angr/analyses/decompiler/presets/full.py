@@ -11,6 +11,7 @@ from angr.analyses.decompiler.optimization_passes import (
     ConstantDereferencesSimplifier,
     RetAddrSaveSimplifier,
     X86GccGetPcSimplifier,
+    MipsGpSettingSimplifier,
     ITERegionConverter,
     ITEExprConverter,
     ExprOpSwapper,
@@ -25,13 +26,14 @@ from angr.analyses.decompiler.optimization_passes import (
     CrossJumpReverter,
     FlipBooleanCmp,
     InlinedStringTransformationSimplifier,
+    InlinedStrlenSimplifier,
     CallStatementRewriter,
     SwitchReusedEntryRewriter,
     ConditionConstantPropagation,
     DetermineLoadSizes,
     PostStructuringPeepholeOptimizationPass,
+    EagerStdStringConcatenationPass,
 )
-
 
 preset_full = DecompilationPreset(
     "full",
@@ -46,6 +48,7 @@ preset_full = DecompilationPreset(
         ConstantDereferencesSimplifier,
         RetAddrSaveSimplifier,
         X86GccGetPcSimplifier,
+        MipsGpSettingSimplifier,
         ITERegionConverter,
         ITEExprConverter,
         ExprOpSwapper,
@@ -60,11 +63,13 @@ preset_full = DecompilationPreset(
         CrossJumpReverter,
         FlipBooleanCmp,
         InlinedStringTransformationSimplifier,
+        InlinedStrlenSimplifier,
         CallStatementRewriter,
         SwitchReusedEntryRewriter,
         ConditionConstantPropagation,
         DetermineLoadSizes,
         PostStructuringPeepholeOptimizationPass,
+        EagerStdStringConcatenationPass,
     ],
 )
 

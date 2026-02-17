@@ -67,7 +67,7 @@ t = telemetry.get_tracer(name=__name__)
 class AnalysisLogEntry:
     def __init__(self, message, exc_info=False):
         if exc_info:
-            (e_type, value, traceback) = sys.exc_info()
+            e_type, value, traceback = sys.exc_info()
             self.exc_type = e_type
             self.exc_value = value
             self.exc_traceback = traceback
@@ -317,7 +317,9 @@ class Analysis:
             else:
                 error = AnalysisLogEntry("exception occurred", exc_info=True)
                 l.error(
-                    "Caught and logged %s with resilience: %s", error.exc_type.__name__, error.exc_value  # type:ignore
+                    "Caught and logged %s with resilience: %s",
+                    error.exc_type.__name__,
+                    error.exc_value,  # type: ignore
                 )
                 if name is None:
                     self.errors.append(error)

@@ -285,7 +285,7 @@ class TypeVariable:
             self.idx: int = idx
         self.name = name
 
-        self._cached_hash = hash((TypeVariable, self.name if self.name else self.idx))
+        self._cached_hash = hash((TypeVariable, self.name or self.idx))
 
     def pp_str(self, mapping: dict[TypeVariable, Any]) -> str:
         varname = mapping.get(self, self.name)
@@ -351,6 +351,10 @@ class DerivedTypeVariable(TypeVariable):
 
     def one_label(self) -> BaseLabel | None:
         return self.labels[0] if len(self.labels) == 1 else None
+
+    def first_label(self) -> BaseLabel:
+        assert self.labels
+        return self.labels[0]
 
     def path(self) -> tuple[BaseLabel, ...]:
         return self.labels

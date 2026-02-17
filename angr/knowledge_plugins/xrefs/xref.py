@@ -26,7 +26,7 @@ class XRef(Serializable):
         block_addr: int | None = None,
         stmt_idx: int | None = None,
         insn_op_idx: int | None = None,
-        memory_data=None,
+        memory_data: MemoryData | None = None,
         dst: int | None = None,
         xref_type=None,
     ):
@@ -122,9 +122,10 @@ class XRef(Serializable):
             raise TypeError("bits must be provided.")
 
         if cmsg.target_type == primitives_pb2.CodeReference.StackTarget:  # pylint:disable=no-member
+            # I think this code is dead - otherwise it would immediately hit the TypeError in the XRef constructor
             dst = SpOffset(bits, cmsg.data_ea, is_base=False)
         else:
-            dst = cmsg.data_ea
+            dst = int(cmsg.data_ea)
 
         return XRef(
             ins_addr=cmsg.ea,
@@ -147,4 +148,4 @@ class XRef(Serializable):
         )
 
 
-from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort

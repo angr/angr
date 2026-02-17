@@ -219,6 +219,15 @@ class AngrIncompatibleDBError(AngrDBError):
 
 
 #
+# angr RuntimeDB errors
+#
+
+
+class AngrRuntimeDbError(AngrError):
+    pass
+
+
+#
 # Tracer
 #
 

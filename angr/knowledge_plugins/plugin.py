@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from angr.knowledge_base.knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
 
 default_plugins = {}
 
@@ -16,6 +16,12 @@ class KnowledgeBasePlugin:
 
     def copy(self):
         raise NotImplementedError
+
+    def set_kb(self, kb: KnowledgeBase):
+        """
+        Invoked after __setstate__() is called.
+        """
+        self._kb = kb
 
     @staticmethod
     def register_default(name, cls):

@@ -10,6 +10,7 @@ import unittest
 
 import archinfo
 import angr
+from angr.codenode import FuncNode
 from angr.knowledge_plugins.cfg import CFGNode, CFGModel, MemoryDataSort
 from angr.analyses.cfg.indirect_jump_resolvers import mips_elf_fast
 
@@ -914,6 +915,17 @@ class TestCfgfast(unittest.TestCase):
         assert len(func.endpoints) == 1
         assert func.endpoints[0].addr == 0x40400A
 
+    def test_incorrect_dummy_plt_function_stub_removal(self):
+        path = os.path.join(
+            test_location, "i386", "windows", "8530a86eca5be79c02f9701508ffceb06828aeff8e9413f09e74de58b7c266d9"
+        )
+        proj = angr.Project(path)
+        _ = proj.analyses.CFGFast()
+
+        # 0x1001b5ec is *not* a dummy PLT function stub
+        assert 0x1001B5EC in proj.kb.functions
+        assert proj.kb.functions[0x1001B5EC].name == "_security_check_cookie"
+
 
 class TestCfgfastDataReferences(unittest.TestCase):
     def test_data_references_x86_64(self):
@@ -1080,8 +1092,30 @@ class TestCfgfastDataReferences(unittest.TestCase):
                 main = proj.kb.functions["main"]
                 write = proj.kb.functions["write"]
                 read = proj.kb.functions["read"]
-                assert len(set(main.transition_graph.predecessors(write))) == 3
-                assert len(set(main.transition_graph.predecessors(read))) == 1
+                assert len(set(main.transition_graph.predecessors(FuncNode(write.addr)))) == 3
+                assert len(set(main.transition_graph.predecessors(FuncNode(read.addr)))) == 1
+
+    def test_libc_error_return(self):
+        path = os.path.join(test_location, "x86_64", "copy.o")
+        proj = angr.Project(path, auto_load_libs=False)
+        cfg = proj.analyses.CFGFast(normalize=True)
+
+        # They should not be separate functions
+        not_separate_functions = [
+            # copy_reg
+            0x4033F4,
+            0x403355,
+            0x402F5F,
+            # copy_internal
+            0x406285,
+            0x4048B9,
+            0x40497C,
+            0x404A57,
+            0x404C9A,
+            0x404DC4,
+        ]
+        for addr in not_separate_functions:
+            assert addr not in cfg.kb.functions, f"{hex(addr)} should not be a separate function"
 
 
 if __name__ == "__main__":

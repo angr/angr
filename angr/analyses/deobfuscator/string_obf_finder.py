@@ -184,7 +184,7 @@ class StringObfuscationFinder(Analysis):
 
             # decompile this function and see if it "looks like" a deobfuscation function
             with self._resilience():
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type:ignore
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type: ignore
             if (
                 dec.codegen is None
                 or not dec.codegen.text
@@ -486,7 +486,7 @@ class StringObfuscationFinder(Analysis):
                     func,
                     cfg=cfg,
                     expr_collapse_depth=64,
-                    fail_fast=self._fail_fast,  # type:ignore
+                    fail_fast=self._fail_fast,  # type: ignore
                 )
             if (
                 dec.codegen is None
@@ -580,7 +580,10 @@ class StringObfuscationFinder(Analysis):
         return type2_candidates
 
     def _analyze_type2(
-        self, func_addr: int, desc: StringDeobFuncDescriptor, table_addrs: set[int]  # pylint:disable=unused-argument
+        self,
+        func_addr: int,
+        desc: StringDeobFuncDescriptor,
+        table_addrs: set[int],  # pylint:disable=unused-argument
     ) -> set:
         """
         Analyze Type 2 string deobfuscation functions, determine the following information:
@@ -686,7 +689,7 @@ class StringObfuscationFinder(Analysis):
             # take a look at the content
             with self._resilience():
                 # catch all exceptions
-                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type:ignore
+                dec = self.project.analyses.Decompiler(func, cfg=cfg, fail_fast=self._fail_fast)  # type: ignore
             if dec.codegen is None or not dec.codegen.text:
                 continue
 
@@ -703,7 +706,10 @@ class StringObfuscationFinder(Analysis):
 
                 # simulate an execution to see if it really works
                 data, guessed_size = self._type3_prepare_and_execute(
-                    func.addr, call_sites[i].addr, call_sites[i].function_address, cfg  # type:ignore
+                    func.addr,
+                    call_sites[i].addr,
+                    call_sites[i].function_address,
+                    cfg,  # type: ignore
                 )
                 if data is None:
                     continue
@@ -723,7 +729,9 @@ class StringObfuscationFinder(Analysis):
         return type3_functions
 
     def _analyze_type3(
-        self, func_addr: int, desc: StringDeobFuncDescriptor  # pylint:disable=unused-argument
+        self,
+        func_addr: int,
+        desc: StringDeobFuncDescriptor,  # pylint:disable=unused-argument
     ) -> dict[int, bytes]:
         """
         Analyze Type 3 string deobfuscation functions, determine the following information:
@@ -872,9 +880,9 @@ class StringObfuscationFinder(Analysis):
         in_state = simgr.active[0]
 
         cc_cls = default_cc(self.project.arch.name, self.project.simos.name)
-        assert (
-            cc_cls is not None
-        ), f"Failed to obtain the default calling convention for {self.project.arch.name}-{self.project.simos.name}."
+        assert cc_cls is not None, (
+            f"Failed to obtain the default calling convention for {self.project.arch.name}-{self.project.simos.name}."
+        )
         cc = cc_cls(self.project.arch)
         cc.STACKARG_SP_BUFF = 0  # disable shadow stack space because the binary code already sets it if needed
         cc.STACK_ALIGNMENT = 1  # disable stack address aligning because the binary code already sets it if needed

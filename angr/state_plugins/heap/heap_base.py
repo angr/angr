@@ -6,12 +6,11 @@ import angr.sim_options as opts
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.errors import SimMemoryError
 
-
 l = logging.getLogger("angr.state_plugins.heap.heap_base")
 
 # TODO: derive heap location from SimOS and binary info for something more realistic (and safe?)
 DEFAULT_HEAP_LOCATION = 0xC0000000
-DEFAULT_HEAP_SIZE = 64 * 4096
+DEFAULT_HEAP_SIZE = 0x00800000
 
 
 class SimHeapBase(SimStatePlugin):

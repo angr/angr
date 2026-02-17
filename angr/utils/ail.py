@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from angr.ailment import AILBlockWalkerBase
+from angr.ailment import AILBlockViewer
 from angr.ailment.block import Block
 from angr.ailment.expression import Expression, Const, BinaryOp, Convert, VirtualVariable, Phi
 from angr.ailment.statement import Assignment, Statement, ConditionalJump
@@ -14,7 +14,7 @@ def is_phi_assignment(stmt: Statement) -> bool:
     return isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and isinstance(stmt.src, Phi)
 
 
-class HasExprWalker(AILBlockWalkerBase):
+class HasExprWalker(AILBlockViewer):
     """
     Test if any expressions in exprs_to_check is used in another AIL expression.
     """

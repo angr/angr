@@ -25,10 +25,10 @@ class TestAILPurityAnalysis(unittest.TestCase):
             "d": AILPurityResultType(
                 uses={AILPurityDataSource(constant_value=4210772): AILPurityDataUsage(ptr_load=True)}
             ),
-            # malloc
+            # malloc - no flow from arg0 to malloc since it is a pointer-destroying op
             "e": AILPurityResultType(
-                uses={AILPurityDataSource(callee_return=4198448): AILPurityDataUsage(ptr_store=True)},
-                call_args={(4199008, None, 2, 4198448, 0): frozenset({AILPurityDataSource(function_arg=0)})},
+                uses={AILPurityDataSource(callee_return=p.kb.functions[4198448]): AILPurityDataUsage(ptr_store=True)},
+                call_args={(4199008, None, 2, p.kb.functions[4198448], 0): frozenset()},
             ),
         }
 
@@ -36,6 +36,8 @@ class TestAILPurityAnalysis(unittest.TestCase):
             func = p.kb.functions[name]
             clinic = p.analyses.Clinic(func)
             pure = p.analyses[AILPurityAnalysis].prep()(clinic)
+            pure.result.ret_vals = {}
+            pure.result.other_storage = {}
             assert pure.result == desired_result
 
 

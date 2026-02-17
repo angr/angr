@@ -17,7 +17,6 @@ from angr.analyses.decompiler.utils import decompile_functions
 
 from .common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -35,13 +34,13 @@ class TestCommandLineInterface(unittest.TestCase):
 
         # test a single function
         assert (
-            run_cli(bin_path, "decompile", "--functions", f1, "--no-color")
+            run_cli("decompile", bin_path, "--functions", f1, "--no-colors")
             == decompile_functions(bin_path, [f1]) + "\n"
         )
 
         # test multiple functions
         assert (
-            run_cli(bin_path, "decompile", "--functions", f1, f2, "--no-color")
+            run_cli("decompile", bin_path, "--functions", f1, f2, "--no-colors")
             == decompile_functions(bin_path, [f1, f2]) + "\n"
         )
 
@@ -49,8 +48,8 @@ class TestCommandLineInterface(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "schedule_job"
 
-        dream_cli = run_cli(bin_path, "decompile", "--no-casts", "--functions", f1, "--structurer", "dream")
-        sailr_cli = run_cli(bin_path, "decompile", "--functions", f1, "--structurer", "sailr")
+        dream_cli = run_cli("decompile", bin_path, "--no-casts", "--functions", f1, "--structurer", "dream")
+        sailr_cli = run_cli("decompile", bin_path, "--functions", f1, "--structurer", "sailr")
         assert dream_cli.count("goto") == 0
         assert dream_cli != sailr_cli
 
@@ -63,14 +62,22 @@ class TestCommandLineInterface(unittest.TestCase):
         f1_offset = f1_default_addr - default_base_addr
 
         # function resolving is based on symbol
-        sym_based_dec = run_cli(bin_path, "decompile", "--functions", f1, "--preset", "full", "--no-color")
+        sym_based_dec = run_cli("decompile", bin_path, "--functions", f1, "--preset", "full", "--no-colors")
         # function resolving is based on the address (with default angr loading)
         base_addr_dec = run_cli(
-            bin_path, "decompile", "--functions", hex(f1_default_addr), "--preset", "full", "--no-color"
+            "decompile", bin_path, "--functions", hex(f1_default_addr), "--preset", "full", "--no-colors"
         )
         # function resolving is based on the address (with base address specified)
         offset_dec = run_cli(
-            bin_path, "--base-addr", "0x0", "decompile", "--functions", hex(f1_offset), "--preset", "full", "--no-color"
+            "decompile",
+            bin_path,
+            "--base-addr",
+            "0x0",
+            "--functions",
+            hex(f1_offset),
+            "--preset",
+            "full",
+            "--no-colors",
         )
 
         # since the externs can be unpredictable, we only check the function name down
@@ -87,7 +94,7 @@ class TestCommandLineInterface(unittest.TestCase):
 
     def test_disassembly(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
-        disasm = run_cli(bin_path, "disassemble")
+        disasm = run_cli("disassemble", bin_path)
         funcs = {
             "_init",
             "_start",
@@ -113,7 +120,7 @@ class TestCommandLineInterface(unittest.TestCase):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "sailr_motivating_example")
         f1 = "main"
 
-        no_colors_output = run_cli(bin_path, "decompile", "--functions", f1, "--no-colors")
+        no_colors_output = run_cli("decompile", bin_path, "--functions", f1, "--no-colors")
         expected_output = decompile_functions(bin_path, [f1]) + "\n"
 
         # it should maintain that no ANSI color codes are present

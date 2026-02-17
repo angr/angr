@@ -2,10 +2,20 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 
-from angr.ailment.expression import Expression, BinaryOp, Const, Register, StackBaseOffset, UnaryOp, VirtualVariable
-from angr.ailment.statement import Call, Store, Assignment
+from angr.ailment.expression import (
+    Call,
+    Expression,
+    BinaryOp,
+    Const,
+    Register,
+    StackBaseOffset,
+    UnaryOp,
+    VirtualVariable,
+)
+from angr.ailment.statement import Store, Assignment, SideEffectStatement
 
-from angr.sim_type import SimTypePointer, SimTypeWideChar
+from angr.ailment.tagged_object import TagDict
+from angr.sim_type import PointerDisposition, SimTypeFunction, SimTypeLong, SimTypePointer, SimTypeWideChar
 from .base import PeepholeOptimizationMultiStmtBase
 from .inlined_wcscpy import InlinedWcscpy
 
@@ -18,7 +28,7 @@ def match_statements(stmts: list[Statement], index: int) -> int:
     has_wcsncpy = False
     for i in range(index, len(stmts)):
         stmt = stmts[i]
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             if InlinedWcscpy.is_inlined_wcsncpy(stmt):
                 has_wcsncpy = True
             else:
@@ -53,8 +63,8 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
     NAME = "Consolidate multiple inlined wcsncpy calls"
     stmt_classes = (match_statements,)
 
-    def optimize(  # type:ignore
-        self, stmts: list[Call | Store | Assignment], stmt_idx: int | None = None, block=None, **kwargs
+    def optimize(  # type: ignore
+        self, stmts: list[SideEffectStatement | Store | Assignment], stmt_idx: int | None = None, block=None, **kwargs
     ):  # pylint:disable=unused-argument
         reordered_stmts = self._reorder_stmts(stmts)
         if not reordered_stmts or len(reordered_stmts) <= 1:
@@ -107,15 +117,15 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         updated_offsets: set[int] = set()
         known_base = None
         for stmt in stmts:
-            if isinstance(stmt, Call):
+            if isinstance(stmt, SideEffectStatement):
                 assert (
-                    stmt.args is not None
-                    and len(stmt.args) == 3
-                    and stmt.args[0] is not None
-                    and stmt.args[2] is not None
+                    stmt.expr.args is not None
+                    and len(stmt.expr.args) == 3
+                    and stmt.expr.args[0] is not None
+                    and stmt.expr.args[2] is not None
                 )
-                base, off = self._parse_addr(stmt.args[0])
-                store_size = stmt.args[2].value * 2 if isinstance(stmt.args[2], Const) else None
+                base, off = self._parse_addr(stmt.expr.args[0])
+                store_size = stmt.expr.args[2].value * 2 if isinstance(stmt.expr.args[2], Const) else None
             elif isinstance(stmt, Store):
                 base, off = self._parse_addr(stmt.addr)
                 store_size = stmt.size
@@ -148,16 +158,16 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         return [offset_to_stmt[k] for k in sorted(offset_to_stmt)]
 
     def _optimize_pair(
-        self, last_stmt: Call | Store | Assignment, stmt: Call | Store | Assignment
-    ) -> list[Call] | None:
+        self, last_stmt: SideEffectStatement | Store | Assignment, stmt: SideEffectStatement | Store | Assignment
+    ) -> list[SideEffectStatement] | None:
         # convert (store, wcsncpy()) to (wcsncpy(), store) if they do not overlap
         if (
-            isinstance(stmt, Call)
+            isinstance(stmt, SideEffectStatement)
             and InlinedWcscpy.is_inlined_wcsncpy(stmt)
-            and stmt.args is not None
-            and len(stmt.args) == 3
-            and isinstance(stmt.args[2], Const)
-            and isinstance(stmt.args[2].value, int)
+            and stmt.expr.args is not None
+            and len(stmt.expr.args) == 3
+            and isinstance(stmt.expr.args[2], Const)
+            and isinstance(stmt.expr.args[2].value, int)
             and isinstance(last_stmt, (Store, Assignment))
         ):
             if isinstance(last_stmt, Store) and isinstance(last_stmt.data, Const):
@@ -169,8 +179,8 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             else:
                 return None
             # check if they overlap
-            wcsncpy_addr = stmt.args[0]
-            wcsncpy_size = stmt.args[2].value * 2
+            wcsncpy_addr = stmt.expr.args[0]
+            wcsncpy_size = stmt.expr.args[2].value * 2
             delta = self._get_delta(store_addr, wcsncpy_addr)
             if delta is not None:
                 if (0 <= delta <= store_size) or (delta < 0 and -delta <= wcsncpy_size):
@@ -181,23 +191,23 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
 
         # swap two statements if they are out of order
         if InlinedWcscpy.is_inlined_wcsncpy(last_stmt) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
-            assert last_stmt.args is not None and stmt.args is not None
-            delta = self._get_delta(last_stmt.args[0], stmt.args[0])
+            assert last_stmt.expr.args is not None and stmt.expr.args is not None
+            delta = self._get_delta(last_stmt.expr.args[0], stmt.expr.args[0])
             if delta is not None and delta < 0:
                 last_stmt, stmt = stmt, last_stmt
 
         if InlinedWcscpy.is_inlined_wcsncpy(last_stmt):
-            assert last_stmt.args is not None
+            assert last_stmt.expr.args is not None
             assert self.kb is not None
-            s_last: bytes = self.kb.custom_strings[last_stmt.args[1].value]
-            addr_last = last_stmt.args[0]
+            s_last: bytes = self.kb.custom_strings[last_stmt.expr.args[1].value]
+            addr_last = last_stmt.expr.args[0]
             new_str = None  # will be set if consolidation should happen
 
-            if isinstance(stmt, Call) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
-                assert stmt.args is not None
+            if isinstance(stmt, SideEffectStatement) and InlinedWcscpy.is_inlined_wcsncpy(stmt):
+                assert stmt.expr.args is not None
                 # consolidating two calls
-                s_curr: bytes = self.kb.custom_strings[stmt.args[1].value]
-                addr_curr = stmt.args[0]
+                s_curr: bytes = self.kb.custom_strings[stmt.expr.args[1].value]
+                addr_curr = stmt.expr.args[0]
                 # determine if the two addresses are consecutive
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
@@ -214,7 +224,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                         r, s = True, b"\x00\x00"
                     else:
                         r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                            stmt.data.value, stmt.size, stmt.endness, min_length=1  # type:ignore
+                            stmt.data.value,
+                            stmt.size,
+                            stmt.endness,
+                            min_length=1,  # type: ignore
                         )
                     if r and s is not None:
                         new_str = s_last + s
@@ -230,7 +243,10 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
                 delta = self._get_delta(addr_last, addr_curr)
                 if delta is not None and delta == len(s_last):
                     r, s = InlinedWcscpy.is_integer_likely_a_wide_string(
-                        stmt.src.value, stmt.dst.size, self.project.arch.memory_endness, min_length=1  # type:ignore
+                        stmt.src.value,
+                        stmt.dst.size,
+                        self.project.arch.memory_endness,
+                        min_length=1,  # type: ignore
                     )
                     if r and s is not None:
                         new_str = s_last + s
@@ -238,25 +254,39 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
             if new_str is not None:
                 assert self.project is not None
                 wstr_type = SimTypePointer(SimTypeWideChar()).with_arch(self.project.arch)
+                wstr_type_out = SimTypePointer(SimTypeWideChar(), disposition=PointerDisposition.OUT)
+                prototype = SimTypeFunction([wstr_type_out, wstr_type, SimTypeLong(signed=False)], wstr_type).with_arch(
+                    self.project.arch
+                )
                 if new_str.endswith(b"\x00\x00"):
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str[:-2])
                     args = [
-                        last_stmt.args[0],
-                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
+                        last_stmt.expr.args[0],
+                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True, type=wstr_type),
                     ]
-                    prototype = None
                 else:
                     call_name = "wcsncpy"
                     new_str_idx = self.kb.custom_strings.allocate(new_str)
                     args = [
-                        last_stmt.args[0],
-                        Const(None, None, new_str_idx, last_stmt.args[0].bits, custom_string=True, type=wstr_type),
+                        last_stmt.expr.args[0],
+                        Const(None, None, new_str_idx, last_stmt.expr.args[0].bits, custom_string=True, type=wstr_type),
                         Const(None, None, len(new_str) // 2, self.project.arch.bits),
                     ]
-                    prototype = None
 
-                return [Call(stmt.idx, call_name, args=args, prototype=prototype, **stmt.tags)]
+                tags = TagDict(stmt.tags)
+                if args[0].tags.get("extra_def", False):
+                    assert isinstance(args[0], UnaryOp)
+                    assert args[0].op == "Reference"
+                    assert isinstance(args[0].operand, VirtualVariable)
+                    tags["extra_defs"] = [args[0].operand.varid]
+                else:
+                    tags.pop("extra_defs", None)
+                return [
+                    SideEffectStatement(
+                        stmt.idx, Call(stmt.idx, call_name, args=args, prototype=prototype, **tags), **tags
+                    )
+                ]
 
         return None
 
@@ -265,18 +295,18 @@ class InlinedWcscpyConsolidation(PeepholeOptimizationMultiStmtBase):
         # we force the base to 64-bit because it does not really matter when we use it
 
         if isinstance(addr, VirtualVariable) and addr.was_stack:
-            return StackBaseOffset(None, 64, 0), addr.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.stack_offset
         if isinstance(addr, Register):
             return addr, 0
         if isinstance(addr, StackBaseOffset):
-            return StackBaseOffset(None, 64, 0), addr.offset
+            return StackBaseOffset(-1, 64, 0), addr.offset
         if (
             isinstance(addr, UnaryOp)
             and addr.op == "Reference"
             and isinstance(addr.operand, VirtualVariable)
             and addr.operand.was_stack
         ):
-            return StackBaseOffset(None, 64, 0), addr.operand.stack_offset
+            return StackBaseOffset(-1, 64, 0), addr.operand.stack_offset
         if isinstance(addr, BinaryOp):
             if addr.op == "Add" and isinstance(addr.operands[1], Const) and isinstance(addr.operands[1].value, int):
                 base_0, offset_0 = InlinedWcscpyConsolidation._parse_addr(addr.operands[0])

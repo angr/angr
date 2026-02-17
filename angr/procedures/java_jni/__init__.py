@@ -124,8 +124,7 @@ class JNISimProcedure(SimProcedure):
         # check if addr is symbolic
         if self.state.solver.symbolic(addr_):
             l.error(
-                "Loading strings from symbolic addresses is not implemented. "
-                "Continue execution with an empty string."
+                "Loading strings from symbolic addresses is not implemented. Continue execution with an empty string."
             )
             return ""
         addr = self.state.solver.eval(addr_)

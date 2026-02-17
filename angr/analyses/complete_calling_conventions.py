@@ -36,10 +36,12 @@ class CallingConventionAnalysisMode(Enum):
     The mode of calling convention analysis.
 
     FAST: Using FactCollector to collect facts, then use facts for calling convention analysis.
+    FASTISH: Using FactCollector with additional introspection to identify behavior of function arguments.
     VARIABLES: Using variables in VariableManager for calling convention analysis.
     """
 
     FAST = "fast"
+    FASTISH = "fastish"
     VARIABLES = "variables"
 
 
@@ -52,7 +54,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
 
     def __init__(
         self,
-        mode: CallingConventionAnalysisMode = CallingConventionAnalysisMode.FAST,
+        mode: CallingConventionAnalysisMode = CallingConventionAnalysisMode.FASTISH,
         recover_variables=False,
         low_priority=False,
         force=False,
@@ -100,11 +102,15 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self._skip_other_funcs = skip_other_funcs
         self._auto_start = auto_start
         self._total_funcs = None
-        self._func_graphs = func_graphs if func_graphs else {}
+        self._func_graphs = func_graphs or {}
         self.prototype_libnames: set[str] = set()
 
         # sanity check
-        if self.mode not in {CallingConventionAnalysisMode.FAST, CallingConventionAnalysisMode.VARIABLES}:
+        if self.mode not in {
+            CallingConventionAnalysisMode.FAST,
+            CallingConventionAnalysisMode.FASTISH,
+            CallingConventionAnalysisMode.VARIABLES,
+        }:
             raise ValueError(f"Invalid calling convention analysis mode {self.mode}.")
 
         self._func_addrs = []  # a list that holds addresses of all functions to be analyzed
@@ -364,7 +370,7 @@ class CompleteCallingConventionsAnalysis(Analysis):
         self, func_addr: int
     ) -> tuple[SimCC | None, SimTypeFunction | None, str | None, bool | None, VariableManagerInternal | None]:
         func = self.kb.functions.get_by_addr(func_addr)
-        if func.ran_cca:
+        if func.ran_cca and not self._force:
             return (
                 func.calling_convention,
                 func.prototype,
@@ -401,7 +407,9 @@ class CompleteCallingConventionsAnalysis(Analysis):
             func,
             cfg=self._cfg,
             analyze_callsites=self._analyze_callsites,
-            collect_facts=self.mode == CallingConventionAnalysisMode.FAST,
+            collect_facts=self.mode in (CallingConventionAnalysisMode.FAST, CallingConventionAnalysisMode.FASTISH),
+            collect_facts_arg_uses=self.mode == CallingConventionAnalysisMode.FASTISH,
+            collect_facts_arg_passthru=self.mode == CallingConventionAnalysisMode.FASTISH,
         )
 
         if cc_analysis.cc is not None:

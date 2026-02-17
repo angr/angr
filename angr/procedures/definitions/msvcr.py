@@ -6,7 +6,15 @@ from angr.calling_conventions import SimCCMicrosoftAMD64
 
 libc = SimLibrary()
 libc.set_library_names(
-    "msvcrt.dll", "msvcr71.dll", "msvcr100.dll", "msvcr110.dll", "msvcrt20.dll", "msvcrt40.dll", "msvcr120.dll"
+    "msvcrt.dll",
+    "msvcr71.dll",
+    "msvcr80.dll",
+    "msvcr90.dll",
+    "msvcr100.dll",
+    "msvcr110.dll",
+    "msvcrt20.dll",
+    "msvcrt40.dll",
+    "msvcr120.dll",
 )
 libc.add_all_from_dict(P["libc"])
 libc.add_all_from_dict(P["msvcr"])  # overwrite any that are also defined in libc

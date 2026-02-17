@@ -11,9 +11,10 @@ from .const_resolver import ConstantResolver
 from .amd64_pe_iat import AMD64PeIatResolver
 from .memload_resolver import MemoryLoadResolver
 from .syscall_resolver import SyscallResolver
-
+from .aarch64_macho_got import AArch64MachOGotResolver
 
 __all__ = (
+    "AArch64MachOGotResolver",
     "AMD64ElfGotResolver",
     "AMD64PeIatResolver",
     "ArmElfFastResolver",

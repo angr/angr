@@ -184,7 +184,7 @@ class SimWindows(SimOS):
         return state
 
     def state_blank(self, thread_idx=None, **kwargs):
-        if self.project.loader.main_object.supports_nx:
+        if isinstance(self.project.loader.main_object, cle.backends.PE) and self.project.loader.main_object.supports_nx:
             add_options = kwargs.get("add_options", set())
             add_options.add(o.ENABLE_NX)
             kwargs["add_options"] = add_options
@@ -195,13 +195,21 @@ class SimWindows(SimOS):
             fun_stuff_addr = state.heap.mmap_base
             if fun_stuff_addr & 0xFFFF != 0:
                 fun_stuff_addr += 0x10000 - (fun_stuff_addr & 0xFFFF)
-            state.memory.map_region(fun_stuff_addr, 0x2000, claripy.BVV(3, 3))
+            TIB_size = 0x4000
+            PEB_size = 0x4000
+            state.memory.map_region(fun_stuff_addr, TIB_size + PEB_size, claripy.BVV(3, 3))
 
             TIB_addr = fun_stuff_addr
-            PEB_addr = fun_stuff_addr + 0x1000
+            PEB_addr = TIB_addr + TIB_size
+            LDR_addr = PEB_addr + PEB_size
+
+            objs: list[cle.backends.PE | cle.backends.PEStubs] = []
+            for obj in self.project.loader.all_objects:
+                if not isinstance(obj, (cle.backends.PE, cle.backends.PEStubs)):
+                    continue
+                objs.append(obj)
 
             if state.arch.name == "X86":
-                LDR_addr = fun_stuff_addr + 0x2000
                 if thread_idx is None:
                     thread_idx = 0
 
@@ -222,10 +230,10 @@ class SimWindows(SimOS):
                 # OKAY IT'S TIME TO SUFFER
                 # http://sandsprite.com/CodeStuff/Understanding_the_Peb_Loader_Data_List.html
                 THUNK_SIZE = 0x100
-                num_pe_objects = len(self.project.loader.all_pe_objects)
+                num_pe_objects = len(objs)
                 thunk_alloc_size = THUNK_SIZE * (num_pe_objects + 1)
                 string_alloc_size = 0
-                for obj in self.project.loader.all_pe_objects:
+                for obj in objs:
                     bin_name = obj.binary_basename if obj.binary is None else obj.binary
                     string_alloc_size += len(bin_name) * 2 + 2
                 total_alloc_size = thunk_alloc_size + string_alloc_size
@@ -235,10 +243,12 @@ class SimWindows(SimOS):
                 state.heap.mmap_base = LDR_addr + total_alloc_size
 
                 string_area = LDR_addr + thunk_alloc_size
-                for i, obj in enumerate(self.project.loader.all_pe_objects):
+                module_ids = {}
+                for i, obj in enumerate(objs):
                     # Create a LDR_MODULE, we'll handle the links later...
-                    obj.module_id = i + 1  # HACK HACK HACK HACK
+                    module_ids[obj] = i + 1
                     addr = LDR_addr + (i + 1) * THUNK_SIZE
+                    # if any of this segfaults, increase the allocation size. yikes
                     state.mem[addr + 0x18].dword = obj.mapped_base
                     state.mem[addr + 0x1C].dword = obj.entry
 
@@ -254,13 +264,12 @@ class SimWindows(SimOS):
                     state.mem[addr + 0x30].dword = string_area + string_size - tail_size
 
                     for j, c in enumerate(path):
-                        # if this segfaults, increase the allocation size
                         state.mem[string_area + j * 2].short = ord(c)
                     state.mem[string_area + string_size].short = 0
                     string_area += string_size + 2
 
                 # handle the links. we construct a python list in the correct order for each, and then, uh,
-                mem_order = sorted(self.project.loader.all_pe_objects, key=lambda x: x.mapped_base)
+                mem_order = sorted(objs, key=lambda x: x.mapped_base)
                 init_order = []
                 partially_loaded = set()
 
@@ -272,27 +281,32 @@ class SimWindows(SimOS):
                         if dep in self.project.loader.shared_objects:
                             depo = self.project.loader.shared_objects[dep]
                             fuck_load(depo)
-                            if depo not in init_order:
-                                init_order.append(depo)
+                    if x not in init_order:
+                        init_order.append(x)
 
-                fuck_load(self.project.loader.main_object)
-                load_order = [self.project.loader.main_object, *init_order]
+                for obj in mem_order:
+                    fuck_load(obj)
+                load_order = []
+                if isinstance(self.project.loader.main_object, cle.backends.PE):
+                    load_order.append(self.project.loader.main_object)
+                load_order.extend(obj for obj in init_order if obj is not self.project.loader.main_object)
 
                 def link(a, b):
                     state.mem[a].dword = b
                     state.mem[b + 4].dword = a
 
                 # I have genuinely never felt so dead in my life as I feel writing this code
+                # good news from [checks git blame] 8.5 years later: things get better.
                 def link_list(mods, offset):
                     if mods:
                         addr_a = LDR_addr + 12
-                        addr_b = LDR_addr + THUNK_SIZE * mods[0].module_id
+                        addr_b = LDR_addr + THUNK_SIZE * module_ids[mods[0]]
                         link(addr_a + offset, addr_b + offset)
                         for mod_a, mod_b in zip(mods[:-1], mods[1:]):
-                            addr_a = LDR_addr + THUNK_SIZE * mod_a.module_id
-                            addr_b = LDR_addr + THUNK_SIZE * mod_b.module_id
+                            addr_a = LDR_addr + THUNK_SIZE * module_ids[mod_a]
+                            addr_b = LDR_addr + THUNK_SIZE * module_ids[mod_b]
                             link(addr_a + offset, addr_b + offset)
-                        addr_a = LDR_addr + THUNK_SIZE * mods[-1].module_id
+                        addr_a = LDR_addr + THUNK_SIZE * module_ids[mods[-1]]
                         addr_b = LDR_addr + 12
                         link(addr_a + offset, addr_b + offset)
                     else:

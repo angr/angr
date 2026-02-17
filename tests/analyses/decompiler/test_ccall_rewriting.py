@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 
@@ -25,9 +24,10 @@ class TestCCallRewriting(unittest.TestCase):
         func = cfg.functions[0x401030]
         assert func is not None
 
-        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
 
+        assert "PEB * sub_401030(void)" in dec.codegen.text
         assert "PEB *v0;" in dec.codegen.text
         assert "v0 = NtGetCurrentPeb();" in dec.codegen.text
 

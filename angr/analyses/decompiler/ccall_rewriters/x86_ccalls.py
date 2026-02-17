@@ -2,12 +2,10 @@ from __future__ import annotations
 
 from angr.ailment import Expr
 
-from angr.ailment.expression import Convert
-from angr.ailment.statement import Call
+from angr.ailment.expression import Call, Convert, VirtualVariable
 from angr.engines.vex.claripy.ccall import data
 from angr.procedures.definitions import SIM_LIBRARIES
 from .rewriter_base import CCallRewriterBase
-
 
 X86_CondTypes = data["X86"]["CondTypes"]
 X86_OpTypes = data["X86"]["OpTypes"]
@@ -141,8 +139,8 @@ class X86CCallRewriter(CCallRewriterBase):
                         return Expr.ITE(
                             ccall.idx,
                             ret_cond,
-                            Expr.Const(None, None, 0, 1, **ccall.tags),
-                            Expr.Const(None, None, 1, 1, **ccall.tags),
+                            Expr.Const(None, None, 0, ccall.bits, **ccall.tags),
+                            Expr.Const(None, None, 1, ccall.bits, **ccall.tags),
                             **ccall.tags,
                         )
                 elif cond_v == X86_CondTypes["CondZ"]:
@@ -311,6 +309,7 @@ class X86CCallRewriter(CCallRewriterBase):
                 seg_selector = seg_selector.operands[0]
             if (
                 self.project.simos.name == "Win32"
+                and isinstance(seg_selector, VirtualVariable)
                 and seg_selector.was_reg
                 and self.project.arch.register_names.get(seg_selector.reg_offset, "") == "fs"
                 and isinstance(virtual_addr, Expr.Const)

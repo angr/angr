@@ -9,7 +9,6 @@ from angr.analyses.decompiler.decompilation_cache import DecompilationCache
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping
 from angr.knowledge_plugins.functions.function import Function
 
-
 l = logging.getLogger(__name__)
 
 

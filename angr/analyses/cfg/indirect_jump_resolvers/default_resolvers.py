@@ -12,6 +12,7 @@ from . import ArmElfFastResolver
 from . import AMD64PeIatResolver
 from . import MipsElfGotResolver
 from . import SyscallResolver
+from . import AArch64MachOGotResolver
 
 DEFAULT_RESOLVERS = {
     "X86": {
@@ -57,6 +58,11 @@ DEFAULT_RESOLVERS = {
     "ARMCortexM": {
         cle.MetaELF: [
             ArmElfFastResolver,
+        ]
+    },
+    "AARCH64": {
+        cle.MachO: [
+            AArch64MachOGotResolver,
         ]
     },
     "ALL": [MemoryLoadResolver, JumpTableResolver, ConstantResolver, SyscallResolver],

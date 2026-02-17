@@ -358,6 +358,31 @@ class TestStructurer(unittest.TestCase):
         print_decompilation_result(dec)
         assert dec.codegen.text.count("switch (") == 1
 
+    def test_phoenix_incomplete_switch_case_mismatch(self):
+        proj = angr.Project(
+            os.path.join(
+                test_location, "x86_64", "windows", "7995a0325b446c462bdb6ae10b692eee2ecadd8e888e9d7729befe4412007afb"
+            ),
+            auto_load_libs=False,
+        )
+        _ = proj.analyses.CFGFast(
+            normalize=True,
+            regions=[
+                (0x140006170, 0x140006170 + 5000),
+                (0x140015000, 0x140015840 + 5000),
+                (0x140012330, 0x140012330 + 5000),
+            ],
+            start_at_entry=False,
+            eh_frame=True,
+        )
+        proj.analyses.CompleteCallingConventions()
+
+        dec = proj.analyses[Decompiler].prep(fail_fast=True)(0x140006170)
+        # it should not raise any exceptions
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        assert dec.codegen.text.count("switch (") == 1
+
     def test_phoenix_loop_refinement_natural_loop_creation_logic(self):
         proj = angr.Project(
             os.path.join(

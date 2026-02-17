@@ -11,6 +11,7 @@ from typing_extensions import Self
 import angr
 from angr.engines.light import SimEngineLightAIL
 from angr import ailment
+from angr.knowledge_plugins.functions.function import Function
 
 
 @dataclass
@@ -42,8 +43,16 @@ class DataSource:
 
     constant_value: int | None = None
     function_arg: int | None = None
-    callee_return: int | None = None
+    callee_return: Function | str | None = None
     reference_to: int | None = None
+
+    @property
+    def callee_return_name(self) -> str | None:
+        if self.callee_return is None:
+            return None
+        if isinstance(self.callee_return, Function):
+            return self.callee_return.name
+        return self.callee_return
 
 
 @dataclass
@@ -69,16 +78,52 @@ class ResultType:
     """
 
     uses: MutableMapping[DataSource, DataUsage] = field(default_factory=lambda: defaultdict(DataUsage))
-    # keyed as: block addr, block idx, stmt idx, call addr, call arg
-    call_args: MutableMapping[tuple[int, int | None, int, int, int], DataType_co] = field(
+    # keyed as: block addr, block idx, stmt idx, call target, call arg idx
+    call_args: MutableMapping[tuple[int, int | None, int, Function | str | None, int], DataType_co] = field(
         default_factory=lambda: defaultdict(frozenset)
     )
+    ret_vals: MutableMapping[int, DataType_co] = field(default_factory=lambda: defaultdict(frozenset))
+    other_storage: MutableMapping[DataSource, DataType_co] = field(default_factory=lambda: defaultdict(frozenset))
 
     def update(self, other: Self):
         for src, use in other.uses.items():
             self.uses[src] |= use
         for arg, val in other.call_args.items():
             self.call_args[arg] |= val
+        for arg, val in other.ret_vals.items():
+            self.ret_vals[arg] |= val
+        for arg, val in other.other_storage.items():
+            self.other_storage[arg] |= val
+
+    def is_pure(
+        self,
+        pure_functions: set[str] | None = None,
+        allow_read_arguments: bool = True,
+        allow_write_arguments: bool = False,
+        allow_read_globals: bool = True,
+        allow_write_globals: bool = False,
+    ) -> bool:
+        for loc, use in self.uses.items():
+            if loc.constant_value is not None and use.ptr_store and not allow_write_globals:
+                return False
+            if loc.constant_value is not None and use.ptr_load and not allow_read_globals:
+                return False
+            if loc.function_arg is not None and use.ptr_store and not allow_write_arguments:
+                return False
+            if loc.function_arg is not None and use.ptr_load and not allow_read_arguments:
+                return False
+            if loc.callee_return is not None and (
+                pure_functions is None or loc.callee_return_name not in pure_functions
+            ):
+                return False
+        for (_, _, _, func, _), _ in self.call_args.items():
+            if pure_functions is None:
+                return False
+            if isinstance(func, Function) and func.name not in pure_functions:
+                return False
+            if func not in pure_functions:
+                return False
+        return True
 
 
 DataType_co: TypeAlias = frozenset[DataSource]
@@ -92,9 +137,12 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     A use is arithmetic, store, or load.
     """
 
-    def __init__(self, project: angr.Project, clinic: angr.analyses.decompiler.Clinic):
+    def __init__(
+        self, project: angr.Project, clinic: angr.analyses.decompiler.Clinic, recurse: Callable[[Function], ResultType]
+    ):
         self.clinic = clinic
         self.result = ResultType()
+        self.recurse = recurse
         super().__init__(project)
 
     def initial_state(self, node: ailment.Block):
@@ -159,14 +207,19 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
     def _handle_stmt_WeakAssignment(self, stmt: ailment.statement.WeakAssignment) -> StmtDataType:
         raise NotImplementedError
 
-    def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> StmtDataType:
-        val = self._expr(stmt.data)
-        ptr = self._expr(stmt.addr)
+    def _do_store(self, ptr: DataType_co, val: DataType_co):
         for src in ptr:
             if src.reference_to is not None:
                 self.state.vars[src.reference_to] = val
-            else:
+            elif self._is_valid_pointer(src):
                 self.result.uses[src].ptr_store = True
+                if val:
+                    self.result.other_storage[src] |= val
+
+    def _handle_stmt_Store(self, stmt: ailment.statement.Store) -> StmtDataType:
+        val = self._expr(stmt.data)
+        ptr = self._expr(stmt.addr)
+        self._do_store(ptr, val)
 
     def _handle_stmt_Jump(self, stmt: ailment.statement.Jump) -> StmtDataType:
         self._expr_single(stmt.target)
@@ -178,30 +231,31 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         if stmt.false_target is not None:
             self._expr_single(stmt.false_target)
 
-    def _handle_stmt_Call(self, stmt: ailment.statement.Call) -> StmtDataType:
-        assert isinstance(stmt.target, ailment.Expression)
-        target = self._expr_single(stmt.target)
-        target_int = target.constant_value or 0
-        result = frozenset((DataSource(callee_return=target_int),))
-        for i, arg in enumerate(stmt.args or []):
-            val = self._expr(arg)
-            self.result.call_args[(self.block.addr, self.block.idx, self.stmt_idx, target_int, i)] |= val
-        # recursive processing...?
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType:
+        results = self._expr(stmt.expr)
         if stmt.ret_expr is not None:
-            self._do_assign(stmt.ret_expr, result)
+            assert 0 in results
+            self._do_assign(stmt.ret_expr, results[0])
         if stmt.fp_ret_expr is not None:
-            self._do_assign(stmt.fp_ret_expr, result)
+            assert 0 in results
+            self._do_assign(stmt.fp_ret_expr, results[0])
 
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType:
-        # recursive processing...?
-        for expr in stmt.ret_exprs:
-            self._expr(expr)
+        for i, expr in enumerate(stmt.ret_exprs):
+            r = self._expr(expr)
+            self.result.ret_vals[i] |= r
 
     def _handle_stmt_DirtyStatement(self, stmt: ailment.statement.DirtyStatement) -> StmtDataType:
         self._expr(stmt.dirty)
 
     def _handle_stmt_Label(self, stmt: ailment.statement.Label) -> StmtDataType:
         pass
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.base) if x.constant_value is not None)
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert) -> DataType_co:
+        return frozenset(x for x in self._expr(expr.value) if x.constant_value is not None)
 
     def _handle_expr_Const(self, expr: ailment.expression.Const) -> DataType_co:
         if isinstance(expr.value, int):
@@ -212,25 +266,37 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         return self.tmps[expr.tmp_idx]
 
     def _handle_expr_VirtualVariable(self, expr: ailment.expression.VirtualVariable) -> DataType_co:
+        # allow registers to be uninitialized since callee-save is a thing
+        assert (
+            self.clinic.function.name == "_security_check_cookie"
+            or expr.category == ailment.expression.VirtualVariableCategory.REGISTER
+            or expr.varid in self.state.vars
+        )
         return self.state.vars[expr.varid]
 
     def _handle_expr_Phi(self, expr: ailment.expression.Phi) -> DataType_co:
         assert False, "Unreachable"
 
     def _handle_expr_Convert(self, expr):
-        return self._expr(expr.operand)
+        return frozenset(x for x in self._expr(expr.operand) if x.constant_value is not None)
 
     def _handle_expr_Reinterpret(self, expr: ailment.expression.Reinterpret) -> DataType_co:
         return self._expr(expr.operand)
+
+    def _is_valid_pointer(self, src: DataSource) -> bool:
+        return not (
+            src.constant_value is not None and self.project.loader.find_object_containing(src.constant_value) is None
+        )
 
     def _do_load(self, ptr: DataType_co) -> DataType_co:
         result: list[DataSource] = []
         for src in ptr:
             if src.reference_to is not None:
                 result.extend(self.state.vars[src.reference_to])
-            else:
+            elif self._is_valid_pointer(src):
                 self.result.uses[src].ptr_load = True
-                result.append(src)
+                if src.constant_value is None:
+                    result.append(src)
         return frozenset(result)
 
     def _handle_expr_Load(self, expr: ailment.expression.Load) -> DataType_co:
@@ -243,14 +309,59 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
         self._expr(expr.condition)
         return self._expr(expr.iftrue) | self._expr(expr.iffalse)
 
-    def _handle_expr_Call(self, expr: ailment.statement.Call) -> DataType_co:
-        assert isinstance(expr.target, ailment.Expression)
-        target = self._expr_single(expr.target)
-        target_int = target.constant_value or 0
-        for i, arg in enumerate(expr.args or []):
-            val = self._expr(arg)
-            self.result.call_args[(self.block.addr, self.block.idx, self.stmt_idx, target_int, i)] |= val
-        return frozenset((DataSource(callee_return=target_int),))
+    def _do_call(self, expr: ailment.expression.Call) -> MutableMapping[int, DataType_co]:
+        args = [self._expr(arg) for arg in expr.args or []]
+        seen = None
+
+        if isinstance(expr.target, ailment.Expression):
+            target = self._expr_single(expr.target)
+            func = None
+            if target.constant_value:
+                func = self.clinic.project.kb.functions[target.constant_value]
+                if not func.is_plt and not func.is_simprocedure:
+                    seen = ResultType() if func.name == "_security_check_cookie" else self.recurse(func)
+        elif isinstance(expr.target, str):
+            # pure functions
+            func = expr.target
+            seen = None
+        else:
+            raise TypeError(f"Unexpected call target type {type(expr.target)}")
+
+        if seen is not None:
+
+            def subst(v: DataSource) -> DataType_co:
+                if v.function_arg is not None:
+                    return args[v.function_arg]
+                if v.reference_to is not None:
+                    return frozenset()
+                return frozenset((v,))
+
+            def substall(v: DataType_co) -> DataType_co:
+                result = []
+                for vv in v:
+                    result.extend(subst(vv))
+                return frozenset(result)
+
+            for srcs, val in seen.other_storage.items():
+                if not val:
+                    continue
+                self._do_store(subst(srcs), substall(val))
+            for srcs, kind in seen.uses.items():
+                for src in subst(srcs):
+                    self.result.uses[src] |= kind
+            for callsite, vals in seen.call_args.items():
+                self.result.call_args[callsite] |= substall(vals)
+
+            return {i: substall(v) for i, v in seen.ret_vals.items()}
+        for i, val in enumerate(args):
+            self.result.call_args[(self.block.addr, self.block.idx, self.stmt_idx, func, i)] |= val
+        # ummmm need to rearrange data model
+        return {0: frozenset((DataSource(callee_return=func),))}
+
+    def _handle_expr_Call(self, expr: ailment.expression.Call) -> DataType_co:
+        r = self._do_call(expr)
+        assert 0 in r
+        return r[0]
 
     def _handle_expr_DirtyExpression(self, expr: ailment.expression.DirtyExpression) -> DataType_co:
         for arg in expr.operands:
@@ -281,8 +392,9 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
             for src in arg:
                 if src.constant_value is not None:
                     result.append(DataSource(constant_value=f(self, src.constant_value)))
-                else:
-                    result.append(src)
+                # see similar commented code in __concrete_binop
+                # else:
+                #     result.append(src)
             return frozenset(result)
 
         return inner
@@ -328,8 +440,11 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                 for src in arg:
                     if src.constant_value is not None:
                         argc.append(src.constant_value)
-                    else:
-                        result.append(src)
+                    # this line is weird because it basically means "you can compute however you like with a source
+                    # and it will come out with the same taints as before"
+                    # preliminary testing indicates this is not desired
+                    # else:
+                    #     result.append(src)
             if len(arg0c) * len(arg1c) <= 10:  # arbitrary limit
                 for c0 in arg0c:
                     for c1 in arg1c:
@@ -338,7 +453,7 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
                         except ZeroDivisionError:
                             pass
                         else:
-                            if m is not None:
+                            if m is None:
                                 continue
                             result.append(DataSource(constant_value=m % 2**expr.bits))
 
@@ -346,12 +461,23 @@ class PurityEngineAIL(SimEngineLightAIL[StateType, DataType_co, StmtDataType, Re
 
         return inner
 
+    def _handle_binop_Add(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        r = self._handle_binop_Add_basic(expr)  # pylint: disable=no-value-for-parameter
+        arg0 = self._expr(expr.operands[0])
+        arg1 = self._expr(expr.operands[1])
+        return r | arg0 | arg1
+
+    def _handle_binop_Sub(self, expr: ailment.expression.BinaryOp) -> DataType_co:
+        r = self._handle_binop_Sub_basic(expr)  # pylint: disable=no-value-for-parameter
+        arg0 = self._expr(expr.operands[0])
+        return r | arg0
+
     @__concrete_binop
-    def _handle_binop_Add(self, a, b):
+    def _handle_binop_Add_basic(self, a, b):  # pylint: disable=no-self-use
         return a + b
 
     @__concrete_binop
-    def _handle_binop_Sub(self, a, b):
+    def _handle_binop_Sub_basic(self, a, b):  # pylint: disable=no-self-use
         return a - b
 
     @__concrete_binop

@@ -12,10 +12,10 @@
 	},
 	"functions": {
 		"DMLCreateDevice": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'riid', 'ppv']}"
 		},
 		"DMLCreateDevice1": {
-			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'int'}, {'_t': '_ref', 'name': 'DML_FEATURE_LEVEL', 'ot': 'int'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': '_ref'}}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'minimumFeatureLevel', 'riid', 'ppv']}"
+			"proto": "{'_t': 'func', 'args': [{'_t': '_ref', 'name': 'ID3D12Device', 'ot': 'bot'}, {'_t': '_ref', 'name': 'DML_CREATE_DEVICE_FLAGS', 'ot': 'enum'}, {'_t': '_ref', 'name': 'DML_FEATURE_LEVEL', 'ot': 'enum'}, {'_t': 'ptr', 'pts_to': {'_t': '_ref', 'name': 'Guid', 'ot': 'struct'}, 'disp': 1}, {'_t': 'ptr', 'pts_to': {'_t': 'ptr', 'pts_to': {'_t': 'bot', 'label': 'Void'}}, 'disp': 2}], 'returnty': {'_t': '_ref', 'name': 'HRESULT', 'ot': 'int'}, 'arg_names': ['d3d12Device', 'flags', 'minimumFeatureLevel', 'riid', 'ppv']}"
 		}
 	}
 }

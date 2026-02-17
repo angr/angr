@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Literal, TypeVar, Generic
+from typing import TYPE_CHECKING, Literal, TypeVar, Generic
 from dataclasses import dataclass
 import logging
 
@@ -9,14 +9,19 @@ from angr.sim_variable import SimMemoryVariable
 from angr.sim_variable import SimStackVariable
 from angr.sim_variable import SimRegisterVariable
 from angr.misc.ux import once
-
 from angr.engines.light import SpOffset
-from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.code_location import ExternalCodeLocation
+from angr.sim_variable import SimVariable
 from .atoms import Atom, MemoryLocation, Register, Tmp, AtomKind, atom_kind_mapping, VirtualVariable
 from .tag import Tag
-from angr.sim_variable import SimVariable
+
+if TYPE_CHECKING:
+    from angr.code_location import AILCodeLocation, CodeLocation
 
 log = logging.getLogger(__name__)
+
+CodeLoc = TypeVar("CodeLoc", bound="CodeLocation | AILCodeLocation")
+A = TypeVar("A", bound=Atom)
 
 
 @dataclass
@@ -125,9 +130,7 @@ class DefinitionMatchPredicate:
                     raise TypeError(self.reg_name)
         elif isinstance(defn.atom, MemoryLocation):
             if self.stack_offset is not None and (
-                not isinstance(defn.atom.addr, SpOffset)
-                or defn.atom.addr.base != "sp"  # TODO???????
-                or defn.atom.addr.offset != self.stack_offset
+                not isinstance(defn.atom.addr, SpOffset) or defn.atom.addr.offset != self.stack_offset
             ):
                 return False
         elif isinstance(defn.atom, Tmp) and self.tmp_idx is not None and self.tmp_idx != defn.atom.tmp_idx:
@@ -136,10 +139,7 @@ class DefinitionMatchPredicate:
         return True
 
 
-A = TypeVar("A", bound=Atom)
-
-
-class Definition(Generic[A]):
+class Definition(Generic[A, CodeLoc]):
     """
     An atom definition.
 
@@ -158,10 +158,10 @@ class Definition(Generic[A]):
         "tags",
     )
 
-    def __init__(self, atom: A, codeloc: CodeLocation, dummy: bool = False, tags: set[Tag] | None = None):
-        self.atom: A = atom
-        self.codeloc: CodeLocation = codeloc
-        self.dummy: bool = dummy
+    def __init__(self, atom: A, codeloc: CodeLoc, dummy: bool = False, tags: set[Tag] | None = None):
+        self.atom = atom
+        self.codeloc = codeloc
+        self.dummy = dummy
         self.tags = tags or set()
         self._hash = None
 
@@ -179,7 +179,7 @@ class Definition(Generic[A]):
 
     def __str__(self):
         pretty_tags = "\n".join([str(tag) for tag in self.tags])
-        return f"Definition:\n" f"Atom: {self.atom}\n" f"CodeLoc: {self.codeloc}\n" f"Tags: {pretty_tags}"
+        return f"Definition:\nAtom: {self.atom}\nCodeLoc: {self.codeloc}\nTags: {pretty_tags}"
 
     def __hash__(self):
         if self._hash is None:

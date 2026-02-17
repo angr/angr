@@ -13,7 +13,6 @@ import angr
 
 from tests.common import bin_location, print_decompilation_result, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)
@@ -36,7 +35,7 @@ class TestPeepholeInlineMemset(unittest.TestCase):
 
         func = cfg.functions[0x5E2010]
         assert func is not None
-        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
         assert re.search(r"memset\(v\d+, 0, 72\);", dec.codegen.text) is not None

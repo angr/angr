@@ -3,14 +3,13 @@ from __future__ import annotations
 import logging
 
 from angr.ailment.block import Block
-from angr.ailment.statement import Statement, Call, ConditionalJump, Assignment, Jump
-from angr.ailment.expression import ITE, Const, VirtualVariable, Phi
+from angr.ailment.statement import Statement, SideEffectStatement, ConditionalJump, Assignment, Jump
+from angr.ailment.expression import ITE, Call, Const, VirtualVariable, Phi
 
 from angr.utils.ail import is_phi_assignment
 from angr.utils.graph import subgraph_between_nodes
 from angr.analyses.decompiler.utils import remove_labels, to_ail_supergraph
 from .optimization_pass import OptimizationPass, OptimizationPassStage
-
 
 _l = logging.getLogger(__name__)
 
@@ -26,8 +25,8 @@ class ITERegionConverter(OptimizationPass):
     NAME = "Transform ITE-assignment regions into ternary expression assignments"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, max_updates=10, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, max_updates=10, **kwargs):
+        super().__init__(*args, **kwargs)
         self._max_updates = max_updates
         self.analyze()
 
@@ -66,7 +65,9 @@ class ITERegionConverter(OptimizationPass):
                 if_stmt_blocks.append(node)
 
         # re-find the if-stmts blocks in the original graph
-        super_if_ids = {(node.statements[-1].ins_addr, node.statements[-1].idx): node for node in if_stmt_blocks}
+        super_if_ids = {
+            (node.statements[-1].tags["ins_addr"], node.statements[-1].idx): node for node in if_stmt_blocks
+        }
         super_to_normal_node = {}
         for node in self._graph.nodes():
             if not node.statements:
@@ -74,8 +75,8 @@ class ITERegionConverter(OptimizationPass):
 
             if isinstance(node.statements[-1], ConditionalJump):
                 if_stmt = node.statements[-1]
-                if (if_stmt.ins_addr, if_stmt.idx) in super_if_ids:
-                    super_node = super_if_ids[(if_stmt.ins_addr, if_stmt.idx)]
+                if (if_stmt.tags["ins_addr"], if_stmt.idx) in super_if_ids:
+                    super_node = super_if_ids[(if_stmt.tags["ins_addr"], if_stmt.idx)]
                     super_to_normal_node[super_node] = node
 
         # validate each if-stmt block matches a ternary schema
@@ -301,6 +302,7 @@ class ITERegionConverter(OptimizationPass):
                     stmt.dst,
                     new_src_and_vvars[0][1],
                     **stmt.tags,
+                    dephi=True,
                 )
             else:
                 new_phi = Phi(
@@ -331,5 +333,5 @@ class ITERegionConverter(OptimizationPass):
     @staticmethod
     def _is_assigning_to_vvar(stmt: Statement) -> bool:
         return (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)) or (
-            isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable)
+            isinstance(stmt, SideEffectStatement) and isinstance(stmt.ret_expr, VirtualVariable)
         )

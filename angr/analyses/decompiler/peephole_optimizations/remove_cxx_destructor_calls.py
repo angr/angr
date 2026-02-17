@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from angr.ailment.expression import Const
-from angr.ailment.statement import Call
+from angr.ailment.statement import SideEffectStatement
 
 from .base import PeepholeOptimizationStmtBase
 
@@ -15,18 +15,18 @@ class RemoveCxxDestructorCalls(PeepholeOptimizationStmtBase):
     __slots__ = ()
 
     NAME = "Remove C++ destructor function calls"
-    stmt_classes = (Call,)
+    stmt_classes = (SideEffectStatement,)
 
-    def optimize(self, stmt: Call, **kwargs) -> tuple | None:  # type:ignore
+    def optimize(self, stmt: SideEffectStatement, **kwargs) -> tuple | None:  # type: ignore
         # are we calling a function that we deem as a C++ destructor?
         assert self.project is not None
 
-        if isinstance(stmt.target, Const):
-            func_addr = stmt.target.value
+        if isinstance(stmt.expr.target, Const):
+            func_addr = stmt.expr.target.value
             if not self.project.kb.functions.contains_addr(func_addr):
                 return None
             func = self.project.kb.functions[func_addr]
-            if "::~" in func.demangled_name and stmt.args is not None:
+            if "::~" in func.demangled_name and stmt.expr.args is not None:
                 # yes it is!
                 return ()
         return None

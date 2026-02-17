@@ -1,13 +1,16 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, TypeVar, Generic
+from collections.abc import Iterable, Iterator
 from collections import defaultdict, OrderedDict
 import logging
 
 import networkx
 import networkx.algorithms
 
+T = TypeVar("T")
 
-def shallow_reverse(g) -> networkx.DiGraph:
+
+def shallow_reverse(g: networkx.DiGraph[T]) -> networkx.DiGraph[T]:
     """
     Make a shallow copy of a directional graph and reverse the edges. This is a workaround to solve the issue that one
     cannot easily make a shallow reversed copy of a graph in NetworkX 2, since networkx.reverse(copy=False) now returns
@@ -27,7 +30,9 @@ def shallow_reverse(g) -> networkx.DiGraph:
     return new_g
 
 
-def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | None]:
+def inverted_idoms(
+    graph: networkx.DiGraph[T], end_node: T | None = None
+) -> tuple[networkx.DiGraph[T], dict[T, T] | None]:
     """
     Invert the given graph and generate the immediate dominator tree on the inverted graph. This is useful for
     computing post-dominators.
@@ -36,14 +41,14 @@ def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | No
     :return:        A tuple of the inverted graph and the immediate dominator tree.
     """
 
-    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0}
     inverted_graph: networkx.DiGraph = shallow_reverse(graph)
+    end_nodes = {n for n in graph.nodes() if graph.out_degree(n) == 0} if end_node is None else {end_node}
     if end_nodes:
         if len(end_nodes) > 1:
             # make sure there is only one end node
             dummy_node = "DUMMY_NODE"
-            for end_node in end_nodes:
-                inverted_graph.add_edge(dummy_node, end_node)
+            for end_node2 in end_nodes:
+                inverted_graph.add_edge(dummy_node, end_node2)
             endnode = dummy_node
         else:
             endnode = next(iter(end_nodes))  # pick the end node
@@ -56,8 +61,8 @@ def inverted_idoms(graph: networkx.DiGraph) -> tuple[networkx.DiGraph, dict | No
 
 
 def to_acyclic_graph(
-    graph: networkx.DiGraph, node_order: dict[Any, int] | None = None, loop_heads: list | None = None
-) -> networkx.DiGraph:
+    graph: networkx.DiGraph[T], node_order: dict[T, int] | None = None, loop_heads: list[T] | None = None
+) -> networkx.DiGraph[T]:
     """
     Convert a given DiGraph into an acyclic graph.
 
@@ -86,7 +91,9 @@ def to_acyclic_graph(
     return acyclic_graph
 
 
-def dfs_back_edges(graph, start_node, *, visit_all_nodes: bool = False, visited: set | None = None):
+def dfs_back_edges(
+    graph: networkx.DiGraph[T], start_node: T, *, visit_all_nodes: bool = False, visited: set[T] | None = None
+) -> Iterator[tuple[T, T]]:
     """
     Perform an iterative DFS traversal of the graph, returning back edges.
 
@@ -123,7 +130,9 @@ def dfs_back_edges(graph, start_node, *, visit_all_nodes: bool = False, visited:
             yield from dfs_back_edges(graph, node, visited=visited)
 
 
-def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
+def subgraph_between_nodes(
+    graph: networkx.DiGraph[T], source: T, frontier: Iterable[T], include_frontier: bool = False
+) -> networkx.DiGraph[T]:
     """
     For a directed graph, return a subgraph that includes all nodes going from a source node to a target node.
 
@@ -188,7 +197,7 @@ def subgraph_between_nodes(graph, source, frontier, include_frontier=False):
     return g0
 
 
-def dominates(idom, dominator_node, node):
+def dominates(idom: dict[T, T], dominator_node: T, node: T) -> bool:
     n = node
     while n:
         if n == dominator_node:
@@ -202,7 +211,7 @@ def dominates(idom, dominator_node, node):
 #
 
 
-def compute_dominance_frontier(graph, domtree):
+def compute_dominance_frontier(graph: networkx.DiGraph[T], domtree: networkx.DiGraph[T]) -> dict[T, set[T]]:
     """
     Compute a dominance frontier based on the given post-dominator tree.
 
@@ -272,7 +281,7 @@ class TemporaryNode:
         return hash(("TemporaryNode", self._label))
 
 
-class ContainerNode:
+class ContainerNode(Generic[T]):
     """
     A container node.
 
@@ -282,15 +291,15 @@ class ContainerNode:
 
     __slots__ = ["_obj", "index"]
 
-    def __init__(self, obj):
+    def __init__(self, obj: T):
         self._obj = obj
         self.index: int | None = None
 
     @property
-    def obj(self):
+    def obj(self) -> T:
         return self._obj
 
-    def __eq__(self, other):
+    def __eq__(self, other: Any):
         if isinstance(other, ContainerNode):
             return self._obj is other._obj
         return False
@@ -302,14 +311,14 @@ class ContainerNode:
         return f"CN[{self._obj!r}]"
 
 
-class Dominators:
+class Dominators(Generic[T]):
     """
     Describes dominators in a graph.
     """
 
-    dom: networkx.DiGraph
+    dom: networkx.DiGraph[T]
 
-    def __init__(self, graph, entry_node, successors_func=None, reverse=False):
+    def __init__(self, graph: networkx.DiGraph[T], entry_node: T, successors_func=None, reverse=False):
         self._l = logging.getLogger("utils.graph.dominators")
         self._graph_successors_func = successors_func
 
@@ -583,16 +592,16 @@ class Dominators:
             self._ancestor[v.index] = self._ancestor[self._ancestor[v.index].index]
 
 
-class PostDominators(Dominators):
+class PostDominators(Generic[T], Dominators[T]):
     """
     Describe post-dominators in a graph.
     """
 
-    def __init__(self, graph, entry_node, successors_func=None):
+    def __init__(self, graph: networkx.DiGraph[T], entry_node: T, successors_func=None):
         super().__init__(graph, entry_node, successors_func=successors_func, reverse=True)
 
     @property
-    def post_dom(self) -> networkx.DiGraph:
+    def post_dom(self) -> networkx.DiGraph[T]:
         return self.dom
 
 
@@ -688,7 +697,7 @@ class GraphUtils:
         return list(widening_addrs)
 
     @staticmethod
-    def dfs_postorder_nodes_deterministic(graph: networkx.DiGraph, source):
+    def dfs_postorder_nodes_deterministic(graph: networkx.DiGraph[T], source: T) -> Iterator[T]:
         visited = set()
         stack: list[tuple[Any, bool]] = [(source, True)]  # NodeType, is_pre_visit
         while stack:
@@ -817,7 +826,7 @@ class GraphUtils:
             graph_copy.add_edge(src, dst)
 
         # add loners
-        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]  # type:ignore
+        out_degree_zero_nodes = [node for (node, degree) in graph.out_degree() if degree == 0]  # type: ignore
         for node in out_degree_zero_nodes:
             if graph.in_degree(node) == 0:
                 graph_copy.add_node(node)

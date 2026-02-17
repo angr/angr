@@ -12,7 +12,6 @@ import angr
 
 from tests.common import bin_location, print_decompilation_result, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)
@@ -29,13 +28,13 @@ class TestUnifyLocalVariables(unittest.TestCase):
         proj.analyses.CompleteCallingConventions()
         func = cfg.functions[0x503FC0]
         assert func is not None
-        dec = proj.analyses.Decompiler(func, cfg=cfg)
+        dec = proj.analyses.Decompiler(func, cfg=cfg, options=[("semvar_naming", False)])
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
         assert "a0[1]" in dec.codegen.text
         assert "a0[2]" in dec.codegen.text
-        assert "a0[0]" in dec.codegen.text
+        assert "a0[0]" in dec.codegen.text or "*(a0)" in dec.codegen.text
 
 
 if __name__ == "__main__":

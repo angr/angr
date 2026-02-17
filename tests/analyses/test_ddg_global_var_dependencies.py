@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 arches = {"x86_64"}
 
@@ -49,9 +48,9 @@ class TestDdgGlobalVarDependencies(unittest.TestCase):
 
             # If the target depends on the statement assigning 'a' to the global variable, it is underconstrained (
             # this assignment should be overwritten by the 'b' assignment)
-            assert not self.check_dependency(
-                stmt, buf_addr, ord("a")
-            ), "Target statement has incorrect dependency (DDG is underconstrained)"
+            assert not self.check_dependency(stmt, buf_addr, ord("a")), (
+                "Target statement has incorrect dependency (DDG is underconstrained)"
+            )
         assert has_correct_dependency, "Target statement does not have correct dependency (DDG is overconstrained)"
 
     def check_dependency(self, stmt, addr, const):

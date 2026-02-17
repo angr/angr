@@ -11,7 +11,6 @@ from .c import CStructuredCodeGenerator, CStructuredCodeWalker
 from .dwarf_import import ImportSourceCode
 from .dummy import DummyStructuredCodeGenerator
 
-
 __all__ = (
     "BaseStructuredCodeGenerator",
     "CStructuredCodeGenerator",

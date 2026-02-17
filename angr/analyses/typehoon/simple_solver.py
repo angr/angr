@@ -14,9 +14,12 @@ from .typevars import (
     Subtype,
     Equivalence,
     Add,
+    Sub,
     TypeVariable,
     DerivedTypeVariable,
     HasField,
+    AddN,
+    SubN,
     IsArray,
     TypeConstraint,
     Load,
@@ -38,6 +41,7 @@ from .typeconsts import (
     Int64,
     Int128,
     Int256,
+    Int512,
     Pointer,
     Pointer32,
     Pointer64,
@@ -48,6 +52,8 @@ from .typeconsts import (
     Float,
     Float32,
     Float64,
+    Enum,
+    Fd,
 )
 from .variance import Variance
 from .dfa import DFAConstraintSolver, EmptyEpsilonNFAError
@@ -57,6 +63,7 @@ _l = logging.getLogger(__name__)
 
 Top_ = TopType()
 Int_ = Int()
+Int512_ = Int512()
 Int256_ = Int256()
 Int128_ = Int128()
 Int64_ = Int64()
@@ -71,6 +78,8 @@ Array_ = Array()
 Float_ = Float()
 Float32_ = Float32()
 Float64_ = Float64()
+Enum_ = Enum()
+Fd_ = Fd()
 
 
 PRIMITIVE_TYPES = {
@@ -82,6 +91,7 @@ PRIMITIVE_TYPES = {
     Int64_,
     Int128_,
     Int256_,
+    Int512_,
     Pointer32_,
     Pointer64_,
     Bottom_,
@@ -90,38 +100,56 @@ PRIMITIVE_TYPES = {
     Float_,
     Float32_,
     Float64_,
+    Enum_,
+    Fd_,
 }
 
 
 # lattice for 64-bit binaries
 BASE_LATTICE_64 = networkx.DiGraph()
 BASE_LATTICE_64.add_edge(Top_, Int_)
+BASE_LATTICE_64.add_edge(Int_, Int512_)
 BASE_LATTICE_64.add_edge(Int_, Int256_)
 BASE_LATTICE_64.add_edge(Int_, Int128_)
 BASE_LATTICE_64.add_edge(Int_, Int64_)
 BASE_LATTICE_64.add_edge(Int_, Int32_)
 BASE_LATTICE_64.add_edge(Int_, Int16_)
 BASE_LATTICE_64.add_edge(Int_, Int8_)
+BASE_LATTICE_64.add_edge(Int512_, Bottom_)
+BASE_LATTICE_64.add_edge(Int256_, Bottom_)
+BASE_LATTICE_64.add_edge(Int128_, Bottom_)
 BASE_LATTICE_64.add_edge(Int32_, Bottom_)
 BASE_LATTICE_64.add_edge(Int16_, Bottom_)
 BASE_LATTICE_64.add_edge(Int8_, Bottom_)
 BASE_LATTICE_64.add_edge(Int64_, Pointer64_)
 BASE_LATTICE_64.add_edge(Pointer64_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Enum_)
+BASE_LATTICE_64.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Fd_)
+BASE_LATTICE_64.add_edge(Fd_, Bottom_)
 
 # lattice for 32-bit binaries
 BASE_LATTICE_32 = networkx.DiGraph()
 BASE_LATTICE_32.add_edge(Top_, Int_)
-BASE_LATTICE_64.add_edge(Int_, Int256_)
-BASE_LATTICE_64.add_edge(Int_, Int128_)
+BASE_LATTICE_32.add_edge(Int_, Int512_)
+BASE_LATTICE_32.add_edge(Int_, Int256_)
+BASE_LATTICE_32.add_edge(Int_, Int128_)
 BASE_LATTICE_32.add_edge(Int_, Int64_)
 BASE_LATTICE_32.add_edge(Int_, Int32_)
 BASE_LATTICE_32.add_edge(Int_, Int16_)
 BASE_LATTICE_32.add_edge(Int_, Int8_)
-BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
+BASE_LATTICE_32.add_edge(Int512_, Bottom_)
+BASE_LATTICE_32.add_edge(Int256_, Bottom_)
+BASE_LATTICE_32.add_edge(Int128_, Bottom_)
 BASE_LATTICE_32.add_edge(Int64_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Pointer32_)
 BASE_LATTICE_32.add_edge(Pointer32_, Bottom_)
 BASE_LATTICE_32.add_edge(Int16_, Bottom_)
 BASE_LATTICE_32.add_edge(Int8_, Bottom_)
+BASE_LATTICE_32.add_edge(Int32_, Enum_)
+BASE_LATTICE_32.add_edge(Enum_, Bottom_)
+BASE_LATTICE_64.add_edge(Int32_, Fd_)
+BASE_LATTICE_64.add_edge(Fd_, Bottom_)
 
 BASE_LATTICES = {
     32: BASE_LATTICE_32,
@@ -271,15 +299,20 @@ class Sketch:
         if (
             try_maxsize
             and isinstance(subtype, TypeVariable)
-            and subtype in self.solver.stackvar_max_sizes
+            and (max_size := self.solver.get_tv_max_stack_size(subtype)) is not None
             and isinstance(supertype, TypeConstant)
             and not isinstance(supertype, BottomType)
         ):
             basetype = supertype
-            assert basetype.size is not None
-            max_size = self.solver.stackvar_max_sizes.get(subtype, None)
-            if max_size not in {0, None} and basetype.size > 0 and max_size // basetype.size > 0:  # type: ignore
-                supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
+            if not isinstance(basetype, (TopType, BottomType)):
+                assert basetype.size is not None
+                if (
+                    max_size not in {0, None}
+                    and basetype.size > 0
+                    and max_size // basetype.size > 1
+                    and basetype.size <= 8
+                ):  # type: ignore
+                    supertype = Array(element=basetype, count=max_size // basetype.size)  # type: ignore
 
         if SimpleSolver._typevar_inside_set(subtype, PRIMITIVE_TYPES) and not SimpleSolver._typevar_inside_set(
             supertype, PRIMITIVE_TYPES
@@ -449,7 +482,7 @@ class SimpleSolver:
         self,
         bits: int,
         constraints,
-        typevars,
+        typevars: dict[TypeVariable, set[TypeVariable]],
         constraint_set_degradation_threshold: int = 150,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
     ):
@@ -458,7 +491,7 @@ class SimpleSolver:
 
         self.bits = bits
         self._constraints: dict[TypeVariable, set[TypeConstraint]] = constraints
-        self._typevars: set[TypeVariable] = typevars
+        self._typevars: dict[TypeVariable, set[TypeVariable]] = typevars
         self.stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
         self._base_lattice = BASE_LATTICES[bits]
@@ -475,18 +508,15 @@ class SimpleSolver:
         # Solving state
         #
         self._equivalence = defaultdict(dict)
-        for typevar in list(self._constraints):
-            if self._constraints[typevar]:
-                self.processed_constraints_count += len(self._constraints[typevar])
+        for func_tv in list(self._constraints):
+            if self._constraints[func_tv]:
+                self.processed_constraints_count += len(self._constraints[func_tv])
+                self.preprocess(func_tv)
+                self.simplified_constraints_count += len(self._constraints[func_tv])
 
-                self._constraints[typevar] |= self._eq_constraints_from_add(typevar)
-                self._constraints[typevar] |= self._discover_equivalence(self._constraints[typevar])
-                new_constraints, replacements = self._handle_equivalence(self._constraints[typevar])
-                self._equivalence |= replacements
-                self._constraints[typevar] = new_constraints
-                self._constraints[typevar] = self._filter_constraints(self._constraints[typevar])
-
-                self.simplified_constraints_count += len(self._constraints[typevar])
+        self._repr_tv_to_tvs = defaultdict(set)
+        for tv, repr_tv in self._equivalence.items():
+            self._repr_tv_to_tvs[repr_tv].add(tv)
 
         self.solution = {}
         for tv, sol in self._equivalence.items():
@@ -495,8 +525,40 @@ class SimpleSolver:
 
         self._solution_cache = {}
         self.solve()
-        for typevar in list(self._constraints):
-            self._convert_arrays(self._constraints[typevar])
+        for func_tv in list(self._constraints):
+            self._convert_arrays(self._constraints[func_tv])
+
+        for tv, tv_eq in self._equivalence.items():
+            if tv not in self.solution and tv_eq in self.solution:
+                self.solution[tv] = self.solution[tv_eq]
+
+    def get_tv_max_stack_size(self, tv: TypeVariable) -> int | None:
+        """
+        Get the potential maximum stack variable size of a given type variable, if any. Also considers other type
+        variables that are equivalent to the given type variable.
+        """
+
+        if tv in self.stackvar_max_sizes:
+            return self.stackvar_max_sizes[tv]
+        if tv in self._repr_tv_to_tvs:
+            for eq_tv in self._repr_tv_to_tvs[tv]:
+                if eq_tv in self.stackvar_max_sizes:
+                    return self.stackvar_max_sizes[eq_tv]
+        return None
+
+    def preprocess(self, func_tv: TypeVariable):
+        self._constraints[func_tv] |= self._eq_constraints_from_tvs(self._constraints[func_tv])
+        ptr_tvs = self._ptr_tvs_from_constraints(self._constraints[func_tv])
+        self._constraints[func_tv] = self._remove_alignment_int_ptr_subtyping_constraints(
+            self._constraints[func_tv], ptr_tvs
+        )
+        self._constraints[func_tv] |= self._eq_constraints_from_add(func_tv, ptr_tvs)
+        self._constraints[func_tv] |= self._eq_constraints_from_sub(func_tv, ptr_tvs)
+        self._constraints[func_tv] |= self._discover_equivalence(self._constraints[func_tv])
+        new_constraints, replacements = self._handle_equivalence(self._constraints[func_tv])
+        self._equivalence |= replacements
+        self._constraints[func_tv] = new_constraints
+        self._constraints[func_tv] = self._filter_constraints(self._constraints[func_tv])
 
     def solve(self):
         """
@@ -514,7 +576,7 @@ class SimpleSolver:
         By repeatedly solving until exhausting interesting type variables, we ensure the S-Trans rule is applied.
         """
 
-        prem_typevars = set(self._constraints) | self._typevars
+        prem_typevars = set(self._constraints) | next(iter(self._typevars.values()))
         typevars = set()
         for tv in prem_typevars:
             if tv not in self._equivalence:
@@ -580,6 +642,8 @@ class SimpleSolver:
             )
             self.eqclass_constraints_count.append(len(constraint_subset))
 
+            constraint_subset = self._drop_missized_constraints(tvs, constraint_subset)
+
             if len(constraint_subset) > self._constraint_set_degradation_threshold:
                 _l.debug(
                     "Constraint subset contains %d constraints, which is over the limit of %d. Enter degradation.",
@@ -590,7 +654,6 @@ class SimpleSolver:
                 _l.debug("Degraded constraint subset to %d constraints.", len(constraint_subset))
 
             while constraint_subset:
-
                 _l.debug("Working with %d constraints.", len(constraint_subset))
 
                 # remove constraints that are a <: b where a only appears once; in this case, the solution fo a is
@@ -719,6 +782,12 @@ class SimpleSolver:
             if isinstance(constraint, Subtype):
                 if self._typevar_inside_set(constraint.super_type, PRIMITIVE_TYPES) or self._typevar_inside_set(
                     constraint.sub_type, PRIMITIVE_TYPES
+                ):
+                    continue
+                if (
+                    isinstance(constraint.sub_type, TypeVariable)
+                    and isinstance(constraint.super_type, TypeVariable)
+                    and self._should_skip_unification(constraint.sub_type, constraint.super_type)
                 ):
                     continue
                 self._unify(equivalence_classes, constraint.super_type, constraint.sub_type, g)
@@ -864,6 +933,75 @@ class SimpleSolver:
                 sketch.add_edge(curr_node, ref_node, label)
 
     @staticmethod
+    def _get_base_and_indirection_level(
+        t: TypeVariable | DerivedTypeVariable,
+    ) -> tuple[TypeVariable, int]:
+        """
+        Get the base type variable and indirection level.
+
+        Indirection level is the number of Load/Store operations in the labels.
+        AddN/SubN (pointer arithmetic) does NOT increase indirection level.
+
+        Examples:
+            tv                      -> (tv, 0)
+            tv.+1                   -> (tv, 0)   # pointer arithmetic, same level
+            tv.store                -> (tv, 1)   # through pointer
+            tv.store.<32 bits>@0    -> (tv, 1)   # field access at level 1
+            tv.load.store.field     -> (tv, 2)   # two dereferences
+        """
+        if isinstance(t, DerivedTypeVariable):
+            base = t.type_var
+            level = sum(1 for lbl in t.labels if isinstance(lbl, (Load, Store)))
+            return base, level
+        return t, 0
+
+    @staticmethod
+    def _should_skip_unification(
+        sub_type: TypeVariable | DerivedTypeVariable,
+        super_type: TypeVariable | DerivedTypeVariable,
+    ) -> bool:
+        """
+        Check if unification should be skipped for a constraint sub_type <: super_type.
+
+        Returns True to skip unification, False to proceed with unification.
+
+        We skip unification in two cases:
+
+        1. Same base, different indirection levels:
+            tv <: tv.store.field         -> skip (preserve self-referential)
+
+        2. Different bases, TypeVariable unified with Store-derived (no Load):
+            tvA <: tvB.store.field       -> skip if tvB has Store but no Load
+            This prevents false struct creation when assigning between global variables.
+            e.g., `*(&c) = b` should not make `c` a struct pointer.
+
+        Do not skip (returns False):
+            tv1 <: tv2                   -> different bases, no Store
+            tv.store.f1 <: tv.store.f2   -> same base, same level
+            tv.store.field <: tv         -> derived <: base (self-referential struct)
+            tvA <: tvB.load.store.field  -> has Load (pointer dereference)
+        """
+        base_sub, level_sub = SimpleSolver._get_base_and_indirection_level(sub_type)
+        base_super, level_super = SimpleSolver._get_base_and_indirection_level(super_type)
+
+        # Case 1: Same base, different levels
+        if base_sub == base_super and level_sub != level_super:
+            return level_sub < level_super
+
+        # Case 2: Different bases
+        if (
+            base_sub != base_super
+            and isinstance(sub_type, TypeVariable)
+            and isinstance(super_type, DerivedTypeVariable)
+        ):
+            has_store = any(isinstance(lbl, Store) for lbl in super_type.labels)
+            has_load = any(isinstance(lbl, Load) for lbl in super_type.labels)
+            if has_store and not has_load:
+                return True
+
+        return False
+
+    @staticmethod
     def _unify(
         equivalence_classes: dict,
         cls0: TypeConstant | TypeVariable,
@@ -881,13 +1019,16 @@ class SimpleSolver:
             cls1_elems = {key for key, item in equivalence_classes.items() if item is cls1}
             existing_elements = cls0_elems | cls1_elems
             # pick a representative type variable and prioritize non-derived type variables
-            if not isinstance(cls0, DerivedTypeVariable):
+            if not isinstance(cls0, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls0
-            elif not isinstance(cls1, DerivedTypeVariable):
+            elif not isinstance(cls1, (DerivedTypeVariable, TypeConstant)):
                 rep_cls = cls1
             else:
                 rep_cls = next(
-                    iter(elem for elem in existing_elements if not isinstance(elem, DerivedTypeVariable)), cls0
+                    iter(
+                        elem for elem in existing_elements if not isinstance(elem, (DerivedTypeVariable, TypeConstant))
+                    ),
+                    cls0,
                 )
             for elem in existing_elements:
                 equivalence_classes[elem] = rep_cls
@@ -906,27 +1047,155 @@ class SimpleSolver:
                                 graph,
                             )
 
-    def _eq_constraints_from_add(self, typevar: TypeVariable):
+    @staticmethod
+    def _eq_constraints_from_tvs(type_constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        Generate more equivalence constraints based on known type variables.
+
+        Rules:
+        - tv == tv.+N
+        """
+        # discover as many type variables as possible
+        typevars = set()
+        for constraint in type_constraints:
+            if isinstance(constraint, Subtype):
+                for t in (constraint.sub_type, constraint.super_type):
+                    if isinstance(t, TypeVariable):
+                        typevars.add(t)
+            elif isinstance(constraint, Equivalence):
+                for t in (constraint.type_a, constraint.type_b):
+                    if isinstance(t, TypeVariable):
+                        typevars.add(t)
+            elif isinstance(constraint, (Add, Sub)):
+                for t in (constraint.type_0, constraint.type_1, constraint.type_r):
+                    if isinstance(t, TypeVariable):
+                        typevars.add(t)
+            elif isinstance(constraint, Existence):
+                t = constraint.type_
+                if isinstance(t, TypeVariable):
+                    typevars.add(t)
+
+        new_constraints = set()
+        tv_to_dtvs: defaultdict[TypeVariable, set[DerivedTypeVariable]] = defaultdict(set)
+        for tv in typevars:
+            if isinstance(tv, DerivedTypeVariable):
+                tv_to_dtvs[tv.type_var].add(tv)
+
+        for tv, dtvs in tv_to_dtvs.items():
+            for dtv in dtvs:
+                if isinstance(dtv.one_label(), (AddN, SubN)):
+                    new_constraints.add(Equivalence(tv, dtv))
+        return new_constraints
+
+    @staticmethod
+    def _ptr_tvs_from_constraints(constraints: set[TypeConstraint]) -> set[TypeVariable]:
+        """
+        Find TypeVariables that must be pointers (because they are dereferenced).
+
+        :param constraints:     Type constraints.
+        :return:                A set of TypeVariables that must be pointers.
+        """
+
+        ptr_tvs = set()
+        for constraint in constraints:
+            if isinstance(constraint, Subtype):
+                for t in (constraint.sub_type, constraint.super_type):
+                    if isinstance(t, DerivedTypeVariable) and isinstance(t.first_label(), (Store, Load)):
+                        ptr_tvs.add(t.type_var)
+
+        return ptr_tvs
+
+    @staticmethod
+    def _remove_alignment_int_ptr_subtyping_constraints(
+        constraints: set[TypeConstraint], ptr_tvs: set[TypeVariable]
+    ) -> set[TypeConstraint]:
+        """
+        Eliminate incorrect subtyping constraints between int and pointer type variables. Such constraints are usually
+        the result of pointer alignment.
+
+        For example:
+
+        ; msvcr120.dll, memmove, 0x18003C5FA
+        void* a1;
+        char* v21 = (char *)a1 + 32;
+        ((char*)(&v21))[last_byte] = (uint8_t)v21 & 0xF0;
+
+        Rules:
+        - tv_int <: tv_ptr  ==>  remove
+        """
+
+        if not ptr_tvs:
+            return constraints
+
+        new_constraints = set()
+        for constraint in constraints:
+            if isinstance(constraint, Subtype) and isinstance(constraint.sub_type, TypeConstant):
+                if isinstance(constraint.super_type, DerivedTypeVariable):
+                    if constraint.super_type.type_var in ptr_tvs:
+                        # tv_int <: tv_ptr
+                        continue
+                elif isinstance(constraint.super_type, TypeVariable) and constraint.super_type in ptr_tvs:
+                    # tv_int <: tv_ptr
+                    continue
+            new_constraints.add(constraint)
+        return new_constraints
+
+    def _eq_constraints_from_add(self, typevar: TypeVariable, ptr_tvs: set[TypeVariable]) -> set[TypeConstraint]:
         """
         Handle Add constraints.
+
+        Rules:
+        - tv_0 + tv_1 == tv_r ^ tv_0 is ptr ==> tv_r is ptr
+        - tv_0 + tv_1 == tv_r ^ tv_1 is ptr ==> tv_r is ptr
+        - tv_0 + tv_1.conv... == tv_r ^ tv_r is ptr ==> tv_0 is ptr
         """
+        if not ptr_tvs:
+            return set()
+
         new_constraints = set()
         for constraint in self._constraints[typevar]:
             if isinstance(constraint, Add):
-                if (
-                    isinstance(constraint.type_0, TypeVariable)
-                    and not isinstance(constraint.type_0, DerivedTypeVariable)
-                    and isinstance(constraint.type_r, TypeVariable)
-                    and not isinstance(constraint.type_r, DerivedTypeVariable)
-                ):
-                    new_constraints.add(Equivalence(constraint.type_0, constraint.type_r))
-                if (
-                    isinstance(constraint.type_1, TypeVariable)
-                    and not isinstance(constraint.type_1, DerivedTypeVariable)
-                    and isinstance(constraint.type_r, TypeVariable)
-                    and not isinstance(constraint.type_r, DerivedTypeVariable)
-                ):
-                    new_constraints.add(Equivalence(constraint.type_1, constraint.type_r))
+                t0, t1, tr = constraint.type_0, constraint.type_1, constraint.type_r
+                if not isinstance(t0, TypeConstant) and not isinstance(tr, TypeConstant) and t0 in ptr_tvs:
+                    new_constraints.add(Equivalence(t0, tr))
+                elif not isinstance(t1, TypeConstant) and not isinstance(tr, TypeConstant) and t1 in ptr_tvs:
+                    new_constraints.add(Equivalence(t1, tr))
+                elif not isinstance(tr, TypeConstant) and tr in ptr_tvs:
+                    if (
+                        not isinstance(t0, TypeConstant)
+                        and isinstance(t1, DerivedTypeVariable)
+                        and isinstance(t1.labels[-1], ConvertTo)
+                    ):
+                        new_constraints.add(Equivalence(t0, tr))
+                    elif (
+                        not isinstance(t1, TypeConstant)
+                        and isinstance(t0, DerivedTypeVariable)
+                        and isinstance(t0.labels[-1], ConvertTo)
+                    ):
+                        new_constraints.add(Equivalence(t1, tr))
+        return new_constraints
+
+    def _eq_constraints_from_sub(self, typevar: TypeVariable, ptr_tvs: set[TypeVariable]) -> set[TypeConstraint]:
+        """
+        Handle Sub constraints.
+
+        Rules:
+        - tv_0 - tv_1 == tv_r ^ tv_0 is ptr ==> tv_r is ptr
+        - tv_0 - tv_1 == tv_r ^ tv_r is ptr ==> tv_0 is ptr
+        """
+        if not ptr_tvs:
+            return set()
+
+        new_constraints = set()
+        for constraint in self._constraints[typevar]:
+            if (
+                isinstance(constraint, Sub)
+                and not isinstance(constraint.type_0, TypeConstant)
+                and not isinstance(constraint.type_r, TypeConstant)
+                and (constraint.type_0 in ptr_tvs or constraint.type_r in ptr_tvs)
+            ):
+                eq = Equivalence(constraint.type_0, constraint.type_r)
+                new_constraints.add(eq)
         return new_constraints
 
     @staticmethod
@@ -983,8 +1252,14 @@ class SimpleSolver:
                     graph.add_edge(ta, tb)
 
         for components in networkx.connected_components(graph):
-            components_lst = sorted(components, key=lambda x: str(x))  # pylint:disable=unnecessary-lambda
-            representative = components_lst[0]
+            components_lst = sorted(components, key=str)
+
+            tc = None
+            for tv in components_lst:
+                if tv in replacements and isinstance(replacements[tv], TypeConstant):
+                    tc = replacements[tv]
+                    break
+            representative = tc if tc is not None else components_lst[0]
             for tv in components_lst[1:]:
                 replacements[tv] = representative
 
@@ -997,6 +1272,16 @@ class SimpleSolver:
         # pprint.pprint(constraints)
 
         return constraints, replacements
+
+    @staticmethod
+    def _rewrite_typeconstant_with_replacements(
+        tc: TypeConstant, replacements: dict[TypeConstant, TypeConstant]
+    ) -> TypeConstant:
+        if isinstance(tc, (Pointer, Struct)):
+            if tc in replacements:
+                return replacements[tc]
+            return tc.replace(replacements)
+        return tc
 
     @staticmethod
     def _rewrite_constraints_with_replacements(
@@ -1142,6 +1427,40 @@ class SimpleSolver:
         self._equivalence |= replacements
         return degraded_constraints
 
+    @staticmethod
+    def _drop_missized_constraints(tvs: set[TypeVariable], constraints: set[TypeConstraint]) -> set[TypeConstraint]:
+        """
+        This is very much a hack - sometimes we get constraints about a type variable with conflicting sizes. We drop
+        the ones with determined, smaller sizes.
+        """
+
+        to_drop = set()
+        for tv in tvs:
+            tv_sizes = defaultdict(set)  # bytes -> set[TypeConstraint]
+            for constraint in constraints:
+                if isinstance(constraint, Subtype):
+                    if constraint.sub_type == tv and isinstance(constraint.super_type, DerivedTypeVariable):
+                        last_field = constraint.super_type.labels[-1]
+                        if isinstance(last_field, HasField):
+                            sz = last_field.bits if last_field.bits == MAX_POINTSTO_BITS else last_field.bits // 8
+                            tv_sizes[sz].add(constraint)
+                    elif isinstance(constraint.sub_type, (Int, Float)) and constraint.super_type == tv:
+                        if constraint.sub_type.SIZE is not None:
+                            tv_sizes[constraint.sub_type.SIZE].add(constraint)
+                    elif isinstance(constraint.super_type, (Int, Float)) and constraint.sub_type == tv:
+                        if constraint.super_type.SIZE is not None:
+                            tv_sizes[constraint.super_type.SIZE].add(constraint)
+
+            if not tv_sizes:
+                continue
+
+            max_size = MAX_POINTSTO_BITS if MAX_POINTSTO_BITS in tv_sizes else max(tv_sizes)
+            for size, cs in tv_sizes.items():
+                if size != max_size:
+                    to_drop |= cs
+
+        return constraints.difference(to_drop)
+
     def _convert_arrays(self, constraints):
         for constraint in constraints:
             if not isinstance(constraint, Existence):
@@ -1281,7 +1600,7 @@ class SimpleSolver:
 
         # initialize the reaching-push sets R(x)
         for x, y, data in graph.edges(data=True):
-            if "label" in data and data.get("label")[1] == "forget":  # type:ignore
+            if "label" in data and data.get("label")[1] == "forget":  # type: ignore
                 d = data["label"][0], x
                 R[y].add(d)
 
@@ -1362,6 +1681,8 @@ class SimpleSolver:
         if typevar in typevar_set:
             return True
         if isinstance(typevar, Struct) and Struct_ in typevar_set:
+            return True
+        if isinstance(typevar, Enum) and Enum_ in typevar_set:
             return True
         if isinstance(typevar, Array) and Array_ in typevar_set:
             return SimpleSolver._typevar_inside_set(typevar.element, typevar_set)
@@ -1461,6 +1782,8 @@ class SimpleSolver:
             return Pointer32()
         if isinstance(t, Pointer64):
             return Pointer64()
+        if isinstance(t, Enum):
+            return Enum_
         return t
 
     @staticmethod
@@ -1532,14 +1855,15 @@ class SimpleSolver:
         if len(cached_results) == 1:
             return next(iter(cached_results))
         if len(cached_results) > 1:
-            # we get nodes for multiple type variables?
-            raise RuntimeError("Getting nodes for multiple type variables. Unexpected.")
+            # too many results; return TOP
+            _l.warning("Getting multiple results when consulting the solution cache. Returning TOP.")
+            return Top_
 
         # collect all successors and the paths (labels) of this type variable
         path_and_successors = []
         last_labels = []
         for node in nodes:
-            path_and_successors += self._collect_sketch_paths(node, sketch)
+            path_and_successors += self._collect_sketchnode_successors_and_paths(node, sketch)
         for labels, _ in path_and_successors:
             if labels:
                 last_labels.append(labels[-1])
@@ -1609,7 +1933,7 @@ class SimpleSolver:
 
             # create a dummy result and shove it into the cache
             struct_type = Struct(fields={})
-            result = self._pointer_class()(struct_type)
+            ori_result = result = self._pointer_class()(struct_type)
             # print(f"Creating a struct type: {struct_type} for {the_typevar}")
             for node in nodes:
                 # print(f"... assigned it to {node.typevar}")
@@ -1620,6 +1944,7 @@ class SimpleSolver:
             fields = {}
 
             candidate_bases = SortedDict()
+            ptr_offs: set[int] = set()
 
             for labels, _succ in path_and_successors:
                 last_label = labels[-1] if labels else None
@@ -1630,6 +1955,10 @@ class SimpleSolver:
                     candidate_bases[last_label.offset].add(
                         1 if last_label.bits == MAX_POINTSTO_BITS else (last_label.bits // 8)
                     )
+                elif isinstance(last_label, AddN):
+                    ptr_offs.add(last_label.n)
+                elif isinstance(last_label, SubN):
+                    ptr_offs.add(-last_label.n)
 
             # determine possible bases and map each offset to its base
             offset_to_base = SortedDict()
@@ -1686,6 +2015,21 @@ class SimpleSolver:
                     sol = elem_type if array_size == elem_size else Array(elem_type, array_size // elem_size)
                 fields[offset] = sol
 
+            if len(fields) >= 2:
+                # we only trigger this logic when there are at least two identified fields, which means it's going to
+                # be either a struct or an array
+                # see TestDecompiler.test_simple_strcpy for an example with only one member in fields and a +1 access,
+                # due to ptr arithmetic
+                if any(off < 0 for off in ptr_offs):
+                    # we see references to negative offsets
+                    # we resolve this guy as a pointer to an Int8 type
+                    result = self._pointer_class()(Int8_)
+                else:
+                    for off in ptr_offs:
+                        if off not in fields:
+                            # missing field at this offset
+                            fields[off] = Int8_  # not sure how it's accessed
+
             if not fields:
                 result = Top_
                 for node in nodes:
@@ -1698,6 +2042,8 @@ class SimpleSolver:
                     repr_tv = equivalence_classes.get(node.typevar, node.typevar)
                     self._solution_cache[repr_tv] = result
                     solution[node.typevar] = result
+                    for tv in list(solution):
+                        solution[tv] = self._rewrite_typeconstant_with_replacements(solution[tv], {ori_result: result})
             else:
                 # back-patch
                 struct_type.fields = fields
@@ -1735,9 +2081,11 @@ class SimpleSolver:
         return result
 
     @staticmethod
-    def _collect_sketch_paths(node: SketchNodeBase, sketch: Sketch) -> list[tuple[list[BaseLabel], SketchNodeBase]]:
+    def _collect_sketchnode_successors_and_paths(
+        node: SketchNodeBase, sketch: Sketch
+    ) -> list[tuple[list[BaseLabel], SketchNodeBase]]:
         """
-        Collect all paths that go from `typevar` to its leaves.
+        Collect all paths that go from `node` to its immediate next successors, following Load/Store labels.
         """
         paths = []
         visited: set[SketchNodeBase] = set()

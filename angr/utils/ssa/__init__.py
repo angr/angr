@@ -1,13 +1,16 @@
 from __future__ import annotations
-from collections import defaultdict
-from collections.abc import Callable
 from typing import Any, Literal, overload
+from collections import defaultdict
+from collections.abc import Callable, Iterable
 
 import networkx
 
 import archinfo
-from angr.ailment import Expression, Block, UnaryOp
+from angr.ailment import Expression, Block, Address
 from angr.ailment.expression import (
+    Convert,
+    Extract,
+    Insert,
     VirtualVariable,
     Const,
     Phi,
@@ -17,15 +20,17 @@ from angr.ailment.expression import (
     StackBaseOffset,
     DirtyExpression,
     ITE,
+    UnaryOp,
 )
-from angr.ailment.statement import Statement, Assignment, Call, Store, CAS
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.expression import Call
+from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement
+from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms
-from angr.code_location import CodeLocation
+from angr.code_location import AILCodeLocation
 from .vvar_uses_collector import VVarUsesCollector
 from .tmp_uses_collector import TmpUsesCollector
-
+from .vvar_extra_defs_collector import FindExtraDefs
 
 DEPHI_VVAR_REG_OFFSET = 4096
 
@@ -93,33 +98,42 @@ def get_reg_offset_base(reg_offset, arch, size=None, resilient=True):
 
 def get_vvar_deflocs(
     blocks, phi_vvars: dict[int, set[int | None]] | None = None
-) -> dict[int, tuple[VirtualVariable, CodeLocation]]:
-    vvar_to_loc: dict[int, tuple[VirtualVariable, CodeLocation]] = {}
+) -> dict[int, tuple[VirtualVariable, AILCodeLocation]]:
+    vvar_to_loc: dict[int, tuple[VirtualVariable, AILCodeLocation]] = {}
+    walker = FindExtraDefs()
+    walker.found = vvar_to_loc
     for block in blocks:
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable):
-                vvar_to_loc[stmt.dst.varid] = stmt.dst, CodeLocation(
-                    block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                vvar_to_loc[stmt.dst.varid] = (
+                    stmt.dst,
+                    AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                 )
                 if phi_vvars is not None and isinstance(stmt.src, Phi):
                     phi_vvars[stmt.dst.varid] = {
                         vvar_.varid if vvar_ is not None else None for src, vvar_ in stmt.src.src_and_vvars
                     }
-            elif isinstance(stmt, Call):
+            elif isinstance(stmt, SideEffectStatement):
                 if isinstance(stmt.ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.ret_expr.varid] = stmt.ret_expr, CodeLocation(
-                        block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                    vvar_to_loc[stmt.ret_expr.varid] = (
+                        stmt.ret_expr,
+                        AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
                 if isinstance(stmt.fp_ret_expr, VirtualVariable):
-                    vvar_to_loc[stmt.fp_ret_expr.varid] = stmt.fp_ret_expr, CodeLocation(
-                        block.addr, stmt_idx, ins_addr=stmt.ins_addr, block_idx=block.idx
+                    vvar_to_loc[stmt.fp_ret_expr.varid] = (
+                        stmt.fp_ret_expr,
+                        AILCodeLocation(block.addr, block.idx, stmt_idx, stmt.tags.get("ins_addr")),
                     )
+
+            if extra_defs := stmt.tags.get("extra_defs", None):
+                walker.walk_statement(stmt, block, stmt_idx)
+                assert all(varid in vvar_to_loc for varid in extra_defs), "extra_def tag was dropped"
 
     return vvar_to_loc
 
 
-def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, CodeLocation]]]:
-    vvar_to_loc: dict[int, list[tuple[VirtualVariable, CodeLocation]]] = defaultdict(list)
+def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, AILCodeLocation]]]:
+    vvar_to_loc: dict[int, list[tuple[VirtualVariable, AILCodeLocation]]] = defaultdict(list)
     for block in blocks:
         collector = VVarUsesCollector()
         collector.walk(block)
@@ -131,11 +145,11 @@ def get_vvar_uselocs(blocks) -> dict[int, list[tuple[VirtualVariable, CodeLocati
     return vvar_to_loc
 
 
-def get_tmp_deflocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, int]]:
-    tmp_to_loc: dict[CodeLocation, dict[atoms.Tmp, int]] = defaultdict(dict)
+def get_tmp_deflocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, int]]:
+    tmp_to_loc: dict[Address, dict[atoms.Tmp, int]] = defaultdict(dict)
 
     for block in blocks:
-        codeloc = CodeLocation(block.addr, None, block_idx=block.idx)
+        codeloc = (block.addr, block.idx)
         for stmt_idx, stmt in enumerate(block.statements):
             if isinstance(stmt, Assignment) and isinstance(stmt.dst, Tmp):
                 tmp_to_loc[codeloc][atoms.Tmp(stmt.dst.tmp_idx, stmt.dst.bits)] = stmt_idx
@@ -148,13 +162,13 @@ def get_tmp_deflocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, int]]:
     return tmp_to_loc
 
 
-def get_tmp_uselocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]]:
-    tmp_to_loc: dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
+def get_tmp_uselocs(blocks: Iterable[Block]) -> dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]]:
+    tmp_to_loc: dict[Address, dict[atoms.Tmp, set[tuple[Tmp, int]]]] = defaultdict(dict)
 
     for block in blocks:
         collector = TmpUsesCollector()
         collector.walk(block)
-        block_loc = CodeLocation(block.addr, None, block_idx=block.idx)
+        block_loc = (block.addr, block.idx)
         for (tmp_idx, tmp_bits), tmp_and_stmtids in collector.tmp_and_uselocs.items():
             if tmp_idx not in tmp_to_loc[block_loc]:
                 tmp_to_loc[block_loc][atoms.Tmp(tmp_idx, tmp_bits)] = tmp_and_stmtids
@@ -164,13 +178,15 @@ def get_tmp_uselocs(blocks) -> dict[CodeLocation, dict[atoms.Tmp, set[tuple[Tmp,
     return tmp_to_loc
 
 
-def is_const_assignment(stmt: Statement) -> tuple[bool, Const | StackBaseOffset | None]:
-    if isinstance(stmt, Assignment) and isinstance(stmt.src, (Const, StackBaseOffset)):
+def is_const_assignment(stmt: Statement, only_consts: bool = False) -> tuple[bool, Const | StackBaseOffset | None]:
+    if isinstance(stmt, Assignment) and (
+        isinstance(stmt.src, Const) or (not only_consts and isinstance(stmt.src, StackBaseOffset))
+    ):
         return True, stmt.src
     return False, None
 
 
-class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
+class AILBlacklistExprTypeWalker(AILBlockViewer):
     """
     Walks an AIL expression or statement and determines if it does not contain certain types of expressions.
     """
@@ -204,7 +220,7 @@ class AILBlacklistExprTypeWalker(AILBlockWalkerBase):
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
     def _handle_VirtualVariable(
-        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement | None, block: Block | None
     ):
         if self.skip_if_contains_vvar is not None and expr.varid == self.skip_if_contains_vvar:
             self._has_specified_vvar = True
@@ -281,7 +297,7 @@ def has_tmp_expr(expr: Expression) -> bool:
     return walker.has_blacklisted_exprs
 
 
-class AILReferenceFinder(AILBlockWalkerBase):
+class AILReferenceFinder(AILBlockViewer):
     """
     Walks an AIL expression or statement and finds if it contains references to certain expressions.
     """
@@ -291,7 +307,9 @@ class AILReferenceFinder(AILBlockWalkerBase):
         self.vvar_id = vvar_id
         self.has_references_to_vvar = False
 
-    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None) -> Any:
+    def _handle_UnaryOp(
+        self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement | None, block: Block | None
+    ) -> Any:
         if expr.op == "Reference" and isinstance(expr.operand, VirtualVariable) and expr.operand.varid == self.vvar_id:
             self.has_references_to_vvar = True
             return None
@@ -304,21 +322,34 @@ def has_reference_to_vvar(stmt: Statement, vvar_id: int) -> bool:
     return walker.has_references_to_vvar
 
 
+def stmt_is_simple_call(stmt: Statement) -> Call | None:
+    if isinstance(stmt, SideEffectStatement):
+        return stmt.expr if isinstance(stmt.expr, Call) else None
+    if not isinstance(stmt, Assignment):
+        return None
+    src = stmt.src
+    while True:
+        if isinstance(src, Call):
+            return src
+        if isinstance(src, Convert):
+            src = src.operand
+        elif isinstance(src, Extract):
+            src = src.base
+        elif isinstance(src, Insert):
+            src = src.value
+        else:
+            return None
+
+
 def check_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
-    defloc: CodeLocation,
-    useloc: CodeLocation,
+    defloc: AILCodeLocation,
+    useloc: AILCodeLocation,
     predicate: Callable,
 ):
-    assert defloc.block_addr is not None
-    assert defloc.stmt_idx is not None
-    assert useloc.block_addr is not None
-    assert useloc.stmt_idx is not None
-    assert graph is not None
-
-    use_block = blocks[(useloc.block_addr, useloc.block_idx)]
-    def_block = blocks[(defloc.block_addr, defloc.block_idx)]
+    use_block = blocks[(useloc.addr, useloc.block_idx)]
+    def_block = blocks[(defloc.addr, defloc.block_idx)]
 
     # traverse the graph, go from use_block until we reach def_block, and look for Store statements
     seen = {use_block}
@@ -348,7 +379,10 @@ def check_in_between_stmts(
 
 
 def has_store_stmt_in_between_stmts(
-    graph: networkx.DiGraph, blocks: dict[tuple[int, int | None], Block], defloc: CodeLocation, useloc: CodeLocation
+    graph: networkx.DiGraph,
+    blocks: dict[tuple[int, int | None], Block],
+    defloc: AILCodeLocation,
+    useloc: AILCodeLocation,
 ) -> bool:
     return check_in_between_stmts(graph, blocks, defloc, useloc, lambda stmt: isinstance(stmt, Store))
 
@@ -356,13 +390,12 @@ def has_store_stmt_in_between_stmts(
 def has_call_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
-    defloc: CodeLocation,
-    useloc: CodeLocation,
+    defloc: AILCodeLocation,
+    useloc: AILCodeLocation,
     skip_if_contains_vvar: int | None = None,
 ) -> bool:
-
     def _contains_call(stmt: Statement) -> bool:
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             return True
         # walk the statement and check if there is a call expression
         walker = AILBlacklistExprTypeWalker((Call,), skip_if_contains_vvar=skip_if_contains_vvar)
@@ -375,8 +408,8 @@ def has_call_in_between_stmts(
 def has_load_expr_in_between_stmts(
     graph: networkx.DiGraph,
     blocks: dict[tuple[int, int | None], Block],
-    defloc: CodeLocation,
-    useloc: CodeLocation,
+    defloc: AILCodeLocation,
+    useloc: AILCodeLocation,
     skip_if_contains_vvar: int | None = None,
 ) -> bool:
     return check_in_between_stmts(
@@ -384,10 +417,19 @@ def has_load_expr_in_between_stmts(
     )
 
 
-def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None) -> bool:
+def is_vvar_propagatable(vvar: VirtualVariable, def_stmt: Statement | None, stack_arg_offsets: set[int] | None) -> bool:
     if vvar.was_tmp or vvar.was_reg or vvar.was_parameter:
+        if isinstance(def_stmt, Assignment):
+            # do not create huge insert chains
+            return not isinstance(def_stmt.src, Insert)
         return True
-    if vvar.was_stack and isinstance(def_stmt, Assignment):  # noqa:SIM102
+    if vvar.was_stack and isinstance(def_stmt, Assignment):
+        if (
+            stack_arg_offsets is not None
+            and vvar.stack_offset in stack_arg_offsets
+            and not isinstance(def_stmt.src, Phi)
+        ):
+            return True
         if (
             isinstance(def_stmt.src, VirtualVariable)
             and def_stmt.src.was_stack

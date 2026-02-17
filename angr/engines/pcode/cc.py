@@ -15,7 +15,6 @@ from angr.calling_conventions import (
     SimCCO32,
 )
 
-
 l = logging.getLogger(__name__)
 
 
@@ -27,7 +26,7 @@ class SimCCPCodeBase(SimCC):
     LANGUAGE = None
 
     @classmethod
-    def ARCH(cls):  # type:ignore
+    def ARCH(cls):  # type: ignore
         assert cls.LANGUAGE is not None
         return ArchPcode(cls.LANGUAGE)
 

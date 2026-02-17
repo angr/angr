@@ -3,17 +3,25 @@ from __future__ import annotations
 import pathlib
 import copy
 from types import FunctionType
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from collections.abc import Iterable
 import logging
 
 import networkx
-import angr.ailment as ailment
 
 import angr
+from angr import ailment
+from angr.ailment.block import Block
 from angr.analyses.decompiler.counters.call_counter import AILBlockCallCounter
+from angr.analyses.decompiler.peephole_optimizations.base import (
+    PeepholeOptimizationExprBase,
+    PeepholeOptimizationMultiStmtBase,
+)
 from angr.utils.ail import is_phi_assignment
 from .seq_to_blocks import SequenceToBlocks
+
+if TYPE_CHECKING:
+    from angr.ailment import Address
 
 _l = logging.getLogger(__name__)
 
@@ -371,12 +379,12 @@ def switch_extract_bitwiseand_jumptable_info(last_stmt: ailment.Stmt.Jump) -> tu
                 masks = {0x1, 0x3, 0x7, 0xF, 0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF}
                 if isinstance(expr.operands[1], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[1].value  # type:ignore
+                    ub = expr.operands[1].value  # type: ignore
                     index_expr = expr
                     break
                 if isinstance(expr.operands[0], ailment.Expr.Const) and expr.operands[1].value in masks:
                     lb = 0
-                    ub = expr.operands[0].value  # type:ignore
+                    ub = expr.operands[0].value  # type: ignore
                     index_expr = expr
                     break
                 return None
@@ -477,7 +485,7 @@ def insert_node(parent, insert_location: str, node, node_idx: int, label=None):
             parent.default_node = seq
         else:
             raise TypeError(
-                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, ' f"default."
+                f'Unsupported label value "{label}". Must be one of the following: switch_expr, case, default.'
             )
     elif isinstance(parent, LoopNode):
         if label == "condition":
@@ -496,8 +504,8 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     in_edges = list(graph.in_edges(node_a, data=True))
     out_edges = list(graph.out_edges(node_b, data=True))
 
-    a_ogs = graph.nodes[node_a].get("original_nodes", set())
-    b_ogs = graph.nodes[node_b].get("original_nodes", set())
+    a_ogs = graph.nodes[node_a].get("original_nodes", [])
+    b_ogs = graph.nodes[node_b].get("original_nodes", [])
     new_node = node_a.copy() if node_a.addr <= node_b.addr else node_b.copy()
     old_node = node_b if new_node == node_a else node_a
     # remove jumps in the middle of nodes when merging
@@ -510,7 +518,7 @@ def _merge_ail_nodes(graph, node_a: ailment.Block, node_b: ailment.Block) -> ail
     graph.remove_node(node_b)
 
     if new_node is not None:
-        graph.add_node(new_node, original_nodes=a_ogs.union(b_ogs))
+        graph.add_node(new_node, original_nodes=a_ogs + b_ogs)
         for src, _, data in in_edges:
             if src is node_b:
                 src = new_node
@@ -535,7 +543,7 @@ def to_ail_supergraph(transition_graph: networkx.DiGraph, allow_fake=False) -> n
     """
     # make a copy of the graph
     transition_graph = networkx.DiGraph(transition_graph)
-    networkx.set_node_attributes(transition_graph, {node: {node} for node in transition_graph.nodes}, "original_nodes")
+    networkx.set_node_attributes(transition_graph, {node: [node] for node in transition_graph.nodes}, "original_nodes")
 
     while True:
         for src, dst, data in transition_graph.edges(data=True):
@@ -682,7 +690,7 @@ def add_labels(graph: networkx.DiGraph):
     new_graph = networkx.DiGraph()
     nodes_map = {}
     for node in graph:
-        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", node.addr, block_idx=node.idx)
+        lbl = ailment.Stmt.Label(None, f"LABEL_{node.addr:x}", ins_addr=node.addr, block_idx=node.idx)
         node_copy = node.copy()
         node_copy.statements = [lbl, *node_copy.statements]
         nodes_map[node] = node_copy
@@ -775,7 +783,7 @@ def structured_node_is_simple_return(
         last_block = node
 
     valid_last_stmt = last_block is not None
-    if valid_last_stmt and last_block.statements:
+    if last_block is not None and last_block.statements:
         valid_last_stmt = not isinstance(last_block.statements[-1], (ailment.Stmt.ConditionalJump, ailment.Stmt.Jump))
 
     if use_packed_successors:
@@ -812,9 +820,9 @@ def structured_node_is_simple_return_strict(node: BaseNode | SequenceNode | Mult
 def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bool:
     if isinstance(stmt, ailment.Stmt.Return):
         return True
-    if isinstance(stmt, ailment.Stmt.Call) and isinstance(stmt.target, ailment.Expr.Const):
+    if isinstance(stmt, ailment.Stmt.SideEffectStatement) and isinstance(stmt.expr.target, ailment.Expr.Const):
         # is it calling a non-returning function?
-        target_func_addr = stmt.target.value
+        target_func_addr = stmt.expr.target.value
         try:
             func = functions.get_by_addr(target_func_addr)
             return func.returning is False
@@ -823,58 +831,66 @@ def is_statement_terminating(stmt: ailment.statement.Statement, functions) -> bo
     return False
 
 
-def peephole_optimize_exprs(block, expr_opts):
-    class _any_update:
-        """
-        Local temporary class used as a container for variable `v`.
-        """
+class _PeepholeExprsWalker(ailment.AILBlockRewriter):
+    """
+    Walker to apply peephole optimizers (1)
+    """
 
-        v = False
+    def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
+        self.expr_opts = expr_opts
+        self.any_update = False
+
+        super().__init__(*args, **kwargs)
 
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
-    ) -> ailment.Expr.Expression | None:
+        self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expression:
         # process the expr
-        processed = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-
-        if processed is not None:
-            expr = processed
+        expr = super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
         old_expr = expr
 
         redo = True
         while redo:
             redo = False
-            for expr_opt in expr_opts:
+            for expr_opt in self.expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
                     r = expr_opt.optimize(expr, stmt_idx=stmt_idx, block=block)
                     if r is not None and r is not expr:
+                        assert expr.bits == r.bits
                         expr = r
                         redo = True
                         break
 
         if expr is not old_expr:
-            _any_update.v = True
+            self.any_update = True
 
         return expr
 
+
+def peephole_optimize_exprs(block, expr_opts):
     # run expression optimizers
-    walker = ailment.AILBlockWalker()
-    walker._handle_expr = _handle_expr
+    walker = _PeepholeExprsWalker(expr_opts=expr_opts)
     walker.walk(block)
+    return walker.any_update
 
-    return _any_update.v
 
+class _PeepholeExprWalker(ailment.AILBlockRewriter):
+    """
+    Walker to apply peephole optimizers (2)
+    """
 
-def peephole_optimize_expr(expr, expr_opts):
+    def __init__(self, *args, expr_opts: list[PeepholeOptimizationExprBase], **kwargs):
+        self.expr_opts = expr_opts
+
+        super().__init__(*args, **kwargs)
+
     def _handle_expr(
-        expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
-    ) -> ailment.Expr.Expression | None:
-        old_expr = expr
-
+        self, expr_idx: int, expr: ailment.Expr.Expression, stmt_idx: int, stmt: ailment.Stmt.Statement | None, block
+    ) -> ailment.Expression:
         redo = True
         while redo:
             redo = False
-            for expr_opt in expr_opts:
+            for expr_opt in self.expr_opts:
                 if isinstance(expr, expr_opt.expr_classes):
                     r = expr_opt.optimize(expr)
                     if r is not None and r is not expr:
@@ -882,20 +898,17 @@ def peephole_optimize_expr(expr, expr_opts):
                         redo = True
                         break
 
-        if expr is not old_expr:
-            # continue to process the expr
-            r = ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
-            return expr if r is None else r
+        # continue to process the expr
+        return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
-        return ailment.AILBlockWalker._handle_expr(walker, expr_idx, expr, stmt_idx, stmt, block)
 
+def peephole_optimize_expr(expr: ailment.Expression, expr_opts: list[PeepholeOptimizationExprBase]):
     # run expression optimizers
-    walker = ailment.AILBlockWalker()
-    walker._handle_expr = _handle_expr
-    return walker._handle_expr(0, expr, 0, None, None)
+    walker = _PeepholeExprWalker(expr_opts=expr_opts)
+    return walker.walk_expression(expr, 0, None, None)
 
 
-def copy_graph(graph: networkx.DiGraph):
+def copy_graph(graph: networkx.DiGraph[Block]) -> networkx.DiGraph[Block]:
     """
     Copy AIL Graph.
 
@@ -964,7 +977,7 @@ def match_stmt_classes(all_stmts: list, idx: int, stmt_class_seq: Iterable[type]
     return True
 
 
-def peephole_optimize_multistmts(block, stmt_opts):
+def peephole_optimize_multistmts(block, stmt_opts: list[PeepholeOptimizationMultiStmtBase]):
     any_update = False
     statements = block.statements[::]
 
@@ -1014,6 +1027,10 @@ def decompile_functions(
     show_casts: bool = True,
     base_address: int | None = None,
     preset: str | None = None,
+    cca: bool = False,
+    cca_callsites: bool = True,
+    llm: bool = False,
+    progressbar: bool = False,
 ) -> str:
     """
     Decompile a binary into a set of functions.
@@ -1039,8 +1056,9 @@ def decompile_functions(
     if base_address is not None:
         loader_main_opts_kwargs["base_addr"] = base_address
     proj = angr.Project(path, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
-    cfg = proj.analyses.CFG(normalize=True, data_references=True)
-    proj.analyses.CompleteCallingConventions(recover_variables=True, analyze_callsites=True)
+    cfg = proj.analyses.CFG(normalize=True, data_references=True, show_progressbar=progressbar)
+    if cca:
+        proj.analyses.CompleteCallingConventions(analyze_callsites=cca_callsites, show_progressbar=progressbar)
 
     # collect all functions when None are provided
     if functions is None:
@@ -1071,6 +1089,8 @@ def decompile_functions(
         (PARAM_TO_OPTION["structurer_cls"], structurer),
         (PARAM_TO_OPTION["show_casts"], show_casts),
     ]
+    if llm:
+        dec_options.append(("llm_refine", True))
     for func in functions:
         f = cfg.functions[func]
         if f is None or f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure:
@@ -1078,23 +1098,20 @@ def decompile_functions(
 
         exception_string = ""
         if not catch_errors:
-            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
+            dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar)
         else:
             try:
                 # TODO: add a timeout
-                dec = proj.analyses.Decompiler(f, cfg=cfg, options=dec_options, preset=preset)
+                dec = proj.analyses.Decompiler(
+                    f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar, fail_fast=True
+                )
             except Exception as e:
                 exception_string = str(e).replace("\n", " ")
                 dec = None
 
         # do sanity checks on decompilation, skip checks if we already errored
-        if not exception_string:
-            if dec is None or not dec.codegen or not dec.codegen.text:
-                exception_string = "Decompilation had no code output (failed in decompilation)"
-            elif "{\n}" in dec.codegen.text:
-                exception_string = "Decompilation outputted an empty function (failed in structuring)"
-            elif structurer in ["dream", "combing"] and "goto" in dec.codegen.text:
-                exception_string = "Decompilation outputted a goto for a Gotoless algorithm (failed in structuring)"
+        if not exception_string and (dec is None or not dec.codegen or not dec.codegen.text):
+            exception_string = "Decompilation had no code output (failed in decompilation)"
 
         if exception_string:
             _l.critical("Failed to decompile %s because %s", repr(f), exception_string)
@@ -1109,26 +1126,55 @@ def decompile_functions(
     return decompilation
 
 
-def calls_in_graph(graph: networkx.DiGraph) -> int:
+def calls_in_graph(graph: networkx.DiGraph, consider_conditions: bool = False) -> int:
     """
-    Counts the number of calls in an graph full of AIL Blocks
+    Counts the number of calls in a graph full of AIL Blocks
     """
-    counter = AILBlockCallCounter()
+    counter = AILBlockCallCounter(consider_conditions=consider_conditions)
     for node in graph.nodes:
         counter.walk(node)
 
     return counter.calls
 
 
-def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False):
+def call_stmts_in_graph(
+    graph: networkx.DiGraph, consider_conditions: bool = False
+) -> tuple[
+    list[tuple[tuple[Address, int], ailment.Stmt.SideEffectStatement]],
+    list[tuple[tuple[Address, int], ailment.Expr.Call]],
+]:
+    """
+    Return lists of call statements and call expressions in a given AIL graph.
+    """
+    counter = AILBlockCallCounter(consider_conditions=consider_conditions)
+    for node in graph.nodes:
+        counter.walk(node)
+    # the above has an interface which includes nullable addresses because block can be none
+    # but we always specify block here so we can ignore the Nones
+    return counter.call_stmts, counter.call_exprs  # type: ignore
+
+
+def has_addr_dups(graph: networkx.DiGraph[Block]) -> bool:
+    return len({block.addr for block in graph}) != len(graph)
+
+
+def find_block_by_addr(graph: networkx.DiGraph, addr, insn_addr=False) -> ailment.Block:
     for block in graph.nodes():
         if insn_addr:
             for stmt in block.statements:
-                if "ins_addr" in stmt.tags and stmt.ins_addr == addr:
+                if "ins_addr" in stmt.tags and stmt.tags["ins_addr"] == addr:
                     return block
         else:
             if block.addr == addr:
                 return block
+
+    raise ValueError("The block is not in the graph!")
+
+
+def find_block_by_addr_and_idx(graph: networkx.DiGraph, addr: int, idx: int | None) -> ailment.Block:
+    for block in graph.nodes():
+        if block.addr == addr and block.idx == idx:
+            return block
 
     raise ValueError("The block is not in the graph!")
 

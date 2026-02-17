@@ -52,8 +52,7 @@ def get_function_name(s):
 
 def register_kernel_types():
     register_types(
-        parse_types(
-            """
+        parse_types("""
     typedef int mode_t;
     typedef unsigned int umode_t;
     typedef int clockid_t;
@@ -67,8 +66,7 @@ def register_kernel_types():
     typedef uint64_t u64;
     typedef int32_t __s32;
     typedef int64_t loff_t;
-    """
-        )
+    """)
     )
 
 
@@ -195,6 +193,33 @@ def cprotos2py(cprotos: list[str], fd_spots=frozenset(), remove_sys_prefix=False
     return parsedcprotos2py(parsed_cprotos, fd_spots=fd_spots, remove_sys_prefix=remove_sys_prefix)
 
 
+def get_cpp_function_name_and_metadata(demangled_name: str) -> tuple[str, dict[str, bool]]:
+    """
+    Parse a demangled C++ declaration into a function name.
+
+    Note that the extracted name may include template instantiation, for example:
+
+        example_func<int>
+
+    :param demangled_name: The demangled C++ function name.
+    :return:               The qualified function name, excluding return type and parameters, and a dictionary with
+                           keys indicating if the function is a constructor or a destructor.
+    """
+    demangled_name = demangled_name.strip()
+    func_decls, _ = parse_cpp_file(demangled_name)
+    d = {"ctor": False, "dtor": False}
+    if func_decls and len(func_decls) == 1:
+        key = next(iter(func_decls))
+        decl = func_decls[key]
+        if isinstance(decl, SimTypeCppFunction):
+            if decl.ctor:
+                d["ctor"] = True
+            elif decl.dtor:
+                d["dtor"] = True
+        return key, d
+    return normalize_cpp_function_name(demangled_name), d
+
+
 def get_cpp_function_name(demangled_name: str) -> str:
     """
     Parse a demangled C++ declaration into a function name.
@@ -206,8 +231,4 @@ def get_cpp_function_name(demangled_name: str) -> str:
     :param demangled_name: The demangled C++ function name.
     :return:               The qualified function name, excluding return type and parameters.
     """
-    demangled_name = demangled_name.strip()
-    func_decls, _ = parse_cpp_file(demangled_name)
-    if func_decls and len(func_decls) == 1:
-        return next(iter(func_decls))
-    return normalize_cpp_function_name(demangled_name)
+    return get_cpp_function_name_and_metadata(demangled_name)[0]

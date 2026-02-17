@@ -11,7 +11,6 @@ import angr
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 arches = {"mips", "mipsel", "mips64", "x86_64", "ppc", "ppc64"}
@@ -20,16 +19,16 @@ arches = {"mips", "mipsel", "mips64", "x86_64", "ppc", "ppc64"}
 class TestSyscallResult(unittest.TestCase):
     @staticmethod
     def run_test_syscalls(binary):
-        p = angr.Project(binary, exclude_sim_procedures_list=["ioctl"])
+        p = angr.Project(binary, exclude_sim_procedures_list=["ioctl"], auto_load_libs=True)
         p.simos.syscall_library.procedures.pop("ioctl", None)
 
         s = p.factory.entry_state()
 
         simgr = p.factory.simulation_manager(thing=s)
         simgr.run()
-        assert (
-            len(simgr.deadended) == 2
-        ), "for these architectures, libc checks if the bit is set. make sure it branches"
+        assert len(simgr.deadended) == 2, (
+            "for these architectures, libc checks if the bit is set. make sure it branches"
+        )
 
     def test_syscalls(self):
         for arch in arches:

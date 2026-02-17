@@ -15,7 +15,6 @@ import angr
 
 from tests.common import bin_location, print_decompilation_result, WORKER
 
-
 test_location = os.path.join(bin_location, "tests")
 
 l = logging.Logger(__name__)
@@ -37,17 +36,17 @@ class TestPartialRegReads(unittest.TestCase):
 
         # the variable used in the condition `if (v28 > 4)` (within the do-while loop) must be properly assigned before
         # the loop; so we should expect two assignments to this variable in the decompilation
-        cond = re.search(r"if \((?P<var>v\d+) > 4\)", dec.codegen.text)
+        cond = re.search(r"if \((?P<var>\w+) > 4\)", dec.codegen.text)
         assert cond is not None
         var_name = cond.group("var")
 
         # also find the unicode variable on the stack
-        unicode_var = re.search(r"UNICODE_STRING (?P<var>v\d+);", dec.codegen.text)
+        unicode_var = re.search(r"UNICODE_STRING (?P<var>\w+);  // \[bp-0x50\]", dec.codegen.text)
         assert unicode_var is not None
         unicode_var_name = unicode_var.group("var")
 
         # let's build a graph of assignments
-        g = networkx.DiGraph()
+        g = networkx.MultiDiGraph()
         for match in re.finditer(r"(?P<dst>\S+) = (?P<src>\S+)[;,]", dec.codegen.text):
             dst = match.group("dst")
             src = match.group("src")
@@ -59,9 +58,9 @@ class TestPartialRegReads(unittest.TestCase):
         # there should be two paths from var_name to unicode_var_name.Length, which represents two different
         # assignments (one before the do-while loop, one at the end of the do-while loop).
         simple_paths = list(networkx.all_simple_paths(g, var_name, f"{unicode_var_name}.Length"))
-        assert (
-            len(simple_paths) == 2
-        ), f"Expect two assignments to {var_name} from {unicode_var_name}.Length; found {len(simple_paths)}"
+        assert len(simple_paths) == 2, (
+            f"Expect two assignments to {var_name} from {unicode_var_name}.Length; found {len(simple_paths)}"
+        )
 
 
 if __name__ == "__main__":

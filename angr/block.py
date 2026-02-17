@@ -122,6 +122,48 @@ class CapstoneInsn(DisassemblerInsn):
         raise AttributeError
 
 
+class PCodeBlock(DisassemblerBlock):
+    """
+    Deep copy of the pcode blocks
+    """
+
+    __slots__ = ()
+
+
+class PCodeInsn(DisassemblerInsn):
+    """
+    Represents a capstone instruction.
+    """
+
+    __slots__ = ("insn",)
+
+    def __init__(self, pcode_insn):
+        self.insn = pcode_insn
+
+    @property
+    def size(self) -> int:
+        return self.insn.length
+
+    @property
+    def address(self) -> int:
+        return self.insn.addr.offset
+
+    @property
+    def mnemonic(self) -> str:
+        return self.insn.mnem
+
+    @property
+    def op_str(self) -> str:
+        return self.insn.body
+
+    def __getattr__(self, item):
+        if item in ("__str__", "__repr__"):
+            return self.__getattribute__(item)
+        if hasattr(self.insn, item):
+            return getattr(self.insn, item)
+        raise AttributeError
+
+
 class Block(Serializable):
     """
     Represents a basic block in a binary or a program.
@@ -144,6 +186,7 @@ class Block(Serializable):
         "_load_from_ro_regions",
         "_max_size",
         "_opt_level",
+        "_pcode",
         "_project",
         "_strict_block_end",
         "_traceflags",
@@ -212,6 +255,7 @@ class Block(Serializable):
         self._vex_nostmt = None
         self._disassembly = None
         self._capstone = None
+        self._pcode = None
         self._collect_data_refs = collect_data_refs
         self._strict_block_end = strict_block_end
         self._cross_insn_opt = cross_insn_opt
@@ -250,7 +294,7 @@ class Block(Serializable):
                 if type(self._bytes) is memoryview:
                     self._bytes = bytes(self._bytes)
                 elif type(self._bytes) is not bytes:
-                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))  # type:ignore
+                    self._bytes = bytes(pyvex.ffi.buffer(self._bytes, size))  # type: ignore
             else:
                 self._bytes = None
         elif type(byte_string) is bytes:
@@ -261,7 +305,7 @@ class Block(Serializable):
         else:
             # Convert bytestring to a str
             # size will ALWAYS be known at this point
-            self._bytes = bytes(pyvex.ffi.buffer(byte_string, self.size))  # type:ignore
+            self._bytes = bytes(pyvex.ffi.buffer(byte_string, self.size))  # type: ignore
 
     def _parse_vex_info(self, vex_block):
         if vex_block is not None:
@@ -318,7 +362,7 @@ class Block(Serializable):
     def _vex_engine(self) -> VEXLifter | PcodeLifterEngineMixin:
         if self._project is None:
             raise ValueError("Project is not set")
-        return self._project.factory.default_engine  # type:ignore
+        return self._project.factory.default_engine  # type: ignore
 
     def _lift_nocache(self, skip_stmts: bool) -> IRSB | PcodeIRSB:
         clemory = None
@@ -388,7 +432,7 @@ class Block(Serializable):
         """
         if self._disassembly is None:
             if self._using_pcode_engine:
-                self._disassembly = self.vex.disassembly  # type:ignore
+                self._disassembly = self.vex.disassembly  # type: ignore
             else:
                 self._disassembly = self.capstone
         return self._disassembly
@@ -398,18 +442,36 @@ class Block(Serializable):
         if self._capstone:
             return self._capstone
 
-        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb  # type:ignore
+        cs = self.arch.capstone if not self.thumb else self.arch.capstone_thumb  # type: ignore
 
         insns = []
 
         block_bytes = self.bytes
         if self.size is not None:
-            block_bytes = block_bytes[: self.size]
+            block_bytes = block_bytes[: self.size]  # type: ignore
         for cs_insn in cs.disasm(block_bytes, self.addr):
             insns.append(CapstoneInsn(cs_insn))
         block = CapstoneBlock(self.addr, insns, self.thumb, self.arch)
 
         self._capstone = block
+        return block
+
+    @property
+    def pcode(self) -> PCodeBlock:
+        if self._pcode:
+            return self._pcode
+
+        insns = []
+
+        block_bytes = self.bytes
+        if self.size is not None:
+            block_bytes = block_bytes[: self.size]  # type: ignore
+        lifter = pcode.lifter.PcodeLifter.get_lifter(self.arch)  # type: ignore
+        for cs_insn in lifter.context.disassemble(block_bytes, self.addr).instructions:
+            insns.append(PCodeInsn(cs_insn))
+        block = PCodeBlock(self.addr, insns, self.thumb, self.arch)
+
+        self._pcode = block
         return block
 
     @property
@@ -454,7 +516,8 @@ class Block(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.Block()  # pylint: disable=no-member
+        # pylint: disable=no-member
+        return pb2.Block()  # type: ignore
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -465,7 +528,7 @@ class Block(Serializable):
         return obj
 
     @classmethod
-    def parse_from_cmessage(cls, cmsg):
+    def parse_from_cmessage(cls, cmsg, **kwargs):
         return cls(
             cmsg.ea,
             size=cmsg.size,
@@ -488,7 +551,7 @@ class SootBlock:
     def _soot_engine(self) -> SootMixin:
         if self._project is None:
             assert False, "This should be unreachable"
-        return self._project.factory.default_engine  # type:ignore
+        return self._project.factory.default_engine  # type: ignore
 
     @property
     def soot(self):

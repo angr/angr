@@ -17,9 +17,8 @@ from . import Analysis
 from .cfg.cfg_emulated import CFGEmulated
 from .ddg import DDG
 from .cfg.cfg_fast import CFGFast
-from angr.codenode import CodeNode
+from angr.codenode import CodeNode, FuncNode
 from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-from angr.knowledge_plugins.functions import Function
 from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimTemporaryVariable
 
@@ -1150,9 +1149,15 @@ class Procedure:
                 # we need to fix the "add e{a,b,c}x, offset" instruction right after the get_pc call
                 # first let's identify which function is the get_pc function
                 for src, dst, _data in self.function.transition_graph.edges(data=True):
-                    if isinstance(src, CodeNode) and isinstance(dst, Function) and "get_pc" in dst.info:
-                        # found it!
-                        x86_getpc_retsites.add(src.addr + src.size)
+                    if (
+                        isinstance(src, CodeNode)
+                        and isinstance(dst, FuncNode)
+                        and self.project.kb.functions.contains_addr(dst.addr)
+                    ):
+                        dst_func = self.project.kb.functions.get_by_addr(dst.addr)
+                        if "get_pc" in dst_func.info:
+                            # found it!
+                            x86_getpc_retsites.add(src.addr + src.size)
             for block_addr in self.function.block_addrs:
                 b = BasicBlock(
                     self.binary,
@@ -1975,9 +1980,7 @@ class Reassembler(Analysis):
         proc = Procedure(self, name=name, asm_code=asm_code)
         self.procedures.append(proc)
 
-    def append_data(
-        self, name, initial_content, size, readonly=False, sort="unknown"
-    ):  # pylint:disable=unused-argument
+    def append_data(self, name, initial_content, size, readonly=False, sort="unknown"):  # pylint:disable=unused-argument
         """
         Append a new data entry into the binary with specific name, content, and size.
 
@@ -2312,10 +2315,15 @@ class Reassembler(Analysis):
             callees = [
                 node
                 for node in init_func.transition_graph.nodes()
-                if isinstance(node, Function) and node.addr != self.cfg._unresolvable_call_target_addr
+                if isinstance(node, FuncNode) and node.addr != self.cfg._unresolvable_call_target_addr
+            ]
+            callee_funcs = [
+                self.cfg.functions.get_by_addr(callee.addr)
+                for callee in callees
+                if self.cfg.functions.contains_addr(callee.addr)
             ]
             # special handling for GCC-generated X86 PIE binaries
-            non_getpc_callees = [callee for callee in callees if "get_pc" not in callee.info]
+            non_getpc_callees = [callee for callee in callee_funcs if "get_pc" not in callee.info]
             if len(non_getpc_callees) == 1:
                 # we found the _init_proc
                 _init_proc = non_getpc_callees[0]
@@ -2445,7 +2453,7 @@ class Reassembler(Analysis):
 
         l.debug("Creating data entries...")
         for addr, memory_data in cfg._memory_data.items():
-            if memory_data.sort in ("code reference",):
+            if memory_data.sort == "code reference":
                 continue
 
             if memory_data.sort == "string":
@@ -2467,7 +2475,7 @@ class Reassembler(Analysis):
                     None,
                 )
 
-                if section is not None and section.name not in (".note.gnu.build-id",):  # ignore certain section names
+                if section is not None and section.name != ".note.gnu.build-id":  # ignore certain section names
                     data = Data(self, memory_data, section=section)
                     self.data.append(data)
                 elif memory_data.sort == "segment-boundary":
@@ -2699,9 +2707,7 @@ class Reassembler(Analysis):
 
         return "cgc-package-list", data_size
 
-    def _cgc_extended_application_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _cgc_extended_application_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Identifies the extended application (a PDF file) associated with the CGC binary.
 
@@ -2743,9 +2749,7 @@ class Reassembler(Analysis):
 
         return "cgc-extended-application", max_size
 
-    def _unknown_data_size_handler(
-        self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size
-    ):  # pylint:disable=unused-argument
+    def _unknown_data_size_handler(self, cfg, irsb, irsb_addr, stmt_idx, data_addr, max_size):  # pylint:disable=unused-argument
         """
         Return the maximum number of bytes until a potential pointer or a potential sequence is found.
 

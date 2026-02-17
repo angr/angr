@@ -7,14 +7,16 @@ from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
-import angr.ailment as ailment
 
+from angr import ailment
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_base import KnowledgeBase
 from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
+from angr.sim_type import parse_type
+from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
@@ -70,16 +72,28 @@ class Decompiler(Analysis):
         inline_functions=None,
         desired_variables=None,
         update_memory_data: bool = True,
+        want_full_graph: bool = False,
         generate_code: bool = True,
         use_cache: bool = True,
         expr_collapse_depth: int = 16,
         clinic_graph=None,
         clinic_arg_vvars=None,
         clinic_start_stage=None,
+        clinic_end_stage=None,
+        clinic_skip_stages=(),
+        static_vvars: dict | None = None,
+        static_buffers: dict | None = None,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
         self.func: Function = func
+        if self.func.evicted:
+            l.warning(
+                "The Function instance %r has been evicted. Pass in a non-evicted Function instance or the "
+                "function address instead to avoid unexpected decompilation output caused by using out-dated "
+                "data.",
+                func,
+            )
 
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
@@ -111,9 +125,12 @@ class Decompiler(Analysis):
         self._binop_operators = binop_operators
         self._regen_clinic = regen_clinic
         self._update_memory_data = update_memory_data
+        self._want_full_graph = want_full_graph
         self._generate_code = generate_code
         self._inline_functions = frozenset(inline_functions) if inline_functions else set()
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
+        self._static_vvars = static_vvars if static_vvars is not None else {}
+        self._static_buffers = static_buffers if static_buffers is not None else {}
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -130,6 +147,8 @@ class Decompiler(Analysis):
                 "binop_operators": self._binop_operators,
                 "inline_functions": self._inline_functions,
                 "desired_variables": self._desired_variables,
+                "static_vvars": self._static_vvars,
+                "static_buffers": self._static_buffers,
             }
             if use_cache
             else None
@@ -139,6 +158,8 @@ class Decompiler(Analysis):
         self._clinic_graph = clinic_graph
         self._clinic_arg_vvars = clinic_arg_vvars
         self._clinic_start_stage = clinic_start_stage
+        self._clinic_end_stage = clinic_end_stage
+        self._clinic_skip_stages = clinic_skip_stages
         self.codegen: CStructuredCodeGenerator | None = None
         self.cache: DecompilationCache | None = None
         self.options_by_class = None
@@ -150,6 +171,7 @@ class Decompiler(Analysis):
         self._optimization_scratch: dict[str, Any] = {}
         self.expr_collapse_depth = expr_collapse_depth
         self.notes: dict[str, DecompilationNote] = {}
+        self.region_identifier = None
 
         if decompile:
             with self._resilience():
@@ -160,7 +182,7 @@ class Decompiler(Analysis):
                 for error in self.errors:
                     self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
-                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.")
+                    l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
                     if preset != DECOMPILATION_PRESETS["basic"]:
                         self._optimization_passes = DECOMPILATION_PRESETS["basic"].get_optimization_passes(
                             self.project.arch, self.project.simos.name
@@ -287,7 +309,11 @@ class Decompiler(Analysis):
                 ail_graph=self._clinic_graph,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
+                end_stage=self._clinic_end_stage,
+                skip_stages=self._clinic_skip_stages,
                 notes=self.notes,
+                static_vvars=self._static_vvars,
+                static_buffers=self._static_buffers,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -324,23 +350,24 @@ class Decompiler(Analysis):
         delay_graph_updates = any(
             pass_.STAGE == OptimizationPassStage.DURING_REGION_IDENTIFICATION for pass_ in self._optimization_passes
         )
-        ri = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
+        self.region_identifier = self._recover_regions(clinic.graph, cond_proc, update_graph=not delay_graph_updates)
 
         self._update_progress(73.0, text="Running region-simplification passes")
 
         # run optimizations that may require re-RegionIdentification
-        clinic.graph, ri = self._run_region_simplification_passes(
+        clinic.graph, self.region_identifier = self._run_region_simplification_passes(
             clinic.graph,
-            ri,
+            self.region_identifier,
             clinic.reaching_definitions,
             ite_exprs=ite_exprs,
             arg_vvars=set(clinic.arg_vvars),
             edges_to_remove=clinic.edges_to_remove,
         )
 
-        # finally (no more graph-based simplifications will run in the future), we can remove the edges that should be
-        # removed!
-        remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
+        if not self._want_full_graph:
+            # finally (no more graph-based simplifications will run in the future),
+            # we can remove the edges that should be removed!
+            remove_edges_in_ailgraph(clinic.graph, clinic.edges_to_remove)
 
         # save the graph before structuring happens (for AIL view)
         clinic.cc_graph = clinic.copy_graph()
@@ -349,12 +376,15 @@ class Decompiler(Analysis):
         seq_node = None
         # in the event that the decompiler is used without code generation as the target, we should avoid all
         # heavy analysis that is used only for the purpose of code generation
-        if self._generate_code:
+        # we also do not want to run structurer if clinic stopped before variable recovery
+        if self._generate_code and (
+            self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES
+        ):
             self._update_progress(75.0, text="Structuring code")
 
             # structure it
             rs = self.project.analyses[RecursiveStructurer].prep(kb=self.kb, fail_fast=self._fail_fast)(
-                ri.region,
+                self.region_identifier.region,
                 cond_proc=cond_proc,
                 func=self.func,
                 **self._recursive_structurer_params,
@@ -362,12 +392,17 @@ class Decompiler(Analysis):
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
+            # Get variable manager for loop counter naming in RegionSimplifier
+            variable_manager = None
+            if clinic.variable_kb is not None and self.func.addr in clinic.variable_kb.variables:
+                variable_manager = clinic.variable_kb.variables[self.func.addr]
             s = self.project.analyses.RegionSimplifier(
                 self.func,
                 rs.result,
                 arg_vvars=set(self.clinic.arg_vvars),
                 kb=self.kb,
                 fail_fast=self._fail_fast,
+                variable_manager=variable_manager,
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result
@@ -382,27 +417,27 @@ class Decompiler(Analysis):
             if self._cfg is not None and self._update_memory_data:
                 self.find_data_references_and_update_memory_data(seq_node)
 
-            self._update_progress(85.0, text="Generating code")
-            codegen = self.project.analyses.StructuredCodeGenerator(
-                self.func,
-                seq_node,
-                cfg=self._cfg,
-                ail_graph=clinic.graph,
-                flavor=self._flavor,
-                func_args=clinic.arg_list,
-                kb=self.kb,
-                fail_fast=self._fail_fast,
-                variable_kb=clinic.variable_kb,
-                expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
-                stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
-                const_formats=old_codegen.const_formats if old_codegen is not None else None,
-                externs=clinic.externs,
-                binop_depth_cutoff=self.expr_collapse_depth,
-                notes=self.notes,
-                **self.options_to_params(self.options_by_class["codegen"]),
-            )
+            if self._clinic_end_stage is None or self._clinic_end_stage >= ClinicStage.RECOVER_VARIABLES:
+                self._update_progress(85.0, text="Generating code")
+                codegen = self.project.analyses.StructuredCodeGenerator(
+                    self.func,
+                    seq_node,
+                    cfg=self._cfg,
+                    ail_graph=clinic.graph,
+                    flavor=self._flavor,
+                    func_args=clinic.arg_list,
+                    kb=self.kb,
+                    fail_fast=self._fail_fast,
+                    variable_kb=clinic.variable_kb,
+                    expr_comments=old_codegen.expr_comments if old_codegen is not None else None,
+                    stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
+                    const_formats=old_codegen.const_formats if old_codegen is not None else None,
+                    externs=clinic.externs,
+                    binop_depth_cutoff=self.expr_collapse_depth,
+                    notes=self.notes,
+                    **self.options_to_params(self.options_by_class["codegen"]),
+                )
 
-        self._update_progress(90.0, text="Finishing up")
         self.seq_node = seq_node
         self.codegen = codegen
         # save a copy of the AIL graph that is optimized but not modified by region identification
@@ -410,6 +445,17 @@ class Decompiler(Analysis):
         self.cache.codegen = codegen
         self.cache.clinic = self.clinic
 
+        # LLM refinement pass
+        if self.codegen is not None and self.options_by_class is not None:
+            llm_opts = self.options_to_params(self.options_by_class.get("decompiler", []))
+            if llm_opts.get("llm_refine", False):
+                self._update_progress(90.0, text="LLM refinement")
+                try:
+                    self.llm_refine()
+                except Exception:  # pylint:disable=broad-exception-caught
+                    l.warning("LLM refinement failed", exc_info=True)
+
+        self._update_progress(95.0, text="Finishing up")
         self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
 
@@ -459,8 +505,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -520,8 +568,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 blocks_by_addr=addr_to_blocks,
                 blocks_by_addr_and_idx=addr_and_idx_to_blocks,
                 graph=ail_graph,
@@ -565,8 +615,10 @@ class Decompiler(Analysis):
                 continue
 
             pass_ = timethis(pass_)
+            assert self.clinic is not None
             a = pass_(
                 self.func,
+                self.clinic._ail_manager,
                 seq=seq_node,
                 scratch=self._optimization_scratch,
                 peephole_optimizations=self._peephole_optimizations,
@@ -582,10 +634,12 @@ class Decompiler(Analysis):
         for symbol in self.project.loader.main_object.symbols:
             if symbol.type == SymbolType.TYPE_OBJECT:
                 ident = global_variables.next_variable_ident("global")
+                variable = SimMemoryVariable(symbol.rebased_addr, symbol.size or 1, name=symbol.name, ident=ident)
+                variable.renamed = True
                 global_variables.set_variable(
                     "global",
                     symbol.rebased_addr,
-                    SimMemoryVariable(symbol.rebased_addr, 1, name=symbol.name, ident=ident),
+                    variable,
                 )
 
     def reflow_variable_types(self, cache: DecompilationCache):
@@ -698,7 +752,7 @@ class Decompiler(Analysis):
             const_values.add(expr.value)
 
         def _handle_block(block: ailment.Block, **kwargs):  # pylint:disable=unused-argument
-            block_walker = ailment.AILBlockWalkerBase(
+            block_walker = ailment.AILBlockViewer(
                 expr_handlers={
                     ailment.Expr.Const: _handle_Const,
                 }
@@ -746,6 +800,261 @@ class Decompiler(Analysis):
             self.func, seq_node, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
         )
         return dephication.output
+
+    def llm_refine(self) -> bool:
+        """
+        Use the configured LLM to suggest improved variable names, function names, and variable types.
+        Returns True if any changes were made.
+        """
+        if self.codegen is None:
+            l.warning("llm_refine: no codegen available")
+            return False
+
+        llm_client = self.project.llm_client
+        if llm_client is None:
+            l.warning("llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client.")
+            return False
+
+        code_text = self.codegen.text
+        if not code_text:
+            l.warning("llm_refine: no decompiled text available")
+            return False
+
+        changed = False
+        changed |= self.llm_suggest_variable_names(llm_client=llm_client, code_text=code_text)
+        changed |= self.llm_suggest_function_name(llm_client=llm_client, code_text=code_text)
+        changed |= self.llm_suggest_variable_types(llm_client=llm_client, code_text=code_text)
+
+        if changed:
+            self.codegen.regenerate_text()
+
+        self.llm_summarize_function(llm_client=llm_client, code_text=self.codegen.text)
+
+        return changed
+
+    def llm_suggest_variable_names(self, llm_client=None, code_text: str | None = None) -> bool:
+        """
+        Ask the LLM to suggest better variable names for the decompiled code.
+        Returns True if any variables were renamed.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        # collect unified variables
+        varman = self._variable_kb.variables[self.func.addr]
+        unified_vars = varman.get_unified_variables(sort=None)
+
+        # also collect argument variables
+        arg_vars = []
+        if self.codegen and self.codegen.cfunc and self.codegen.cfunc.arg_list:
+            for cvar in self.codegen.cfunc.arg_list:
+                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                if v not in unified_vars:
+                    arg_vars.append(v)
+
+        all_vars = unified_vars + arg_vars
+        if not all_vars:
+            return False
+
+        var_names = [v.name or str(v) for v in all_vars]
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, suggest better, "
+            "more descriptive variable names. Return ONLY a JSON object mapping old variable names to new names. "
+            "Only include variables that you want to rename. Use snake_case naming convention.\n\n"
+            f"Current variable names: {var_names}\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            'Respond with ONLY a JSON object like: {"old_name": "new_name", ...}'
+        )
+
+        result = llm_client.completion_json([{"role": "user", "content": prompt}])
+        if not result or not isinstance(result, dict):
+            return False
+
+        # build name-to-variable lookup
+        name_to_var = {}
+        for v in all_vars:
+            key = v.name or str(v)
+            name_to_var[key] = v
+
+        changed = False
+        for old_name, new_name in result.items():
+            if not isinstance(new_name, str) or not new_name:
+                continue
+            var = name_to_var.get(old_name)
+            if var is None:
+                continue
+            if old_name == new_name:
+                continue
+            var.name = new_name
+            var.renamed = True
+            changed = True
+            l.info("LLM renamed variable %s -> %s", old_name, new_name)
+
+        return changed
+
+    def llm_suggest_function_name(self, llm_client=None, code_text: str | None = None) -> bool:
+        """
+        Ask the LLM to suggest a better function name.
+        Only suggests rename for auto-generated names (starting with 'sub_' or 'fcn.').
+        Returns True if the function was renamed.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        if not self.func.is_default_name:
+            return False
+        current_name = self.func.name
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, suggest a descriptive "
+            "function name that reflects what the function does. Use snake_case naming convention.\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            'Respond with ONLY a JSON object like: {"function_name": "descriptive_name"}'
+        )
+
+        result = llm_client.completion_json([{"role": "user", "content": prompt}])
+        if not result or not isinstance(result, dict):
+            return False
+
+        new_name = result.get("function_name")
+        if not isinstance(new_name, str) or not new_name or new_name == current_name:
+            return False
+
+        l.info("LLM renamed function %s -> %s", current_name, new_name)
+        self.func.name = new_name
+        self.func.is_default_name = False
+        if self.codegen and self.codegen.cfunc:
+            self.codegen.cfunc.name = new_name
+
+        return True
+
+    def llm_suggest_variable_types(self, llm_client=None, code_text: str | None = None) -> bool:
+        """
+        Ask the LLM to suggest better C types for variables.
+        Returns True if any variable types were changed.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            return False
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            return False
+
+        varman = self._variable_kb.variables[self.func.addr]
+        unified_vars = varman.get_unified_variables(sort=None)
+
+        if not unified_vars:
+            return False
+
+        # build current type info
+        var_type_info = {}
+        for v in unified_vars:
+            name = v.name or str(v)
+            current_type = varman.get_variable_type(v)
+            var_type_info[name] = str(current_type) if current_type else "unknown"
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code and the current "
+            "variable types, suggest better C types for the variables. Return ONLY a JSON object mapping "
+            "variable names to their suggested C type strings. Only include variables whose types you want "
+            "to change.\n\n"
+            f"Current variable types: {var_type_info}\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            'Respond with ONLY a JSON object like: {"var_name": "int *", ...}'
+        )
+
+        result = llm_client.completion_json([{"role": "user", "content": prompt}])
+        if not result or not isinstance(result, dict):
+            return False
+
+        # build name-to-variable lookup
+        name_to_var = {}
+        for v in unified_vars:
+            key = v.name or str(v)
+            name_to_var[key] = v
+
+        changed = False
+        for var_name, type_str in result.items():
+            if not isinstance(type_str, str) or not type_str:
+                continue
+            var = name_to_var.get(var_name)
+            if var is None:
+                continue
+            try:
+                new_type = parse_type(type_str, arch=self.project.arch)
+            except Exception:  # pylint:disable=broad-exception-caught
+                l.debug("LLM suggested unparseable type '%s' for %s", type_str, var_name)
+                continue
+
+            varman.set_variable_type(var, new_type, mark_manual=True, all_unified=True)
+            changed = True
+            l.info("LLM changed type of %s to %s", var_name, type_str)
+
+        if changed and self.codegen:
+            self.codegen.reload_variable_types()
+
+        return changed
+
+    def llm_summarize_function(self, llm_client=None, code_text: str | None = None) -> str | None:
+        """
+        Ask the LLM to produce a natural-language summary of what the decompiled function does.
+        The summary is stored in the DecompilationCache and returned.
+
+        Returns the summary string, or None if summarization failed.
+        """
+        if llm_client is None:
+            llm_client = self.project.llm_client
+        if llm_client is None:
+            l.warning("llm_summarize_function: no LLM client configured.")
+            return None
+        if code_text is None:
+            code_text = self.codegen.text if self.codegen else None
+        if not code_text:
+            l.warning("llm_summarize_function: no decompiled text available.")
+            return None
+
+        prompt = (
+            "You are a reverse engineering assistant. Given the following decompiled C code, write a concise "
+            "natural-language summary of what the function does. Focus on the function's purpose, its inputs "
+            "and outputs, and any important side effects. Keep the summary to a short paragraph.\n\n"
+            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
+            "Respond with ONLY the summary text, no extra formatting."
+        )
+
+        try:
+            summary = llm_client.completion([{"role": "user", "content": prompt}])
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("llm_summarize_function: LLM call failed", exc_info=True)
+            return None
+
+        if not summary or not isinstance(summary, str):
+            return None
+
+        summary = summary.strip()
+        if not summary:
+            return None
+
+        l.info("LLM generated function summary for %s", self.func.name)
+
+        if self.cache is not None:
+            self.cache.function_summary = summary
+
+        return summary
 
     @staticmethod
     def options_to_params(options: list[tuple[DecompilationOption, Any]]) -> dict[str, Any]:

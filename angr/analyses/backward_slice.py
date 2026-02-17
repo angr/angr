@@ -12,7 +12,6 @@ from angr.annocfg import AnnotatedCFG
 from angr.errors import AngrBackwardSlicingError
 from angr.utils.constants import DEFAULT_STATEMENT
 
-
 l = logging.getLogger(name=__name__)
 
 

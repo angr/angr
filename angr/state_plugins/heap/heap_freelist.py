@@ -4,7 +4,6 @@ from . import SimHeapLibc
 from .utils import concretize
 from angr.errors import SimHeapError
 
-
 l = logging.getLogger("angr.state_plugins.heap.heap_freelist")
 
 

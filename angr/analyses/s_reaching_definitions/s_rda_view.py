@@ -6,7 +6,7 @@ from collections.abc import Callable
 from collections import defaultdict
 
 from angr.ailment import Block
-from angr.ailment.statement import Statement, Assignment, Call, Label
+from angr.ailment.statement import Statement, Assignment, Label, SideEffectStatement
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, Expression
 
 from angr.utils.ail import is_phi_assignment
@@ -31,7 +31,7 @@ class RegVVarPredicate:
         self.vvars = vvars
         self.arch = arch
 
-    def _get_call_clobbered_regs(self, stmt: Call) -> set[int]:
+    def _get_call_clobbered_regs(self, stmt: SideEffectStatement) -> set[int]:
         if isinstance(stmt.target, str):
             # pseudo calls do not clobber any registers
             return set()
@@ -59,7 +59,7 @@ class RegVVarPredicate:
             if stmt.dst not in self.vvars:
                 self.vvars.append(stmt.dst)
             return True
-        if isinstance(stmt, Call):
+        if isinstance(stmt, SideEffectStatement):
             if (
                 isinstance(stmt.ret_expr, VirtualVariable)
                 and stmt.ret_expr.was_reg
@@ -226,8 +226,8 @@ class SRDAView:
                     starting_stmt_idx = stmt_idx
                 continue
 
-            if (op_type == ObservationPointType.OP_BEFORE and stmt.ins_addr == addr) or (
-                op_type == ObservationPointType.OP_AFTER and stmt.ins_addr > addr
+            if (op_type == ObservationPointType.OP_BEFORE and stmt.tags["ins_addr"] == addr) or (
+                op_type == ObservationPointType.OP_AFTER and stmt.tags["ins_addr"] > addr
             ):
                 starting_stmt_idx = stmt_idx
                 break
@@ -296,17 +296,20 @@ class SRDAView:
 
             last_insn_addr = None
             for stmt_idx, stmt in enumerate(block.statements):
-                if last_insn_addr != stmt.ins_addr:
+                if last_insn_addr != stmt.tags["ins_addr"]:
                     # observe
                     if last_insn_addr in insn_ops and insn_ops[last_insn_addr] == ObservationPointType.OP_AFTER:
                         observations[("insn", last_insn_addr, ObservationPointType.OP_AFTER)] = copy.deepcopy(
                             reg2vvarid
                         )
-                    if stmt.ins_addr in insn_ops and insn_ops[stmt.ins_addr] == ObservationPointType.OP_BEFORE:
+                    if (
+                        stmt.tags["ins_addr"] in insn_ops
+                        and insn_ops[stmt.tags["ins_addr"]] == ObservationPointType.OP_BEFORE
+                    ):
                         observations[("insn", last_insn_addr, ObservationPointType.OP_BEFORE)] = copy.deepcopy(
                             reg2vvarid
                         )
-                    last_insn_addr = stmt.ins_addr
+                    last_insn_addr = stmt.tags["ins_addr"]
 
                 stmt_key = (block.addr, block.idx), stmt_idx
                 if stmt_key in stmt_ops and stmt_ops[stmt_key] == ObservationPointType.OP_BEFORE:
@@ -317,7 +320,11 @@ class SRDAView:
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}
                     reg2vvarid[base_offset][stmt.dst.size] = stmt.dst.varid
-                elif isinstance(stmt, Call) and isinstance(stmt.ret_expr, VirtualVariable) and stmt.ret_expr.was_reg:
+                elif (
+                    isinstance(stmt, SideEffectStatement)
+                    and isinstance(stmt.ret_expr, VirtualVariable)
+                    and stmt.ret_expr.was_reg
+                ):
                     base_offset = get_reg_offset_base(stmt.ret_expr.reg_offset, self.model.arch)
                     if base_offset not in reg2vvarid:
                         reg2vvarid[base_offset] = {}

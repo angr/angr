@@ -39,7 +39,6 @@ from .structurer_nodes import (
 )
 from .structurer_base import StructurerBase
 
-
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 
@@ -576,7 +575,7 @@ class DreamStructurer(StructurerBase):
         if switch_end_addr is not None:
             self._switch_handle_gotos(cases, node_default, switch_end_addr)
 
-        assert last_stmt.ins_addr is not None
+        assert last_stmt.tags["ins_addr"] is not None
         self._make_switch_cases_core(
             seq,
             i,
@@ -584,7 +583,7 @@ class DreamStructurer(StructurerBase):
             cmp_expr,
             cases,
             node_default,
-            last_stmt.ins_addr,
+            last_stmt.tags["ins_addr"],
             addr2nodes,
             to_remove,
             node_a=node_a,

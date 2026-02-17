@@ -9,7 +9,7 @@ from angr.ailment.expression import Const, ITE, Expression
 from angr.analyses import ReachingDefinitionsAnalysis
 from angr.code_location import CodeLocation
 from angr.analyses.decompiler.region_walker import RegionWalker
-from angr.analyses.decompiler.ail_simplifier import AILBlockWalker
+from angr.analyses.decompiler.ail_simplifier import AILBlockRewriter
 from angr.analyses.decompiler.condition_processor import ConditionProcessor
 from angr.analyses.decompiler.structuring.structurer_nodes import EmptyBlockNotice
 from .optimization_pass import OptimizationPass, OptimizationPassStage
@@ -46,7 +46,7 @@ class BlockLocator(RegionWalker):
             raise NodeFoundNotification
 
 
-class ExpressionReplacer(AILBlockWalker):
+class ExpressionReplacer(AILBlockRewriter):
     """
     Replace expressions.
     """
@@ -61,7 +61,7 @@ class ExpressionReplacer(AILBlockWalker):
         self, expr_idx: int, expr: Expression, stmt_idx: int, stmt: Statement | None, block: AILBlock | None
     ) -> Any:
         if expr == self._target_expr:
-            return self._callback(self._block_addr, stmt_idx, stmt.ins_addr, expr)
+            return self._callback(self._block_addr, stmt_idx, stmt.tags["ins_addr"], expr)
         return super()._handle_expr(expr_idx, expr, stmt_idx, stmt, block)
 
 
@@ -75,13 +75,12 @@ class ITEExprConverter(OptimizationPass):
     PLATFORMS = ["windows", "linux", "cgc"]
     STAGE = OptimizationPassStage.DURING_REGION_IDENTIFICATION
     NAME = (
-        "Transform single-use expressions that were assigned to in different "
-        "If-Else branches into ternary expressions"
+        "Transform single-use expressions that were assigned to in different If-Else branches into ternary expressions"
     )
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, ite_exprs=None, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, *args, ite_exprs=None, **kwargs):
+        super().__init__(*args, **kwargs)
         self._ite_exprs = ite_exprs
 
         if self._ite_exprs:
@@ -204,9 +203,9 @@ class ITEExprConverter(OptimizationPass):
             cond,
             expr_1,
             expr_0,
-            ins_addr=expr_0.ins_addr,
-            vex_block_addr=expr_0.vex_block_addr,
-            vex_stmt_idx=expr_0.vex_stmt_idx,
+            ins_addr=expr_0.tags["ins_addr"],
+            vex_block_addr=expr_0.tags["vex_block_addr"],
+            vex_stmt_idx=expr_0.tags["vex_stmt_idx"],
         )
 
         # remove the two assignments

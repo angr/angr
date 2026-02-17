@@ -5,16 +5,18 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing_extensions import override
+from typing import cast
 
 import pypcode
-from archinfo import Arch, ArchPcode, Endness, ArchARMCortexM
+from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
+from typing_extensions import override
 
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.syscall import SimEngineSyscall
-from angr.rustylib.icicle import Icicle, VmExit, ExceptionCode
+from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
+from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 
 log = logging.getLogger(__name__)
 
@@ -53,17 +55,8 @@ class IcicleEngine(ConcreteEngine):
 
     For a more complete implementation, use the UberIcicleEngine class, which
     intends to provide a more complete set of features, such as hooks and syscalls.
+
     """
-
-    breakpoints: set[int]
-
-    def __init__(self, *args, **kwargs):
-        """
-        Initialize the IcicleEngine. This sets up the breakpoints set and
-        initializes the parent class.
-        """
-        super().__init__(*args, **kwargs)
-        self.breakpoints = set()
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -189,9 +182,10 @@ class IcicleEngine(ConcreteEngine):
         )
 
         # 3. Copy edge hitmap
-        edge_hitmap = state.history.last_edge_hitmap
-        if edge_hitmap is not None:
-            emu.edge_hitmap = edge_hitmap
+        if state.has_plugin("edge_hitmap"):
+            hitmap_plugin = cast(SimStateEdgeHitmap, state.get_plugin("edge_hitmap"))
+            if hitmap_plugin.edge_hitmap is not None:
+                emu.edge_hitmap = hitmap_plugin.edge_hitmap
 
         return (emu, translation_data)
 
@@ -243,38 +237,30 @@ class IcicleEngine(ConcreteEngine):
         # 3.3. Set history.recent_instruction_count
         state.history.recent_instruction_count = emu.cpu_icount - translation_data.initial_cpu_icount
 
-        # 3.4. Set edge hitmap
-        state.history.edge_hitmap = emu.edge_hitmap
+        # 3.4. Set edge hitmap in dedicated plugin if present
+        if state.has_plugin("edge_hitmap"):
+            hitmap_plugin = cast(SimStateEdgeHitmap, state.get_plugin("edge_hitmap"))
+            hitmap_plugin.edge_hitmap = emu.edge_hitmap
 
         return state
 
     @override
-    def get_breakpoints(self) -> set[int]:
-        """Return the set of currently set breakpoints."""
-        return self.breakpoints
-
-    @override
-    def add_breakpoint(self, addr: int) -> None:
-        """Add a breakpoint at the given address."""
-        addr = addr & ~1  # Clear thumb bit if set
-        self.breakpoints.add(addr)
-
-    @override
-    def remove_breakpoint(self, addr: int) -> None:
-        """Remove a breakpoint at the given address, if present."""
-        addr = addr & ~1  # Clear thumb bit if set
-        self.breakpoints.discard(addr)
-
-    @override
-    def process_concrete(self, state: HeavyConcreteState, num_inst: int | None = None) -> HeavyConcreteState:
+    def process_concrete(
+        self,
+        state: HeavyConcreteState,
+        num_inst: int | None = None,
+        extra_stop_points: set[int] | None = None,
+    ) -> HeavyConcreteState:
         emu, translation_data = self.__convert_angr_state_to_icicle(state)
 
-        # Set breakpoints, skip the current PC. This assumes that if running
-        # with a breakpoint at the current PC, then the user has already done
+        # Set extra stop points, skip the current PC. This assumes that if running
+        # with a stop point at the current PC, then the user has already done
         # the necessary handling and is resuming execution.
-        for addr in self.breakpoints:
-            if emu.pc != addr:
-                emu.add_breakpoint(addr)
+        if extra_stop_points is not None:
+            for addr in extra_stop_points:
+                addr = addr & ~1  # Clear thumb bit if set
+                if emu.pc != addr:
+                    emu.add_breakpoint(addr)
 
         # Set the instruction count limit
         if num_inst is not None and num_inst > 0:

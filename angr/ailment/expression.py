@@ -3,23 +3,22 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, cast
 from collections.abc import Sequence
 from enum import Enum, IntEnum
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing_extensions import Self
 
-
-try:
-    import claripy
-except ImportError:
-    claripy = None
+import archinfo
+import claripy
 
 from .tagged_object import TaggedObject
 from .utils import get_bits, stable_hash, is_none_or_likeable, is_none_or_matchable
 
 if TYPE_CHECKING:
+    from angr.calling_conventions import SimCC
+    from angr.sim_type import SimTypeFunction
     from .statement import Statement
 
 
-class Expression(TaggedObject):
+class Expression(TaggedObject, ABC):
     """
     The base class of all AIL expressions.
     """
@@ -35,6 +34,10 @@ class Expression(TaggedObject):
         super().__init__(idx, **kwargs)
         self.depth = depth
 
+    @property
+    def size(self):
+        return self.bits // 8
+
     @abstractmethod
     def __repr__(self):
         raise NotImplementedError
@@ -44,10 +47,12 @@ class Expression(TaggedObject):
             return self is atom
         return self.likes(atom)
 
-    def __eq__(self, other):
+    def __eq__(self, other) -> bool:
         if self is other:
             return True
         return type(self) is type(other) and self.likes(other) and self.idx == other.idx
+
+    __hash__ = TaggedObject.__hash__
 
     @abstractmethod
     def likes(self, other):  # pylint:disable=unused-argument,no-self-use
@@ -89,9 +94,6 @@ class Atom(Expression):
     def __repr__(self) -> str:
         return f"Atom ({self.idx})"
 
-    def copy(self) -> Self:  # pylint:disable=no-self-use
-        raise NotImplementedError
-
 
 class Const(Atom):
     __slots__ = ("value",)
@@ -114,10 +116,6 @@ class Const(Atom):
             return self.value
         raise TypeError(f"Incorrect value type; expect float, got {type(self.value)}")
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def __repr__(self):
         return str(self)
 
@@ -137,7 +135,6 @@ class Const(Atom):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.value, self.bits))
@@ -151,6 +148,9 @@ class Const(Atom):
 
     def copy(self) -> Const:
         return Const(self.idx, self.variable, self.value, self.bits, **self.tags)
+
+    def deep_copy(self, manager) -> Const:
+        return Const(manager.next_atom(), self.variable, self.value, self.bits, **self.tags)
 
     @property
     def is_int(self) -> bool:
@@ -166,10 +166,6 @@ class Tmp(Atom):
         self.tmp_idx = tmp_idx
         self.bits = bits
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def __repr__(self):
         return str(self)
 
@@ -180,13 +176,15 @@ class Tmp(Atom):
         return type(self) is type(other) and self.tmp_idx == other.tmp_idx and self.bits == other.bits
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("tmp", self.tmp_idx, self.bits))
 
     def copy(self) -> Tmp:
         return Tmp(self.idx, self.variable, self.tmp_idx, self.bits, **self.tags)
+
+    def deep_copy(self, manager) -> Tmp:
+        return Tmp(manager.next_atom(), self.variable, self.tmp_idx, self.bits, **self.tags)
 
 
 class Register(Atom):
@@ -198,10 +196,6 @@ class Register(Atom):
         self.reg_offset = reg_offset
         self.bits = bits
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def likes(self, other):
         return type(self) is type(other) and self.reg_offset == other.reg_offset and self.bits == other.bits
 
@@ -209,20 +203,23 @@ class Register(Atom):
         return str(self)
 
     def __str__(self):
-        if hasattr(self, "reg_name"):
-            return f"{self.reg_name}<{self.bits // 8}>"
+        reg_name = self.tags.get("reg_name", None)
+        if reg_name is not None:
+            return f"{reg_name}<{self.bits // 8}>"
         if self.variable is None:
             return f"reg_{self.reg_offset}<{self.bits // 8}>"
         return f"{self.variable.name!s}"
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash(("reg", self.reg_offset, self.bits, self.idx))
 
     def copy(self) -> Register:
         return Register(self.idx, self.variable, self.reg_offset, self.bits, **self.tags)
+
+    def deep_copy(self, manager) -> Register:
+        return Register(manager.next_atom(), self.variable, self.reg_offset, self.bits, **self.tags)
 
 
 class VirtualVariableCategory(IntEnum):
@@ -235,7 +232,6 @@ class VirtualVariableCategory(IntEnum):
 
 
 class VirtualVariable(Atom):
-
     __slots__ = (
         "category",
         "oident",
@@ -257,10 +253,6 @@ class VirtualVariable(Atom):
         self.category = category
         self.oident = oident
         self.bits = bits
-
-    @property
-    def size(self):
-        return self.bits // 8
 
     @property
     def was_reg(self) -> bool:
@@ -350,8 +342,6 @@ class VirtualVariable(Atom):
                 ori_str = f"{{s{self.oident}|{self.size}b}}"
         return f"vvar_{self.varid}{ori_str}"
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(("var", self.varid, self.bits, self.category, self.oident))
 
@@ -367,9 +357,20 @@ class VirtualVariable(Atom):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> VirtualVariable:
+        return VirtualVariable(
+            manager.next_atom(),
+            self.varid,
+            self.bits,
+            self.category,
+            oident=self.oident,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            **self.tags,
+        )
+
 
 class Phi(Atom):
-
     __slots__ = ("src_and_vvars",)
 
     def __init__(
@@ -382,10 +383,6 @@ class Phi(Atom):
         super().__init__(idx, **kwargs)
         self.bits = bits
         self.src_and_vvars = src_and_vvars
-
-    @property
-    def size(self) -> int:
-        return self.bits // 8
 
     @property
     def op(self) -> str:
@@ -428,8 +425,6 @@ class Phi(Atom):
     def __repr__(self):
         return f"𝜙@{self.bits}b {self.src_and_vvars}"
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))
 
@@ -438,6 +433,16 @@ class Phi(Atom):
             self.idx,
             self.bits,
             self.src_and_vvars[::],
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> Phi:
+        return Phi(
+            manager.next_atom(),
+            self.bits,
+            [(s, vvar.deep_copy(manager) if vvar is not None else None) for s, vvar in self.src_and_vvars],
             variable=self.variable,
             variable_offset=self.variable_offset,
             **self.tags,
@@ -478,7 +483,7 @@ class Phi(Atom):
 class Op(Expression):
     __slots__ = ("op",)
 
-    def __init__(self, idx, depth, op, **kwargs):
+    def __init__(self, idx, depth, op: str, **kwargs):
         super().__init__(idx, depth, **kwargs)
         self.op = op
 
@@ -533,8 +538,6 @@ class UnaryOp(Op):
             and self.operand.matches(other.operand)
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash((self.op, self.operand, self.bits))
 
@@ -553,15 +556,22 @@ class UnaryOp(Op):
     def operands(self):
         return [self.operand]
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> UnaryOp:
         return UnaryOp(
             self.idx,
             self.op,
             self.operand,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            bits=self.bits,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> UnaryOp:
+        return UnaryOp(
+            manager.next_atom(),
+            self.op,
+            self.operand.deep_copy(manager),
             variable=self.variable,
             variable_offset=self.variable_offset,
             bits=self.bits,
@@ -651,8 +661,6 @@ class Convert(UnaryOp):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (
@@ -711,6 +719,19 @@ class Convert(UnaryOp):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> Convert:
+        return Convert(
+            manager.next_atom(),
+            self.from_bits,
+            self.to_bits,
+            self.is_signed,
+            self.operand.deep_copy(manager),
+            from_type=self.from_type,
+            to_type=self.to_type,
+            rounding_mode=self.rounding_mode,
+            **self.tags,
+        )
+
 
 class Reinterpret(UnaryOp):
     __slots__ = (
@@ -758,8 +779,6 @@ class Reinterpret(UnaryOp):
             and self.operand.matches(other.operand)
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (
@@ -787,6 +806,17 @@ class Reinterpret(UnaryOp):
     def copy(self) -> Reinterpret:
         return Reinterpret(
             self.idx, self.from_bits, self.from_type, self.to_bits, self.to_type, self.operand, **self.tags
+        )
+
+    def deep_copy(self, manager) -> Reinterpret:
+        return Reinterpret(
+            manager.next_atom(),
+            self.from_bits,
+            self.from_type,
+            self.to_bits,
+            self.to_type,
+            self.operand.deep_copy(manager),
+            **self.tags,
         )
 
 
@@ -941,8 +971,6 @@ class BinaryOp(Op):
             and self.rounding_mode == other.rounding_mode
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (self.op, tuple(self.operands), self.bits, self.signed, self.floating_point, self.rounding_mode)
@@ -1015,15 +1043,25 @@ class BinaryOp(Op):
                 op += " (signed)"
         return op
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> BinaryOp:
         return BinaryOp(
             self.idx,
             self.op,
             self.operands[::],
+            variable=self.variable,
+            signed=self.signed,
+            variable_offset=self.variable_offset,
+            bits=self.bits,
+            floating_point=self.floating_point,
+            rounding_mode=self.rounding_mode,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> BinaryOp:
+        return BinaryOp(
+            manager.next_atom(),
+            self.op,
+            [op.deep_copy(manager) for op in self.operands],
             variable=self.variable,
             signed=self.signed,
             variable_offset=self.variable_offset,
@@ -1040,7 +1078,6 @@ class Load(Expression):
         "alt",
         "endness",
         "guard",
-        "size",
         "variable",
         "variable_offset",
     )
@@ -1061,7 +1098,7 @@ class Load(Expression):
         super().__init__(idx, depth, **kwargs)
 
         self.addr = addr
-        self.size = size
+        self.bits = size * 8
         self.endness = endness
         self.guard = guard
         self.alt = alt
@@ -1079,7 +1116,7 @@ class Load(Expression):
         if super().has_atom(atom, identity=identity):
             return True
 
-        if claripy is not None and isinstance(self.addr, (int, claripy.ast.Base)):
+        if isinstance(self.addr, (int, claripy.ast.Base)):
             return False
         return self.addr.has_atom(atom, identity=identity)
 
@@ -1125,8 +1162,6 @@ class Load(Expression):
             and self.alt == other.alt
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(("Load", self.addr, self.size, self.endness))
 
@@ -1139,6 +1174,19 @@ class Load(Expression):
             variable=self.variable,
             variable_offset=self.variable_offset,
             guard=self.guard,
+            alt=self.alt,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager) -> Load:
+        return Load(
+            manager.next_atom(),
+            self.addr.deep_copy(manager),
+            self.size,
+            self.endness,
+            variable=self.variable,
+            variable_offset=self.variable_offset,
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
             alt=self.alt,
             **self.tags,
         )
@@ -1204,8 +1252,6 @@ class ITE(Expression):
             and self.bits == other.bits
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash((ITE, self.cond, self.iffalse, self.iftrue, self.bits))
 
@@ -1244,12 +1290,17 @@ class ITE(Expression):
             return True, ITE(self.idx, new_cond, new_iffalse, new_iftrue, **self.tags)
         return False, self
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def copy(self) -> ITE:
         return ITE(self.idx, self.cond, self.iffalse, self.iftrue, **self.tags)
+
+    def deep_copy(self, manager) -> ITE:
+        return ITE(
+            manager.next_atom(),
+            self.cond.deep_copy(manager),
+            self.iffalse.deep_copy(manager),
+            self.iftrue.deep_copy(manager),
+            **self.tags,
+        )
 
 
 class DirtyExpression(Expression):
@@ -1320,8 +1371,6 @@ class DirtyExpression(Expression):
             and self.bits == other.bits
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash(
             (
@@ -1355,6 +1404,19 @@ class DirtyExpression(Expression):
             **self.tags,
         )
 
+    def deep_copy(self, manager) -> DirtyExpression:
+        return DirtyExpression(
+            manager.next_atom(),
+            self.callee,
+            [op.deep_copy(manager) for op in self.operands],
+            guard=self.guard.deep_copy(manager) if self.guard is not None else None,
+            mfx=self.mfx,
+            maddr=self.maddr.deep_copy(manager) if self.maddr is not None else None,
+            msize=self.msize,
+            bits=self.bits,
+            **self.tags,
+        )
+
     def replace(self, old_expr: Expression, new_expr: Expression):
         new_operands = []
         replaced = False
@@ -1383,12 +1445,6 @@ class DirtyExpression(Expression):
                 **self.tags,
             )
         return False, self
-
-    @property
-    def size(self):
-        if self.bits is None:
-            return None
-        return self.bits // 8
 
 
 class VEXCCallExpression(Expression):
@@ -1429,8 +1485,6 @@ class VEXCCallExpression(Expression):
             and all(op1.matches(op2) for op1, op2 in zip(other.operands, self.operands))
         )
 
-    __hash__ = TaggedObject.__hash__  # type: ignore
-
     def _hash_core(self):
         return stable_hash((VEXCCallExpression, self.callee, self.bits, tuple(self.operands)))
 
@@ -1443,6 +1497,15 @@ class VEXCCallExpression(Expression):
 
     def copy(self) -> VEXCCallExpression:
         return VEXCCallExpression(self.idx, self.callee, self.operands, bits=self.bits, **self.tags)
+
+    def deep_copy(self, manager) -> VEXCCallExpression:
+        return VEXCCallExpression(
+            manager.next_atom(),
+            self.callee,
+            tuple(op.deep_copy(manager) for op in self.operands),
+            bits=self.bits,
+            **self.tags,
+        )
 
     def replace(self, old_expr, new_expr):
         new_operands = []
@@ -1463,12 +1526,6 @@ class VEXCCallExpression(Expression):
             return True, VEXCCallExpression(self.idx, self.callee, tuple(new_operands), bits=self.bits, **self.tags)
         return False, self
 
-    @property
-    def size(self):
-        if self.bits is None:
-            return None
-        return self.bits // 8
-
 
 class MultiStatementExpression(Expression):
     """
@@ -1485,8 +1542,6 @@ class MultiStatementExpression(Expression):
         self.stmts = stmts
         self.expr = expr
         self.bits = self.expr.bits
-
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((MultiStatementExpression, *tuple(self.stmts), self.expr))
@@ -1516,10 +1571,6 @@ class MultiStatementExpression(Expression):
         concatenated_str = ", ".join([*stmts_str, expr_str])
         return f"({concatenated_str})"
 
-    @property
-    def size(self):
-        return self.expr.size
-
     def replace(self, old_expr, new_expr):
         replaced = False
 
@@ -1544,6 +1595,14 @@ class MultiStatementExpression(Expression):
 
     def copy(self) -> MultiStatementExpression:
         return MultiStatementExpression(self.idx, self.stmts[::], self.expr, **self.tags)
+
+    def deep_copy(self, manager) -> MultiStatementExpression:
+        return MultiStatementExpression(
+            manager.next_atom(),
+            [stmt.deep_copy(manager) for stmt in self.stmts],
+            self.expr.deep_copy(manager),
+            **self.tags,
+        )
 
 
 #
@@ -1576,10 +1635,6 @@ class BasePointerOffset(Expression):
         self.variable = variable
         self.variable_offset = variable_offset
 
-    @property
-    def size(self):
-        return self.bits // 8
-
     def __repr__(self):
         if self.offset is None:
             return f"BaseOffset({self.base})"
@@ -1601,7 +1656,6 @@ class BasePointerOffset(Expression):
         )
 
     matches = likes
-    __hash__ = TaggedObject.__hash__  # type: ignore
 
     def _hash_core(self):
         return stable_hash((self.bits, self.base, self.offset))
@@ -1623,18 +1677,25 @@ class BasePointerOffset(Expression):
     def copy(self) -> BasePointerOffset:
         return BasePointerOffset(self.idx, self.bits, self.base, self.offset, **self.tags)
 
+    def deep_copy(self, manager) -> BasePointerOffset:
+        return BasePointerOffset(manager.next_atom(), self.bits, self.base, self.offset, **self.tags)
+
 
 class StackBaseOffset(BasePointerOffset):
     __slots__ = ()
 
     def __init__(self, idx: int | None, bits: int, offset: int, **kwargs):
         # stack base offset is always signed
+        assert idx is not None
         if offset >= (1 << (bits - 1)):
             offset -= 1 << bits
         super().__init__(idx, bits, "stack_base", offset, **kwargs)
 
     def copy(self) -> StackBaseOffset:
         return StackBaseOffset(self.idx, self.bits, self.offset, **self.tags)
+
+    def deep_copy(self, manager) -> StackBaseOffset:
+        return StackBaseOffset(manager.next_atom(), self.bits, self.offset, **self.tags)
 
 
 def negate(expr: Expression) -> Expression:
@@ -1653,3 +1714,301 @@ def negate(expr: Expression) -> Expression:
             **expr.tags,
         )
     return UnaryOp(None, "Not", expr, **expr.tags)
+
+
+class Extract(Expression):
+    __slots__ = ("base", "endness", "offset")
+
+    def __init__(self, idx: int | None, bits: int, base: Expression, offset: Expression, endness: str, **kwargs):
+        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
+
+        self.bits = bits
+        self.base = base
+        self.offset = offset
+        self.endness = endness
+        assert self.base.bits >= self.bits
+
+    def is_lsb_extract(self) -> bool:
+        if not isinstance(self.offset, Const):
+            return False
+        if self.endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * 8 + self.bits == self.base.bits
+
+    def copy(self) -> Extract:
+        return Extract(self.idx, self.bits, self.base, self.offset, self.endness, **self.tags)
+
+    def deep_copy(self, manager) -> Extract:
+        return Extract(
+            manager.next_atom(),
+            self.bits,
+            self.base.deep_copy(manager),
+            self.offset.deep_copy(manager),
+            self.endness,
+            **self.tags,
+        )
+
+    def __repr__(self):
+        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
+
+    def __str__(self):
+        return f"Extract({self.base}, {self.bits}bits@{self.offset})"
+
+    def likes(self, other):
+        return (
+            type(other) is type(self)
+            and self.base == other.base
+            and self.offset == other.offset
+            and self.bits == other.bits
+            and self.endness == other.endness
+        )
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((self.bits, self.base, self.offset, self.endness))
+
+    def replace(self, old_expr, new_expr):
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+
+        if base_replaced or offset_replaced:
+            return True, Extract(self.idx, self.bits, new_base, new_offset, self.endness, **self.tags)
+        return False, self
+
+
+class Insert(Expression):
+    __slots__ = ("base", "endness", "offset", "value")
+
+    def __init__(
+        self, idx: int | None, base: Expression, offset: Expression, value: Expression, endness: str, **kwargs
+    ):
+        super().__init__(idx, max(base.depth, offset.depth) + 1, **kwargs)
+
+        assert value.bits <= base.bits
+        assert not isinstance(offset, Const) or offset.value * 8 + value.bits <= base.bits
+        self.bits = base.bits
+        self.base = base
+        self.offset = offset
+        self.value = value
+        self.endness = endness
+
+    def is_lsb_overwrite(self) -> bool:
+        if not (isinstance(self.offset, Const) and isinstance(self.offset.value, int)):
+            return False
+        if self.endness == archinfo.Endness.LE:
+            return self.offset.value == 0
+        return self.offset.value * 8 + self.value.bits == self.bits
+
+    def copy(self) -> Insert:
+        return Insert(self.idx, self.base, self.offset, self.value, self.endness, **self.tags)
+
+    def deep_copy(self, manager) -> Insert:
+        return Insert(
+            manager.next_atom(),
+            self.base.deep_copy(manager),
+            self.offset.deep_copy(manager),
+            self.value.deep_copy(manager),
+            self.endness,
+            **self.tags,
+        )
+
+    def __repr__(self):
+        return f"Insert({self.base}, {self.offset}, {self.value})"
+
+    def __str__(self):
+        return f"Insert({self.base}, {self.offset}, {self.value})"
+
+    def likes(self, other):
+        return (
+            type(other) is type(self)
+            and self.base == other.base
+            and self.offset == other.offset
+            and self.value == other.value
+            and self.endness == other.endness
+        )
+
+    matches = likes
+
+    def _hash_core(self):
+        return stable_hash((self.bits, self.base, self.offset, self.value, self.endness))
+
+    def replace(self, old_expr, new_expr):
+        if self.base == old_expr:
+            base_replaced, new_base = True, new_expr
+        else:
+            base_replaced, new_base = self.base.replace(old_expr, new_expr)
+
+        if self.offset == old_expr:
+            offset_replaced, new_offset = True, new_expr
+        else:
+            offset_replaced, new_offset = self.offset.replace(old_expr, new_expr)
+
+        if self.value == old_expr:
+            value_replaced, new_value = True, new_expr
+        else:
+            value_replaced, new_value = self.value.replace(old_expr, new_expr)
+
+        if base_replaced or offset_replaced or value_replaced:
+            return True, Insert(self.idx, new_base, new_offset, new_value, self.endness, **self.tags)
+        return False, self
+
+
+class Call(Expression):
+    """
+    Call expression. Represents a function call that produces a value.
+
+    When used as a standalone statement (not part of an assignment), wrap it in a SideEffectStatement.
+    """
+
+    __slots__ = (
+        "args",
+        "calling_convention",
+        "prototype",
+        "target",
+    )
+
+    def __init__(
+        self,
+        idx: int | None,
+        target: Expression | str,
+        calling_convention: SimCC | None = None,
+        prototype: SimTypeFunction | None = None,
+        args: Sequence[Expression] | None = None,
+        bits: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(idx, target.depth + 1 if isinstance(target, Expression) else 1, **kwargs)
+
+        self.target = target
+        self.calling_convention = calling_convention
+        self.prototype = prototype
+        self.args = args
+        if bits is not None:
+            self.bits = bits
+        else:
+            self.bits = 0
+
+    def likes(self, other):
+        return (
+            type(other) is Call
+            and is_none_or_likeable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_likeable(self.args, other.args, is_list=True)
+        )
+
+    def matches(self, other):
+        return (
+            type(other) is Call
+            and is_none_or_matchable(self.target, other.target)
+            and self.calling_convention == other.calling_convention
+            and self.prototype == other.prototype
+            and is_none_or_matchable(self.args, other.args, is_list=True)
+        )
+
+    def _hash_core(self):
+        return stable_hash((Call, self.idx, self.target))
+
+    def __repr__(self):
+        return f"Call (target: {self.target}, prototype: {self.prototype}, args: {self.args})"
+
+    def __str__(self):
+        cc = "Unknown CC" if self.calling_convention is None else f"{self.calling_convention}"
+        if self.args is None:
+            if self.calling_convention is not None:
+                s = (
+                    (f"{cc}")
+                    if self.prototype is None
+                    else f"{self.calling_convention}: {self.calling_convention.arg_locs(self.prototype)}"
+                )
+            else:
+                s = (f"{cc}") if self.prototype is None else repr(self.prototype)
+        else:
+            s = (f"{cc}: {self.args}") if self.prototype is None else f"{self.calling_convention}: {self.args}"
+
+        return f"Call({self.target}, {s})"
+
+    @property
+    def verbose_op(self):
+        return "call"
+
+    @property
+    def op(self):
+        return "call"
+
+    def has_atom(self, atom, identity=True):
+        if identity:
+            if self is atom:
+                return True
+        elif self.likes(atom):
+            return True
+        if isinstance(self.target, Expression) and self.target.has_atom(atom, identity=identity):
+            return True
+        if self.args:
+            for arg in self.args:
+                if arg.has_atom(atom, identity=identity):
+                    return True
+        return False
+
+    def replace(self, old_expr: Expression, new_expr: Expression):
+        if isinstance(self.target, Expression):
+            r0, replaced_target = self.target.replace(old_expr, new_expr)
+        else:
+            r0 = False
+            replaced_target = self.target
+
+        r = r0
+
+        new_args = None
+        if self.args:
+            new_args = []
+            for arg in self.args:
+                if arg == old_expr:
+                    r_arg = True
+                    replaced_arg = new_expr
+                else:
+                    r_arg, replaced_arg = arg.replace(old_expr, new_expr)
+                r |= r_arg
+                new_args.append(replaced_arg)
+
+        if r:
+            return True, Call(
+                self.idx,
+                replaced_target,
+                calling_convention=self.calling_convention,
+                prototype=self.prototype,
+                args=new_args,
+                bits=self.bits,
+                **self.tags,
+            )
+        return False, self
+
+    def copy(self):
+        return Call(
+            self.idx,
+            self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=self.args[::] if self.args is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )
+
+    def deep_copy(self, manager):
+        return Call(
+            manager.next_atom(),
+            self.target.deep_copy(manager) if not isinstance(self.target, str) else self.target,
+            calling_convention=self.calling_convention,
+            prototype=self.prototype,
+            args=[arg.deep_copy(manager) for arg in self.args] if self.args is not None else None,
+            bits=self.bits,
+            **self.tags,
+        )

@@ -3,8 +3,17 @@ from collections import defaultdict
 from typing import Any
 
 from angr.ailment import Block
-from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return, Jump
+from angr.ailment.statement import (
+    SideEffectStatement,
+    Statement,
+    ConditionalJump,
+    Assignment,
+    Store,
+    Return,
+    Jump,
+)
 from angr.ailment.expression import (
+    Call,
     Load,
     VirtualVariable,
     Expression,
@@ -16,13 +25,13 @@ from angr.ailment.expression import (
     Const,
     StackBaseOffset,
 )
-from angr.ailment.block_walker import AILBlockWalkerBase
+from angr.ailment.block_walker import AILBlockViewer
 
 
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation, Register, SpOffset, ConstantSrc
 
 
-class BlockIOFinder(AILBlockWalkerBase):
+class BlockIOFinder(AILBlockViewer):
     """
     Finds the input and output locations of each statement in an AIL block.
     I/O locations can be a Register, MemoryLocation, or SpOffset (wrapped in a Memory Location).
@@ -132,9 +141,9 @@ class BlockIOFinder(AILBlockWalkerBase):
         input_loc = self._handle_expr(1, stmt.src, stmt_idx, stmt, block)
         self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        if stmt.expr.args:
+            for i, arg in enumerate(stmt.expr.args):
                 input_loc = self._handle_expr(i, arg, stmt_idx, stmt, block)
                 self._add_or_update_dict(self.inputs_by_stmt, stmt_idx, input_loc)
 

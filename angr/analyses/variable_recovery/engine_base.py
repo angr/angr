@@ -11,7 +11,7 @@ from angr.engines.light.engine import BlockType
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.engines.light import SimEngineLight, ArithmeticExpression
 from angr.errors import SimMemoryMissingError
-from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimVariable, SimStackVariable, SimRegisterVariable, SimMemoryVariable, SimConstantVariable
 from angr.code_location import CodeLocation
 from angr.analyses.typehoon import typevars, typeconsts
 from angr.analyses.typehoon.typevars import TypeVariable, DerivedTypeVariable, AddN, SubN, Load, Store
@@ -217,9 +217,11 @@ class SimEngineVRBase(
             existing_vars = [(var, 0) for var in variable_manager.get_global_variables(global_var_addr)]
 
             if not existing_vars:
+                sym = self.project.loader.find_symbol(global_var_addr)
+                var_size = sym.size if sym and sym.size else 1
                 variable = SimMemoryVariable(
                     global_var_addr,
-                    1,
+                    var_size,
                     ident=variable_manager.next_variable_ident("global"),
                 )
                 variable_manager.set_variable("global", global_var_addr, variable)
@@ -291,9 +293,7 @@ class SimEngineVRBase(
                 offset = None
             variable_manager.reference_at(var, offset, codeloc, atom=src)
 
-    def _assign_to_register(
-        self, offset, richr, size, src=None, dst=None, create_variable: bool = True
-    ):  # pylint:disable=unused-argument
+    def _assign_to_register(self, offset, richr, size, src=None, dst=None, create_variable: bool = True):  # pylint:disable=unused-argument
         """
 
         :param int offset:
@@ -379,7 +379,6 @@ class SimEngineVRBase(
         create_variable: bool = True,
         vvar_id: int | None = None,
     ):  # pylint:disable=unused-argument
-
         if vvar_id is None:
             vvar_id = vvar.varid
 
@@ -458,6 +457,10 @@ class SimEngineVRBase(
         self.vvar_region[vvar_id] = annotated_data
         self.state.variable_manager[self.func_addr].write_to(variable, None, codeloc, atom=dst, overwrite=False)
 
+        if vvar.was_stack:
+            # shove it on the stack so we can get it back later by reference
+            self.state.stack_region.store(vvar.stack_offset, annotated_data)
+
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
                 # optimization: if richr.typevar is a derived typevar, we simply carry it over instead of creating a
@@ -474,7 +477,10 @@ class SimEngineVRBase(
 
             # create constraints accordingly
             if richr.typevar is not typevar:
-                self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
+                if richr.data.concrete:
+                    self.state.add_type_constraint(typevars.Equivalence(richr.typevar, typevar))
+                else:
+                    self.state.add_type_constraint(typevars.Subtype(richr.typevar, typevar))
             if vvar.varid in self.vvar_type_hints:
                 # handle type hints
                 self.state.add_type_constraint(typevars.Subtype(typevar, self.vvar_type_hints[vvar.varid]))
@@ -490,9 +496,7 @@ class SimEngineVRBase(
 
         return variable
 
-    def _store(
-        self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None
-    ):  # pylint:disable=unused-argument
+    def _store(self, richr_addr: RichR[claripy.ast.BV], data: RichR[claripy.ast.BV | claripy.ast.FP], size, atom=None):  # pylint:disable=unused-argument
         """
 
         :param RichR addr:
@@ -724,7 +728,10 @@ class SimEngineVRBase(
 
             store_typevar = self._create_access_typevar(base_typevar, True, size, field_offset)
             data_typevar = data.typevar if data.typevar is not None else typeconsts.TopType()
-            self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
+            if data.data.concrete:
+                self.state.add_type_constraint(typevars.Equivalence(store_typevar, data_typevar))
+            else:
+                self.state.add_type_constraint(typevars.Subtype(store_typevar, data_typevar))
 
     def _load(self, richr_addr: RichR[claripy.ast.BV], size: int, expr=None):
         """
@@ -1100,7 +1107,43 @@ class SimEngineVRBase(
         if value is None:
             # the value does not exist.
             value = self.state.top(vvar.bits)
-            if create_variable:
+
+            # is there already a variable?
+            variable = None
+            if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
+                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_stmt(
+                    self.block.addr,
+                    self.stmt_idx,
+                    "register",
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                existing_vars: list[tuple[SimVariable, int]] = []
+                for var_candidate, var_offset in var_candidates:
+                    if isinstance(var_candidate, SimRegisterVariable) and var_candidate.reg == vvar.reg_offset:
+                        existing_vars.append((var_candidate, var_offset))
+                if existing_vars:
+                    variable, _ = existing_vars[0]
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+            elif vvar.category == ailment.Expr.VirtualVariableCategory.STACK:
+                var_candidates: list[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_stmt(
+                    self.block.addr,
+                    self.stmt_idx,
+                    "memory",
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                existing_vars: list[tuple[SimVariable, int]] = []
+                for var_candidate, var_offset in var_candidates:
+                    if isinstance(var_candidate, SimStackVariable) and var_candidate.offset == vvar.stack_offset:
+                        existing_vars.append((var_candidate, var_offset))
+                if existing_vars:
+                    variable, _ = existing_vars[0]
+                    value = self.state.annotate_with_variables(value, [(0, variable)])
+
+            if variable is None and create_variable:
                 # create a new variable if necessary
                 if vvar.category == ailment.Expr.VirtualVariableCategory.REGISTER:
                     variable = SimRegisterVariable(
@@ -1176,13 +1219,53 @@ class SimEngineVRBase(
 
         return RichR(value, variable=var, typevar=typevar)
 
+    def _get_const(self, value, bits: int, expr=None) -> RichR:
+        codeloc = self._codeloc()
+
+        if isinstance(value, float):
+            v = claripy.FPV(value, claripy.FSORT_DOUBLE if bits == 64 else claripy.FSORT_FLOAT).to_bv()
+            ty = typeconsts.float_type(bits)
+        else:
+            if self.project.loader.find_segment_containing(value) is not None:
+                r = self._load_from_global(value, 1, expr=expr)
+                ty = r.typevar
+            else:
+                # this allows us to type integer constants if necessary
+                var_candidates: set[tuple[SimVariable, int]] = self.state.variable_manager[
+                    self.func_addr
+                ].find_variables_by_atom(
+                    self.block.addr,
+                    self.stmt_idx,
+                    expr,
+                    block_idx=cast(ailment.Block, self.block).idx if isinstance(self.block, ailment.Block) else None,
+                )
+                if not var_candidates:
+                    var = SimConstantVariable(
+                        bits // self.state.arch.byte_width,
+                        ident=self.state.variable_manager[self.func_addr].next_variable_ident("constant"),
+                        value=value,
+                    )
+                    self.state.variable_manager[self.func_addr].record_variable(codeloc, var, 0, atom=expr)
+                else:
+                    var = next(iter(var_candidates))[0]
+                ty = typevars.TypeVariable()
+                ty_const = typeconsts.int_type(bits)
+                if not self.state.typevars.has_type_variable_for(var):
+                    self.state.typevars.add_type_variable(var, ty)
+                self.state.add_type_constraint(typevars.Subtype(ty, ty_const))
+            v = claripy.BVV(value, bits)
+        r = RichR(v, typevar=ty)
+        self._ensure_variable_existence(r, codeloc)
+        self._reference(r, codeloc)
+        return r
+
     def _create_access_typevar(
         self,
         typevar: TypeVariable | DerivedTypeVariable,
         is_store: bool,
         size: int | None,
         offset: int,
-    ) -> DerivedTypeVariable:
+    ) -> TypeVariable | DerivedTypeVariable:
         if isinstance(typevar, DerivedTypeVariable):
             if isinstance(typevar.labels[-1], AddN):
                 offset += typevar.labels[-1].n
@@ -1198,8 +1281,23 @@ class SimEngineVRBase(
                     typevar = typevars.new_dtv(typevar.type_var, labels=typevar.labels[:-1])
         lbl = Store() if is_store else Load()
         bits = size * self.project.arch.byte_width if size is not None else MAX_POINTSTO_BITS
+
+        if offset >= 4096 and self._likely_pointer(offset):
+            # typevar is the actual offset
+            return TypeVariable()
+
         return DerivedTypeVariable(
             typevar,
             None,
             labels=(lbl, typevars.HasField(bits, offset)),
         )
+
+    def _likely_pointer(self, offset: int) -> bool:
+        obj = self.project.loader.find_object_containing(offset)
+        if obj is None:
+            return False
+        seg = self.project.loader.find_segment_containing(offset)
+        if seg is not None:
+            return True
+        sec = self.project.loader.find_section_containing(offset)
+        return sec is not None

@@ -21,7 +21,6 @@ from angr.block import DisassemblerInsn, CapstoneInsn, SootBlockNode
 from angr.codenode import BlockNode
 from .disassembly_utils import decode_instruction
 
-
 IRSBType = pyvex.IRSB | pcode.lifter.IRSB
 IROpObjType = pyvex.stmt.IRStmt | pypcode.PcodeOp
 
@@ -175,7 +174,7 @@ class Instruction(DisassemblyPiece):
         self.arch = self.project.arch
         self.format = ""
         self.components = ()
-        self.opcode: Opcode = None  # type:ignore
+        self.opcode: Opcode = None  # type: ignore
         self.operands = []
 
         # the following members will be filled in after dissecting the instruction
@@ -1131,7 +1130,7 @@ class Disassembly(Analysis):
         if irsb.statements is not None:
             if pcode is not None and isinstance(self.project.factory.default_engine, pcode.HeavyPcodeMixin):
                 addr = None
-                for stmt_idx, op in enumerate(irsb._ops):  # type:ignore
+                for stmt_idx, op in enumerate(irsb._ops):  # type: ignore
                     if op.opcode == pypcode.OpCode.IMARK:
                         addr = op.inputs[0].offset
                     else:
@@ -1235,7 +1234,7 @@ class Disassembly(Analysis):
             )
             formatting = {
                 "colors": colors,
-                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item), None)),
+                "format_callback": lambda item, s: ansi_color(s, colors.get(type(item))),
             }
 
         def col(item: Any) -> str | None:

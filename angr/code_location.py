@@ -1,8 +1,13 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Generic, TypeVar
+from dataclasses import dataclass, field
+
+BlockAddr = TypeVar("BlockAddr", bound="int | None")
+StmtIdx = TypeVar("StmtIdx", bound="int | None")
+Context = TypeVar("Context")
 
 
-class CodeLocation:
+class CodeLocation(Generic[BlockAddr, StmtIdx, Context]):
     """
     Stands for a specific program point by specifying basic block address and statement ID (for IRSBs), or SimProcedure
     name (for SimProcedures).
@@ -21,11 +26,11 @@ class CodeLocation:
 
     def __init__(
         self,
-        block_addr: int | None,
-        stmt_idx: int | None,
+        block_addr: BlockAddr,
+        stmt_idx: StmtIdx,
         sim_procedure=None,
         ins_addr: int | None = None,
-        context: Any = None,
+        context: Context = None,
         block_idx: int | None = None,
         **kwargs,
     ):
@@ -42,15 +47,15 @@ class CodeLocation:
         :param kwargs:              Optional arguments, will be stored, but not used in __eq__ or __hash__.
         """
 
-        self.block_addr: int | None = block_addr
-        self.stmt_idx: int | None = stmt_idx
+        self.block_addr = block_addr
+        self.stmt_idx = stmt_idx
         self.sim_procedure = sim_procedure
-        self.ins_addr: int | None = ins_addr
-        self.context: tuple[int] | None = context
-        self.block_idx: int | None = block_idx
+        self.ins_addr = ins_addr
+        self.context = context
+        self.block_idx = block_idx
         self._hash = None
 
-        self.info: dict | None = None
+        self.info: dict[str, Any] | None = None
 
         if kwargs:
             self._store_kwargs(**kwargs)
@@ -161,3 +166,84 @@ class ExternalCodeLocation(CodeLocation):
         if self._hash is None:
             self._hash = hash((self.call_string,))
         return self._hash
+
+
+@dataclass(frozen=True)
+class AILCodeLocation:
+    """
+    A code location that refers precisely to a statement of an AIL block, with an optional instruction address.
+    """
+
+    addr: int
+    block_idx: int | None
+    stmt_idx: int
+    insn_addr: int | None = field(default=None, compare=False)
+
+    @staticmethod
+    def make_extern(idx: int):
+        return AILCodeLocation(-1, None, idx)
+
+    @property
+    def insn_addr_unwrap(self) -> int:
+        assert self.insn_addr is not None
+        return self.insn_addr
+
+    def __repr__(self):
+        idx_expr = "" if self.block_idx is None else f".{self.block_idx}"
+        return f"<Stmt {self.addr:#x}{idx_expr}[{self.stmt_idx}]>"
+
+    @property
+    def is_extern(self) -> bool:
+        return self.addr == -1
+
+    @property
+    def extern_idx_unwrap(self) -> int:
+        assert self.is_extern
+        return self.stmt_idx
+
+    @property
+    def extern_idx(self) -> int | None:
+        if self.is_extern:
+            return self.stmt_idx
+        return None
+
+    @staticmethod
+    def from_codeloc(codeloc: CodeLocation) -> AILCodeLocation:
+        if isinstance(codeloc, ExternalCodeLocation):
+            return AILCodeLocation(-1, -1, -1)
+        assert codeloc.block_addr is not None
+        assert codeloc.stmt_idx is not None
+        return AILCodeLocation(codeloc.block_addr, codeloc.block_idx, codeloc.stmt_idx, codeloc.ins_addr)
+
+    def __lt__(self, other: AILCodeLocation):
+        if self.addr < other.addr:
+            return True
+        if self.addr > other.addr:
+            return False
+        if self.block_idx is None and other.block_idx is not None:
+            return True
+        if self.block_idx is not None and other.block_idx is None:
+            return False
+        if self.block_idx is not None and other.block_idx is not None and self.block_idx < other.block_idx:
+            return True
+        if self.block_idx is not None and other.block_idx is not None and self.block_idx > other.block_idx:
+            return False
+        if self.stmt_idx < other.stmt_idx:
+            return True
+        if self.stmt_idx > other.stmt_idx:
+            return False
+        return False
+
+    @property
+    def bbl_addr(self):
+        # compat
+        return self.addr
+
+    @property
+    def block_addr(self):
+        # compat
+        return self.addr
+
+    @property
+    def ins_addr(self):
+        return self.insn_addr

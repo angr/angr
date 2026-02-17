@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import TYPE_CHECKING
 import logging
+from typing_extensions import Self
 
 import claripy
 
@@ -20,6 +21,7 @@ class SimVariable(Serializable):
     """
 
     __slots__ = [
+        "_hash",
         "candidate_names",
         "category",
         "ident",
@@ -28,6 +30,8 @@ class SimVariable(Serializable):
         "renamed",
         "size",
     ]
+
+    _hash: int | None
 
     def __init__(
         self, size: int, ident: str | None = None, name: str | None = None, region: int | None = None, category=None
@@ -43,8 +47,9 @@ class SimVariable(Serializable):
         self.renamed = False
         self.candidate_names = None
         self.size = size
+        self._hash = None
 
-    def copy(self):
+    def copy(self) -> Self:
         raise NotImplementedError
 
     def loc_repr(self, arch: archinfo.Arch):
@@ -86,6 +91,9 @@ class SimVariable(Serializable):
     def key(self) -> tuple[str | int | None, ...]:
         raise NotImplementedError
 
+    def clear_hash(self):
+        self._hash = None
+
     #
     # Operations
     #
@@ -106,12 +114,11 @@ class SimConstantVariable(SimVariable):
     Describes a constant variable.
     """
 
-    __slots__ = ["_hash", "value"]
+    __slots__ = ["value"]
 
     def __init__(self, size: int, ident=None, value=None, region=None):
         super().__init__(ident=ident, region=region, size=size)
         self.value = value
-        self._hash = None
 
     def __repr__(self):
         return f"<{self.region}|const {self.value}>"
@@ -143,19 +150,41 @@ class SimConstantVariable(SimVariable):
     def key(self) -> tuple[str | int | None, ...]:
         return ("const", self.value, self.size, self.ident)
 
+    @classmethod
+    def _get_cmsg(cls):
+        return pb2.ConstantVariable()  # type: ignore, pylint:disable=no-member
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+        self._set_base(obj)
+        obj.size = self.size
+        if self.bits > 64:
+            assert isinstance(self.value, int)
+            # TODO: Handle float
+            obj.long_value = int.to_bytes(self.value, byteorder="little")
+        else:
+            obj.value = self.value
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, **kwargs):
+        value = int.from_bytes(cmsg.long_value, byteorder="little") if cmsg.size > 64 else cmsg.value
+        obj = cls(cmsg.size, value=value)
+        obj._from_base(cmsg)
+        return obj
+
 
 class SimTemporaryVariable(SimVariable):
     """
     Describes a temporary variable.
     """
 
-    __slots__ = ["_hash", "tmp_id"]
+    __slots__ = ["tmp_id"]
 
     def __init__(self, tmp_id: int, size: int):
         SimVariable.__init__(self, size=size)
 
         self.tmp_id = tmp_id
-        self._hash = None
 
     def __repr__(self):
         return f"<tmp {self.tmp_id}>"
@@ -185,17 +214,18 @@ class SimTemporaryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.TemporaryVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.TemporaryVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
         self._set_base(obj)
+        obj.size = self.size
         obj.tmp_id = self.tmp_id
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, **kwargs):
-        obj = cls(cmsg.tmp_id, cmsg.base.size)
+        obj = cls(cmsg.tmp_id, cmsg.size)
         obj._from_base(cmsg)
         return obj
 
@@ -205,7 +235,7 @@ class SimRegisterVariable(SimVariable):
     Describes a register variable.
     """
 
-    __slots__ = ["_hash", "reg"]
+    __slots__ = ["reg"]
 
     def __init__(self, reg_offset: int, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -251,7 +281,7 @@ class SimRegisterVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.RegisterVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.RegisterVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -275,7 +305,7 @@ class SimMemoryVariable(SimVariable):
     Describes a memory variable; the base class for other types of memory variables.
     """
 
-    __slots__ = ["_hash", "addr"]
+    __slots__ = ["addr"]
 
     def __init__(self, addr, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -326,7 +356,7 @@ class SimMemoryVariable(SimVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.MemoryVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.MemoryVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -357,7 +387,7 @@ class SimStackVariable(SimMemoryVariable):
     )
 
     def __init__(
-        self, offset: int, size: int, base="sp", base_addr=None, ident=None, name=None, region=None, category=None
+        self, offset: int, size: int, base="bp", base_addr=None, ident=None, name=None, region=None, category=None
     ):
         if isinstance(offset, int) and offset > 0x1000000:
             # I don't think any positive stack offset will be greater than that...
@@ -407,7 +437,9 @@ class SimStackVariable(SimMemoryVariable):
         )
 
     def __hash__(self):
-        return hash((self.ident, self.base, self.offset, self.size))
+        if self._hash is None:
+            self._hash = hash((self.ident, self.base, self.offset, self.size))
+        return self._hash
 
     def copy(self) -> SimStackVariable:
         s = SimStackVariable(
@@ -436,7 +468,7 @@ class SimStackVariable(SimMemoryVariable):
 
     @classmethod
     def _get_cmsg(cls):
-        return pb2.StackVariable()  # type:ignore, pylint:disable=no-member
+        return pb2.StackVariable()  # type: ignore, pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()

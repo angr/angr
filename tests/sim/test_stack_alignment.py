@@ -15,7 +15,6 @@ from angr import SimState, sim_options as o, Project
 
 from tests.common import bin_location
 
-
 test_location = os.path.join(bin_location, "tests")
 
 log = logging.getLogger(__name__)
@@ -38,9 +37,9 @@ class TestStackAlignment(unittest.TestCase):
                 cc.setup_callsite(st, 0, [0x1337], "void foo(int x)")
 
                 # ensure stack alignment is correct
-                assert st.solver.is_true(
-                    (st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0
-                ), f"non-zero stack alignment after setup_callsite for {cc}"
+                assert st.solver.is_true((st.regs.sp + cc.STACKARG_SP_DIFF) % cc.STACK_ALIGNMENT == 0), (
+                    f"non-zero stack alignment after setup_callsite for {cc}"
+                )
 
     def test_sys_v_abi_compliance(self):
         arch = ArchAMD64()

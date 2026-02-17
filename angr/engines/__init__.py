@@ -58,9 +58,7 @@ __all__ = [
 try:
     from .pcode import HeavyPcodeMixin
 
-    class UberEnginePcode(
-        SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin
-    ):  # pylint:disable=abstract-method
+    class UberEnginePcode(SimEngineFailure, SimEngineSyscall, HooksMixin, HeavyPcodeMixin):  # pylint:disable=abstract-method
         pass
 
     __all__.append("UberEnginePcode")

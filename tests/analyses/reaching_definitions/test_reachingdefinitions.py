@@ -13,6 +13,7 @@ import claripy
 import angr
 from angr.analyses import ReachingDefinitionsAnalysis, CFGFast, CompleteCallingConventionsAnalysis
 from angr.code_location import CodeLocation, ExternalCodeLocation
+from angr.codenode import FuncNode
 from angr.analyses.reaching_definitions.rd_state import ReachingDefinitionsState
 from angr.analyses.reaching_definitions.subject import Subject
 from angr.analyses.reaching_definitions.dep_graph import DepGraph
@@ -243,7 +244,7 @@ class TestReachingDefinitions(TestCase):
         main_func = cfg.functions["main"]
         strlen_func = cfg.functions["strlen"]
 
-        strlen_edges = main_func.transition_graph.in_edges(strlen_func)
+        strlen_edges = main_func.transition_graph.in_edges(FuncNode(strlen_func.addr))
 
         # Only one call site for strlen in the `all` binary
         strlen_call_site = next(
@@ -331,9 +332,9 @@ class TestReachingDefinitions(TestCase):
         )
         tmp_7 = next(
             filter(
-                lambda def_: type(def_.atom) is Tmp
-                and def_.atom.tmp_idx == 7
-                and def_.codeloc.block_addr == main_func.addr,
+                lambda def_: (
+                    type(def_.atom) is Tmp and def_.atom.tmp_idx == 7 and def_.codeloc.block_addr == main_func.addr
+                ),
                 rda.dep_graph._graph.nodes(),
             )
         )
@@ -354,9 +355,11 @@ class TestReachingDefinitions(TestCase):
         open_rdi = next(
             iter(
                 filter(
-                    lambda def_: isinstance(def_.atom, Register)
-                    and def_.atom.reg_offset == arch.registers["rdi"][0]
-                    and def_.codeloc.ins_addr == 0x4006A2,
+                    lambda def_: (
+                        isinstance(def_.atom, Register)
+                        and def_.atom.reg_offset == arch.registers["rdi"][0]
+                        and def_.codeloc.ins_addr == 0x4006A2
+                    ),
                     dep_graph._graph.nodes(),
                 )
             )

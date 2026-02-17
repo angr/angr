@@ -5,6 +5,7 @@ from collections.abc import Iterable
 import logging
 from typing import cast
 
+import archinfo
 from archinfo.types import RegisterOffset
 import claripy
 import angr.ailment as ailment
@@ -199,7 +200,7 @@ class SimEngineRDAIL(
         ip = Register(cast(RegisterOffset, self.arch.ip_offset), self.arch.bytes)
         self.state.kill_definitions(ip)
 
-    def _handle_stmt_Call(self, stmt: ailment.Stmt.Call):
+    def _handle_stmt_SideEffectStatement(self, stmt: ailment.Stmt.SideEffectStatement):
         data = self._handle_Call_base(stmt, is_expr=False)
         src = data.ret_values
         if src is None:
@@ -235,7 +236,9 @@ class SimEngineRDAIL(
         if self.state.analysis:
             self.state.analysis.function_calls[data.callsite_codeloc].ret_defns.update(defs)
 
-    def _handle_Call_base(self, stmt: ailment.Stmt.Call, is_expr: bool = False) -> FunctionCallData:
+    def _handle_Call_base(
+        self, stmt: ailment.Expr.Call | ailment.Stmt.SideEffectStatement, is_expr: bool = False
+    ) -> FunctionCallData:
         if isinstance(stmt.target, ailment.Expr.Expression):
             target = self._expr(stmt.target)  # pylint:disable=unused-variable
             func_name = None
@@ -251,7 +254,8 @@ class SimEngineRDAIL(
 
         statement = self.block.statements[self.stmt_idx]
         caller_will_handle_single_ret = True
-        if hasattr(statement, "dst") and statement.dst != stmt.ret_expr:
+        ret_expr = getattr(stmt, "ret_expr", None)
+        if hasattr(statement, "dst") and statement.dst != ret_expr:
             caller_will_handle_single_ret = False
 
         data = FunctionCallData(
@@ -266,7 +270,7 @@ class SimEngineRDAIL(
             args_values=[self._expr(arg) for arg in stmt.args] if stmt.args is not None else None,
             redefine_locals=stmt.args is None and not is_expr,
             caller_will_handle_single_ret=caller_will_handle_single_ret,
-            ret_atoms={Atom.from_ail_expr(stmt.ret_expr, self.arch)} if stmt.ret_expr is not None else None,
+            ret_atoms={Atom.from_ail_expr(ret_expr, self.arch)} if ret_expr is not None else None,
         )
 
         self._function_handler.handle_function(self.state, data)
@@ -592,6 +596,44 @@ class SimEngineRDAIL(
         _: MultiValues = self._expr(expr.iffalse)
         top = self.state.top(len(iftrue))
         return MultiValues(top)
+
+    def _handle_expr_Extract(self, expr: ailment.expression.Extract) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
+        base = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        one_offset = offset.one_value()
+        if one_offset is None:
+            return self._top(expr.bits)
+        conc_offset = one_offset.concrete_value
+        if conc_offset is None:
+            return self._top(expr.bits)
+
+        return cast(
+            MultiValues[claripy.ast.BV | claripy.ast.FP],
+            base.extract(conc_offset, expr.offset.size, archinfo.Endness.BE),
+        )
+
+    def _handle_expr_Insert(self, expr: ailment.expression.Insert):
+        base = self._expr_bv(expr.base)
+        offset = self._expr_bv(expr.offset)
+        value = self._expr_bv(expr.value)
+
+        one_offset = offset.one_value()
+        if one_offset is None:
+            return self._top(expr.bits)
+        conc_offset = one_offset.concrete_value
+        if conc_offset is None:
+            return self._top(expr.bits)
+
+        return cast(
+            MultiValues[claripy.ast.BV | claripy.ast.FP],
+            base.extract(0, conc_offset, archinfo.Endness.BE)
+            .concat(value)
+            .concat(
+                base.extract(
+                    conc_offset + expr.offset.size, len(base) // 8 - conc_offset - expr.offset.size, archinfo.Endness.BE
+                )
+            ),
+        )
 
     def _handle_unop_Not(self, expr) -> MultiValues[claripy.ast.BV | claripy.ast.FP]:
         operand = self._expr_bv(expr.operand)

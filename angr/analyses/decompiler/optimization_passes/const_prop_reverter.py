@@ -6,22 +6,21 @@ import itertools
 import networkx
 import claripy
 from angr.ailment import Const
-from angr.ailment.block_walker import AILBlockWalkerBase
-from angr.ailment.statement import Call, Statement, ConditionalJump, Assignment, Store, Return
-from angr.ailment.expression import Convert, Register, Expression, Load
+from angr.ailment.block_walker import AILBlockViewer
+from angr.ailment.statement import SideEffectStatement, Statement, ConditionalJump, Assignment, Store, Return
+from angr.ailment.expression import Call, Convert, Register, Expression, Load
 
 from .optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.analyses.decompiler.structuring import SAILRStructurer, DreamStructurer
 from angr.knowledge_plugins.key_definitions.atoms import MemoryLocation
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE
 
-
 _l = logging.getLogger(__name__)
 
 
-class PairAILBlockWalker:
+class PairAILBlockRewriter:
     """
-    This AILBlockWalker will walk two blocks at a time and call a handler for each pair of statements that are
+    This AILBlockRewriter will walk two blocks at a time and call a handler for each pair of statements that are
     instances of the same type. This is useful for comparing two statements for similarity across blocks.
     """
 
@@ -36,23 +35,26 @@ class PairAILBlockWalker:
             Return: self._handle_Return_pair,
         }
 
-        self.stmt_pair_handlers: dict[Statement, Callable] = (
-            stmt_pair_handlers if stmt_pair_handlers else _default_stmt_handlers
-        )
+        self.stmt_pair_handlers: dict[Statement, Callable] = stmt_pair_handlers or _default_stmt_handlers
 
     # pylint: disable=no-self-use
     def _walk_block(self, block):
-        walked_objs = {Assignment: set(), Call: set(), Store: set(), ConditionalJump: set(), Return: set()}
+        walked_objs = {
+            Assignment: set(),
+            Call: set(),
+            Store: set(),
+            ConditionalJump: set(),
+            Return: set(),
+        }
 
         # create a walker that will:
         # 1. recursively expand a stmt with the default handler then,
         # 2. record the stmt parts in the walked_objs dict with the overwritten handler
         #
         # CallExpressions are a special case that require a handler in expressions, since they are statements.
-        walker = AILBlockWalkerBase()
+        walker = AILBlockViewer()
         _default_stmt_handlers = {
             Assignment: walker._handle_Assignment,
-            Call: walker._handle_Call,
             Store: walker._handle_Store,
             ConditionalJump: walker._handle_ConditionalJump,
             Return: walker._handle_Return,
@@ -148,10 +150,10 @@ class ConstPropOptReverter(OptimizationPass):
     NAME = "Revert Constant Propagation Optimizations"
     DESCRIPTION = __doc__.strip()
 
-    def __init__(self, func, region_identifier=None, reaching_definitions=None, **kwargs):
+    def __init__(self, *args, region_identifier=None, reaching_definitions=None, **kwargs):
         self.ri = region_identifier
         self.rd = reaching_definitions
-        super().__init__(func, **kwargs)
+        super().__init__(*args, **kwargs)
 
         self._call_pair_targets = []
         self.resolution = False
@@ -172,7 +174,7 @@ class ConstPropOptReverter(OptimizationPass):
         if self.out_graph is None:
             return
 
-        walker = PairAILBlockWalker(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
+        walker = PairAILBlockRewriter(self.out_graph, stmt_pair_handlers=_pair_stmt_handlers)
         walker.walk()
         if self._call_pair_targets:
             self._analyze_call_pair_targets()
@@ -282,11 +284,8 @@ class ConstPropOptReverter(OptimizationPass):
             return
 
         # now we do specific cases for matching
-        if (
-            isinstance(symb_expr, Register)
-            and isinstance(const_expr, Call)
-            and isinstance(const_expr.ret_expr, Register)
-        ):
+        const_ret_expr = getattr(const_expr, "ret_expr", None)
+        if isinstance(symb_expr, Register) and isinstance(const_expr, Call) and isinstance(const_ret_expr, Register):
             # Handles the following case
             #   B0:
             #   return foo();   // considered constant
@@ -303,7 +302,7 @@ class ConstPropOptReverter(OptimizationPass):
             #
             # This is useful later for merging the return.
             #
-            call_return_reg = const_expr.ret_expr
+            call_return_reg = const_ret_expr
             if symb_expr.likes(call_return_reg):
                 symb_return_stmt = expr_to_blk[symb_expr].statements[-1]
                 const_block = expr_to_blk[const_expr]
@@ -353,7 +352,7 @@ class ConstPropOptReverter(OptimizationPass):
         self._call_pair_targets.append(((call0, blk0, call1, blk1, arg_conflicts), observation_points))
 
     @staticmethod
-    def find_conflicting_call_args(call0: Call, call1: Call):
+    def find_conflicting_call_args(call0: SideEffectStatement | Call, call1: SideEffectStatement | Call):
         if not call0.args or not call1.args:
             return None
 

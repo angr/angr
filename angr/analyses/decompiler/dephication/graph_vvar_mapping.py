@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 
-from angr.ailment import AILBlockWalker
+from angr.ailment import AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
@@ -237,7 +237,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         new_vvar = VirtualVariable(
                             None, new_vvar_id, vvar.bits, new_category, oident=new_oident, ins_addr=ins_addr
                         )
-                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr)
+                        assignment = Assignment(None, new_vvar, vvar, ins_addr=ins_addr, dephi=True)
 
                         self._append_stmt(the_block, assignment, old_vvarid=varid, new_vvarid=new_vvar_id)
 
@@ -268,7 +268,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
             new_vvar = VirtualVariable(
                 None, new_vvar_id, phi_vvar.bits, phi_vvar.category, oident=phi_vvar.oident, ins_addr=ins_addr
             )
-            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr)
+            assignment = Assignment(None, phi_vvar, new_vvar, ins_addr=ins_addr, dephi=True)
 
             phi_stmt = the_block.statements[phidef_stmt_idx]
             replaced, phi_stmt = phi_stmt.replace(phi_vvar, new_vvar)
@@ -282,17 +282,14 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
     @staticmethod
     def _append_stmt(block, stmt, old_vvarid: int | None = None, new_vvarid: int | None = None):
-
         def _handle_VirtualVariable(  # pylint:disable=unused-argument
             expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt, block: Block | None
         ):
             assert old_vvarid is not None and new_vvarid is not None
             return (
-                None
+                expr
                 if expr.varid != old_vvarid
-                else VirtualVariable(
-                    None, new_vvarid, expr.bits, expr.category, oident=expr.oident, ins_addr=expr.ins_addr
-                )
+                else VirtualVariable(None, new_vvarid, expr.bits, expr.category, oident=expr.oident, **expr.tags)
             )
 
         if block.statements and isinstance(block.statements[-1], (Jump, ConditionalJump)):
@@ -300,7 +297,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
             # replace the vvar usage in the last statement if it's used there
             if old_vvarid is not None and new_vvarid is not None:
-                replacer = AILBlockWalker()
+                replacer = AILBlockRewriter()
                 replacer.expr_handlers[VirtualVariable] = _handle_VirtualVariable
                 new_stmt = replacer.walk_statement(block.statements[-1])
                 if new_stmt is not None and new_stmt is not block.statements[-1]:
