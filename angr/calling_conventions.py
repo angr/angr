@@ -36,7 +36,8 @@ from .sim_type import (
     SimTypeReference,
     SimTypedef,
     SimConst,
-    SimTypeBool, SimTypeModifier, SimUnionValue,
+    SimTypeBool, SimTypeModifier, SimUnionValue, SimVariant, SimVariantValue, ite_union, SimVariantCaseValue,
+    SimVariantCase,
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -186,6 +187,17 @@ def refine_locs_with_struct_type(
             for field, field_ty in arg_type.members.items()
         }
         return SimUnionArg(arg_type, locs_dict)
+    if isinstance(arg_type, SimVariant):
+        tag_loc = refine_locs_with_struct_type(arch, locs, arg_type.tag, offset=0)
+        locs_dict = {
+            # Whenever I've looked at DWARF info in Rust programs, the structs that define
+            # a variant case start at offset 0, and the fields in the struct are defined
+            # relative to the start of the variant rather than relative to the end of
+            # the tag field
+            c.name: refine_locs_with_struct_type(arch, locs, c.type, offset=0)
+            for c in arg_type.cases
+        }
+        return SimVariantArg(arg_type, locs_dict, tag_loc)
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
@@ -289,15 +301,7 @@ class SimFunctionArgument:
             return value.raw_to_fp()
         return value
 
-    @staticmethod
-    def _ite_union(a, b):
-        # Simulate a union value by using a claripy.If. Note that claripy.union
-        # will not work here. Z3 doesn't seem to understand claripy.union, and it
-        # seems that this construct is used only by the VSA analyzer.
-        condition = claripy.BoolS("union_sym")
-        return claripy.If(condition, a, b)
-
-    def union_value(self, state, value, **kwargs):
+    def union_value(self, state, value, cond=None, **kwargs):
         """
         The subclasses that implement this method should first get the value currently in the state,
         then union on the passed value. This particular method is used for storing union values into memory
@@ -357,9 +361,13 @@ class SimRegArg(SimFunctionArgument):
     def check_offset(self, arch) -> int:
         return arch.registers[self.reg_name][0] + self.reg_offset
 
-    def union_value(self, state, value, **kwargs):
+    def union_value(self, state, value, cond=None, **kwargs):
         curr_val = self.get_value(state)
-        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), **kwargs)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, **kwargs)
 
     def set_value(self, state, value, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         value = self.check_value_set(value, state.arch)
@@ -411,9 +419,13 @@ class SimStackArg(SimFunctionArgument):
     def __hash__(self):
         return hash((self.size, self.stack_offset))
 
-    def union_value(self, state, value, stack_base=None, **kwargs):
+    def union_value(self, state, value, stack_base=None, cond=None, **kwargs):
         curr_val = self.get_value(state, stack_base=stack_base)
-        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), stack_base=stack_base, **kwargs)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, stack_base=stack_base, **kwargs)
 
     def set_value(self, state, value, stack_base=None, **kwargs):  # pylint: disable=arguments-differ
         value = self.check_value_set(value, state.arch)
@@ -455,9 +467,13 @@ class SimComboArg(SimFunctionArgument, Generic[T]):
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
 
-    def union_value(self, state, value, **kwargs):
+    def union_value(self, state, value, cond=None, **kwargs):
         curr_val = self.get_value(state)
-        self.set_value(state, SimFunctionArgument._ite_union(value, curr_val), **kwargs)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, **kwargs)
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ
         value = self.check_value_set(value, state.arch)
@@ -586,6 +602,38 @@ class SimUnionArg(SimFunctionArgument):
             else:
                 setter.union_value(state, value[field], **kwargs)
             first = False
+
+class SimVariantArg(SimFunctionArgument):
+    def __init__(self, variant: SimVariant, locs: dict[str, SimFunctionArgument], tag: SimFunctionArgument):
+        super().__init__(max(loc.size for loc in locs.values()))
+        self.variant = variant
+        self.tag = tag
+        self.locs = locs
+
+    def union_value(self, state, value: SimVariantValue, **kwargs):
+        self.tag.union_value(state, value.tag, **kwargs)
+        for field in value.case_values:
+            setter = self.locs[field.name]
+            setter.union_value(state, value[field.name], **kwargs)
+
+    def get_value(self, state, **kwargs):
+        tag = self.tag.get_value(state, **kwargs)
+        case_values: list[SimVariantCaseValue] = []
+        for (name, getter) in self.locs.items():
+            c: SimVariantCase = self.variant[name]
+            val = SimVariantCaseValue(c, tag == c.tag_value, getter.get_value(state, **kwargs))
+            case_values.append(val)
+        return SimVariantValue(self.variant, case_values, tag)
+
+    def set_value(self, state, value: SimVariantValue, **kwargs):
+        # Set the tag of the variant
+        self.tag.set_value(state, value.tag, **kwargs)
+        for c_val in value.case_values:
+            # Union on all of the cases
+            setter = self.locs[c_val.name]
+            # Each of the case arms has a condition based on the tag
+            cond = (value.tag == c_val.tag_value)
+            setter.union_value(state, c_val.value, cond=cond)
 
 class SimArrayArg(SimFunctionArgument):
     def __init__(self, locs):
@@ -1203,8 +1251,17 @@ class SimCC:
                 ty, {field: SimCC._standardize_value(arg[field], ty.members[field], state, alloc) for field in arg.values}
             )
 
+        if isinstance(arg, (dict, SimVariantValue)) and isinstance(ty, SimVariant):
+            if not isinstance(arg, SimVariantValue):
+                arg = SimVariantValue(ty, arg)
+            return SimVariantValue(
+                ty, [SimVariantCaseValue(c.variant_case, c.tag_constraint,
+                                         SimCC._standardize_value(c.value, c.type, state, alloc))
+                     for c in arg.case_values]
+            )
+
         if isinstance(arg, (tuple, dict)):
-            raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct or union)")
+            raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct, union or variant)")
 
         if isinstance(arg, int):
             if isinstance(ty, SimTypeFloat):
@@ -1775,6 +1832,13 @@ class SimCCSystemVAMD64(SimCC):
             return ["INTEGER"] * nchunks
         if isinstance(ty, (SimTypedef, SimTypeModifier)):
             return self._classify(ty.type)
+        if isinstance(ty, SimVariant):
+            # Here we assume that the Rust variant has been annotated with the repr(C)
+            # ABI. Unfortunately this seems like the best we can do until the Rust
+            # developers make a stable ABI for the language. The DWARF information
+            # does not contain the ABI either. However a more sophisticated ABI inference
+            # system could make progress here.
+            return self._classify(ty.rust_c_abi())
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimTypeString, and other struct-like classes
             assert ty.size is not None

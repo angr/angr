@@ -29,6 +29,12 @@ l = logging.getLogger(name=__name__)
 errorlog = logging.getLogger(name=__name__ + ".yacc")
 errorlog.setLevel(logging.ERROR)
 
+def ite_union(a, b):
+    # Simulate a union value by using a claripy.If. Note that claripy.union
+    # will not work here. Z3 doesn't seem to understand claripy.union, and it
+    # seems that this construct is used only by the VSA analyzer.
+    condition = claripy.BoolS("union_sym")
+    return claripy.If(condition, a, b)
 
 class SimType:
     """
@@ -2239,6 +2245,12 @@ class SimVariant(NamedTypeMixin, SimType):
         self.tag_offset = tag_offset
         self.cases = cases
 
+    def __getitem__(self, name: str):
+        for c in self.cases:
+            if c.name == name:
+                return c
+        raise ValueError(f"Unable to find variant case named {name}")
+
     @property
     def size(self):
         return self._size
@@ -2295,8 +2307,8 @@ class SimVariant(NamedTypeMixin, SimType):
                     tag_constraint = claripy.ast.bool.true()
                 else:
                     tag_constraint = tag == c.tag_value
-                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view))
-            return SimVariantValue(self, tag, case_values)
+                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view.resolved))
+            return SimVariantValue(self, case_values, tag=tag)
 
     def __repr__(self):
         members = [f"{c.type!s} {c.name}" for c in self.cases]
@@ -2341,6 +2353,22 @@ class SimVariant(NamedTypeMixin, SimType):
 
     def copy(self):
         return SimVariant(self.size, self.tag, self.tag_offset, list(self.cases), self.name, self.label, self._align, self.arch)
+
+    def rust_c_abi(self):
+        # Here we construct a C representation of this variant for use in Rust programs where
+        # repr(C) is used on an enum. See this Rust RFC for more information:
+        # https://github.com/rust-lang/rfcs/pull/2195
+        # The ABI essentially consists of a tag field followed by a union of the cases
+        top_level_dict = OrderedDict()
+        top_level_dict["tag"] = self.tag
+
+        case_union = dict()
+        for c in self.cases:
+            case_union[c.name] = c.type
+
+        top_level_dict["values"] = SimUnion(case_union, arch=self.arch)
+
+        return SimStruct(top_level_dict, arch=self.arch)
 
 class SimTypedef(NamedTypeMixin, SimType):
     _ident = "typedef"
@@ -2586,8 +2614,7 @@ class SimUnionValue:
         return SimUnionValue(self._union, values=self._values)
 
 class SimVariantCaseValue:
-    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool,
-                 value: SimMemView):
+    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool, value):
         """
         :param variant_case:    A SimVariantCase instance describing this particular case
         :param tag_constraint:  A boolean claripy constraint that must be true in order for this variant case to be\
@@ -2613,20 +2640,56 @@ class SimVariantCaseValue:
     def align(self):
         return self.variant_case.align
 
+    @property
+    def type(self):
+        return self.variant_case.type
+
 class SimVariantValue:
     """
     The value of a variant, which depending on the variant's tag can be multiple values.
     """
 
-    def __init__(self, variant: SimVariant, tag: claripy.ast.Bits, case_values: list[SimVariantCaseValue]):
+    def __init__(self, variant: SimVariant, case_values: dict[str, tuple[...]] | list[SimVariantCaseValue],
+                 tag: int | claripy.ast.Bits | None = None):
         """
         :param variant:      A SimVariant instance describing the type of this variant
-        :param tag:          The tag of this variant. May be symbolic, concrete or a mixture of the two
+        :param tag:          The tag of this variant. May be symbolic, concrete or a mixture of the two. If the tag\
+                             is not specified, the tag will take on any of the values used in case_values
         :param case_values:  The memory contents of all possible values that this variant could be
         """
+        if tag is None and variant.tag is not None:
+            if isinstance(case_values, list):
+                for c in case_values:
+                    t = claripy.BVV(c.tag_value, variant.tag.size)
+                    if tag is None:
+                        tag = t
+                    else:
+                        tag = ite_union(t, tag)
+            elif isinstance(case_values, dict):
+                for name in case_values:
+                    t = claripy.BVV(variant[name].tag_value, variant.tag.size)
+                    if tag is None:
+                        tag = t
+                    else:
+                        tag = ite_union(t, tag)
+        elif isinstance(tag, int):
+            tag = claripy.BVV(tag, variant.tag.size)
+
         self.variant = variant
         self.tag = tag
-        self.case_values = case_values
+        if isinstance(case_values, list):
+            self.case_values = case_values
+        else:
+            self.case_values = []
+            for (part_name, contents) in case_values.items():
+                v_case: SimVariantCase = variant[part_name]
+                case_contents = SimStructValue(v_case.type, {f"__{i}": val for (i, val) in enumerate(contents)})
+                if tag is None:
+                    constraint = claripy.ast.bool.true()
+                else:
+                    constraint = (tag == v_case.tag_value)
+                part_val = SimVariantCaseValue(v_case, constraint, case_contents)
+                self.case_values.append(part_val)
 
     def __repr__(self):
         return f"SimVariantValue(tag={self.tag}, case_values={self.case_values})"
@@ -2634,7 +2697,7 @@ class SimVariantValue:
     def __getattr__(self, item: str):
         return self[item]
 
-    def __getitem__(self, item: str | int):
+    def __getitem__(self, item: str | int) -> SimVariantCaseValue:
         if isinstance(item, int):
             for v in self.case_values:
                 if v.tag_value == item:
@@ -2647,8 +2710,25 @@ class SimVariantValue:
         raise KeyError(f"Unknown variant case {item}")
 
     def copy(self):
-        return SimVariantValue(self.variant, self.tag, self.case_values)
+        return SimVariantValue(self.variant, self.case_values, tag=self.tag)
 
+    def rust_c_abi(self):
+        # Here we construct a C representation of a Rust enum, per the following Rust RFC:
+        # https://github.com/rust-lang/rfcs/pull/2195
+        # We first convert the variant of this value to a struct containing a tag and a union
+        # Then we construct a SimStructValue and SimUnionValue for our values
+
+        # Convert the variant to the equivalent C representation
+        typ = self.variant.rust_c_abi()
+
+        # Construct a union of the different arms of our variant
+        fields = dict()
+        for c in self.case_values:
+            fields[c.name] = c.value
+        union_val = SimUnionValue(typ.fields["values"], fields)
+
+        # Construct the final struct containing the tag and the union
+        return SimStructValue(typ, {"tag": self.tag, "values": union_val})
 
 class SimCppClass(SimStruct):
 
