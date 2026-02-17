@@ -34,17 +34,14 @@ from .sim_type import (
     SimTypeBottom,
     parse_signature,
     SimTypeReference,
-<<<<<<< HEAD
     SimTypedef,
     SimConst,
     SimTypeBool, SimTypeModifier, SimUnionValue, SimVariant, SimVariantValue, ite_union, SimVariantCaseValue,
     SimVariantCase,
-=======
     SimTypeRef,
     SimTypeBool,
     SimTypeEnum,
     SimTypeBitfield,
->>>>>>> master
 )
 from .state_plugins.sim_action_object import SimActionObject
 
@@ -916,13 +913,9 @@ class SimCC:
         """
         return self.RETURN_ADDR
 
-<<<<<<< HEAD
-    def next_arg(self, session: ArgSession, arg_type: SimType):
+    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
         if isinstance(arg_type, (SimTypedef, SimTypeModifier)):
             return self.next_arg(session, arg_type.type)
-=======
-    def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
->>>>>>> master
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
@@ -1850,7 +1843,6 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
-<<<<<<< HEAD
         if isinstance(ty, (SimTypedef, SimTypeModifier)):
             return self._classify(ty.type)
         if isinstance(ty, SimVariant):
@@ -1860,10 +1852,8 @@ class SimCCSystemVAMD64(SimCC):
             # does not contain the ABI either. However a more sophisticated ABI inference
             # system could make progress here.
             return self._classify(ty.rust_c_abi())
-=======
         if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
             raise TypeError("Cannot lay out an opaque class")
->>>>>>> master
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
             # NamedTypeMixin covers SimUnion, SimStruct, SimCppClass, and other struct-like classes
             assert ty.size is not None
