@@ -69,6 +69,7 @@ class SimEngineSSARewriting(
         vvar_id_start: int = 0,
         rewrite_tmps: bool = False,
         stackvars: bool = False,
+        fail_fast: bool = False,
     ):
         super().__init__(project)
 
@@ -81,6 +82,7 @@ class SimEngineSSARewriting(
         self.def_to_udef = def_to_udef
         self.stackvars = stackvars
         self.incomplete_defs = incomplete_defs
+        self._fail_fast = fail_fast
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
@@ -611,8 +613,11 @@ class SimEngineSSARewriting(
             else:
                 raise TypeError(expr)
 
-            # we got here because expr refers to a non-existent stack offset or register offset. we try our best to
-            # guesstimate the udef here
+            # we got here because expr refers to a non-existent stack offset or register offset.
+            # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
+            if self._fail_fast:
+                raise KeyError(expr)
+            # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
             offset = expr.offset
             if kind == "stack":
