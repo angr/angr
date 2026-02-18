@@ -74,7 +74,7 @@ class SimEngineSSARewriting(
         super().__init__(project)
 
         self.def_to_vvid_cache: dict[Def, int] = {}
-        self.tmp_to_vvid_cache: dict[int, int] = {}
+        self.tmp_to_vvid_cache: dict[tuple[int, int | None, int], int] = {}
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
         self.hclb_side_exit_state: RewritingState | None = None
@@ -321,8 +321,9 @@ class SimEngineSSARewriting(
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         if not self.rewrite_tmps:
             return None
-        if (vvid := self.tmp_to_vvid_cache.get(expr.tmp_idx, None)) is None:
-            vvid = self.tmp_to_vvid_cache[expr.tmp_idx] = self._current_vvar_id
+        tmp_key = self.block.addr, self.block.idx, expr.tmp_idx
+        if (vvid := self.tmp_to_vvid_cache.get(tmp_key, None)) is None:
+            vvid = self.tmp_to_vvid_cache[tmp_key] = self._current_vvar_id
             self._current_vvar_id += 1
         return VirtualVariable(
             expr.idx,
