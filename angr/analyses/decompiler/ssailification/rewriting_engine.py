@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 from collections.abc import MutableMapping
 import logging
 
+import archinfo
+
 from angr.ailment.block import Block
 from angr.ailment.manager import Manager
 from angr.ailment.statement import (
@@ -608,10 +610,10 @@ class SimEngineSSARewriting(
             # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                if expr.offset in self.state.stackvars:
+                if self._fail_fast or expr.offset in self.state.stackvars:
                     return self.state.stackvars[expr.offset]
             elif isinstance(expr, Register):
-                if expr.reg_offset in self.state.registers:
+                if self._fail_fast or expr.reg_offset in self.state.registers:
                     return self.state.registers[expr.reg_offset]
             else:
                 raise TypeError(expr)
@@ -622,7 +624,7 @@ class SimEngineSSARewriting(
                 raise KeyError(expr)
             # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
-            offset = expr.offset
+            offset = expr.offset if isinstance(expr, StackBaseOffset) else expr.reg_offset
             if kind == "stack":
                 next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
             else:
@@ -663,7 +665,7 @@ class SimEngineSSARewriting(
 
     def _vvar_extract(
         self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
-    ) -> Extract | VirtualVariable:
+    ) -> Extract | VirtualVariable | BinaryOp:
         assert offset >= 0
         if size == vvar.size:
             return vvar
@@ -672,6 +674,17 @@ class SimEngineSSARewriting(
             if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
             else self.project.arch.register_endness
         )
+        if size > vvar.size:
+            if self._fail_fast:
+                assert False, "Invariant failure: we generated a vvar which is smaller than one of its uses"
+            remainder = Const(None, None, 0, size * 8 - vvar.bits, uninitalized=True)
+            order = [vvar, remainder] if endness == archinfo.Endness.LE else [remainder, vvar]
+            return BinaryOp(
+                self.ail_manager.next_atom(),
+                "Concat",
+                order,
+                bits=size * 8,
+            )
         return Extract(
             self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), endness, **orig_tags.tags
         )
