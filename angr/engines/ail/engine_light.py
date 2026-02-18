@@ -227,7 +227,7 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         call: ailment.expression.Call,
         is_expr: bool = False,
         stmt: ailment.statement.SideEffectStatement | None = None,
-    ):
+    ) -> tuple[claripy.ast.Bits, ...]:
         arguments = tuple(self._expr_bits(e) for e in (call.args or []))
 
         if angr.options.CALLLESS in self.state.options:
@@ -326,12 +326,24 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
         state_true = self.state.copy()
         state_false = self.state
         target_true_addr = self._expr_bv(stmt.true_target)
-        assert target_true_addr.concrete
+        if not target_true_addr.concrete:
+            # Symbolic branch target — cannot determine destination; deadend.
+            return True
         if stmt.false_target is None:
             target_false_addr = None
         else:
             target_false_addr = self._expr_bv(stmt.false_target)
-            assert target_false_addr.concrete
+            if not target_false_addr.concrete:
+                # Symbolic false target — only take the true branch.
+                self.successors.add_successor(
+                    state_true,
+                    (target_true_addr.concrete_value, stmt.true_target_idx),
+                    condition,
+                    "Ijk_Boring",
+                    exit_stmt_idx=self.stmt_idx,
+                    exit_ins_addr=self.ins_addr,
+                )
+                return False
         self.successors.add_successor(
             state_true,
             (target_true_addr.concrete_value, stmt.true_target_idx),
@@ -797,23 +809,39 @@ class SimEngineAILSimState(SimEngineLightAIL[StateType, DataType, bool, None]):
     def _handle_binop_CmpF(self, expr: ailment.expression.BinaryOp) -> DataType:
         raise NotImplementedError("Not sure what the semantics of this op are")
 
+    @staticmethod
+    def _match_bv_widths(a: claripy.ast.BV, b: claripy.ast.BV) -> tuple[claripy.ast.BV, claripy.ast.BV]:
+        if a.size() != b.size():
+            target = max(a.size(), b.size())
+            if a.size() < target:
+                a = a.zero_extend(target - a.size())
+            else:
+                b = b.zero_extend(target - b.size())
+        return a, b
+
     def _handle_binop_CmpEQ(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) == self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a == b
 
     def _handle_binop_CmpNE(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) != self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a != b
 
     def _handle_binop_CmpLT(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) < self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a < b
 
     def _handle_binop_CmpLE(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) <= self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a <= b
 
     def _handle_binop_CmpGT(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) > self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a > b
 
     def _handle_binop_CmpGE(self, expr: ailment.expression.BinaryOp) -> DataType:
-        return self._expr_bv(expr.operands[0]) >= self._expr_bv(expr.operands[1])
+        a, b = self._match_bv_widths(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
+        return a >= b
 
     def _handle_binop_Concat(self, expr: ailment.expression.BinaryOp) -> DataType:
         return claripy.Concat(self._expr_bv(expr.operands[0]), self._expr_bv(expr.operands[1]))
