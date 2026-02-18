@@ -43,6 +43,7 @@ from angr.ailment.expression import (
 from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
 from .rewriting_state import RewritingState
+from .consts import MAX_STACK_VAR_SIZE
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
@@ -645,6 +646,11 @@ class SimEngineSSARewriting(
             oident = offset
         else:
             raise TypeError(expr)
+
+        if kind == "stack" and size >= MAX_STACK_VAR_SIZE:
+            # limit the stack variable size
+            size = MAX_STACK_VAR_SIZE
+
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":

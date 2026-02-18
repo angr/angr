@@ -28,6 +28,7 @@ from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base
 from angr.calling_conventions import default_cc
 from .traversal_state import TraversalState, Value
+from .consts import MAX_STACK_VAR_SIZE
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, Kind
@@ -65,9 +66,6 @@ class DefInfo:
     @property
     def variable_endoffset(self):
         return self.variable_offset + self.variable_size
-
-
-MAX_STACK_VAR_SIZE = 2 * 1024 * 1024
 
 
 class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]):
