@@ -61,6 +61,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         cache_results: bool = False,
         key_prefix: str | None = None,
         profiling: bool = False,
+        reg_values: dict[str, Any] = None,
     ):
         if block is None and func is not None:
             # only func is specified. traversing a function
@@ -92,6 +93,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
         self._cache_results = cache_results
         self._initial_codeloc: CodeLocation
         self.stmts_to_remove: set[CodeLocation] = set()
+        self._reg_values = reg_values
         if self.flavor == "function":
             self._initial_codeloc = CodeLocation(self._func_addr, stmt_idx=0, ins_addr=self._func_addr)
         else:  # flavor == "block"
@@ -228,6 +230,7 @@ class PropagatorAnalysis(ForwardAnalysis, Analysis):  # pylint:disable=abstract-
             max_prop_expr_occurrence=1 if self.flavor == "function" else 0,
             initial_codeloc=self._initial_codeloc,
             model=self.model,
+            reg_values=self._reg_values,
         )
         return self._initial_state
 
