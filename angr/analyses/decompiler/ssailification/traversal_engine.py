@@ -329,7 +329,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                         if end_offset != new_end_offset:
                             end_offset = new_end_offset
                             reached_fixedpoint = False
-                        size = offset - end_offset
+                        size = end_offset - offset
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
         if loc2 is not None:
