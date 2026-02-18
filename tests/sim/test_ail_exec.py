@@ -389,3 +389,108 @@ class TestAILExec(unittest.TestCase):
         assert state.callstack.vars[v0.varid].concrete_value == 1
         assert state.callstack.vars[v1.varid].concrete_value == 2
         assert state.callstack.vars[v2.varid].concrete_value == 3
+
+    def test_symbolic_true_target_deadends(self):
+        # Regression test: a ConditionalJump with a symbolic true target should not crash.
+        # The engine returns True (non-diverging) to skip this jump, and the trailing
+        # unconditional Jump provides the block exit.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state(
+            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        cond = ailment.expression.Const(None, None, 1, 1)
+        sym_target = ailment.expression.Register(None, None, p.arch.registers["rax"][0], 64)
+        false_tgt = ailment.expression.Const(None, None, 0x400008, 64)
+        cjmp = ailment.statement.ConditionalJump(0, cond, sym_target, false_tgt)
+        cjmp.tags["ins_addr"] = 0x400000
+        # Add a trailing jump so the block has a concrete exit
+        jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x40000C, 64))
+        jmp.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[cjmp, jmp])
+
+        succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, succ)
+        # Should not raise AssertionError on symbolic target
+        engine.process(state, block=block)
+
+        # The cjmp was skipped (symbolic target), so the trailing jump's successor exists
+        assert any(s.addr == (0x40000C, None) for s in succ.successors)
+
+    def test_symbolic_false_target_takes_only_true_branch(self):
+        # Regression test: a ConditionalJump with a concrete true target but symbolic false target
+        # should take only the true branch instead of asserting.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state(
+            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        cond = ailment.expression.Const(None, None, 1, 1)
+        true_tgt = ailment.expression.Const(None, None, 0x400004, 64)
+        sym_false_tgt = ailment.expression.Register(None, None, p.arch.registers["rbx"][0], 64)
+        cjmp = ailment.statement.ConditionalJump(0, cond, true_tgt, sym_false_tgt)
+        cjmp.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[cjmp])
+
+        succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, succ)
+        engine.process(state, block=block)
+
+        # Should have the true branch as a successor
+        assert any(s.addr == (0x400004, None) for s in succ.all_successors)
+
+    def test_width_mismatched_comparison_does_not_crash(self):
+        # Regression test: CmpEQ with operands of different widths should not crash.
+        # The engine should zero-extend the narrower operand via _match_bv_widths.
+        p = angr.load_shellcode(b"\x90", arch="AMD64", load_address=0x400000)
+        state = p.factory.blank_state(
+            add_options={angr.options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        state.addr = (0x400000, None)
+
+        bottom_frame = AILCallStack()
+        top_frame = AILCallStack(func_addr=0x400000)
+        top_frame.passed_args = None
+        state.register_plugin("callstack", bottom_frame)
+        state.callstack.push(top_frame)
+
+        # Create a CmpEQ between a 32-bit const and a 64-bit const (different widths)
+        op32 = ailment.expression.Const(None, None, 42, 32)
+        op64 = ailment.expression.Const(None, None, 42, 64)
+        cmp_expr = ailment.expression.BinaryOp(None, "CmpEQ", (op32, op64), signed=False)
+
+        # Assign the result to a register to exercise the comparison handler
+        rax_offset = p.arch.registers["rax"][0]
+        assign = ailment.statement.Assignment(
+            idx=0,
+            dst=ailment.expression.Register(None, None, rax_offset, 64),
+            src=ailment.expression.Convert(None, 1, 64, False, cmp_expr),
+        )
+        assign.tags["ins_addr"] = 0x400000
+        jmp = ailment.statement.Jump(idx=1, target=ailment.expression.Const(None, None, 0x400004, 64))
+        jmp.tags["ins_addr"] = 0x400000
+        block = ailment.Block(0x400000, 0, statements=[assign, jmp])
+
+        succ = SimSuccessors(state.addr, state)
+        engine = SimEngineAILSimState(p, succ)
+        # Should not raise a claripy width mismatch error
+        engine.process(state, block=block)
+
+        assert len(succ.successors) == 1
+        result = succ.successors[0].registers.load(rax_offset, 8)
+        # 42 == 42 after zero-extending 32-bit to 64-bit, so result should be 1
+        assert result.concrete and result.concrete_value == 1
