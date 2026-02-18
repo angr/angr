@@ -916,6 +916,24 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 entropy += -p_x * math.log2(p_x)
         return entropy
 
+    @staticmethod
+    def _value_from_const_expr(target) -> int | None:
+        target_addr: int | None
+        if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
+            target_addr = target.con.value
+        elif type(target) in (
+            pyvex.IRConst.U8,
+            pyvex.IRConst.U16,
+            pyvex.IRConst.U32,
+            pyvex.IRConst.U64,
+        ):  # pylint: disable=unidiomatic-typecheck
+            target_addr = target.value
+        elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
+            target_addr = target
+        else:
+            target_addr = None
+        return target_addr
+
     #
     # Properties
     #
@@ -2505,6 +2523,19 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         if exc is not None:
             successors.append((DEFAULT_STATEMENT, default_branch_ins_addr, exc.handler_addr, "Ijk_Exception"))
 
+        if cfg_job.job_type in (
+            CFGJobType.COMPLETE_SCANNING,
+            CFGJobType.FUNCTION_PROLOGUE,
+        ) and self._entries_branching_to_middle_of_instruction([succ[2] for succ in successors]):
+            # remove the node
+            if cfg_node in self.graph:
+                self.graph.remove_node(cfg_node)
+            self._model.remove_node(cfg_node.addr, cfg_node)
+            if addr == current_func_addr:
+                # kill the function as well
+                del self.kb.functions[current_func_addr]
+            return []
+
         entries = []
 
         successors = self._post_process_successors(irsb, successors)
@@ -2552,22 +2583,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param all_successors:          All successors of the current block.
         :return:                        a list of CFGJobs
         """
-        target_addr: int | None
-        if type(target) is pyvex.IRExpr.Const:  # pylint: disable=unidiomatic-typecheck
-            target_addr = target.con.value
-        elif type(target) in (
-            pyvex.IRConst.U8,
-            pyvex.IRConst.U16,
-            pyvex.IRConst.U32,
-            pyvex.IRConst.U64,
-        ):  # pylint: disable=unidiomatic-typecheck
-            target_addr = target.value
-        elif type(target) is int:  # pylint: disable=unidiomatic-typecheck
-            target_addr = target
-        else:
-            target_addr = None
+        target_addr: int | None = self._value_from_const_expr(target)
 
-        if target_addr in self._known_thunks and jumpkind == "Ijk_Boring":
+        if target_addr is not None and target_addr in self._known_thunks and jumpkind == "Ijk_Boring":
             thunk_kind = self._known_thunks[target_addr][0]
             if thunk_kind == "ret":
                 jumpkind = "Ijk_Ret"
@@ -4287,6 +4305,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self.kb.functions._add_return_from_call(
             function_addr, return_from_addr, return_to_snippet, to_outside=to_outside
         )
+
+    def _entries_branching_to_middle_of_instruction(self, target_expr_list: list) -> bool:
+        for entry in target_expr_list:
+            addr = self._value_from_const_expr(entry)
+            if addr is not None and self._addr_in_middle_of_instruction(addr):
+                return True
+        return False
 
     #
     # Architecture-specific methods
