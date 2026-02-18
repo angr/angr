@@ -229,6 +229,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             extra_offset -= 1 << self.project.arch.bits
         offset = base_offset + min(extra_offset, 0)
         size = max(extra_offset, 0) + base_size
+        if size >= MAX_STACK_VAR_SIZE:
+            return set()
+
         full_offset, full_size, popped = self.state.stackvar_unify(offset, size)
 
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
