@@ -459,7 +459,8 @@ class SimEngineVRBase(
 
         if vvar.was_stack:
             # shove it on the stack so we can get it back later by reference
-            self.state.stack_region.store(vvar.stack_offset, annotated_data)
+            stack_addr = self.state.stack_addr_from_offset(vvar.stack_offset)
+            self.state.stack_region.store(stack_addr, annotated_data)
 
         if richr.typevar is not None:
             if not self.state.typevars.has_type_variable_for(variable):
