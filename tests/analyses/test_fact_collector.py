@@ -59,16 +59,14 @@ class TestFactCollector(unittest.TestCase):
             ],
         )
 
-    def test_caller_saved_regs_not_in_input_args(self):
-        """Caller-saved registers should not be mistakenly treated as callee-saved input args."""
-        binary_path = os.path.join(test_location, "x86_64", "fauxware")
+
+    def _check_caller_saved_excluded(self, arch_dir):
+        """Helper: no caller-saved register offset may appear in callee_restored_regs."""
+        from angr.calling_conventions import default_cc  # pylint:disable=import-outside-toplevel
+
+        binary_path = os.path.join(test_location, arch_dir, "fauxware")
         proj = angr.Project(binary_path, auto_load_libs=False)
         cfg = proj.analyses.CFG()
-
-        from angr.calling_conventions import (  # pylint:disable=import-outside-toplevel
-            SimRegArg,
-            default_cc,
-        )
 
         cc_cls = default_cc(proj.arch.name, platform=proj.simos.name if proj.simos is not None else None)
         assert cc_cls is not None
@@ -78,24 +76,20 @@ class TestFactCollector(unittest.TestCase):
         for reg_name in cc.CALLER_SAVED_REGS:
             if reg_name in proj.arch.registers:
                 caller_saved_offsets.add(proj.arch.registers[reg_name][0])
+        assert caller_saved_offsets, "expected at least one caller-saved register"
 
-        authenticate = cfg.functions["authenticate"]
-        ffc = proj.analyses.FunctionFactCollector(authenticate)
+        for func in cfg.functions.values():
+            ffc = proj.analyses.FunctionFactCollector(func)
+            callee_restored = ffc._analyze_endpoints_for_restored_regs()
+            overlap = callee_restored & caller_saved_offsets
+            assert not overlap, (
+                f"{func.name} @ {hex(func.addr)}: caller-saved offsets {overlap} "
+                f"leaked into callee_restored_regs"
+            )
 
-        if ffc.input_args is not None:
-            for arg in ffc.input_args:
-                if isinstance(arg, SimRegArg):
-                    # Verify each register arg is NOT a caller-saved register
-                    # that has been misidentified as callee-saved
-                    offset = arg.check_offset(proj.arch)
-                    if offset in caller_saved_offsets:
-                        # A caller-saved reg appearing as an input_arg is fine
-                        # (it may be an actual argument). The fix ensures it
-                        # won't appear due to being in callee_restored_regs.
-                        pass
-
-        # The fix is tested indirectly: the existing test_fauxware_x86_64
-        # verifies the overall CC detection remains correct with the new filtering.
+    def test_caller_saved_regs_excluded_from_callee_restored_armel(self):
+        """ARM: caller-saved regs (r0-r3, r12) must not appear in callee_restored_regs."""
+        self._check_caller_saved_excluded("armel")
 
 
 if __name__ == "__main__":
