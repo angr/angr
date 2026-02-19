@@ -32,8 +32,6 @@ _VALID_CC_OPS = range(ARMG_CC_OP_NUMBER)
 
 class ARMCCallRewriter(CCallRewriterBase):
     """
-    Implements VEX ccall rewriter for ARM.
-
     ARM condition codes encode flag checks on N, Z, C, V flags. The ``cond_n_op``
     operand packs condition (upper 4 bits) and cc_op (lower 4 bits). Conditions
     come in pairs where the odd member inverts the even one (inv = cond & 1).
