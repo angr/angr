@@ -609,22 +609,26 @@ class AILSimplifier(Analysis):
         rd: SRDAModel,
         vvar_to_narrowing_size,
     ):
-        eq_classes: dict[int, int] = {}
+        eq_classes: dict[int, frozenset[int]] = {}
         changed = True
         while changed:
             changed = False
             for phivarid, varids in rd.phivarid_to_varids.items():
                 if phivarid not in eq_classes:
-                    eq_classes[phivarid] = phivarid
+                    changed = True
+                    eq_classes[phivarid] = frozenset({phivarid})
+                rep1 = eq_classes[phivarid]
                 for varid in varids:
                     if varid not in vvar_to_narrowing_size:
                         continue
-                    rep = eq_classes.get(phivarid, phivarid)
-                    if varid not in eq_classes or eq_classes[varid] != rep:
+                    rep0 = eq_classes.get(varid, frozenset({phivarid}))
+                    if varid not in eq_classes or rep0 != rep1:
                         changed = True
+                        rep = rep0 | rep1
                         eq_classes[varid] = rep
+                        eq_classes[phivarid] = rep
 
-        rep_to_vvarids: defaultdict[int, set[int]] = defaultdict(set)
+        rep_to_vvarids: defaultdict[frozenset[int], set[int]] = defaultdict(set)
         for vvarid, rep in eq_classes.items():
             rep_to_vvarids[rep].add(vvarid)
 
