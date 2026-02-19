@@ -45,7 +45,7 @@ class TraversalState:
 
         self.stackvar_bases: MutableMapping[int, tuple[int, int]] = stackvar_bases if stackvar_bases is not None else {}
         self.register_bases: MutableMapping[int, tuple[int, int]] = register_bases if register_bases is not None else {}
-        self.pending_ptr_defines: dict[int, tuple[AILCodeLocation, StackBaseOffset]] = {}
+        self.pending_ptr_defines: dict[int, list[tuple[AILCodeLocation, StackBaseOffset]]] = {}
         self.pending_ptr_defines_nonlocal_live = pending_ptr_defines_nonlocal_live or set()
         self.stackvar_defs = defaultdict(set, {} if stackvar_defs is None else stackvar_defs)
         self.register_defs = defaultdict(set, {} if register_defs is None else register_defs)
