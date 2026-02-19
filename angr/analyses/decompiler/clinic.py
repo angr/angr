@@ -1121,6 +1121,9 @@ class Clinic(Analysis):
             for callsite in call_sites:
                 if self.kb.callsite_prototypes.has_prototype(callsite.addr):
                     continue
+                if callsite.size == 0:
+                    # lifting failure?
+                    continue
 
                 # parse the call instruction address from the edge
                 callsite_ins_addr = None
