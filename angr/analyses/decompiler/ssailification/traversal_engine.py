@@ -538,6 +538,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     else:
                         size = ty.pts_to.size // 8
 
+                if size == 1:
+                    # HACK: until we properly say char[] instead of char*, this is required
+                    size = None
+
                 for stackref, extra in value:
                     if stackref is not None:
                         if outptr:
