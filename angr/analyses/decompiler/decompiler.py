@@ -75,6 +75,7 @@ class Decompiler(Analysis):
         want_full_graph: bool = False,
         generate_code: bool = True,
         use_cache: bool = True,
+        update_cache: bool = True,
         expr_collapse_depth: int = 16,
         clinic_graph=None,
         clinic_arg_vvars=None,
@@ -172,15 +173,18 @@ class Decompiler(Analysis):
         self.expr_collapse_depth = expr_collapse_depth
         self.notes: dict[str, DecompilationNote] = {}
         self.region_identifier = None
+        self.use_cache = use_cache
+        self.update_cache = update_cache
 
         if decompile:
             with self._resilience():
                 self._decompile()
             if self.errors:
-                if (self.func.addr, self._flavor) not in self.kb.decompilations:
-                    self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
-                for error in self.errors:
-                    self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                if self.update_cache:
+                    if (self.func.addr, self._flavor) not in self.kb.decompilations:
+                        self.kb.decompilations[(self.func.addr, self._flavor)] = DecompilationCache(self.func.addr)
+                    for error in self.errors:
+                        self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
                 with self._resilience():
                     l.info("Decompilation failed for %s. Switching to basic preset and trying again.", self.func)
                     if preset != DECOMPILATION_PRESETS["basic"]:
@@ -188,8 +192,9 @@ class Decompiler(Analysis):
                             self.project.arch, self.project.simos.name
                         )
                         self._decompile()
-                        for error in self.errors:
-                            self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
+                        if self.update_cache:
+                            for error in self.errors:
+                                self.kb.decompilations[(self.func.addr, self._flavor)].errors.append(error.format())
 
     def _can_use_decompilation_cache(self, cache: DecompilationCache) -> bool:
         if self._cache_parameters is None or cache.parameters is None:
@@ -456,7 +461,8 @@ class Decompiler(Analysis):
                     l.warning("LLM refinement failed", exc_info=True)
 
         self._update_progress(95.0, text="Finishing up")
-        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
+        if self.update_cache:
+            self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
