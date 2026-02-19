@@ -88,9 +88,7 @@ class ARMCCallRewriter(CCallRewriterBase):
             return None
         return self._do_rewrite_condition(ccall, val)
 
-    def _do_rewrite_condition(
-        self, ccall: Expr.VEXCCallExpression, concrete_cond_n_op: int
-    ) -> Expr.Expression | None:
+    def _do_rewrite_condition(self, ccall: Expr.VEXCCallExpression, concrete_cond_n_op: int) -> Expr.Expression | None:
         cond_v = concrete_cond_n_op >> 4
         op_v = concrete_cond_n_op & 0xF
         inv = cond_v & 1
