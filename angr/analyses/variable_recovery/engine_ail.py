@@ -369,8 +369,9 @@ class SimEngineVRAIL(
                     # stack.
                     existing_variables = set()
                     arg_ty_basesize = arg_ty.basetype.size
+                    stack_addr = self.state.stack_addr_from_offset(stack_offset)
                     try:
-                        vs: MultiValues = self.state.stack_region.load(stack_offset, 1)
+                        vs: MultiValues = self.state.stack_region.load(stack_addr, 1)
                         for values in vs.values():
                             for value in values:
                                 existing_variables.update(
