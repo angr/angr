@@ -1,5 +1,6 @@
 # pylint:disable=wrong-import-position,broad-exception-caught,ungrouped-imports,import-outside-toplevel
 from __future__ import annotations
+import contextlib
 import pathlib
 import copy
 from types import FunctionType
@@ -22,6 +23,10 @@ from .seq_to_blocks import SequenceToBlocks
 
 if TYPE_CHECKING:
     from angr.ailment import Address
+
+pdb = __import__("pdb")
+with contextlib.suppress(ImportError):
+    pdb = __import__("ipdb")
 
 _l = logging.getLogger(__name__)
 
@@ -1031,6 +1036,7 @@ def decompile_functions(
     cca_callsites: bool = True,
     llm: bool = False,
     progressbar: bool = False,
+    postmortem: bool = False,
 ) -> str:
     """
     Decompile a binary into a set of functions.
@@ -1106,6 +1112,8 @@ def decompile_functions(
                     f, cfg=cfg, options=dec_options, preset=preset, show_progressbar=progressbar, fail_fast=True
                 )
             except Exception as e:
+                if postmortem:
+                    pdb.post_mortem(e.__traceback__)
                 exception_string = str(e).replace("\n", " ")
                 dec = None
 
