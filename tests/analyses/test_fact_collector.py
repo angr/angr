@@ -59,7 +59,6 @@ class TestFactCollector(unittest.TestCase):
             ],
         )
 
-
     def _check_caller_saved_excluded(self, arch_dir):
         """Helper: no caller-saved register offset may appear in callee_restored_regs."""
         from angr.calling_conventions import default_cc  # pylint:disable=import-outside-toplevel
@@ -83,8 +82,7 @@ class TestFactCollector(unittest.TestCase):
             callee_restored = ffc._analyze_endpoints_for_restored_regs()
             overlap = callee_restored & caller_saved_offsets
             assert not overlap, (
-                f"{func.name} @ {hex(func.addr)}: caller-saved offsets {overlap} "
-                f"leaked into callee_restored_regs"
+                f"{func.name} @ {hex(func.addr)}: caller-saved offsets {overlap} leaked into callee_restored_regs"
             )
 
     def test_caller_saved_regs_excluded_from_callee_restored_armel(self):
