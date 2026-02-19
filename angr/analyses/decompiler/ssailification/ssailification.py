@@ -115,7 +115,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         df = DominanceFrontier(self._function, func_graph=ail_graph, entry=self._entry)
         frontiers = df.frontiers
 
-        phi_id_ctr = count()
+        phi_id_ctr = count(vvar_id_start)
 
         phiid_to_udef: dict[int, UDef] = {}
         block_to_phiids: defaultdict[Block, list[int]] = defaultdict(list)
@@ -156,7 +156,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             def_to_udef,
             extern_defs,
             incomplete_defs=incomplete_defs,
-            vvar_id_start=vvar_id_start,
+            vvar_id_start=next(phi_id_ctr),
             stackvars=self._ssa_stackvars,
             fail_fast=self._fail_fast,
         )

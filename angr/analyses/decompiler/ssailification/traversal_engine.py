@@ -105,7 +105,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _process_block_end(self, block, stmt_data, whitelist):
         # see comment in StackBaseOffset handler
-        for k, (v1, v2) in self.state.pending_ptr_defines.items():
+        for k, lst in self.state.pending_ptr_defines.items():
+            v1, v2 = lst[0]
             if k not in self.pending_ptr_defines_nonlocal:
                 self.pending_ptr_defines_nonlocal[k] = (v1, v2, set(), k not in self.state.live_stackvars)
                 self.state.pending_ptr_defines_nonlocal_live.add(k)
@@ -235,7 +236,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if base_offset in self.state.pending_ptr_defines_nonlocal_live:
             self.pending_ptr_defines_nonlocal.pop(base_offset, None)
 
-        _, pending_def = self.state.pending_ptr_defines.pop(base_offset, (None, None))
+        lst = self.state.pending_ptr_defines.pop(base_offset, [])
+        pending_def = lst[-1][1] if lst else None
 
         secret_stash = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
@@ -331,7 +333,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                             reached_fixedpoint = False
                         size = end_offset - offset
 
-        loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, (None, None))
+        loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, [(None, None)])[-1]
         if loc2 is not None:
             assert def2 is not None
             self.perform_def("stack", def2, offset, size, base_offset + extra_offset, base_size, loc2, other_defs)
@@ -573,7 +575,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             return set()
 
         if expr.offset not in self.state.pending_ptr_defines:
-            self.state.pending_ptr_defines[expr.offset] = (self._acodeloc(), expr)
+            self.state.pending_ptr_defines[expr.offset] = [(self._acodeloc(), expr)]
             # if this is the first time we've ever seen anything resembling this stackvar,
             # force this to be a def. otherwise, track future uses of this reference.
             # if we get to the end of the block and we haven't seen it used yet,
@@ -581,7 +583,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             # to call this a new def
             if expr.offset not in self.state.stackvar_bases:
                 self.stackvar_get(expr.offset, 0, 1)
-                self.state.pending_ptr_defines[expr.offset] = (self._acodeloc(), expr)
+                self.state.pending_ptr_defines[expr.offset] = [(self._acodeloc(), expr)]
+        else:
+            self.state.pending_ptr_defines[expr.offset].append((self._acodeloc(), expr))
 
         return {(expr.offset, 0)}
 
