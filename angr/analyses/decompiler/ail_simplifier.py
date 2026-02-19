@@ -470,7 +470,15 @@ class AILSimplifier(Analysis):
             # nothing to narrow
             return False
 
+        # one more step: compute the maximum size we can narrow to for each variable equivalence class defined by
+        # phi equivalence.
+        narrowables = self._update_narrowing_sizes_for_phi_classes(narrowables, rd, vvar_to_narrowing_size)
+        if not narrowables:
+            # nothing to narrow
+            return False
+
         # let's narrow them (finally)
+
         narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
         for old_block in addr_and_idx_to_block.values():
             new_block = self.blocks.get(old_block, old_block)
@@ -594,6 +602,50 @@ class AILSimplifier(Analysis):
                     blacklist_varids |= {phivar.varid for phivar in narrow_info.phi_vars}
 
         return repeat, narrowables
+
+    def _update_narrowing_sizes_for_phi_classes(
+        self,
+        narrowables: list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]],
+        rd,
+        vvar_to_narrowing_size,
+    ):
+        eq_classes: dict[int, int] = {}
+        changed = True
+        while changed:
+            changed = False
+            for phivarid, varids in rd.phivarid_to_varids.items():
+                if phivarid not in eq_classes:
+                    eq_classes[phivarid] = phivarid
+                for varid in varids:
+                    if varid not in vvar_to_narrowing_size:
+                        continue
+                    rep = eq_classes.get(phivarid, phivarid)
+                    if varid not in eq_classes or eq_classes[varid] != rep:
+                        changed = True
+                        eq_classes[varid] = rep
+
+        rep_to_vvarids: defaultdict[int, set[int]] = defaultdict(set)
+        for vvarid, rep in eq_classes.items():
+            rep_to_vvarids[rep].add(vvarid)
+
+        for varids in rep_to_vvarids.values():
+            if any(vvarid in vvar_to_narrowing_size for vvarid in varids):
+                narrowing_sizes = {vvar_to_narrowing_size.get(vvarid) for vvarid in varids}
+                if None in narrowing_sizes:
+                    # this really should not happen, but just in case
+                    narrowables = [n for n in narrowables if n[0].atom.varid not in varids]
+                    continue
+                if len(narrowing_sizes) == 1:
+                    continue
+                max_narrowing_size = max(narrowing_sizes)
+                for vvarid in varids:
+                    vvar_to_narrowing_size[vvarid] = max_narrowing_size
+
+        for def_, narrow_info in narrowables:
+            if def_.atom.varid in vvar_to_narrowing_size:
+                narrow_info.to_size = vvar_to_narrowing_size[def_.atom.varid]
+
+        return narrowables
 
     def _narrowing_needed(
         self,
