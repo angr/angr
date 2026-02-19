@@ -59,7 +59,6 @@ class TestFactCollector(unittest.TestCase):
             ],
         )
 
-
     def test_caller_saved_regs_not_in_input_args(self):
         """Caller-saved registers should not be mistakenly treated as callee-saved input args."""
         binary_path = os.path.join(test_location, "x86_64", "fauxware")
