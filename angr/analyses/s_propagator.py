@@ -253,12 +253,15 @@ class SPropagatorAnalysis(Analysis):
                     continue
 
                 vvar_uselocs_set = set(vvar_uselocs[vvar_id])  # deduplicate
+                vvar_useloc_to_count: defaultdict[AILCodeLocation, int] = defaultdict(int)
+                for _, useloc in vvar_uselocs[vvar_id]:
+                    vvar_useloc_to_count[useloc] += 1
 
                 block = blocks[(defloc.block_addr, defloc.block_idx)]
                 stmt = block.statements[defloc.stmt_idx]
                 if (
                     (vvar.was_reg or vvar.was_parameter)
-                    and len(vvar_uselocs_set) <= 2
+                    and sum(vvar_useloc_to_count.values()) <= 2
                     and isinstance(stmt, Assignment)
                     and isinstance(stmt.src, Load)
                 ):
@@ -269,7 +272,7 @@ class SPropagatorAnalysis(Analysis):
                     #       v1 = v0 + 1;
                     #    }
                     can_replace = True
-                    for _, vvar_useloc in vvar_uselocs_set:
+                    for vvar_useloc in vvar_useloc_to_count:
                         if has_store_stmt_in_between_stmts(self.func_graph, blocks, defloc, vvar_useloc):
                             can_replace = False
 
@@ -288,7 +291,7 @@ class SPropagatorAnalysis(Analysis):
                     # a special case: in a typical switch-case construct, a variable may be used once for comparison
                     # for the default case and then used again for constructing the jump target. we can propagate this
                     # variable for such cases.
-                    uselocs = {loc for _, loc in vvar_uselocs_set}
+                    uselocs = set(vvar_useloc_to_count)
                     if self.is_vvar_used_for_addr_loading_switch_case(uselocs, blocks) and not has_tmp_expr(stmt.src):
                         for vvar_used, vvar_useloc in vvar_uselocs_set:
                             self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
@@ -329,33 +332,39 @@ class SPropagatorAnalysis(Analysis):
 
                     else:
                         if is_const_and_vvar_assignment(stmt):
-                            non_exitsite_uselocs = [
-                                loc
-                                for _, loc in vvar_uselocs_set
-                                if (loc.block_addr, loc.block_idx, loc.stmt_idx) not in ret_or_jump_sites
-                            ]
-                            if len(non_exitsite_uselocs) == 1:
-                                # this vvar is used once if we exclude its uses at ret sites or jump sites. we can
-                                # propagate it
-                                for vvar_used, vvar_useloc in vvar_uselocs_set:
-                                    self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
-                                continue
+                            non_exitsite_uselocs = []
+                            exitsite_uselocs_to_count = defaultdict(int)
+                            for _, loc in vvar_uselocs[vvar_id]:
+                                if (loc.block_addr, loc.block_idx, loc.stmt_idx) in ret_or_jump_sites:
+                                    exitsite_uselocs_to_count[loc] += 1
+                                else:
+                                    non_exitsite_uselocs.append(loc)
 
-                            if (
-                                len(set(non_exitsite_uselocs)) == 1
-                                and not has_ite_expr(stmt.src)
-                                and not has_tmp_expr(stmt.src)
-                            ):
-                                useloc = non_exitsite_uselocs[0]
-                                assert useloc.block_addr is not None
-                                assert useloc.stmt_idx is not None
-                                useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[useloc.stmt_idx]
-                                if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
-                                    # remove duplicate use locs (e.g., if the variable is used multiple times by the
-                                    # same statement) - but ensure stmt is simple enough
+                            if not exitsite_uselocs_to_count or max(exitsite_uselocs_to_count.values()) == 1:
+                                if len(non_exitsite_uselocs) == 1:
+                                    # this vvar is used once if we exclude its uses at ret sites or jump sites, and
+                                    # used at most once at every exit site. we can propagate it
                                     for vvar_used, vvar_useloc in vvar_uselocs_set:
                                         self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
                                     continue
+
+                                if (
+                                    len(set(non_exitsite_uselocs)) == 1
+                                    and not has_ite_expr(stmt.src)
+                                    and not has_tmp_expr(stmt.src)
+                                ):
+                                    useloc = non_exitsite_uselocs[0]
+                                    assert useloc.block_addr is not None
+                                    assert useloc.stmt_idx is not None
+                                    useloc_stmt = blocks[(useloc.block_addr, useloc.block_idx)].statements[
+                                        useloc.stmt_idx
+                                    ]
+                                    if stmt.src.depth <= 3 and not has_ite_stmt(useloc_stmt):
+                                        # remove duplicate use locs (e.g., if the variable is used multiple times by the
+                                        # same statement) - but ensure stmt is simple enough
+                                        for vvar_used, vvar_useloc in vvar_uselocs_set:
+                                            self.replace(replacements, vvar_useloc, vvar_used, stmt.src)
+                                        continue
 
                 # special logic for global variables: if it's used once or multiple times, and the variable is never
                 # updated before it's used, we will propagate the load
