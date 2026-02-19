@@ -364,6 +364,8 @@ class CallSiteMaker(Analysis):
 
         tags = call_expr.tags.copy()
         tags.pop("arg_vvars", None)
+        if func is not None:
+            tags["is_prototype_guessed"] = func.is_prototype_guessed
         new_call = Expr.Call(
             call_expr.idx,
             call_expr.target,

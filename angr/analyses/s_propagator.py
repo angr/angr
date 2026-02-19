@@ -9,6 +9,7 @@ import networkx
 from angr.ailment.block import Block
 from angr.ailment.expression import (
     Const,
+    Insert,
     Phi,
     VirtualVariable,
     VirtualVariableCategory,
@@ -165,6 +166,10 @@ class SPropagatorAnalysis(Analysis):
                 isinstance(stmt.dst, VirtualVariable) and stmt.dst.varid == vvar_id
             ):
                 # come back later, this is not the def you're looking for
+                continue
+            if isinstance(stmt, Assignment) and isinstance(stmt.src, Insert):
+                # Do not propagate Inserts
+                # if this is not acceptable, just make sure we don't proagate inserts into the base of other inserts...
                 continue
             if is_phi_assignment(stmt):
                 phi_varids[vvar_id] = {
