@@ -603,10 +603,10 @@ class AILSimplifier(Analysis):
 
         return repeat, narrowables
 
+    @staticmethod
     def _update_narrowing_sizes_for_phi_classes(
-        self,
         narrowables: list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]],
-        rd,
+        rd: SRDAModel,
         vvar_to_narrowing_size,
     ):
         eq_classes: dict[int, int] = {}
@@ -792,6 +792,7 @@ class AILSimplifier(Analysis):
                 stmt = block.statements[loc.stmt_idx]
 
                 if is_phi_assignment(stmt):
+                    assert isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
                     phi_vars.add(stmt.dst)
                     new_atom = atoms.VirtualVariable(
                         stmt.dst.varid, stmt.dst.size, stmt.dst.category, oident=stmt.dst.oident
@@ -1545,10 +1546,12 @@ class AILSimplifier(Analysis):
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
-                if isinstance(eq.atom1, (Call, SideEffectStatement)):
+                if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
+                elif isinstance(eq.atom1, SideEffectStatement):
+                    call: Expression = eq.atom1.expr
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
