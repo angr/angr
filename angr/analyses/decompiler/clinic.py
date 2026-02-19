@@ -1542,8 +1542,10 @@ class Clinic(Analysis):
             new_last_stmt.expr.calling_convention = cc
             new_last_stmt.expr.prototype = prototype
             new_last_stmt.tags["is_prototype_guessed"] = True
+            new_last_stmt.expr.tags["is_prototype_guessed"] = True
             if func is not None:
                 new_last_stmt.tags["is_prototype_guessed"] = func.is_prototype_guessed
+                new_last_stmt.expr.tags["is_prototype_guessed"] = func.is_prototype_guessed
             block.statements[-1] = new_last_stmt
 
         return ail_graph
