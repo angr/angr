@@ -1840,16 +1840,7 @@ class Clinic(Analysis):
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
-        for old, new in ssailification.resized_func_args.items():
-            if self.func_args is not None:
-                self.func_args.discard(old)
-                self.func_args.add(new)
-            if self.arg_vvars is not None:
-                for k, (v1, v2) in self.arg_vvars.items():
-                    if v1 == old:
-                        newvar = v2.copy()
-                        newvar.size = new.size
-                        self.arg_vvars[k] = (new, newvar)
+        self._resize_function_arguments(ssailification.resized_func_args)
         assert ssailification.out_graph is not None
         return ssailification.out_graph
 
@@ -1868,7 +1859,22 @@ class Clinic(Analysis):
             vvar_id_start=self.vvar_id_start,
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
+        self._resize_function_arguments(ssailification.resized_func_args)
         return ssailification.out_graph
+
+    def _resize_function_arguments(
+        self, resized_func_args: dict[ailment.Expr.VirtualVariable, ailment.Expr.VirtualVariable]
+    ) -> None:
+        for old, new in resized_func_args.items():
+            if self.func_args is not None:
+                self.func_args.discard(old)
+                self.func_args.add(new)
+            if self.arg_vvars is not None:
+                for k, (v1, v2) in self.arg_vvars.items():
+                    if v1 == old:
+                        newvar = v2.copy()
+                        newvar.size = new.size
+                        self.arg_vvars[k] = (new, newvar)
 
     @timethis
     def _collect_dephi_vvar_mapping_and_rewrite_blocks(
