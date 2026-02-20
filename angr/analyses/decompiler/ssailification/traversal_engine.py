@@ -1,4 +1,5 @@
 from __future__ import annotations
+from itertools import chain
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from collections import defaultdict
@@ -475,7 +476,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             proto = None
 
         if proto is not None:
-            for ty, argexpr in zip(proto.args, expr.args or []):
+            extra_nones = [None] * max(len(expr.args or []) - len(proto.args), 0)
+            for ty, argexpr in zip(chain(proto.args, extra_nones), expr.args or []):
                 if argexpr is def_size_arg:
                     assert def_size is not None
                     value = {(None, def_size)}
