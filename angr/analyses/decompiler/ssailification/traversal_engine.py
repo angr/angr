@@ -341,7 +341,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         if base_offset in self.pending_ptr_defines_nonlocal:
             self.pending_ptr_defines_nonlocal[base_offset][2].add((offset, size))
             if base_offset not in self.state.pending_ptr_defines:
-                alt_pending_def = self.pending_ptr_defines_nonlocal[base_offset][1]
+                alt_pending_loc, alt_pending_def, _, _ = self.pending_ptr_defines_nonlocal[base_offset]
+                self.perform_def(
+                    "stack",
+                    alt_pending_def,
+                    offset,
+                    size,
+                    base_offset + extra_offset,
+                    base_size,
+                    alt_pending_loc,
+                    other_defs,
+                )
                 self.state.stackvar_defs[offset] = {alt_pending_def} | liveish_defs
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, [(None, None)])[-1]
