@@ -717,6 +717,10 @@ class SimEngineSSARewriting(
                 else self.project.arch.register_endness
             )
             combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
+            if combined.bits > vvar.bits:
+                combined = Extract(
+                    self.ail_manager.next_atom(), vvar.bits, combined, Const(None, None, offset, 64), endness
+                )
 
         if vvar.category == VirtualVariableCategory.STACK:
             for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
