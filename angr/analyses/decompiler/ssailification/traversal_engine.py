@@ -1,6 +1,6 @@
 from __future__ import annotations
 from itertools import chain
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 from dataclasses import dataclass
 from collections import defaultdict
 from collections.abc import Iterable, Callable
@@ -26,7 +26,7 @@ from angr.engines.light import SimEngineLightAIL
 from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
-from angr.utils.ssa import get_reg_offset_base
+from angr.utils.ssa import get_reg_offset_base_and_size
 from angr.calling_conventions import default_cc
 from .traversal_state import TraversalState, Value
 from .consts import MAX_STACK_VAR_SIZE
@@ -238,9 +238,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.pending_ptr_defines_nonlocal.pop(base_offset, None)
 
         lst = self.state.pending_ptr_defines.pop(base_offset, [])
-        pending_def = lst[-1][1] if lst else None
+        pending_def = cast("Def", lst[-1][1]) if lst else None
 
-        secret_stash = defaultdict(set)
+        secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.stackvar_defs.pop(popped_offset, set()))
@@ -262,7 +262,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             else:
                 break
 
-        defs = secret_stash.get(full_offset, set())
+        defs: set[Def] = set().union(*secret_stash.values())
+        def_as = None
         if not defs:
             if pending_def is not None:
                 # if this assert trips maybe consider gating all the redef stuff on the cond?
@@ -276,9 +277,13 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     base_size,
                     AILCodeLocation.make_extern(0),
                 )
-                self.state.stackvar_defs[full_offset] = {pending_def}
+                def_as = {pending_def}
         else:
-            self.state.stackvar_defs[full_offset] = defs
+            def_as = defs
+
+        if def_as is not None:
+            for suboff in range(full_offset, full_offset + full_size):
+                self.state.stackvar_defs[suboff] = def_as
 
         return self.state.live_stackvars[offset]
 
@@ -335,15 +340,20 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                         size = end_offset - offset
 
         loc2, def2 = self.state.pending_ptr_defines.pop(base_offset, [(None, None)])[-1]
+        def_as = None
         if loc2 is not None:
             assert def2 is not None
             self.perform_def("stack", def2, offset, size, base_offset + extra_offset, base_size, loc2, other_defs)
-            self.state.stackvar_defs[offset] = {def2} | liveish_defs
+            def_as = {def2} | liveish_defs
+
+        if def_as is not None:
+            for suboff in range(offset, end_offset):
+                self.state.stackvar_defs[suboff] = def_as
 
     def register_get(self, offset: int, size: int, def_: Def) -> Value:
         full_offset, full_size, popped = self.state.register_unify(offset, size)
 
-        secret_stash = defaultdict(set)
+        secret_stash: defaultdict[int, set[Def]] = defaultdict(set)
         while True:  # this loop should run until the UH OH is never reached
             for popped_offset in popped:
                 secret_stash[popped_offset].update(self.state.register_defs.pop(popped_offset, set()))
@@ -365,7 +375,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             else:
                 break
 
-        defs = secret_stash.get(full_offset, set())
+        defs: set[Def] = set().union(*secret_stash.values())
+        def_as = None
         if not defs or full_offset in self.state.register_blackout:
             self.perform_def(
                 "reg",
@@ -376,10 +387,14 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 size,
                 AILCodeLocation.make_extern(0) if full_offset not in self.state.register_blackout else None,
             )
-            self.state.register_defs[full_offset] = {def_}
+            def_as = {def_}
             self.state.register_blackout.discard(full_offset)
         else:
-            self.state.register_defs[full_offset] = defs
+            def_as = defs
+
+        if def_as is not None:
+            for suboff in range(full_offset, full_offset + full_size):
+                self.state.register_defs[suboff] = def_as
 
         return self.state.live_registers[offset]
 
@@ -390,9 +405,11 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self.state.register_defs.pop(suboff, None)
             self.state.register_bases[suboff] = (offset, size)
 
-        self.state.register_defs[offset] = {def_}
         self.perform_def("reg", def_, offset, size, offset, size)
         self.state.register_blackout.discard(offset)
+
+        for suboff in range(offset, offset + size):
+            self.state.register_defs[suboff] = {def_}
 
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
@@ -527,15 +544,17 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             cc = cc(self.arch)
 
         for reg_name in cc.CALLER_SAVED_REGS:
-            reg_offset = self.arch.registers[reg_name][0]
-            base_off = get_reg_offset_base(reg_offset, self.arch)
+            reg_offset, _ = self.arch.registers[reg_name]
+            base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch)
             self.state.live_registers.pop(base_off, None)
-            self.state.register_defs.pop(base_off, None)
             self.state.register_blackout.add(base_off)
+            for suboff in range(base_off, base_off + base_size):
+                self.state.register_defs.pop(suboff, None)
         for reg in cc.arch.vex_cc_regs or []:
             self.state.live_registers.pop(reg.vex_offset, None)
-            self.state.register_defs.pop(reg.vex_offset, None)
             self.state.register_blackout.add(reg.vex_offset)
+            for suboff in range(reg.vex_offset, reg.vex_offset + reg.size):
+                self.state.register_defs.pop(suboff, None)
 
         return set()
 
