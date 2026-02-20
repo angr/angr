@@ -704,6 +704,11 @@ class SimEngineSSARewriting(
                 raise TypeError(vvar.category)
             if base is None:
                 base = Const(None, None, 0, vvar.bits, uninitialized=True)
+            endness = (
+                self.project.arch.memory_endness
+                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+                else self.project.arch.register_endness
+            )
             if base.bits < vvar.bits:
                 base = BinaryOp(
                     self.ail_manager.next_atom(),
@@ -711,16 +716,9 @@ class SimEngineSSARewriting(
                     [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
                     bits=vvar.bits,
                 )
-            endness = (
-                self.project.arch.memory_endness
-                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
-                else self.project.arch.register_endness
-            )
+            elif base.bits > vvar.bits:
+                base = Extract(self.ail_manager.next_atom(), vvar.bits, base, Const(None, None, offset, 64), endness)
             combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
-            if combined.bits > vvar.bits:
-                combined = Extract(
-                    self.ail_manager.next_atom(), vvar.bits, combined, Const(None, None, offset, 64), endness
-                )
 
         if vvar.category == VirtualVariableCategory.STACK:
             for suboff in range(vvar.stack_offset, vvar.stack_offset + vvar.size):
