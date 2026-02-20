@@ -249,8 +249,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
+                        newish_offset = min(definfo.variable_offset, full_offset)
+                        newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
                         full_offset, full_size, popped2 = self.state.stackvar_unify(
-                            definfo.variable_offset, definfo.variable_size
+                            newish_offset, newish_endoffset - newish_offset
                         )
                         popped.update(popped2)
                         break
@@ -362,8 +364,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                     definfo = self.def_info[def2]
                     if definfo.variable_offset < full_offset or definfo.variable_endoffset > full_offset + full_size:
                         # UH OH. We have information from a parallel timeline about how big this var actually is...
+                        newish_offset = min(definfo.variable_offset, full_offset)
+                        newish_endoffset = max(definfo.variable_endoffset, full_offset + full_size)
                         full_offset, full_size, popped2 = self.state.register_unify(
-                            definfo.variable_offset, definfo.variable_size
+                            newish_offset, newish_endoffset - newish_offset
                         )
                         popped.update(popped2)
                         break
