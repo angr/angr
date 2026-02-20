@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from collections import defaultdict
+from sortedcontainers import SortedDict
 
 from angr.serializable import Serializable
 from angr.protos import xrefs_pb2
@@ -9,13 +9,32 @@ from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
 
+class XrefDict(SortedDict):
+    """
+    A SortedDict that maps addresses to sets of XRefs.
+    It adds defaultdict-like behavior around SortedDict.
+    """
+    def __missing__(self, key):
+        value = set()
+        super().__setitem__(key, value)
+        return value
+
+    def get_xrefs_in_range(self, start, end):
+        """
+        Get a set of XRef objects that point to addresses in the given range.
+        """
+        result = set()
+        for k in self.islice(self.bisect_left(start), self.bisect_right(end)+1):
+            result.update(self[k])
+        return result
+
 
 class XRefManager(KnowledgeBasePlugin, Serializable):
     def __init__(self, kb):
         super().__init__(kb=kb)
 
-        self.xrefs_by_ins_addr: dict[int, set[XRef]] = defaultdict(set)
-        self.xrefs_by_dst: dict[int, set[XRef]] = defaultdict(set)
+        self.xrefs_by_ins_addr = XrefDict()
+        self.xrefs_by_dst = XrefDict()
 
     def copy(self):
         xm = XRefManager(self._kb)
@@ -24,8 +43,8 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         return xm
 
     def clear(self):
-        self.xrefs_by_ins_addr = defaultdict(set)
-        self.xrefs_by_dst = defaultdict(set)
+        self.xrefs_by_ins_addr = XrefDict()
+        self.xrefs_by_dst = XrefDict()
 
     def add_xref(self, xref):
         to_remove = set()
@@ -63,30 +82,14 @@ class XRefManager(KnowledgeBasePlugin, Serializable):
         bounded by start and end.
         Will only return absolute xrefs, not relative ones (like SP offsets)
         """
-
-        def f(x):
-            return isinstance(x, int) and start <= x <= end
-
-        addrs = filter(f, self.xrefs_by_dst.keys())
-        refs = set()
-        for addr in addrs:
-            refs = refs.union(self.xrefs_by_dst[addr])
-        return refs
+        return self.xrefs_by_dst.get_xrefs_in_range(start, end)
 
     def get_xrefs_by_ins_addr_region(self, start, end) -> set[XRef]:
         """
         Get a set of XRef objects that originate at a given address region
         bounded by start and end.  Useful for finding references from a basic block or function.
         """
-
-        def f(x):
-            return isinstance(x, int) and start <= x <= end
-
-        addrs = filter(f, self.xrefs_by_ins_addr.keys())
-        refs = set()
-        for addr in addrs:
-            refs = refs.union(self.xrefs_by_ins_addr[addr])
-        return refs
+        return self.xrefs_by_ins_addr.get_xrefs_in_range(start, end)
 
     # TODO: Maybe add some helpers that accept Function or Block objects for the sake of clean analyses.
 
