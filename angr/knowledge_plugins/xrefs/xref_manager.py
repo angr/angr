@@ -9,11 +9,13 @@ from .xref import XRef, XRefType
 
 l = logging.getLogger(name=__name__)
 
+
 class XrefDict(SortedDict):
     """
     A SortedDict that maps addresses to sets of XRefs.
     It adds defaultdict-like behavior around SortedDict.
     """
+
     def __missing__(self, key):
         value = set()
         super().__setitem__(key, value)
@@ -24,7 +26,7 @@ class XrefDict(SortedDict):
         Get a set of XRef objects that point to addresses in the given range.
         """
         result = set()
-        for k in self.islice(self.bisect_left(start), self.bisect_right(end)+1):
+        for k in self.islice(self.bisect_left(start), self.bisect_right(end) + 1):
             result.update(self[k])
         return result
 
