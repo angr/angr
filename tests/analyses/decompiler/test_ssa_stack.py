@@ -34,6 +34,24 @@ class TestSSAStack(unittest.TestCase):
         assert "CreateDCA(" in dec.codegen.text
         assert '"DISPLAY"' in dec.codegen.text
 
+    def test_incorrect_narrowing_of_phi_vars(self):
+        bin_path = os.path.join(
+            test_location,
+            "x86_64",
+            "windows",
+            "28ce9dfc983d8489242743635c792d3fc53a45c96316b5854301f6fa514df55e.sys",
+        )
+        proj = angr.Project(bin_path)
+        cfg = proj.analyses.CFG(data_references=True, normalize=True, show_progressbar=not WORKER)
+
+        func = cfg.functions[0x14001A314]
+        dec = proj.analyses.Decompiler(func, fail_fast=True)
+        assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
+        # basic sanity check
+        lines = dec.codegen.text.splitlines()
+        assert len(lines) >= 100
+
 
 if __name__ == "__main__":
     unittest.main()

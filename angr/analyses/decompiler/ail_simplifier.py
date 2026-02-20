@@ -586,6 +586,11 @@ class AILSimplifier(Analysis):
         for def_, narrow_info in narrowing_candidates.values():
             if def_.atom.varid in blacklist_varids:
                 continue
+            if def_.atom.varid in rd.phi_vvar_ids and def_.atom.varid not in narrowable_phivarids:
+                # this phi variable cannot be narrowed. blacklist it for now
+                repeat = True
+                blacklist_varids.add(def_.atom.varid)
+                continue
             if not narrow_info.phi_vars:
                 # not used by any other phi variables. good!
                 narrowables.append((def_, narrow_info))
