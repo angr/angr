@@ -129,7 +129,7 @@ class RewritingAnalysis:
             category = udef[0]
             for suboffset in range(udef[1], udef[1] + udef[2]):
                 key = (udef[0], suboffset)
-                assert key not in seen, "Overlapping phis in a single block"
+                assert not self._fail_fast or key not in seen, "Overlapping phis in a single block"
                 seen.add(key)
 
             match category:
