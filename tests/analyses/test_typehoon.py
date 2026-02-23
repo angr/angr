@@ -6,11 +6,12 @@ __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builti
 
 import os
 import unittest
+from collections import OrderedDict
 
 import archinfo
 
 import angr
-from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt
+from angr.sim_type import SimTypeFloat, SimTypePointer, SimStruct, SimTypeInt, SimTypeBottom
 from angr.analyses.typehoon.typevars import (
     TypeVariable,
     DerivedTypeVariable,
@@ -363,6 +364,21 @@ class TestTypeTranslator(unittest.TestCase):
         st = SimTypeFloat()
         tc = tx.simtype2tc(st)
         assert isinstance(tc, Float32)
+
+    def test_lift_recursive_struct(self):
+        arch = archinfo.arch_from_id("amd64")
+        fields = OrderedDict({"ptr": SimTypePointer(SimTypeBottom())})
+        st = SimStruct(fields, name="test_struct")
+        assert isinstance(st.fields["ptr"], SimTypePointer)
+        st.fields["ptr"].pts_to = st
+        st = st.with_arch(arch)
+        tx = TypeTranslator(arch)
+        tc = tx.simtype2tc(st)
+        assert isinstance(tc, Struct)
+        assert 0 in tc.fields
+        assert isinstance(tc.fields[0], Pointer64)
+        assert 0 in tc.field_names
+        assert tc.field_names[0] == "ptr"
 
 
 if __name__ == "__main__":
