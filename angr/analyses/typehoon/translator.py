@@ -272,7 +272,7 @@ class TypeTranslator:
                 self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
-        obj = typeconsts.Struct(fields={}, name=st.label, **struct_idx)
+        obj = typeconsts.Struct(fields={}, name=st.name, **struct_idx)
         self.memo[st] = obj
 
         fields = {}
@@ -300,7 +300,7 @@ class TypeTranslator:
                 self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
             struct_idx["idx"] = self.struct_name_to_idx[st.name]
 
-        obj = typeconsts.Struct(fields={}, name=st.label, is_cppclass=True, **struct_idx)
+        obj = typeconsts.Struct(fields={}, name=st.name, is_cppclass=True, **struct_idx)
         self.memo[st] = obj
 
         fields = {}
