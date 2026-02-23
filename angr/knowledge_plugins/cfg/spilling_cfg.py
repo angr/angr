@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, TypeVar
 
 import lmdb
 import networkx
+from archinfo.arch_soot import SootAddressDescriptor
 
 from .cfg_node import CFGNode, CFGENode
 
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = TypeVar("K", bound=tuple[int, ...])
+K = TypeVar("K", bound=tuple[int, ...] | tuple[SootAddressDescriptor, int])
 
 
 class SpillingCFGNodeDict:
@@ -663,6 +664,15 @@ class SpillingCFG:
         self._nodes._cfg_model = value
 
     def _get_block_key(self, node: CFGNode | CFGENode) -> K:
+        """
+        Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
+        the looping_times of the block (in case there are multiple blocks with the same address, which may happen after
+        loop unrolling in a CFGEmulated instance).
+
+        :param node:    The CFGNode or CFGENode instance to get the block key for.
+        :return:        The unique identifier.
+        """
+
         block_id = node.block_id
         if block_id is None:
             block_id = node.addr
