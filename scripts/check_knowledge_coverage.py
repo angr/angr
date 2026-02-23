@@ -7,6 +7,8 @@ or covered in the existing knowledge base docs.
 Exit code 0 = all covered (or no new files). Exit code 1 = gaps found.
 """
 
+from __future__ import annotations
+
 import json
 import os
 import subprocess
