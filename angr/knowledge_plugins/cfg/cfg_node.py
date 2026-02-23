@@ -507,7 +507,7 @@ class CFGENode(CFGNode):
         )
 
         self.input_state = input_state
-        self.syscall_name = syscall_name
+        self._syscall_name = syscall_name
         self.looping_times = looping_times
         self.depth = depth
 
