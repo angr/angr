@@ -48,6 +48,7 @@ class SimType:
     _can_refine_int: bool = False
     _base_name: str
     _ident: str = "simtype"
+    _ident_repr: str | None = None
     base: bool = True
 
     def __init__(self, label=None, qualifier: Iterable[str] | None = None):
@@ -1788,6 +1789,7 @@ class SimStruct(NamedTypeMixin, SimType):
     _fields = ("name", "fields", "anonymous")
     _args = ("fields", "name", "pack", "align", "anonymous", "qualifier", "def_order")
     _ident = "struct"
+    _ident_repr = "struct"
 
     def __init__(
         self,
@@ -1879,17 +1881,17 @@ class SimStruct(NamedTypeMixin, SimType):
         if memo is None:
             memo = {}
 
-        sname = "struct " + self.name
-        if self.name in memo:
+        sname = f"{self._ident_repr} {self.name}"
+        if sname in memo:
             return memo[sname].to_json(fields=fields, memo=memo)
         if not self.anonymous:
             memo[sname] = SimTypeRef(sname, self.__class__)
         d = super().to_json(fields=fields, memo=memo)
-        if d["pack"] is False:
+        if "pack" in d and d["pack"] is False:
             d.pop("pack")
-        if d["align"] is None:
+        if "align" in d and d["align"] is None:
             d.pop("align")
-        if d["anonymous"] is False:
+        if "anonymous" in d and d["anonymous"] is False:
             d.pop("anonymous")
         if "q" in d and not d["q"]:
             d.pop("q")
@@ -1936,7 +1938,9 @@ class SimStruct(NamedTypeMixin, SimType):
                 offset_so_far += ty.size
 
     def __repr__(self):
-        return f"struct {self.name}"
+        if self.name.startswith(f"{self._ident_repr} "):
+            return self.name
+        return f"{self._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
         if not full or (memo is not None and self in memo):
@@ -1950,7 +1954,7 @@ class SimStruct(NamedTypeMixin, SimType):
         members = newline.join(
             new_indented + v.c_repr(k, max(full - 1, 0), new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        out = f"struct {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+        out = f"{self._ident_repr} {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
         if self.qualifier:
             out = f"{' '.join(sorted(self.qualifier))} {out}"
         return out
@@ -2614,6 +2618,7 @@ class SimCppClass(SimStruct):
         "def_order",
     )
     _ident = "cppclass"
+    _ident_repr = "class"
 
     def __init__(
         self,
@@ -2655,7 +2660,7 @@ class SimCppClass(SimStruct):
         return super().size
 
     def __repr__(self):
-        return f"class {self.name}" if not self.name.startswith("class") else self.name
+        return f"class {self.name}" if not self.name.startswith("class ") else self.name
 
     def extract(self, state, addr, concrete=False) -> SimCppClassValue:
         values = {}
@@ -2850,15 +2855,16 @@ class SimTypeRef(SimType):
         self._size = v
 
     def __repr__(self):
-        if self.label:
-            return self.label
-        prefix = "struct " if self.original_type is SimStruct else ""
-        return f"{prefix}{self.name}"
+        if self.original_type._ident_repr is None or self.original_type._ident_repr.startswith(
+            f"{self.original_type._ident_repr} "
+        ):
+            return str(self.name)
+        return f"{self.original_type._ident_repr} {self.name}"
 
     def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True) -> str:  # pylint: disable=unused-argument
         prefix = "unknown"
-        if self.original_type is SimStruct:
-            prefix = "struct "
+        if self.original_type._ident_repr is not None:
+            prefix = f"{self.original_type._ident_repr} "
         if name is None:
             name = ""
         label = self.label
