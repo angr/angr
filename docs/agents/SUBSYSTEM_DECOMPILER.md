@@ -30,14 +30,18 @@ Supports `start_stage`/`end_stage`/`skip_stages` for partial execution.
 ## Optimization Pass System
 - Base classes: `BaseOptimizationPass` (abstract with `_check()`/`_analyze()`), `OptimizationPass` (graph-level), `SequenceOptimizationPass` (post-structuring on SequenceNode), `StructuringOptimizationPass` (requires RecursiveStructurer)
 - Filtered by ARCHES, PLATFORMS, STAGE, STRUCTURING
-- Stages: AFTER_AIL_GRAPH_CREATION (0), BEFORE_SSA_LEVEL0 (1), AFTER_SINGLE_BLOCK_SIMPLIFICATION (2), BEFORE_SSA_LEVEL1 (3), AFTER_SSA_LEVEL1 (4), AFTER_MAKING_CALLSITES (5), AFTER_GLOBAL_SIMPLIFICATION (6), BEFORE_VARIABLE_RECOVERY (7), AFTER_VARIABLE_RECOVERY (8), BEFORE_REGION_IDENTIFICATION (9), DURING_REGION_IDENTIFICATION (10), AFTER_STRUCTURING (11)
-- Presets (presets/): basic, fast, full (default), malware — `DecompilationPreset.get_optimization_passes(arch, platform)` filters by metadata
+- Stages: AFTER_AIL_GRAPH_CREATION (0) through AFTER_STRUCTURING (11) — 12 stages total
+- Presets (presets/): basic, fast, full (default), malware
 
-Key passes by category:
-- **Compiler artifacts**: StackCanarySimplifier, RegisterSaveAreaSimplifier, BasePtrSaveSimplifier, RetAddrSaveSimplifier
-- **Pattern recovery**: DivSimplifier, ModSimplifier, LoweredSwitchSimplifier, OverflowBuiltinSimplifier
-- **Deoptimization**: DuplicationReverter, CrossJumpReverter, ReturnDuplicator*
-- **Peephole**: PeepholeSimplifier drives ~60 small rewrites in peephole_optimizations/
+**Full reference for all passes, peepholes, region simplifiers, and rewriters: [SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md](SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md)**
+
+Key pass categories (44 passes + 62 peephole rewrites):
+- **Compiler artifacts**: StackCanarySimplifier, WinStackCanarySimplifier, RegisterSaveAreaSimplifier(Adv), BasePtrSaveSimplifier, RetAddrSaveSimplifier
+- **Pattern recovery**: DivSimplifier, ModSimplifier, LoweredSwitchSimplifier
+- **Deoptimization**: DuplicationReverter, CrossJumpReverter, ReturnDuplicator(Low/High), ReturnDeduplicator
+- **String/intrinsic**: EagerStdStringConcatenation, EagerStdStringEval, InlinedStrlenSimplifier
+- **Arch-specific**: MipsGpSettingSimplifier, X86GccGetPcSimplifier
+- **Peephole**: PeepholeSimplifier drives 62 small rewrites (arithmetic, bitwise, boolean, conversion, memory, intrinsic recovery)
 
 ## Structuring (`structuring/`)
 - **SAILR** (sailr.py) — **default structurer**; extends Phoenix with recursive structuring + deoptimization (USENIX 2024)
@@ -46,15 +50,11 @@ Key passes by category:
 - `STRUCTURER_CLASSES` dict maps names → classes; all produce: SequenceNode, ConditionNode, LoopNode, SwitchCaseNode, ConditionalBreakNode
 
 ## Region Simplifiers (`region_simplifiers/`)
-- goto.py — goto elimination
-- cascading_ifs.py / if_.py / ifelse.py — merge/simplify conditionals
-- loop.py — loop simplification (while/do-while/for)
-- expr_folding.py — fold expressions across statements
-- switch_cluster_simplifier.py / switch_expr_simplifier.py — switch cleanup
+Post-structuring simplifications (11 files). Goto elimination, conditional merging, loop normalization, expression folding, switch recovery. [Full listing](SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md#region-simplifiers-region_simplifiers)
 
 ## CCall / Dirty Rewriters
-- ccall_rewriters/ — convert VEX CC_OP helper calls to readable C. Per-arch: amd64, x86, arm
-- dirty_rewriters/ — convert VEX dirty helpers. amd64_dirty.py
+- ccall_rewriters/ — convert VEX CC_OP helper calls to readable C. Per-arch: amd64, x86, arm. [Full listing](SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md#ccall-rewriters-ccall_rewriters)
+- dirty_rewriters/ — convert VEX dirty helpers (CPUID, RDTSC, etc.). amd64_dirty.py. [Full listing](SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md#dirty-rewriters-dirty_rewriters)
 
 ## Code Generation (`structured_codegen/`)
 - CStructuredCodeGenerator (c.py) — walks SequenceNode tree, emits C text

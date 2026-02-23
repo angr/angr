@@ -11,7 +11,7 @@ Entry: `angr.Project(path)` → CLE loader → engines/analyses/SimOS
 - **Knowledge** — KB plugin system (functions, CFG, vars, xrefs, types); `knowledge_plugins/`; [detail](SUBSYSTEM_KNOWLEDGE.md)
 - **AIL** — Angr Intermediate Language; `ailment/`; [detail](SUBSYSTEM_AIL.md)
 - **CFG** — CFG recovery (CFGFast, CFGEmulated); `analyses/cfg/`; [detail](SUBSYSTEM_CFG.md)
-- **Decompiler** — Full decompilation pipeline; `analyses/decompiler/`; [detail](SUBSYSTEM_DECOMPILER.md)
+- **Decompiler** — Full decompilation pipeline; `analyses/decompiler/`; [detail](SUBSYSTEM_DECOMPILER.md), [simplifiers](SUBSYSTEM_DECOMPILER_SIMPLIFIERS.md)
 - **Data Flow** — RDA, propagator, DDG, VFG; `analyses/reaching_definitions/`, `analyses/propagator/`; [detail](SUBSYSTEM_DATA_FLOW.md)
 - **Recovery** — Variable recovery, Typehoon, CC recovery; `analyses/variable_recovery/`, `analyses/typehoon/`; [detail](SUBSYSTEM_RECOVERY.md)
 - **Identification** — FLIRT, identifier, boyscout, bindiff; `analyses/flirt/`, `analyses/identifier/`; [detail](SUBSYSTEM_IDENTIFICATION.md)
