@@ -10,6 +10,7 @@ import os
 import unittest
 
 import angr
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 
 from tests.common import bin_location
 
@@ -88,8 +89,6 @@ class TestSpillingCFGGraph(unittest.TestCase):
         proj = angr.Project(self.bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
 
-        from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-
         for node in cfg.model.graph.nodes():
             assert isinstance(node, CFGNode), f"Expected CFGNode, got {type(node)}"
             break  # Just check the first one
@@ -98,8 +97,6 @@ class TestSpillingCFGGraph(unittest.TestCase):
         """Test iterating over edges returns CFGNode tuples."""
         proj = angr.Project(self.bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
-
-        from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 
         for src, dst in cfg.model.graph.edges():
             assert isinstance(src, CFGNode), f"Expected CFGNode src, got {type(src)}"
@@ -120,8 +117,6 @@ class TestSpillingCFGGraph(unittest.TestCase):
         """Test successors and predecessors methods."""
         proj = angr.Project(self.bin_path, auto_load_libs=False)
         cfg = proj.analyses.CFGFast()
-
-        from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 
         # Find a node with successors
         for node in cfg.model.graph.nodes():
@@ -227,8 +222,6 @@ class TestSpillingCFGGraphWithSpilling(unittest.TestCase):
             self.skipTest("No spilled nodes to test")
 
         # Iterate and access all nodes - spilled ones should be loaded
-        from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-
         for node in graph.nodes():
             assert isinstance(node, CFGNode), "Should get CFGNode instances"
             assert node.addr is not None, "Node should have valid address"

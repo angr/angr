@@ -13,7 +13,7 @@ import threading
 import weakref
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterator
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, overload, Literal
 
 import lmdb
 import networkx
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = TypeVar("K", bound=tuple[int, ...] | tuple[SootAddressDescriptor, int])
+K = tuple[int, ...] | tuple[SootAddressDescriptor, int]
 
 
 class SpillingCFGNodeDict:
@@ -127,7 +127,7 @@ class SpillingCFGNodeDict:
         except KeyError:
             return default
 
-    def keys(self) -> Iterator[int]:
+    def keys(self) -> Iterator[K]:
         return iter(self)
 
     def values(self) -> Iterator[CFGNode]:
@@ -455,6 +455,11 @@ class _NodeView:
         for block_key in self._graph._graph.nodes():
             yield self._graph._get_node_by_key(block_key)
 
+    @overload
+    def __call__(self, data: Literal[False] = False) -> Iterator[CFGNode]: ...
+    @overload
+    def __call__(self, data: Literal[True]) -> Iterator[tuple[CFGNode, dict]]: ...
+
     def __call__(self, data: bool = False) -> Iterator[CFGNode] | Iterator[tuple[CFGNode, dict]]:
         if data:
             for block_key, node_data in self._graph._graph.nodes(data=True):
@@ -479,6 +484,11 @@ class _EdgeView:
         for src_id, dst_id in self._graph._graph.edges():
             yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
 
+    @overload
+    def __call__(self, data: Literal[False] = False) -> Iterator[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, data: Literal[True]) -> Iterator[tuple[CFGNode, CFGNode, dict]]: ...
+
     def __call__(
         self, data: bool = False
     ) -> Iterator[tuple[CFGNode, CFGNode]] | Iterator[tuple[CFGNode, CFGNode, dict]]:
@@ -497,6 +507,11 @@ class _InEdgeView:
 
     def __init__(self, graph: SpillingCFG):
         self._graph = graph
+
+    @overload
+    def __call__(self, nbunch=None, data: Literal[False] = False) -> list[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, nbunch=None, *, data: Literal[True]) -> list[tuple[CFGNode, CFGNode, dict]]: ...
 
     def __call__(
         self, nbunch=None, data: bool = False
@@ -536,6 +551,11 @@ class _OutEdgeView:
 
     def __init__(self, graph: SpillingCFG):
         self._graph = graph
+
+    @overload
+    def __call__(self, nbunch=None, data: Literal[False] = False) -> list[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, nbunch=None, *, data: Literal[True]) -> list[tuple[CFGNode, CFGNode, dict]]: ...
 
     def __call__(
         self, nbunch=None, data: bool = False
@@ -663,7 +683,8 @@ class SpillingCFG:
         self._cfg_model_ref = weakref.ref(value) if value is not None else None
         self._nodes._cfg_model = value
 
-    def _get_block_key(self, node: CFGNode | CFGENode) -> K:
+    @staticmethod
+    def _get_block_key(node: CFGNode | CFGENode) -> K:
         """
         Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
         the looping_times of the block (in case there are multiple blocks with the same address, which may happen after

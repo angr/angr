@@ -2,16 +2,16 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import Generic, TypeVar, TYPE_CHECKING
 
-from collections.abc import Iterator
-from collections.abc import Callable
+from collections.abc import Iterator, Callable
 import string
 
 import networkx
 from sortedcontainers import SortedList
 
 import cle
+from archinfo.arch_soot import SootMethodDescriptor
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
 from angr.protos import cfg_pb2, primitives_pb2
@@ -28,6 +28,12 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
     from angr.rustylib import SegmentList
+
+    K = TypeVar("K", int, SootMethodDescriptor)
+
+    class SortedList(Generic[K], list[K]):
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...
+        def add(self, value: K) -> None: ...
 
 
 l = logging.getLogger(name=__name__)
@@ -125,6 +131,7 @@ class CFGModel(Serializable):
     def node_addrs(self) -> SortedList[int]:
         if self._node_addrs is None:
             self._build_node_addr_index()
+            assert self._node_addrs is not None
         return self._node_addrs
 
     def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
@@ -353,6 +360,7 @@ class CFGModel(Serializable):
         if isinstance(addr, int):
             if self._node_addrs is None:
                 self._build_node_addr_index()
+                assert self._node_addrs is not None
 
             # slower path
             # find all potential addresses that the block may cover
@@ -630,6 +638,8 @@ class CFGModel(Serializable):
         :return:                    True if new data entries are found, False otherwise.
         """
 
+        assert self.project is not None and self.project.loader is not None
+
         # Make sure all memory data entries cover all data sections
         keys = sorted(memory_data_addrs) if memory_data_addrs is not None else sorted(self.memory_data.keys())
 
@@ -806,6 +816,9 @@ class CFGModel(Serializable):
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+
+        assert self.project is not None and self.project.loader is not None
+
         if max_size is None:
             max_size = 0
 
@@ -933,6 +946,8 @@ class CFGModel(Serializable):
         max_size: int,
         extra_memory_regions: list[tuple[int, int]] | None = None,
     ):
+        assert self.project is not None and self.project.loader is not None
+
         pointers_count = 0
 
         max_pointer_array_size = min(512 * pointer_size, max_size)
@@ -969,6 +984,8 @@ class CFGModel(Serializable):
         :return:                A tuple of ('elf-header', size) if it is, or (None, None) if it is not.
         :rtype:                 tuple
         """
+
+        assert self.project is not None and self.project.loader is not None
 
         obj = self.project.loader.find_object_containing(data_addr)
         if obj is None:
@@ -1045,6 +1062,7 @@ class CFGModel(Serializable):
             kb = self.project.kb
 
         # FIXME: Track nodecodes as nodes in CFG and use graph to resolve instead of analyzing IRSBs here
+        assert kb is not None
 
         func = kb.functions.floor_func(addr)
         if func is None:
