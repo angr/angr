@@ -11,6 +11,7 @@ import pickle
 import logging
 import threading
 import weakref
+import os
 from collections import OrderedDict, defaultdict
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, overload, Literal
@@ -28,6 +29,9 @@ if TYPE_CHECKING:
 l = logging.getLogger(name=__name__)
 
 K = tuple[int, ...] | tuple[SootAddressDescriptor, int]
+
+# a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
+USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
 
 
 class SpillingCFGNodeDict:
@@ -268,7 +272,8 @@ class SpillingCFGNodeDict:
                 continue
 
             node = self._data[lru_block_key]
-            nodes_to_evict.append((lru_block_key, node))
+            if node.dirty:
+                nodes_to_evict.append((lru_block_key, node))
 
             del self._data[lru_block_key]
             del self._lru_order[lru_block_key]
@@ -338,6 +343,7 @@ class SpillingCFGNodeDict:
                 # Create node using __setstate__
                 node = object.__new__(CFGNode)
                 node.__setstate__(state)
+                node.dirty = False
 
                 # Restore cfg_model reference
                 if self._cfg_model is not None:
@@ -662,7 +668,11 @@ class SpillingCFG:
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
         self._rtdb = rtdb
 
-        effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
+        if USE_SPILLING_CFGNODE_DICT:
+            effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
+        else:
+            effective_cache_limit = 2**31 - 1
+
         self._nodes: SpillingCFGNodeDict = SpillingCFGNodeDict(
             rtdb,
             cfg_model,

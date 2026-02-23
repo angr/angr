@@ -53,23 +53,24 @@ class CFGNode(Serializable):
     """
 
     __slots__ = (
+        "_addr",
+        "_block_id",
+        "_byte_string",
         "_cfg_model",
+        "_dirty",
+        "_function_address",
+        "_has_return",
         "_hash",
+        "_is_syscall",
         "_name",
-        "addr",
-        "block_id",
-        "byte_string",
-        "function_address",
-        "has_return",
+        "_no_ret",
+        "_size",
+        "_syscall_name",
+        "_thumb",
         "instruction_addrs",
         "irsb",
-        "is_syscall",
-        "no_ret",
         "simprocedure_name",
-        "size",
         "soot_block",
-        "syscall_name",
-        "thumb",
     )
 
     def __init__(
@@ -94,15 +95,15 @@ class CFGNode(Serializable):
         __repr__.
         """
 
-        self.addr: AddressType = addr
-        self.size = size
+        self._addr: AddressType = addr
+        self._size = size
         self.simprocedure_name = simprocedure_name
-        self.no_ret = no_ret
+        self._no_ret = no_ret
         self._cfg_model: CFGModel = cfg
-        self.function_address = function_address
-        self.block_id: BlockID | int | None = block_id
-        self.thumb = thumb
-        self.byte_string: bytes | None = byte_string
+        self._function_address = function_address
+        self._block_id: BlockID | int | None = block_id
+        self._thumb = thumb
+        self._byte_string: bytes | None = byte_string
 
         self._name = None
         if name is not None:
@@ -114,9 +115,9 @@ class CFGNode(Serializable):
         self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
 
         if is_syscall is not None:
-            self.is_syscall = is_syscall
+            self._is_syscall = is_syscall
         else:
-            self.is_syscall = bool(
+            self._is_syscall = bool(
                 self.simprocedure_name
                 and self._cfg_model.project is not None
                 and self._cfg_model.project.simos is not None
@@ -129,13 +130,87 @@ class CFGNode(Serializable):
 
         self.irsb = None
         self.soot_block = soot_block
-        self.has_return = False
+        self._has_return = False
         self._hash = None
+        self._dirty = True
 
         # Sanity check
-        if self.block_id is None and type(self) is CFGNode:  # pylint: disable=unidiomatic-typecheck
-            _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self.addr)
-            self.block_id = self.addr
+        if self._block_id is None and type(self) is CFGNode:  # pylint: disable=unidiomatic-typecheck
+            _l.warning("block_id is unspecified for %s. Default to its address %#x.", str(self), self._addr)
+            self._block_id = self._addr
+
+    @property
+    def dirty(self):
+        return self._dirty
+
+    @dirty.setter
+    def dirty(self, value: bool):
+        self._dirty = value
+
+    @property
+    def function_address(self):
+        return self._function_address
+
+    @function_address.setter
+    def function_address(self, value):
+        if value == self._function_address:
+            return
+
+        self._function_address = value
+        self._name = None  # reset the name so that it can be re-resolved with the new function address
+        self.dirty = True
+
+    @property
+    def addr(self):
+        return self._addr
+
+    @property
+    def block_id(self):
+        return self._block_id
+
+    @property
+    def byte_string(self) -> bytes:
+        return self._byte_string
+
+    @property
+    def has_return(self) -> bool:
+        return self._has_return
+
+    @has_return.setter
+    def has_return(self, value: bool):
+        if value == self._has_return:
+            return
+
+        self._has_return = value
+        self.dirty = True
+
+    @property
+    def is_syscall(self) -> bool:
+        return self._is_syscall
+
+    @property
+    def syscall_name(self) -> str | None:
+        return self._syscall_name
+
+    @property
+    def thumb(self) -> bool:
+        return self._thumb
+
+    @property
+    def size(self) -> bool:
+        return self._size
+
+    @property
+    def no_ret(self) -> bool:
+        return self._no_ret
+
+    @no_ret.setter
+    def no_ret(self, value: bool):
+        if value == self._no_ret:
+            return
+
+        self._no_ret = value
+        self.dirty = True
 
     @property
     def name(self):
@@ -311,14 +386,15 @@ class CFGNode(Serializable):
         Merges this node with the other, returning a new node that spans the both.
         """
         new_node = self.copy()
-        new_node.size += other.size
+        new_node._size += other.size
         new_node.instruction_addrs += other.instruction_addrs
         # FIXME: byte_string should never be none, but it is sometimes
         # like, for example, patcherex test_cfg.py:test_fullcfg_properties
         if new_node.byte_string is None or other.byte_string is None:
-            new_node.byte_string = None
+            new_node._byte_string = None
         else:
-            new_node.byte_string += other.byte_string
+            new_node._byte_string += other.byte_string
+        new_node.dirty = True
         return new_node
 
     def __repr__(self):
