@@ -309,7 +309,7 @@ class TestCallingConventionAnalysis(unittest.TestCase):
         assert proj.kb.functions["compare_floats"].prototype.returnty == SimTypeInt()
 
     @cca_mode("fast,variables")
-    def manual_test_workers(self, *, mode):
+    def test_workers(self, *, mode):
         binary_path = os.path.join(test_location, "x86_64", "1after909")
         proj = angr.Project(binary_path, auto_load_libs=False, load_debug_info=False)
 
