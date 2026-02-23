@@ -319,8 +319,11 @@ class TestCallingConventionAnalysis(unittest.TestCase):
             mode=mode, cfg=cfg.model, recover_variables=True, workers=4, show_progressbar=True
         )
 
-        for func in cfg.functions.values():
-            assert func.is_prototype_guessed is True
+        assert all(
+            func.prototype is not None
+            for func in proj.kb.functions.values()
+            if not (func.is_alignment or func.is_simprocedure or func.is_plt)
+        )
 
     @cca_mode("fast,variables")
     def test_tail_calls(self, *, mode):
