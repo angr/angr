@@ -25,8 +25,9 @@ All under `ailment/`. Higher-level IR than VEX for decompiler readability. VEX t
 - ITE — `cond`, `iftrue`, `iffalse`
 - DirtyExpression — `callee`, `guard`, `args`; VEX dirty helper call
 - VEXCCallExpression — `callee`, `operands`; VEX CCall (e.g. x86g_calculate_condition)
+- CallExpr — `target`, `args`, `ret_expr`, `prototype`, `calling_convention`; a call that produces a return value (used as sub-expression)
 - BasePointerOffset/StackBaseOffset — `offset`, `bits`
-- Extract/Insert — bit range + operand(s)
+- Extract/Insert — bit range extraction/insertion on operands
 - MultiStatementExpression — wraps multiple stmts as one expr
 
 ## Statement Hierarchy (statement.py)
@@ -37,7 +38,7 @@ All under `ailment/`. Higher-level IR than VEX for decompiler readability. VEX t
 - Store — `addr`, `data`, `size`, `endness`, `guard`; memory write
 - Jump — `target`, `target_idx`; unconditional goto
 - ConditionalJump — `condition`, `true_target`, `false_target`
-- Call — `target`, `args`, `ret_expr`, `prototype`, `calling_convention`; both Expression AND Statement
+- SideEffectStatement — `target`, `args`, `prototype`, `calling_convention`; a call invoked only for side effects (no return value used). Replaces old unified `Call` node.
 - Return — `ret_exprs`
 - CAS — `addr`, `expected`, `desired`, `size`; compare-and-swap
 - DirtyStatement — wraps dirty helper as stmt

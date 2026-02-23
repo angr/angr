@@ -16,6 +16,7 @@ Entry: `angr.Project(path)` → CLE loader → engines/analyses/SimOS
 - **Recovery** — Variable recovery, Typehoon, CC recovery; `analyses/variable_recovery/`, `analyses/typehoon/`; [detail](SUBSYSTEM_RECOVERY.md)
 - **Identification** — FLIRT, identifier, boyscout, bindiff; `analyses/flirt/`, `analyses/identifier/`; [detail](SUBSYSTEM_IDENTIFICATION.md)
 - **Analysis Misc** — Loops, slicing, code tagging, vtable, deobfuscator; `analyses/`; [detail](SUBSYSTEM_ANALYSIS_MISC.md)
+- **Native** — Rust modules (icicle, fuzzer, automaton, segmentlist) + C unicornlib; `native/`, `rustylib/`; [detail](SUBSYSTEM_NATIVE.md)
 - **Utilities** — utils, misc, angrdb, protos, distributed; [detail](SUBSYSTEM_UTILITIES.md)
 
 ## Patterns

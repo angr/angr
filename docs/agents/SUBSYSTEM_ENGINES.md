@@ -16,7 +16,7 @@ All under `engines/`. Engines execute one step on a `SimState`, producing `SimSu
 - syscall.py — `SimEngineSyscall`: triggers on `Ijk_Sys*`; resolves via `project.simos`
 - unicorn.py — `SimEngineUnicorn`: fast concrete via Unicorn; falls back on symbolic
 - concrete.py — `ConcreteEngine`: GDB/avatar2 hardware-in-the-loop
-- icicle.py — `IcicleEngine`: alternative concrete engine
+- icicle.py — `IcicleEngine`: Rust-based concrete VM (via `rustylib.icicle`); supports breakpoints, block tracing, AFL-style edge hitmap coverage, Cortex-M thumb mode. Faster alternative to Unicorn for concrete-only execution
 
 ## VEX Engine (`vex/`)
 
@@ -46,9 +46,12 @@ VEX light also has: vex/light/resilience.py (`VEXResilienceMixin`) and vex/light
 
 ## AIL Engine (`ail/`)
 
-- engine_light.py — AIL light engine; also `SimEngineAILSimState` (AIL + full SimState)
+Two modes: **Light** (no SimState, for static analyses like RDA/propagator) and **SimState** (full symbolic execution on AIL IR, for testing/validating decompiler output).
+
+- engine_light.py — `SimEngineLightAILMixin` (static); `SimEngineAILSimState` (full symbolic execution on decompiled AIL)
 - engine_successors.py — AIL successor generation
 - callstack.py — call stack tracking
+- setup.py — AIL engine setup/initialization
 
 ## P-Code Engine (`pcode/`)
 

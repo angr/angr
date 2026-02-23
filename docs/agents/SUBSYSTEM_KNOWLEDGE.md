@@ -29,7 +29,11 @@ Plugin-based storage for all analysis results, accessed via `project.kb`.
 - `rtdb` → RuntimeDb (rtdb/rtdb.py)
 
 ## Functions (`functions/`)
-- `FunctionManager` — dict-like (`kb.functions[addr]`); SortedDict or LMDB-spilling
+- `FunctionManager` — dict-like (`kb.functions[addr]`); SortedDict by default, LMDB-spilling for large binaries
+  - LMDB mode: `SpillingFunctionDict` evicts cold `Function` objects to on-disk LMDB via `RuntimeDb`
+  - `FuncNode` — lightweight graph placeholder for evicted functions (avoids loading full Function)
+  - `Function.dirty` — tracks unsaved modifications for lazy re-serialization
+  - Configurable cache limit; LMDB base dir via `ANGR_RTDB_DIR` env var
 - `Function` (function.py) — `.name`, `.addr`, `.graph`, `.blocks`, `.calling_convention`, `.prototype`, `.is_simprocedure`
 - function_parser.py — builds Function objects from CFG edges/nodes
 - soot_function.py — Java/Soot variant
@@ -69,4 +73,4 @@ Plugin-based storage for all analysis results, accessed via `project.kb`.
 - Comments — dict[int, str] mapping address → comment
 - Labels — dict[int, str] mapping address → label
 - PatchManager — binary patches with `.apply_patches_to_binary()`
-- RuntimeDb — runtime database for dynamic analysis
+- RuntimeDb — LMDB-backed persistent store for FunctionManager spilling; manages serialization/deserialization of Function objects for large binary analysis

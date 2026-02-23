@@ -24,6 +24,8 @@ Supports `start_stage`/`end_stage`/`skip_stages` for partial execution.
 - Converts AIL graph to partial-SSA using VirtualVariable nodes
 - Two sub-passes: TraversalAnalysis (build def-use), RewritingAnalysis (insert phi, rename)
 - Clinic runs SSA at two levels: level-0 (before simplification) and level-1 (after)
+- Stack variable identification via `PointerDisposition` — tracks how pointers are used (loaded, stored, passed) to distinguish stack variables from pointer arithmetic
+- Uses `Extract`/`Insert` AIL expressions for sub-register and partial-variable access patterns
 
 ## Optimization Pass System
 - Base classes: `BaseOptimizationPass` (abstract with `_check()`/`_analyze()`), `OptimizationPass` (graph-level), `SequenceOptimizationPass` (post-structuring on SequenceNode), `StructuringOptimizationPass` (requires RecursiveStructurer)

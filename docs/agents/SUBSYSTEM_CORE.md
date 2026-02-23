@@ -28,9 +28,17 @@
 - `.copy()`, `.merge(others)`, `.step()`
 
 ## SimStateOptions / sim_options
-- `sim_state_options.py` — `SimStateOptions` set-like container
-- `sim_options.py` — constants: `SYMBOLIC`, `LAZY_SOLVES`, `TRACK_CONSTRAINTS`, `DO_CCALLS`, etc.
-- Presets: `o.refs` (track actions), `o.unicorn` (Unicorn engine)
+- `sim_state_options.py` — `SimStateOptions` set-like container; `StateOption` metadata class
+- `sim_options.py` — 100+ boolean constants controlling symbolic execution behavior:
+  - **Core**: `SYMBOLIC`, `SYMBOLIC_INITIAL_VALUES`, `DO_CCALLS`, `CONCRETIZE`
+  - **Constraints**: `TRACK_CONSTRAINTS`, `CONSTRAINT_TRACKING_IN_SOLVER`, `LAZY_SOLVES`
+  - **Simplification**: `SIMPLIFY_EXPRS`, `SIMPLIFY_MEMORY_READS`, `SIMPLIFY_MEMORY_WRITES`, `SIMPLIFY_CONSTRAINTS`
+  - **Memory**: `SYMBOLIC_WRITE_ADDRESSES`, `AVOID_MULTIVALUED_READS`, `ABSTRACT_MEMORY`
+  - **Unicorn**: `UNICORN`, `UNICORN_SYM_REGS_SUPPORT`, `UNICORN_HANDLE_SYMBOLIC_ADDRESSES`, `UNICORN_HANDLE_SYMBOLIC_CONDITIONS`
+  - **Resilience**: `BYPASS_UNSUPPORTED_IROP`, `BYPASS_UNSUPPORTED_IREXPR`, `BYPASS_ERRORED_IROP`, etc.
+  - **Approximation**: `APPROXIMATE_SATISFIABILITY`, `APPROXIMATE_MEMORY_SIZES`
+- Mode presets (`modes` dict): `"symbolic"` (default), `"static"` (no constraint solving), `"fastpath"` (minimal tracking), `"tracing"` (follow concrete trace)
+- Convenience sets: `o.refs` (track actions), `o.unicorn` (Unicorn engine)
 
 ## SimulationManager
 - Stashes: `active`, `deadended`, `errored`, `unsat`, `stashed`, `pruned`, `unconstrained`
@@ -56,7 +64,11 @@
 - slicer.py — `SimSlicer`: intra-IRSB symbolic slicer
 - state_hierarchy.py — `StateHierarchy`: DAG of state histories
 - vaults.py — `Vault`/`VaultShelf`/`VaultDir`: state persistence by UUID
-- llm_client.py — `LLMClient`: LLM integration
+- llm_client.py — `LLMClient`: LLM integration via LiteLLM. Config: `ANGR_LLM_MODEL`, `ANGR_LLM_API_KEY`, `ANGR_LLM_API_BASE` env vars. Methods: `completion(messages)`, `completion_json(messages)`. Used by decompiler (`--llm` CLI flag) for variable/function name refinement and function summaries
+
+## CLI (`__main__.py`)
+- `angr decompile` / `angr dec` — decompile functions. Options: `--structurer` (Phoenix/Dream/SAILR), `--preset`, `--cca` (CC analysis), `--llm` (LLM refinement), `--functions` (by name/addr), `--no-colors`, `--theme`
+- `angr disassemble` / `angr dis` — disassemble functions. Options: `--functions`, `--base-addr`
 
 ## Error Hierarchy
 - `AngrError` — `AngrValueError`, `AngrCFGError`, `AngrAnalysisError`, `AngrDecompilationError`, ...

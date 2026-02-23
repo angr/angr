@@ -22,18 +22,19 @@ SimVariable → SimRegisterVariable, SimStackVariable, SimMemoryVariable, SimTem
 Constraint-based type inference (retypd/GrammaTech-inspired).
 
 - typehoon.py — `Typehoon(Analysis)`: `_solve()` → `_specialize()` → `_translate_to_simtypes()`
-- typeconsts.py — type constants: Int8..Int64, Pointer, Array, Struct, TopType, BottomType
+- typeconsts.py — type constants: Int8..Int64, Pointer, Array, Struct, Enum, TopType, BottomType
 - typevars.py — TypeVariable, DerivedTypeVariable; constraints: Equivalence, Subtype
-- lifter.py — `TypeLifter`: SimType → TypeConstant
 - simple_solver.py — `SimpleSolver`: retypd-based constraint solving
-- translator.py — `TypeTranslator`: solved TypeConstant → SimType
+- translator.py — `TypeTranslator`: bidirectional conversion (SimType ↔ TypeConstant). Handles both lifting (SimType→TypeConstant) and translating (TypeConstant→SimType)
 - dfa.py — data flow helpers; variance.py — covariant/contravariant tracking
 
 Input: type constraints + variable→typevar mapping (from VariableRecoveryFast)
 Output: `simtypes_solution` dict (TypeVariable → SimType)
 
+Supports enum inference: recognizes enum patterns (switch cases, known constant sets) and produces `SimTypeEnum` types.
+
 ## SimType Hierarchy (`sim_type.py`)
-SimType → SimTypeInt, SimTypePointer, SimTypeArray, SimStruct, SimTypeFunction, SimTypeFloat, SimTypeChar, SimTypeBottom
+SimType → SimTypeInt, SimTypePointer, SimTypeArray, SimStruct, SimTypeFunction, SimTypeFloat, SimTypeChar, SimTypeBottom, SimTypeEnum, SimTypeFd
 
 ## Calling Convention Recovery (`analyses/calling_convention/`)
 - calling_convention.py — `CallingConventionAnalysis`: infer CC + prototype per function

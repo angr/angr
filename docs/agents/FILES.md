@@ -3,6 +3,7 @@
 Every .py file in angr/ with terse description. Grouped by directory.
 
 ## Top-Level
+__main__.py — CLI entry point: `angr decompile` and `angr disassemble` commands
 project.py — Project: main entry, loads binary via CLE
 factory.py — AngrObjectFactory: creates blocks, states, simgr
 sim_state.py — SimState: symbolic execution state
@@ -15,7 +16,7 @@ codenode.py — BlockNode, HookNode for CFG graph nodes
 code_location.py — CodeLocation: identifies instruction positions
 errors.py — all angr exception classes
 sim_procedure.py — SimProcedure base: library function hooks
-sim_type.py — SimType hierarchy (Int, Pointer, Struct, etc.)
+sim_type.py — SimType hierarchy (Int, Pointer, Struct, Enum, Fd, etc.)
 sim_variable.py — SimVariable types (register, stack, memory)
 calling_conventions.py — SimCC + all arch-specific calling conventions
 callable.py — Callable: call function symbolically
@@ -28,13 +29,13 @@ blade.py — Blade: backward slicing on CFG
 slicer.py — SimSlicer: symbolic slicing
 state_hierarchy.py — tracks parent-child state relationships
 vaults.py — Vaults: store/retrieve states by ID
-tablespecs.py — table format specs
+tablespecs.py — StringTableSpec: builds argv/envp string tables in memory for state setup
 graph_utils.py — graph utility functions
-llm_client.py — LLM integration client
+llm_client.py — LLMClient: LLM integration via LiteLLM (env: ANGR_LLM_MODEL, ANGR_LLM_API_KEY, ANGR_LLM_API_BASE)
 
 ## ailment/
-expression.py — AIL expressions: Const, Register, Load, BinaryOp, UnaryOp, Convert, ITE, VirtualVariable, etc.
-statement.py — AIL statements: Assignment, Store, Jump, ConditionalJump, Call, Return
+expression.py — AIL expressions: Const, Register, Load, BinaryOp, UnaryOp, Convert, ITE, VirtualVariable, CallExpr (value-returning calls), Extract, Insert, etc.
+statement.py — AIL statements: Assignment, Store, Jump, ConditionalJump, SideEffectStatement (side-effect-only calls), Return
 block.py — AIL Block: list of statements
 block_walker.py — AILBlockWalker: visitor pattern for AIL
 manager.py — Manager: creates AIL objects with unique IDs
@@ -199,7 +200,7 @@ static_vvar_rewriter.py — rewrite static virtual variables
 tag_slicer.py — slice based on tags
 switch_default_case_duplicator.py — duplicate switch default cases
 switch_reused_entry_rewriter.py — rewrite reused switch entries
-overflow_builtin_simplifier.py — simplify __builtin_add_overflow/__builtin_mul_overflow
+mips_gp_setting_simplifier.py — simplify MIPS GP register settings
 eager_std_string_concatenation.py, eager_std_string_eval.py — C++ string optimization
 inlined_string_transformation_simplifier.py, inlined_strlen_simplifier.py — inlined string recovery
 x86_gcc_getpc_simplifier.py — x86 PIC get-PC simplification
@@ -349,10 +350,9 @@ s_rda_view.py — RDA view
 typehoon.py — Typehoon: constraint-based type inference
 typeconsts.py — type constants (Int8, Pointer, Struct, etc.)
 typevars.py — type variables for constraint system
-lifter.py — lift RDA results → type constraints
-dfa.py — data flow for type inference
+translator.py — TypeTranslator: bidirectional SimType ↔ TypeConstant conversion
 simple_solver.py — solve type constraints
-translator.py — solved types → SimType
+dfa.py — data flow for type inference
 variance.py — type variance tracking
 
 ## analyses/unpacker/
@@ -399,7 +399,7 @@ syscall.py — SyscallMixin: syscall dispatch
 failure.py — SimEngineFailure: error handling
 concrete.py — ConcreteEngine: GDB/avatar2
 unicorn.py — SimEngineUnicorn: fast concrete execution
-icicle.py — IcicleEngine: alternative to Unicorn
+icicle.py — IcicleEngine: Rust-based concrete VM with breakpoints, tracing, edge coverage
 
 ## engines/vex/
 lifter.py — VEX lifting
@@ -531,7 +531,7 @@ xref.py — XRef object
 xref_types.py — XRef type enum
 
 ## knowledge_plugins/rtdb/
-rtdb.py — runtime database
+rtdb.py — RuntimeDb: LMDB-backed persistent store for FunctionManager spilling
 
 ## misc/
 plugins.py — PluginHub/PluginPreset: generic plugin system
@@ -571,6 +571,11 @@ java_util/: collection, iterator, list, map, random, scanner_nextline
 stubs/: b64_decode, caller, CallReturn, crazy_scanf, format_parser, Nop, NoReturnUnconstrained, PathTerminator, Redirect, ReturnChar, ReturnUnconstrained, syscall_stub, UnresolvableCallTarget, UnresolvableJumpTarget, UserHook
 tracer/: random, receive, transmit
 testing/: manyargs, retreg
+
+## rustylib/ (Rust native module stubs)
+automaton.pyi — EpsilonNFA, DeterministicFiniteAutomaton, State, Symbol for pattern matching
+fuzzer.pyi — Fuzzer, InMemoryCorpus, OnDiskCorpus, ClientStats for LibAFL-based fuzzing
+icicle.pyi — Icicle concrete VM: CPU state, memory, breakpoints, coverage, VmExit/ExceptionCode
 
 ## protos/
 cfg_pb2.py, function_pb2.py, primitives_pb2.py, variables_pb2.py, xrefs_pb2.py — protobuf definitions
