@@ -2135,6 +2135,7 @@ class Clinic(Analysis):
                     ground_truth=groundtruth,
                     stackvar_max_sizes=tv_max_sizes,
                     constraint_set_degradation_threshold=self._type_constraint_set_degradation_threshold,
+                    type_translator=vr.type_lifter,
                 )
                 # tp.pp_constraints()
                 # tp.pp_solution()
