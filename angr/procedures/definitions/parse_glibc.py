@@ -83,6 +83,7 @@ def main():
             "libc.so.6",
             "libc.so.7",
             "libc.so",
+            "libc.musl-x86_64.so.1",
         ],
         "non_returning": [
             "exit_group",

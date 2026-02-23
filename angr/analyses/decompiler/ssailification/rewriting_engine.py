@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 from collections.abc import MutableMapping
 import logging
 
+import archinfo
+
 from angr.ailment.block import Block
 from angr.ailment.manager import Manager
 from angr.ailment.statement import (
@@ -43,6 +45,7 @@ from angr.ailment.expression import (
 from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
 from .rewriting_state import RewritingState
+from .consts import MAX_STACK_VAR_SIZE
 
 if TYPE_CHECKING:
     from angr.analyses.decompiler.ssailification.ssailification import Def, UDef
@@ -74,7 +77,7 @@ class SimEngineSSARewriting(
         super().__init__(project)
 
         self.def_to_vvid_cache: dict[Def, int] = {}
-        self.tmp_to_vvid_cache: dict[int, int] = {}
+        self.tmp_to_vvid_cache: dict[tuple[int, int | None, int], int] = {}
         self.rewrite_tmps = rewrite_tmps
         self.ail_manager = ail_manager
         self.hclb_side_exit_state: RewritingState | None = None
@@ -321,8 +324,9 @@ class SimEngineSSARewriting(
     def _handle_expr_Tmp(self, expr: Tmp) -> VirtualVariable | None:
         if not self.rewrite_tmps:
             return None
-        if (vvid := self.tmp_to_vvid_cache.get(expr.tmp_idx, None)) is None:
-            vvid = self.tmp_to_vvid_cache[expr.tmp_idx] = self._current_vvar_id
+        tmp_key = self.block.addr, self.block.idx, expr.tmp_idx
+        if (vvid := self.tmp_to_vvid_cache.get(tmp_key, None)) is None:
+            vvid = self.tmp_to_vvid_cache[tmp_key] = self._current_vvar_id
             self._current_vvar_id += 1
         return VirtualVariable(
             expr.idx,
@@ -338,7 +342,8 @@ class SimEngineSSARewriting(
             # vvar assignment
             vvar = self._expr_to_vvar(expr.addr, True)
             assert isinstance(expr.addr.offset, int)
-            return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
+            if vvar.stack_offset + vvar.size >= expr.addr.offset + expr.size:
+                return self._vvar_extract(vvar, expr.size, expr.addr.offset - vvar.stack_offset, expr)
 
         new_addr = self._expr(expr.addr)
         if new_addr is not None:
@@ -605,10 +610,10 @@ class SimEngineSSARewriting(
             # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                if expr.offset in self.state.stackvars:
+                if self._fail_fast or expr.offset in self.state.stackvars:
                     return self.state.stackvars[expr.offset]
             elif isinstance(expr, Register):
-                if expr.reg_offset in self.state.registers:
+                if self._fail_fast or expr.reg_offset in self.state.registers:
                     return self.state.registers[expr.reg_offset]
             else:
                 raise TypeError(expr)
@@ -619,7 +624,7 @@ class SimEngineSSARewriting(
                 raise KeyError(expr)
             # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
-            offset = expr.offset
+            offset = expr.offset if isinstance(expr, StackBaseOffset) else expr.reg_offset
             if kind == "stack":
                 next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
             else:
@@ -643,6 +648,11 @@ class SimEngineSSARewriting(
             oident = offset
         else:
             raise TypeError(expr)
+
+        if kind == "stack" and size >= MAX_STACK_VAR_SIZE:
+            # limit the stack variable size
+            size = MAX_STACK_VAR_SIZE
+
         vvar = VirtualVariable(idx, varid, size * 8, category, oident, **(expr.tags | {"ins_addr": self.ins_addr}))
         if def_is_implicit:
             if kind == "stack":
@@ -655,7 +665,7 @@ class SimEngineSSARewriting(
 
     def _vvar_extract(
         self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
-    ) -> Extract | VirtualVariable:
+    ) -> Extract | VirtualVariable | BinaryOp:
         assert offset >= 0
         if size == vvar.size:
             return vvar
@@ -664,6 +674,17 @@ class SimEngineSSARewriting(
             if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
             else self.project.arch.register_endness
         )
+        if size > vvar.size:
+            if self._fail_fast:
+                assert False, "Invariant failure: we generated a vvar which is smaller than one of its uses"
+            remainder = Const(None, None, 0, size * 8 - vvar.bits, uninitalized=True)
+            order = [vvar, remainder] if endness == archinfo.Endness.LE else [remainder, vvar]
+            return BinaryOp(
+                self.ail_manager.next_atom(),
+                "Concat",
+                order,
+                bits=size * 8,
+            )
         return Extract(
             self.ail_manager.next_atom(), size * 8, vvar, Const(None, None, offset, 64), endness, **orig_tags.tags
         )
@@ -683,6 +704,11 @@ class SimEngineSSARewriting(
                 raise TypeError(vvar.category)
             if base is None:
                 base = Const(None, None, 0, vvar.bits, uninitialized=True)
+            endness = (
+                self.project.arch.memory_endness
+                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
+                else self.project.arch.register_endness
+            )
             if base.bits < vvar.bits:
                 base = BinaryOp(
                     self.ail_manager.next_atom(),
@@ -690,11 +716,8 @@ class SimEngineSSARewriting(
                     [base, Const(None, None, 0, vvar.bits - base.bits, uninitialized=True)],
                     bits=vvar.bits,
                 )
-            endness = (
-                self.project.arch.memory_endness
-                if vvar.was_stack or (vvar.was_parameter and vvar.parameter_category == VirtualVariableCategory.STACK)
-                else self.project.arch.register_endness
-            )
+            elif base.bits > vvar.bits:
+                base = Extract(self.ail_manager.next_atom(), vvar.bits, base, Const(None, None, offset, 64), endness)
             combined = Insert(self.ail_manager.next_atom(), base, Const(None, None, offset, 64), value, endness)
 
         if vvar.category == VirtualVariableCategory.STACK:

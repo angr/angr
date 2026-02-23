@@ -2786,7 +2786,11 @@ class CFGBase(Analysis):
                 if THUMB_NOOPS.issuperset(insns):
                     return True
 
-        return block.vex_nostmt.is_noop_block
+        try:
+            return block.vex_nostmt.is_noop_block
+        except SimError:
+            # VEX may fail to lift the block, so we cannot determine if it's a no-op block or not.
+            return False
 
     @staticmethod
     def _is_noop_insn(insn):

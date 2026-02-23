@@ -1405,10 +1405,18 @@ class CFunctionCall(CExpression):
         return SimTypeFunction([arg.type for arg in self.args], returnty).with_arch(self.codegen.project.arch)
 
     @property
+    def prototype_returnty(self) -> SimType:
+        """
+        Returns returnty and avoids creating the SimTypeFunction instance if the function prototype is not available.
+        Instead of self.prototype.returnty, you should use self.prototype_returnty for better performance.
+        """
+        if self.callee_func is not None and self.callee_func.prototype is not None:
+            return self.prototype.returnty
+        return SimTypeInt(signed=False).with_arch(self.codegen.project.arch)
+
+    @property
     def type(self):
-        return (self.prototype.returnty if self.prototype is not None else None) or SimTypeInt(signed=False).with_arch(
-            self.codegen.project.arch
-        )
+        return self.prototype_returnty
 
     def _is_target_ambiguous(self, func_name: str) -> bool:
         """

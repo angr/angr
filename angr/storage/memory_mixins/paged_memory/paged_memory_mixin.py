@@ -128,6 +128,9 @@ class PagedMemoryMixin(
         if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
 
+        if addr < 0:
+            raise ValueError("Negative addresses are not supported in paged memory")
+
         pageno, pageoff = self._divide_addr(addr)
         vals = []
 
@@ -181,6 +184,9 @@ class PagedMemoryMixin(
 
         if not isinstance(addr, int):
             raise TypeError("Need addr to be resolved to an int by this point")
+
+        if addr < 0:
+            raise ValueError("Negative addresses are not supported in paged memory")
 
         # l.debug("%s.store(%#x, %s, %s)", self.id, addr, data, endness)
 

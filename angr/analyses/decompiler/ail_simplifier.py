@@ -470,7 +470,15 @@ class AILSimplifier(Analysis):
             # nothing to narrow
             return False
 
+        # one more step: compute the maximum size we can narrow to for each variable equivalence class defined by
+        # phi equivalence.
+        narrowables = self._update_narrowing_sizes_for_phi_classes(narrowables, rd, vvar_to_narrowing_size)
+        if not narrowables:
+            # nothing to narrow
+            return False
+
         # let's narrow them (finally)
+
         narrower = ExpressionNarrower(self.project, rd, narrowables, addr_and_idx_to_block, self.blocks)
         for old_block in addr_and_idx_to_block.values():
             new_block = self.blocks.get(old_block, old_block)
@@ -578,6 +586,11 @@ class AILSimplifier(Analysis):
         for def_, narrow_info in narrowing_candidates.values():
             if def_.atom.varid in blacklist_varids:
                 continue
+            if def_.atom.varid in rd.phi_vvar_ids and def_.atom.varid not in narrowable_phivarids:
+                # this phi variable cannot be narrowed. blacklist it for now
+                repeat = True
+                blacklist_varids.add(def_.atom.varid)
+                continue
             if not narrow_info.phi_vars:
                 # not used by any other phi variables. good!
                 narrowables.append((def_, narrow_info))
@@ -594,6 +607,54 @@ class AILSimplifier(Analysis):
                     blacklist_varids |= {phivar.varid for phivar in narrow_info.phi_vars}
 
         return repeat, narrowables
+
+    @staticmethod
+    def _update_narrowing_sizes_for_phi_classes(
+        narrowables: list[tuple[Definition[atoms.VirtualVariable, AILCodeLocation], ExprNarrowingInfo]],
+        rd: SRDAModel,
+        vvar_to_narrowing_size,
+    ):
+        eq_classes: dict[int, frozenset[int]] = {}
+        changed = True
+        while changed:
+            changed = False
+            for phivarid, varids in rd.phivarid_to_varids.items():
+                if phivarid not in eq_classes:
+                    changed = True
+                    eq_classes[phivarid] = frozenset({phivarid})
+                rep1 = eq_classes[phivarid]
+                for varid in varids:
+                    if varid not in vvar_to_narrowing_size:
+                        continue
+                    rep0 = eq_classes.get(varid, frozenset({phivarid}))
+                    if varid not in eq_classes or rep0 != rep1:
+                        changed = True
+                        rep = rep0 | rep1
+                        eq_classes[varid] = rep
+                        eq_classes[phivarid] = rep
+
+        rep_to_vvarids: defaultdict[frozenset[int], set[int]] = defaultdict(set)
+        for vvarid, rep in eq_classes.items():
+            rep_to_vvarids[rep].add(vvarid)
+
+        for varids in rep_to_vvarids.values():
+            if any(vvarid in vvar_to_narrowing_size for vvarid in varids):
+                narrowing_sizes = {vvar_to_narrowing_size.get(vvarid) for vvarid in varids}
+                if None in narrowing_sizes:
+                    # this really should not happen, but just in case
+                    narrowables = [n for n in narrowables if n[0].atom.varid not in varids]
+                    continue
+                if len(narrowing_sizes) == 1:
+                    continue
+                max_narrowing_size = max(narrowing_sizes)
+                for vvarid in varids:
+                    vvar_to_narrowing_size[vvarid] = max_narrowing_size
+
+        for def_, narrow_info in narrowables:
+            if def_.atom.varid in vvar_to_narrowing_size:
+                narrow_info.to_size = vvar_to_narrowing_size[def_.atom.varid]
+
+        return narrowables
 
     def _narrowing_needed(
         self,
@@ -740,6 +801,7 @@ class AILSimplifier(Analysis):
                 stmt = block.statements[loc.stmt_idx]
 
                 if is_phi_assignment(stmt):
+                    assert isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable)
                     phi_vars.add(stmt.dst)
                     new_atom = atoms.VirtualVariable(
                         stmt.dst.varid, stmt.dst.size, stmt.dst.category, oident=stmt.dst.oident
@@ -1493,10 +1555,12 @@ class AILSimplifier(Analysis):
         for eq in equivalence:
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
-                if isinstance(eq.atom1, (Call, SideEffectStatement)):
+                if isinstance(eq.atom1, Call):
                     # register variable = Call
                     call: Expression = eq.atom1
                     # call_addr = call.target.value if isinstance(call.target, Const) else None
+                elif isinstance(eq.atom1, SideEffectStatement):
+                    call: Expression = eq.atom1.expr
                 elif isinstance(eq.atom1, Convert) and isinstance(eq.atom1.operand, Call):
                     # register variable = Convert(Call)
                     call = eq.atom1
