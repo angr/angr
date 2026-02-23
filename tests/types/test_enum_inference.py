@@ -11,7 +11,6 @@ from angr.calling_conventions import SimCCSystemVAMD64
 from angr.sim_type import SimType, SimTypeEnum, SimTypeInt, SimTypePointer, parse_type, parse_defns, SimTypeFunction
 from angr.analyses.typehoon.typeconsts import Enum, Int32
 from angr.analyses.typehoon.translator import TypeTranslator
-from angr.analyses.typehoon.lifter import TypeLifter
 
 from tests.common import bin_location, print_decompilation_result
 
@@ -42,7 +41,7 @@ class TestEnumTypeInference(unittest.TestCase):
         assert status_enum.size == 32
 
         # Test that we can lift these to type constants for Typehoon
-        lifter = TypeLifter(self.proj.arch.bits)
+        lifter = TypeTranslator(self.proj.arch.bits)
         color_tc = lifter.lift(color_enum)
         status_tc = lifter.lift(status_enum)
 
@@ -59,7 +58,7 @@ class TestEnumTypeInference(unittest.TestCase):
         assert isinstance(original, SimTypeEnum)
 
         # Lift to type constant
-        lifter = TypeLifter(self.proj.arch.bits)
+        lifter = TypeTranslator(self.proj.arch.bits)
         tc = lifter.lift(original)
 
         # Translate back to SimType

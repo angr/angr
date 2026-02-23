@@ -27,8 +27,20 @@ class SimTypeTempRef(sim_type.SimType):
 
 class TypeTranslator:
     """
-    Translate type variables to SimType equivalence.
+    Translate type constants to SimType and SimType to type constants.
     """
+
+    __slots__ = (
+        "_has_nonexistent_ref",
+        "_struct_ctr",
+        "arch",
+        "memo",
+        "named_struct_id_counter",
+        "struct_name_to_idx",
+        "structs",
+        "translated",
+        "translated_simtypes",
+    )
 
     def __init__(self, arch: archinfo.Arch):
         self.arch: archinfo.Arch = arch
@@ -37,8 +49,11 @@ class TypeTranslator:
         self.translated_simtypes: dict[SimType, TypeConstant] = {}
         self.structs = {}
         self._struct_ctr = count()
+        self.memo = {}
+        self.named_struct_id_counter = count(133337)
+        self.struct_name_to_idx = {}
 
-        # will be updated every time .translate() is called
+        # will be updated every time .tc2simtype() is called
         self._has_nonexistent_ref = False
 
     #
@@ -78,6 +93,10 @@ class TypeTranslator:
             return handler(self, simtype)
         except KeyError:
             return typeconsts.BottomType()
+
+    # compatibility and quality of life
+    lift = simtype2tc
+    concretize = tc2simtype
 
     #
     # Typehoon type handlers
@@ -243,14 +262,61 @@ class TypeTranslator:
     def _translate_SimTypeWideChar(self, st: sim_type.SimTypeWideChar) -> typeconsts.Int16:
         return typeconsts.Int16(name=st.label)
 
-    def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct:
-        fields = {}
-        offsets = st.offsets
-        for name, ty in st.fields.items():
-            offset = offsets[name]
-            fields[offset] = self._simtype2tc(ty)
+    def _translate_SimStruct(self, st: sim_type.SimStruct) -> typeconsts.Struct | typeconsts.BottomType:
+        if st in self.memo:
+            return typeconsts.BottomType()
 
-        return typeconsts.Struct(fields=fields, name=st.label)
+        struct_idx = {}
+        if st.name:
+            if st.name not in self.struct_name_to_idx:
+                self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
+            struct_idx["idx"] = self.struct_name_to_idx[st.name]
+
+        obj = typeconsts.Struct(fields={}, name=st.label, **struct_idx)
+        self.memo[st] = obj
+
+        fields = {}
+        field_names = {}
+        offsets = st.offsets
+        for field_name, simtype in st.fields.items():
+            if field_name not in offsets:
+                return typeconsts.BottomType()
+            offset = offsets[field_name]
+            fields[offset] = self._simtype2tc(simtype)
+            field_names[offsets[field_name]] = field_name
+        obj.fields = fields
+        obj.field_names = field_names
+        del self.memo[st]
+
+        return obj
+
+    def _translate_SimCppClass(self, st: sim_type.SimCppClass) -> typeconsts.Struct | typeconsts.BottomType:
+        if st in self.memo:
+            return typeconsts.BottomType()
+
+        struct_idx = {}
+        if st.name:
+            if st.name not in self.struct_name_to_idx:
+                self.struct_name_to_idx[st.name] = next(self.named_struct_id_counter)
+            struct_idx["idx"] = self.struct_name_to_idx[st.name]
+
+        obj = typeconsts.Struct(fields={}, name=st.label, is_cppclass=True, **struct_idx)
+        self.memo[st] = obj
+
+        fields = {}
+        field_names = {}
+        offsets = st.offsets
+        for field_name, simtype in st.fields.items():
+            if field_name not in offsets:
+                return typeconsts.BottomType()
+            offset = offsets[field_name]
+            fields[offset] = self._simtype2tc(simtype)
+            field_names[offsets[field_name]] = field_name
+        obj.fields = fields
+        obj.field_names = field_names
+        del self.memo[st]
+
+        return obj
 
     def _translate_SimTypeArray(self, st: sim_type.SimTypeArray) -> typeconsts.Array:
         elem_type = self._simtype2tc(st.elem_type)
@@ -321,5 +387,6 @@ SimTypeHandlers = {
     sim_type.SimTypeFloat: TypeTranslator._translate_SimTypeFloat,
     sim_type.SimTypeDouble: TypeTranslator._translate_SimTypeDouble,
     sim_type.SimTypeEnum: TypeTranslator._translate_SimTypeEnum,
+    sim_type.SimCppClass: TypeTranslator._translate_SimCppClass,
     sim_type.SimTypeFd: TypeTranslator._translate_SimTypeFd,
 }
