@@ -99,7 +99,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         extern_defs: set[UDef] = set()
         incomplete_defs: set[Def] = set()
         for def_, definfo in traversal.def_info.items():
-            if definfo.store_size != definfo.variable_size:
+            if (
+                definfo.store_size is not None and definfo.store_size != definfo.variable_size
+            ) or definfo.store_offset != definfo.variable_offset:
                 incomplete_defs.add(def_)
             udef = (definfo.kind, definfo.variable_offset, definfo.variable_size)
             udef_to_defs[udef].add(def_)

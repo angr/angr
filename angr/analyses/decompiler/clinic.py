@@ -28,6 +28,7 @@ from angr.utils.graph import GraphUtils
 from angr.utils.types import dereference_simtype_by_lib
 from angr.calling_conventions import SimRegArg, SimStackArg, SimFunctionArgument, SimCCUsercall
 from angr.sim_type import (
+    PointerDisposition,
     SimType,
     SimTypeChar,
     SimTypeInt,
@@ -777,7 +778,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             removed_vvar_ids=self._removed_vvar_ids,
@@ -811,7 +812,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -833,7 +834,7 @@ class Clinic(Analysis):
             self._ail_graph,
             remove_dead_memdefs=self._remove_dead_memdefs,
             stack_arg_offsets=self._stackarg_offsets,
-            unify_variables=True,
+            unify_variables=self._fold_expressions,
             narrow_expressions=True,
             fold_callexprs_into_conditions=self._fold_callexprs_into_conditions,
             arg_vvars=self.arg_vvars,
@@ -3741,7 +3742,15 @@ class Clinic(Analysis):
                 )
                 for i in range(func_arg_count):
                     if i in arg_result:
-                        new_arg_types.append(arg_result[i])
+                        argty = arg_result[i]
+                        if (
+                            isinstance(argty, SimTypePointer)
+                            and argty.disposition == PointerDisposition.UNKNOWN
+                            and func.prototype is not None
+                            and isinstance((oldargty := func.prototype.args[i]), SimTypePointer)
+                        ):
+                            argty.disposition = oldargty.disposition
+                        new_arg_types.append(argty)
                     else:
                         if func.prototype is not None:
                             new_arg_types.append(func.prototype.args[i])

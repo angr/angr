@@ -13,7 +13,7 @@ from angr.knowledge_plugins.functions import Function
 from angr.codenode import BlockNode, HookNode, FuncNode
 from angr.engines.light import SimEngineNostmtVEX, SimEngineLight
 from angr.calling_conventions import SimRegArg, SimStackArg, default_cc
-from angr.sim_type import SimTypeBottom, SimTypeFunction
+from angr.sim_type import PointerDisposition, SimTypeBottom, SimTypeFunction, SimTypePointer
 from angr.utils.types import dereference_simtype_by_lib
 from .utils import is_sane_register_variable
 
@@ -202,7 +202,7 @@ class SimEngineFactCollectorVEX(
 
         if stmt.offset == self.arch.sp_offset and v is not None and v[0] == KIND_SP:
             self.state.sp_value = v[2]
-        elif stmt.offset == self.arch.bp_offset and v is not None and v[1] == KIND_SP:
+        elif stmt.offset == self.arch.bp_offset and v is not None and v[0] == KIND_SP:
             self.state.bp_value = v[2]
         else:
             self.state.register_written(stmt.offset, stmt.data.result_size(self.tyenv) // self.arch.byte_width)
@@ -214,14 +214,17 @@ class SimEngineFactCollectorVEX(
         if addr is None or not (addr[0] == KIND_SP or (addr[0] in (KIND_REG, KIND_STACKVAL) and self.track_arg_uses)):
             return
 
+        size = stmt.data.result_size(self.tyenv) // self.arch.byte_width
         if addr[0] == KIND_SP:
-            self.state.stack_written(addr[2], stmt.data.result_size(self.tyenv) // self.arch.byte_width)
+            self.state.stack_written(addr[2], size)
             if data is not None and data[0] == KIND_REG and data[2] == 0:
                 # push reg; we record the stored register as well as the stack slot offset
                 self.state.callee_stored_regs[data[1]] = u2s(addr[2], self.arch.bits)
             self.state.simple_stack[addr[2]] = data
         else:
-            self.state.pointer_arg_derefs[addr] |= 2
+            for _subaddr in range(addr[2], addr[2] + size):
+                subaddr = (addr[0], addr[1], _subaddr)
+                self.state.pointer_arg_derefs[subaddr] |= 2
 
     def _handle_stmt_WrTmp(self, stmt: pyvex.IRStmt.WrTmp):
         v = self._expr(stmt.data)
@@ -253,11 +256,16 @@ class SimEngineFactCollectorVEX(
         if addr is None or not (addr[0] == KIND_SP or (addr[0] in (KIND_REG, KIND_STACKVAL) and self.track_arg_uses)):
             return None
 
+        size = expr.result_size(self.tyenv) // self.arch.byte_width
         if addr[0] == KIND_SP:
-            self.state.stack_read(addr[2], expr.result_size(self.tyenv) // self.arch.byte_width)
+            self.state.stack_read(addr[2], size)
             return self.state.simple_stack.get(addr[2], (KIND_STACKVAL, addr[2], 0))
 
-        self.state.pointer_arg_derefs[addr] |= 1
+        for _subaddr in range(addr[2], addr[2] + size):
+            subaddr = (addr[0], addr[1], _subaddr)
+            self.state.pointer_arg_derefs[subaddr] |= 1
+            if not (self.state.pointer_arg_derefs[subaddr] & 2):
+                self.state.pointer_arg_derefs[subaddr] |= 4
         return None
 
     def _handle_expr_RdTmp(self, expr):
@@ -438,7 +446,7 @@ class FactCollector(Analysis):
 
         if self._track_arg_passthru:
             self.callsites[state.ins_addr] = (func, [])
-        for arg_loc in arg_locs:
+        for arg_ty, arg_loc in zip(func.prototype.args, arg_locs):
             val: FactData = None
             for loc in arg_loc.get_footprint():
                 if isinstance(loc, SimRegArg):
@@ -457,6 +465,24 @@ class FactCollector(Analysis):
                 if val is not None and val[0] == KIND_REG:
                     self._seen_reg_uses[val[1]] += 1
                 self.callsites[state.ins_addr][1].append(val)
+            if val is not None and val[0] in (KIND_REG, KIND_STACKVAL) and isinstance(arg_ty, SimTypePointer):
+                match arg_ty.disposition:
+                    case PointerDisposition.OUT | PointerDisposition.OUTMAYBE:
+                        flags = 2
+                    case PointerDisposition.IN:
+                        flags = 1
+                    case PointerDisposition.IN_OUT | PointerDisposition.IN_OUTMAYBE:
+                        flags = 3
+                    case _:
+                        flags = 0
+
+                size = (arg_ty.pts_to.size or 8) // 8
+                for _subaddr in range(val[2], val[2] + size):
+                    subaddr = (val[0], val[1], _subaddr)
+                    _flags = flags
+                    if not (state.pointer_arg_derefs[subaddr] & 2) and flags != 2:
+                        _flags |= 4
+                    state.pointer_arg_derefs[subaddr] |= _flags
 
         # clobber caller-saved regs
         for reg_name in func.calling_convention.CALLER_SAVED_REGS:

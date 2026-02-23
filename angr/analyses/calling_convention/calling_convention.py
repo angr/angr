@@ -1079,10 +1079,8 @@ class CallingConventionAnalysis(Analysis):
                     if proposed_disposition == 0
                     else (
                         PointerDisposition.IN
-                        if proposed_disposition == 1
-                        else (
-                            PointerDisposition.OUTMAYBE if proposed_disposition == 2 else PointerDisposition.IN_OUTMAYBE
-                        )
+                        if (proposed_disposition & 3) == 1
+                        else (PointerDisposition.OUT if proposed_disposition in (2, 3) else PointerDisposition.IN_OUT)
                     )
                 )
                 return SimTypePointer(ptr_ty, disposition=disposition)

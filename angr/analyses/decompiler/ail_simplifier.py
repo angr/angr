@@ -226,15 +226,14 @@ class AILSimplifier(Analysis):
                 self._rebuild_func_graph()
                 self._clear_cache()
 
-        if self._fold_expressions:
-            _l.debug("Folding expressions")
-            folded_exprs = self._fold_exprs()
-            self.simplified |= folded_exprs
-            if folded_exprs:
-                _l.debug("... expressions folded")
-                self._rebuild_func_graph()
-                # reaching definition analysis results are no longer reliable
-                self._clear_cache()
+        _l.debug("Folding expressions")
+        folded_exprs = self._fold_exprs()
+        self.simplified |= folded_exprs
+        if folded_exprs:
+            _l.debug("... expressions folded")
+            self._rebuild_func_graph()
+            # reaching definition analysis results are no longer reliable
+            self._clear_cache()
 
         _l.debug("Propagating partial-constant expressions")
         pconst_propagated = self._propagate_partial_constant_exprs()
@@ -347,7 +346,7 @@ class AILSimplifier(Analysis):
             func_graph=self.func_graph,
             func_args=func_args,
             # gp=self._gp,
-            only_consts=self._only_consts,
+            only_consts=self._only_consts or not self._fold_expressions,
             stack_arg_offsets={x for _, x in self._stack_arg_offsets} if self._stack_arg_offsets is not None else None,
         )
         self._propagator = prop
@@ -1579,6 +1578,11 @@ class AILSimplifier(Analysis):
                     # we must rerun Propagator to get an updated definition (and Equivalence)
                     continue
 
+                eq_stmt = addr_and_idx_to_block[(eq.codeloc.block_addr, eq.codeloc.block_idx)].statements[
+                    eq.codeloc.stmt_idx
+                ]
+                extra_defs = eq_stmt.tags.get("extra_defs", None)
+
                 # find all uses of this virtual register
                 rd = self._compute_reaching_definitions()
 
@@ -1682,6 +1686,8 @@ class AILSimplifier(Analysis):
 
                 if replaced:
                     assert new_block is not None
+                    if extra_defs is not None:
+                        new_block.statements[u.stmt_idx].tags["extra_defs"] = extra_defs
                     self.blocks[old_block] = new_block
                     # this call has been folded to the use site. we can remove this call.
                     self._calls_to_remove.add(eq.codeloc)
@@ -1822,6 +1828,8 @@ class AILSimplifier(Analysis):
                         def_stmt = blocks[(def_codeloc.block_addr, def_codeloc.block_idx)].statements[
                             def_codeloc.stmt_idx
                         ]
+                        if def_stmt.tags.get("extra_defs", []):
+                            continue
                     if is_vvar_eliminatable(vvar, def_stmt):
                         uses = rd.all_vvar_uses[vvar_id]
                     elif vvar.was_stack:
