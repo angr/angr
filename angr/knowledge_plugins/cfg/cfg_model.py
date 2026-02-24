@@ -221,7 +221,7 @@ class CFGModel(Serializable):
         # nodes
         for node_pb2 in cmsg.nodes:
             node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
-            model._nodes[node.block_id] = node
+            node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
             model.graph.add_node(node)
 
         model._node_addrs = None
