@@ -667,7 +667,7 @@ class CFGENode(CFGNode):
         # Parse block_id
         block_id = None
         if cmsg.HasField("block_id_obj"):
-            from angr.analyses.cfg.cfg_job_base import BlockID
+            from angr.analyses.cfg.cfg_job_base import BlockID  # pylint:disable=import-outside-toplevel
 
             bid = cmsg.block_id_obj
             callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)

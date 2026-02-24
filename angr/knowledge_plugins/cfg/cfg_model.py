@@ -30,9 +30,9 @@ if TYPE_CHECKING:
 
     K = TypeVar("K", int, SootMethodDescriptor)
 
-    class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring,unused-argument,no-self-use
-        def irange(self, *args, **kwargs) -> Iterator[K]: ...
-        def add(self, value: K) -> None: ...
+    class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
+        def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
 
 else:
     from sortedcontainers import SortedList
