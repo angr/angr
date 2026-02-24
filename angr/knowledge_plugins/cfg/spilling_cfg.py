@@ -1,0 +1,1001 @@
+"""
+Spilling CFG Graph implementation with LRU caching and LMDB persistence.
+
+This module provides SpillingCFGNodeDict and SpillingCFGGraph classes that implement
+disk-backed storage for CFGNode instances, following the SpillingFunctionDict pattern.
+"""
+
+from __future__ import annotations
+
+import logging
+import threading
+import weakref
+import os
+from collections import OrderedDict, defaultdict
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, overload, Literal
+
+import lmdb
+import networkx
+from archinfo.arch_soot import SootAddressDescriptor
+
+from angr.protos import cfg_pb2
+from .cfg_node import CFGNode, CFGENode
+
+if TYPE_CHECKING:
+    from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
+    from .cfg_model import CFGModel
+
+l = logging.getLogger(name=__name__)
+
+K = tuple[int, ...] | tuple[SootAddressDescriptor, int]
+
+# a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
+USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
+
+
+class SpillingCFGNodeDict:
+    """
+    A dict-like container for CFGNode instances with LRU caching and LMDB spilling.
+
+    This class keeps only the most recently accessed N nodes in memory, spilling others to an LMDB database on disk.
+
+    :ivar cache_limit:          The maximum number of nodes to keep in memory.
+    :ivar rtdb:                 A reference to the RuntimeDb knowledge base plugin.
+    :ivar _lru_order:           An OrderedDict tracking the eviction order of cached nodes.
+    :ivar _spilled_keys:        A set of block_ids that have been spilled to LMDB.
+    :ivar _db_batch_size:       The number of nodes that are evicted in a single batch.
+    :ivar _eviction_enabled:    A flag indicating whether eviction is currently enabled.
+    """
+
+    def __init__(
+        self,
+        rtdb: RuntimeDb | None,
+        cfg_model: CFGModel | None = None,
+        cache_limit: int = 1000,
+        db_batch_size: int = 200,
+    ):
+        self._data: dict[K, CFGNode] = {}
+        self._spilled_keys: set[K] = set()
+        self._all_keys: set[K] = set()  # all_keys == _data.keys() | _spilled_keys, used for iteration
+
+        self._cache_limit: int = cache_limit
+        self._db_batch_size: int = max(cache_limit - 1, db_batch_size) if cache_limit > 0 else db_batch_size
+
+        self.rtdb: RuntimeDb | None = rtdb
+        self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
+
+        self._lru_order: OrderedDict[K, None] = OrderedDict()
+
+        self._nodesdb = None
+        self._eviction_enabled: bool = True
+        self._loading_from_lmdb: bool = False
+        self._db_load_lock = threading.Lock()
+        self._db_store_lock = threading.Lock()
+
+    def __del__(self):
+        self._cleanup_lmdb()
+
+    @property
+    def _cfg_model(self) -> CFGModel | None:
+        if self._cfg_model_ref is None:
+            return None
+        return self._cfg_model_ref()
+
+    @_cfg_model.setter
+    def _cfg_model(self, value: CFGModel | None) -> None:
+        self._cfg_model_ref = weakref.ref(value) if value is not None else None
+
+    def __getitem__(self, block_key: K) -> CFGNode:
+        # First try to get from in-memory cache
+        if block_key in self._data:
+            self._touch(block_key)
+            return self._data[block_key]
+
+        # Try to load from LMDB if spilled
+        if block_key in self._spilled_keys:
+            node = self._load_from_lmdb(block_key)
+            if node is not None:
+                return node
+
+        raise KeyError(block_key)
+
+    def __setitem__(self, block_key: K, node: CFGNode) -> None:
+        self._data[block_key] = node
+        self._on_node_stored(block_key)
+
+    def __delitem__(self, block_key: K) -> None:
+        # Remove from in-memory cache if present
+        if block_key in self._data:
+            del self._data[block_key]
+        # Remove from spilled set if present
+        self._spilled_keys.discard(block_key)
+        self._all_keys.discard(block_key)
+        # Remove from LRU order
+        if block_key in self._lru_order:
+            del self._lru_order[block_key]
+
+    def __contains__(self, block_key: K) -> bool:
+        return block_key in self._all_keys
+
+    def __len__(self) -> int:
+        return len(self._all_keys)
+
+    def __iter__(self) -> Iterator[K]:
+        # Iterate over all block_keys
+        yield from self._all_keys
+
+    def get(self, block_key: K, default: CFGNode | None = None) -> CFGNode | None:
+        try:
+            return self[block_key]
+        except KeyError:
+            return default
+
+    def keys(self) -> Iterator[K]:
+        return iter(self)
+
+    def values(self) -> Iterator[CFGNode]:
+        for block_key in self:
+            yield self[block_key]
+
+    def items(self) -> Iterator[tuple[K, CFGNode]]:
+        for block_key in self:
+            yield block_key, self[block_key]
+
+    def clear(self) -> None:
+        self._data.clear()
+        self._lru_order.clear()
+        self._spilled_keys.clear()
+        self._all_keys.clear()
+        self._cleanup_lmdb()
+
+    def copy(self) -> SpillingCFGNodeDict:
+        new_dict = SpillingCFGNodeDict(
+            self.rtdb,
+            self._cfg_model,
+            cache_limit=self._cache_limit,
+            db_batch_size=self._db_batch_size,
+        )
+        # Temporarily disable eviction during copy
+        new_dict._eviction_enabled = False
+
+        new_dict._all_keys = set(self._all_keys)
+
+        # Copy in-memory nodes
+        for block_key, node in self._data.items():
+            new_dict._data[block_key] = node.copy()
+            new_dict._lru_order[block_key] = None
+
+        # Copy spilled data from LMDB
+        if self._spilled_keys and self._nodesdb is not None and self.rtdb is not None:
+            new_dict._init_lmdb()
+            with (
+                self.rtdb.begin_txn(self._nodesdb) as src_txn,
+                self.rtdb.begin_txn(new_dict._nodesdb, write=True) as dst_txn,
+            ):
+                for block_key in self._spilled_keys:
+                    key = str(block_key).encode("utf-8")
+                    value = src_txn.get(key)
+                    if value is not None:
+                        dst_txn.put(key, value)
+                        new_dict._spilled_keys.add(block_key)
+
+        new_dict._eviction_enabled = True
+        return new_dict
+
+    #
+    # Properties
+    #
+
+    @property
+    def cache_limit(self) -> int:
+        return self._cache_limit
+
+    @cache_limit.setter
+    def cache_limit(self, value: int) -> None:
+        self._cache_limit = value
+        # Trigger eviction if we're over the new limit
+        if self.cached_count > value + self._db_batch_size:
+            self._evict_lru()
+
+    @property
+    def db_batch_size(self) -> int:
+        return self._db_batch_size
+
+    @db_batch_size.setter
+    def db_batch_size(self, value: int) -> None:
+        self._db_batch_size = value
+        if self.cached_count > self._cache_limit + value:
+            self._evict_lru()
+
+    @property
+    def cached_count(self) -> int:
+        return len(self._data)
+
+    @property
+    def spilled_count(self) -> int:
+        return len(self._spilled_keys)
+
+    @property
+    def total_count(self) -> int:
+        return len(self._all_keys)
+
+    def is_cached(self, block_key: K) -> bool:
+        return block_key in self._data
+
+    #
+    # LRU Cache Management
+    #
+
+    def _touch(self, block_key: K) -> None:
+        if block_key in self._lru_order:
+            self._lru_order.move_to_end(block_key)
+        else:
+            self._lru_order[block_key] = None
+
+    def _on_node_stored(self, block_key: K) -> None:
+        self._all_keys.add(block_key)
+        self._touch(block_key)
+        self._spilled_keys.discard(block_key)
+
+        if (
+            self._eviction_enabled
+            and self._cache_limit is not None
+            and self.cached_count > self._cache_limit + self._db_batch_size
+        ):
+            self._evict_lru()
+
+    def _evict_lru(self) -> bool:
+        with self._db_store_lock:
+            evicted_any = False
+            while self.cached_count > self._cache_limit + self._db_batch_size:
+                # Evict enough to get below the limit, in batches
+                to_evict = self.cached_count - self._cache_limit
+                batch_size = min(self._db_batch_size, to_evict)
+                if self._evict_n(batch_size) == 0:
+                    break
+                evicted_any = True
+            return evicted_any
+
+    def _evict_n(self, n: int) -> int:
+        if not self._lru_order:
+            return 0
+
+        evicted = 0
+        nodes_to_evict = []
+        for lru_block_key in list(self._lru_order):
+            if evicted >= n:
+                break
+
+            if lru_block_key not in self._data:
+                self._lru_order.pop(lru_block_key)
+                continue
+
+            node = self._data[lru_block_key]
+            if node.dirty:
+                nodes_to_evict.append((lru_block_key, node))
+
+            del self._data[lru_block_key]
+            del self._lru_order[lru_block_key]
+            self._spilled_keys.add(lru_block_key)
+            evicted += 1
+
+        if nodes_to_evict:
+            self._save_to_lmdb(nodes_to_evict)
+
+        return evicted
+
+    #
+    # LMDB Management
+    #
+
+    def _init_lmdb(self) -> None:
+        if self._nodesdb is None and self.rtdb is not None:
+            self._nodesdb = self.rtdb.open_db("cfgnodes")
+            l.debug("Initialized CFGNode LMDB cache.")
+
+    def _cleanup_lmdb(self) -> None:
+        if self._nodesdb is not None and self.rtdb is not None:
+            self.rtdb.drop_db(self._nodesdb)
+            self._nodesdb = None
+
+    def _save_to_lmdb(self, nodes: list[tuple[K, CFGNode]]) -> None:
+        if self.rtdb is None:
+            return
+
+        self._init_lmdb()
+
+        while True:
+            try:
+                with self.rtdb.begin_txn(self._nodesdb, write=True) as txn:
+                    for block_key, node in nodes:
+                        cmsg = node.serialize_to_cmessage()
+                        payload = cmsg.SerializeToString()
+                        # Prefix with type byte: 0x00 for CFGNode, 0x01 for CFGENode
+                        data = b"\x01" + payload if isinstance(node, CFGENode) else b"\x00" + payload
+                        key = str(block_key).encode("utf-8")
+                        txn.put(key, data)
+                break
+            except lmdb.MapFullError:
+                self.rtdb.increase_lmdb_map_size()
+
+    def _load_from_lmdb(self, block_key: K) -> CFGNode | None:
+        if self._nodesdb is None or self.rtdb is None:
+            return None
+
+        with self._db_load_lock:
+            return self._load_from_lmdb_core(block_key)
+
+    def _load_from_lmdb_core(self, block_key: K) -> CFGNode | None:
+        if self._loading_from_lmdb:
+            raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
+
+        self._loading_from_lmdb = True
+
+        try:
+            key = str(block_key).encode("utf-8")
+
+            with self.rtdb.begin_txn(self._nodesdb) as txn:
+                value = txn.get(key)
+                if value is None:
+                    return None
+
+                type_byte = value[0]
+                payload = value[1:]
+
+                if type_byte == 0x00:
+                    cmsg = cfg_pb2.CFGNode()
+                    cmsg.ParseFromString(payload)
+                    node = CFGNode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
+                elif type_byte == 0x01:
+                    cmsg = cfg_pb2.CFGENode()
+                    cmsg.ParseFromString(payload)
+                    node = CFGENode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
+                else:
+                    raise ValueError(f"Unknown node type byte: {type_byte:#x}")
+
+                node.dirty = False
+
+            # Remove from spilled set and add to cache
+            self._spilled_keys.discard(block_key)
+            self._data[block_key] = node
+            self._on_node_stored(block_key)
+
+            return node
+        finally:
+            self._loading_from_lmdb = False
+
+            if (
+                self._eviction_enabled
+                and self._cache_limit is not None
+                and self.cached_count > self._cache_limit + self._db_batch_size
+            ):
+                self._evict_lru()
+
+    def load_all_spilled(self) -> None:
+        if not self._spilled_keys:
+            return
+
+        old_eviction_state = self._eviction_enabled
+        self._eviction_enabled = False
+
+        try:
+            block_keys_to_load = list(self._spilled_keys)
+            for block_key in block_keys_to_load:
+                self._load_from_lmdb(block_key)
+        finally:
+            self._eviction_enabled = old_eviction_state
+
+    def evict_all_cached(self) -> None:
+        if self.cached_count == 0:
+            return
+        with self._db_store_lock:
+            self._evict_n(self.cached_count)
+
+    #
+    # Pickling
+    #
+
+    def __getstate__(self):
+        # Load all spilled nodes before pickling
+        self.load_all_spilled()
+        return {
+            "cache_limit": self._cache_limit,
+            "db_batch_size": self._db_batch_size,
+            "items": dict(self._data),
+        }
+
+    def __setstate__(self, state: dict):
+        self._cache_limit = state["cache_limit"]
+        self._db_batch_size = state["db_batch_size"]
+        self._data = {}
+        self.rtdb = None
+        self._cfg_model_ref = None
+        self._lru_order = OrderedDict()
+        self._spilled_keys = set()
+        self._all_keys = set()
+        self._nodesdb = None
+        self._eviction_enabled = True
+        self._loading_from_lmdb = False
+        self._db_load_lock = threading.Lock()
+        self._db_store_lock = threading.Lock()
+
+        for k, v in state["items"].items():
+            self[k] = v
+
+
+class _AdjacencyDict:
+    """Helper class to support graph[src][dst] access pattern."""
+
+    def __init__(self, graph: SpillingCFG, src_block_key: K):
+        self._graph = graph
+        self._src_block_key = src_block_key
+
+    def __getitem__(self, dst_node: CFGNode) -> dict:
+        dst_block_key = get_block_key(dst_node)
+        return self._graph._graph[self._src_block_key][dst_block_key]
+
+    def __contains__(self, dst_node: CFGNode) -> bool:
+        dst_block_key = get_block_key(dst_node)
+        return dst_block_key in self._graph._graph[self._src_block_key]
+
+    def keys(self) -> Iterator[CFGNode]:
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph.get_node_by_key(dst_block_key)
+
+    def values(self) -> Iterator[dict]:
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph._graph[self._src_block_key][dst_block_key]
+
+    def items(self) -> Iterator[tuple[CFGNode, dict]]:
+        for dst_block_key in self._graph._graph[self._src_block_key]:
+            yield self._graph.get_node_by_key(dst_block_key), self._graph._graph[self._src_block_key][dst_block_key]
+
+    def __iter__(self) -> Iterator[CFGNode]:
+        return self.keys()
+
+
+class _NodeView:
+    """View over graph nodes supporting len(), iteration, and call with data=True."""
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    def __len__(self) -> int:
+        return len(self._graph._graph)
+
+    def __iter__(self) -> Iterator[CFGNode]:
+        for block_key in self._graph._graph.nodes():
+            yield self._graph.get_node_by_key(block_key)
+
+    @overload
+    def __call__(self, data: Literal[False] = False) -> Iterator[CFGNode]: ...
+    @overload
+    def __call__(self, data: Literal[True]) -> Iterator[tuple[CFGNode, dict]]: ...
+
+    def __call__(self, data: bool = False) -> Iterator[CFGNode] | Iterator[tuple[CFGNode, dict]]:
+        if data:
+            for block_key, node_data in self._graph._graph.nodes(data=True):
+                yield self._graph.get_node_by_key(block_key), node_data
+        else:
+            yield from self
+
+    def __contains__(self, node: CFGNode) -> bool:
+        return self._graph.has_node(node)
+
+
+class _EdgeView:
+    """View over graph edges supporting len(), iteration, and call with data=True."""
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    def __len__(self) -> int:
+        return self._graph._graph.number_of_edges()
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
+        for src_id, dst_id in self._graph._graph.edges():
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
+
+    @overload
+    def __call__(self, data: Literal[False] = False) -> Iterator[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, data: Literal[True]) -> Iterator[tuple[CFGNode, CFGNode, dict]]: ...
+
+    def __call__(
+        self, data: bool = False
+    ) -> Iterator[tuple[CFGNode, CFGNode]] | Iterator[tuple[CFGNode, CFGNode, dict]]:
+        if data:
+            for src_id, dst_id, edge_data in self._graph._graph.edges(data=True):
+                yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data
+        else:
+            yield from self
+
+
+class _InEdgeView:
+    """View over graph in-edges supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.in_edges(node)`` and ``graph.in_edges[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    @overload
+    def __call__(self, nbunch=None, data: Literal[False] = False) -> list[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, nbunch=None, *, data: Literal[True]) -> list[tuple[CFGNode, CFGNode, dict]]: ...
+
+    def __call__(
+        self, nbunch=None, data: bool = False
+    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
+        if nbunch is not None:
+            nbunch = [get_block_key(nbunch)] if isinstance(nbunch, CFGNode) else [get_block_key(n) for n in nbunch]
+
+        if data:
+            return [
+                (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data)
+                for src_id, dst_id, edge_data in self._graph._graph.in_edges(nbunch, data=True)
+            ]
+        return [
+            (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id))
+            for src_id, dst_id in self._graph._graph.in_edges(nbunch)
+        ]
+
+    def __getitem__(self, node) -> list[tuple[CFGNode, CFGNode]]:
+        return self(node)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
+        for src_id, dst_id in self._graph._graph.in_edges():
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
+
+    def __len__(self) -> int:
+        return self._graph._graph.number_of_edges()
+
+
+class _OutEdgeView:
+    """View over graph out-edges supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.out_edges(node)`` and ``graph.out_edges[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    @overload
+    def __call__(self, nbunch=None, data: Literal[False] = False) -> list[tuple[CFGNode, CFGNode]]: ...
+    @overload
+    def __call__(self, nbunch=None, *, data: Literal[True]) -> list[tuple[CFGNode, CFGNode, dict]]: ...
+
+    def __call__(
+        self, nbunch=None, data: bool = False
+    ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
+        if nbunch is not None:
+            nbunch = [get_block_key(nbunch)] if isinstance(nbunch, CFGNode) else [get_block_key(n) for n in nbunch]
+
+        if data:
+            return [
+                (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data)
+                for src_id, dst_id, edge_data in self._graph._graph.out_edges(nbunch, data=True)
+            ]
+        return [
+            (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id))
+            for src_id, dst_id in self._graph._graph.out_edges(nbunch)
+        ]
+
+    def __getitem__(self, node) -> list[tuple[CFGNode, CFGNode]]:
+        return self(node)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
+        for src_id, dst_id in self._graph._graph.out_edges():
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
+
+    def __len__(self) -> int:
+        return self._graph._graph.number_of_edges()
+
+
+class _InDegreeView:
+    """View over graph in-degrees supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.in_degree(node)`` and ``graph.in_degree[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
+        if node is None:
+            return iter(self)
+        return self[node]
+
+    def __getitem__(self, node: CFGNode) -> int:
+        block_key = get_block_key(node)
+        if block_key not in self._graph._graph:
+            return 0
+        return self._graph._graph.in_degree(block_key)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
+        for block_key, deg in self._graph._graph.in_degree():
+            yield self._graph.get_node_by_key(block_key), deg
+
+    def __len__(self) -> int:
+        return len(self._graph._graph)
+
+
+class _OutDegreeView:
+    """View over graph out-degrees supporting call, subscript, len, and iteration.
+
+    Supports both ``graph.out_degree(node)`` and ``graph.out_degree[node]``.
+    """
+
+    def __init__(self, graph: SpillingCFG):
+        self._graph = graph
+
+    def __call__(self, node: CFGNode | None = None) -> int | Iterator[tuple[CFGNode, int]]:
+        if node is None:
+            return iter(self)
+        return self[node]
+
+    def __getitem__(self, node: CFGNode) -> int:
+        block_key = get_block_key(node)
+        if block_key not in self._graph._graph:
+            return 0
+        return self._graph._graph.out_degree(block_key)
+
+    def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
+        for block_key, deg in self._graph._graph.out_degree():
+            yield self._graph.get_node_by_key(block_key), deg
+
+    def __len__(self) -> int:
+        return len(self._graph._graph)
+
+
+def get_block_key(node: CFGNode | CFGENode) -> K:
+    """
+    Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
+    the looping_times of the block (in case there are multiple blocks with the same address, which may happen after
+    loop unrolling in a CFGEmulated instance).
+
+    :param node:    The CFGNode or CFGENode instance to get the block key for.
+    :return:        The unique identifier.
+    """
+
+    block_id = node.block_id
+    if block_id is None:
+        block_id = node.addr
+    block_key = block_id, node.size if node.size is not None else -1
+
+    if isinstance(node, CFGENode):
+        return block_key, node.looping_times if node.looping_times is not None else 0
+    return block_key
+
+
+class SpillingCFG:
+    """
+    A graph wrapper that stores CFGNode instances in a spilling dict while keeping only primitive keys in the
+    underlying networkx graph.
+
+    This provides a networkx-compatible interface while supporting disk-backed storage for large CFGs.
+    """
+
+    def __init__(
+        self,
+        rtdb: RuntimeDb | None = None,
+        cfg_model: CFGModel | None = None,
+        cache_limit: int | None = None,
+        db_batch_size: int = 1000,
+    ):
+        self._graph: networkx.DiGraph = networkx.DiGraph()
+        self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
+        self._rtdb = rtdb
+
+        if USE_SPILLING_CFGNODE_DICT:
+            effective_cache_limit = cache_limit if cache_limit is not None else 2**31 - 1
+        else:
+            effective_cache_limit = 2**31 - 1
+
+        self._nodes: SpillingCFGNodeDict = SpillingCFGNodeDict(
+            rtdb,
+            cfg_model,
+            cache_limit=effective_cache_limit,
+            db_batch_size=db_batch_size,
+        )
+        self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
+        self._spilling_enabled = cache_limit is not None
+
+    @property
+    def _cfg_model(self) -> CFGModel | None:
+        if self._cfg_model_ref is None:
+            return None
+        return self._cfg_model_ref()
+
+    @_cfg_model.setter
+    def _cfg_model(self, value: CFGModel | None) -> None:
+        self._cfg_model_ref = weakref.ref(value) if value is not None else None
+        self._nodes._cfg_model = value
+
+    def get_node_by_key(self, block_key: K) -> CFGNode:
+        """Get a CFGNode by block_id, with fallback to graph node data."""
+        # First try the nodes dict (handles spilling)
+        if block_key in self._nodes:
+            return self._nodes[block_key]
+        raise KeyError(block_key)
+
+    @property
+    def node_keys(self) -> Iterator[K]:
+        """Get an iterator over all block_keys in the graph."""
+        yield from self._nodes
+
+    #
+    # Node operations
+    #
+
+    def add_node(self, node: CFGNode, **attr) -> None:
+        block_key = get_block_key(node)
+        self._nodes[block_key] = node
+        self._graph.add_node(block_key, **attr)
+        # update _keys_by_addr
+        self._keys_by_addr[node.addr].add(block_key)
+
+    def remove_node(self, node: CFGNode) -> None:
+        block_key = get_block_key(node)
+        if block_key in self._nodes:
+            del self._nodes[block_key]
+        self._keys_by_addr[node.addr].discard(block_key)
+        if not self._keys_by_addr.get(node.addr):
+            self._keys_by_addr.pop(node.addr, None)
+        if block_key in self._graph:
+            self._graph.remove_node(block_key)
+
+    def has_node(self, node: CFGNode) -> bool:
+        block_key = get_block_key(node)
+        return block_key in self._graph
+
+    def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
+        for block_key in self._keys_by_addr.get(addr, []):
+            yield self.get_node_by_key(block_key)
+
+    def has_node_addr(self, addr: int) -> bool:
+        return addr in self._keys_by_addr
+
+    def __contains__(self, node: CFGNode) -> bool:
+        return self.has_node(node)
+
+    def __len__(self) -> int:
+        return len(self._graph)
+
+    def number_of_nodes(self) -> int:
+        return len(self._graph)
+
+    @property
+    def nodes(self) -> _NodeView:
+        """Return a view of nodes supporting len(), iteration, and call with data=True."""
+        return _NodeView(self)
+
+    def __iter__(self) -> Iterator[CFGNode]:
+        for block_key in self._graph:
+            yield self.get_node_by_key(block_key)
+
+    #
+    # Edge operations
+    #
+
+    def add_edge(self, src: CFGNode, dst: CFGNode, **attr) -> None:
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
+
+        # Always update _nodes with the passed nodes
+        # This is needed for node replacement during _shrink_node
+        self._nodes[src_block_key] = src
+        self._nodes[dst_block_key] = dst
+
+        # Ensure nodes exist in the graph structure
+        if src_block_key not in self._graph:
+            self._graph.add_node(src_block_key)
+
+        if dst_block_key not in self._graph:
+            self._graph.add_node(dst_block_key)
+
+        self._graph.add_edge(src_block_key, dst_block_key, **attr)
+
+    def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
+        self._graph.remove_edge(src_block_key, dst_block_key)
+
+    def has_edge(self, src: CFGNode, dst: CFGNode) -> bool:
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
+        return self._graph.has_edge(src_block_key, dst_block_key)
+
+    def get_edge_data(self, src: CFGNode, dst: CFGNode, default=None) -> dict | None:
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
+        return self._graph.get_edge_data(src_block_key, dst_block_key, default)
+
+    def number_of_edges(self) -> int:
+        return self._graph.number_of_edges()
+
+    @property
+    def edges(self) -> _EdgeView:
+        """Return a view of edges supporting len(), iteration, and call with data=True."""
+        return _EdgeView(self)
+
+    #
+    # Neighbor operations
+    #
+
+    def predecessors(self, node: CFGNode) -> Iterator[CFGNode]:
+        block_key = get_block_key(node)
+        for pred_key in self._graph.predecessors(block_key):
+            yield self.get_node_by_key(pred_key)
+
+    def successors(self, node: CFGNode) -> Iterator[CFGNode]:
+        block_key = get_block_key(node)
+        for succ_key in self._graph.successors(block_key):
+            yield self.get_node_by_key(succ_key)
+
+    @property
+    def in_edges(self) -> _InEdgeView:
+        """Return a view of in-edges supporting call, subscript, len, and iteration."""
+        return _InEdgeView(self)
+
+    @property
+    def out_edges(self) -> _OutEdgeView:
+        """Return a view of out-edges supporting call, subscript, len, and iteration."""
+        return _OutEdgeView(self)
+
+    @property
+    def in_degree(self) -> _InDegreeView:
+        """Return a view of in-degrees supporting call, subscript, len, and iteration."""
+        return _InDegreeView(self)
+
+    @property
+    def out_degree(self) -> _OutDegreeView:
+        """Return a view of out-degrees supporting call, subscript, len, and iteration."""
+        return _OutDegreeView(self)
+
+    #
+    # Adjacency access
+    #
+
+    def __getitem__(self, node: CFGNode) -> _AdjacencyDict:
+        block_key = get_block_key(node)
+        if block_key not in self._graph:
+            raise KeyError(node)
+        return _AdjacencyDict(self, block_key)
+
+    #
+    # Graph operations
+    #
+
+    def copy(self) -> SpillingCFG:
+        new_graph = SpillingCFG(
+            rtdb=self._rtdb,
+            cfg_model=self._cfg_model,
+            cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
+            db_batch_size=self._nodes.db_batch_size,
+        )
+
+        new_graph._nodes = self._nodes.copy()
+        new_graph._spilling_enabled = self._spilling_enabled
+        new_graph._keys_by_addr = defaultdict(set)
+        for addr, keys in self._keys_by_addr.items():
+            new_graph._keys_by_addr[addr] = set(keys)
+        new_graph._graph = self._graph.copy()
+
+        return new_graph
+
+    def subgraph(self, nodes) -> networkx.DiGraph:
+        """
+        Return a subgraph as a regular networkx DiGraph with CFGNode instances.
+        This is useful for algorithms that need a pure networkx graph.
+        """
+        block_keys = [get_block_key(n) for n in nodes]
+        sub = self._graph.subgraph(block_keys)
+
+        # Convert to CFGNode-based graph
+        result = networkx.DiGraph()
+        for block_key in sub.nodes():
+            result.add_node(self.get_node_by_key(block_key))
+        for src_key, dst_key, data in sub.edges(data=True):
+            result.add_edge(self.get_node_by_key(src_key), self.get_node_by_key(dst_key), **data)
+
+        return result
+
+    def to_networkx(self) -> networkx.DiGraph:
+        """
+        Convert to a pure networkx DiGraph with CFGNode instances as nodes.
+        Warning: This loads all spilled nodes into memory.
+        """
+        result = networkx.DiGraph()
+        for node in self.nodes():
+            result.add_node(node)
+        for src, dst, data in self.edges(data=True):
+            result.add_edge(src, dst, **data)
+        return result
+
+    def from_networkx(self, nx_graph: networkx.DiGraph) -> None:
+        """
+        Load graph structure from a networkx DiGraph with CFGNode instances as nodes.
+        """
+        self._graph.clear()
+        self._nodes.clear()
+
+        for node in nx_graph.nodes():
+            self.add_node(node)
+
+        for src, dst, data in nx_graph.edges(data=True):
+            self.add_edge(src, dst, **data)
+
+    #
+    # Spilling control
+    #
+
+    @property
+    def cache_limit(self) -> int | None:
+        if self._spilling_enabled:
+            return self._nodes.cache_limit
+        return None
+
+    @cache_limit.setter
+    def cache_limit(self, value: int | None) -> None:
+        if value is not None:
+            self._nodes.cache_limit = value
+            self._spilling_enabled = True
+        else:
+            # Set to a very large value to effectively disable spilling
+            self._nodes.cache_limit = 2**31 - 1
+            self._spilling_enabled = False
+
+    @property
+    def db_batch_size(self) -> int:
+        return self._nodes.db_batch_size
+
+    @db_batch_size.setter
+    def db_batch_size(self, value: int) -> None:
+        self._nodes.db_batch_size = value
+
+    @property
+    def cached_count(self) -> int:
+        return self._nodes.cached_count
+
+    @property
+    def spilled_count(self) -> int:
+        return self._nodes.spilled_count
+
+    def load_all_spilled(self) -> None:
+        self._nodes.load_all_spilled()
+
+    def evict_all_cached(self) -> None:
+        self._nodes.evict_all_cached()
+
+    #
+    # Pickling
+    #
+
+    def __getstate__(self):
+        self._nodes.load_all_spilled()
+        nodes_state = self._nodes.__getstate__()
+
+        return {
+            "graph": self._graph,
+            "nodes": nodes_state,
+            "spilling_enabled": self._spilling_enabled,
+            "db_batch_size": self._nodes.db_batch_size,
+        }
+
+    def __setstate__(self, state: dict):
+        self._graph = state["graph"]
+        self._spilling_enabled = state["spilling_enabled"]
+        self._cfg_model_ref = None
+        self._rtdb = None
+        self._keys_by_addr = defaultdict(set)
+
+        nodes_state = state["nodes"]
+        self._nodes = SpillingCFGNodeDict.__new__(SpillingCFGNodeDict)
+        self._nodes.__setstate__(nodes_state)
+
+        # initialize _keys_by_addr
+        for node_key, node in self._nodes.items():
+            self._keys_by_addr[node.addr].add(node_key)

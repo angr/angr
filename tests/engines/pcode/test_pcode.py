@@ -42,7 +42,7 @@ class TestPcodeEngine(TestCase):
 
         # Recover the CFG
         c = p.analyses.CFGFast(normalize=True)
-        assert len(c.model.nodes()) == 4
+        assert len(list(c.model.nodes())) == 4
 
         # Execute symbolically
         s = p.factory.call_state(base_address, prototype=prototype)

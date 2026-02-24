@@ -513,12 +513,12 @@ class Veritesting(Analysis):
     # Merge point determination
     #
 
-    def _make_cfg(self):
+    def _make_cfg(self) -> tuple[CFGEmulated, networkx.DiGraph]:
         """
         Builds a CFG from the current function.
         Saved in cfg_cache.
 
-        returns (CFGEmulated, networkx.DiGraph): Tuple of the CFG and networkx representation of it
+        :return: A tuple of the CFG and networkx representation of it
         """
 
         state = self._input_state
@@ -556,7 +556,7 @@ class Veritesting(Analysis):
             initial_state=cfg_initial_state,
             normalize=True,
         )
-        cfg_graph_with_loops = networkx.DiGraph(cfg.graph)
+        cfg_graph_with_loops = cfg.graph.to_networkx()
         cfg.force_unroll_loops(self._loop_unrolling_limit)
 
         # cache the generated cfg
@@ -578,15 +578,15 @@ class Veritesting(Analysis):
         ds = networkx.immediate_dominators(reversed_graph, n1)
         return n2 in ds
 
-    def _get_all_merge_points(self, cfg, graph_with_loops):
+    def _get_all_merge_points(self, cfg: CFGEmulated, graph_with_loops) -> list[tuple[int, int]]:
         """
         Return all possible merge points in this CFG.
 
-        :param CFGEmulated cfg: The control flow graph, which must be acyclic.
-        :returns [(int, int)]:  A list of merge points (address and number of times looped).
+        :param cfg: The control flow graph, which must be acyclic.
+        :return:  A list of merge points (address and number of times looped).
         """
 
-        graph = networkx.DiGraph(cfg.graph)
+        graph = cfg.graph.to_networkx()
         reversed_cyclic_graph = shallow_reverse(graph_with_loops)
 
         # Remove all "FakeRet" edges
@@ -604,7 +604,7 @@ class Veritesting(Analysis):
         reversed_cyclic_graph.remove_edges_from(fakeret_edges)
 
         # Perform a topological sort
-        sorted_nodes = networkx.topological_sort(graph)
+        sorted_nodes = list(networkx.topological_sort(graph))
 
         nodes = [n for n in sorted_nodes if graph.in_degree(n) > 1 and n.looping_times == 0]
 

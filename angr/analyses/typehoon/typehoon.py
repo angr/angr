@@ -41,6 +41,7 @@ class Typehoon(Analysis):
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
         constraint_set_degradation_threshold: int = 150,
+        type_translator: TypeTranslator | None = None,
     ):
         """
 
@@ -59,6 +60,7 @@ class Typehoon(Analysis):
         self._stackvar_max_sizes = stackvar_max_sizes if stackvar_max_sizes is not None else {}
         self._stack_offset_tvs = stack_offset_tvs if stack_offset_tvs is not None else {}
         self._constraint_set_degradation_threshold = constraint_set_degradation_threshold
+        self._type_translator = type_translator if type_translator is not None else TypeTranslator(self.project.arch)
 
         self.bits = self.project.arch.bits
         self.solution = None
@@ -181,7 +183,7 @@ class Typehoon(Analysis):
     def _analyze(self):
         # convert ground truth into constraints
         if self._ground_truth:
-            translator = TypeTranslator(self.project.arch)
+            translator = self._type_translator
             for tv, sim_type in self._ground_truth.items():
                 self._constraints[self.func_var].add(Equivalence(tv, translator.simtype2tc(sim_type)))
 
@@ -318,7 +320,7 @@ class Typehoon(Analysis):
             return
 
         simtypes_solution = {}
-        translator = TypeTranslator(self.project.arch)
+        translator = self._type_translator
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():

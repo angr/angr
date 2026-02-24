@@ -110,12 +110,12 @@ class VariableManagerInternal(Serializable):
         self._vvarid_to_variable: dict[int, SimVariable] = {}
         self._variable_to_vvarids: dict[SimVariable, set[int]] = defaultdict(set)
         self._variable_counters = {
-            "register": count(),
-            "stack": count(),
-            "argument": count(),
-            "phi": count(),
-            "global": count(),
-            "constant": count(),
+            "register": 0,
+            "stack": 0,
+            "argument": 0,
+            "phi": 0,
+            "global": 0,
+            "constant": 0,
         }
 
         self._unified_variables: set[SimVariable] = set()
@@ -442,7 +442,9 @@ class VariableManagerInternal(Serializable):
         else:
             prefix = "m"
 
-        return f"i{prefix}_{next(self._variable_counters[sort])}"
+        ident = self._variable_counters[sort]
+        self._variable_counters[sort] = ident + 1
+        return f"i{prefix}_{ident}"
 
     def add_variable(self, sort, start, variable: SimVariable):
         if sort == "stack":

@@ -12,7 +12,7 @@ import claripy
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction
 from angr.analyses.typehoon import typeconsts, typevars
-from angr.analyses.typehoon.lifter import TypeLifter
+from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
 from .engine_base import SimEngineVRBase, RichR
@@ -35,7 +35,7 @@ class SimEngineVRAIL(
     def __init__(
         self,
         *args,
-        type_lifter: TypeLifter,
+        type_lifter: TypeTranslator,
         call_info=None,
         vvar_to_vvar: dict[int, int] | None,
         vvar_type_hints: dict[int, typeconsts.TypeConstant] | None = None,
