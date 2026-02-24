@@ -27,9 +27,11 @@ class CFGManager(KnowledgeBasePlugin):
         if ident not in self.cfgs:
             if self._kb is not None and self._kb._project is not None:
                 is_arm = is_arm_arch(self._kb._project.arch)
+                cache_limit = self._kb._project.get_function_cache_limit()
             else:
                 is_arm = False
-            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm)
+                cache_limit = None
+            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm, cache_limit=cache_limit)
         return self.cfgs[ident]
 
     def __setitem__(self, ident, model):

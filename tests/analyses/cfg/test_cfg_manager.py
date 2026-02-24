@@ -25,8 +25,8 @@ class TestCfgManager(unittest.TestCase):
         original_graph = original_cfgs.cfgs["CFGFast"].graph
         new_graph = new_cfgs.cfgs["CFGFast"].graph
 
-        assert original_graph.edges() == new_graph.edges()
-        assert original_graph.nodes() == new_graph.nodes()
+        assert set(original_graph.edges()) == set(new_graph.edges())
+        assert set(original_graph.nodes()) == set(new_graph.nodes())
         assert original_graph is not new_graph
 
 

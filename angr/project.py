@@ -61,7 +61,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions"}
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes"}
 
 _UNSET = object()
 
@@ -892,8 +892,7 @@ class Project:
         """
         Get the cache limit for function-level caches.
 
-        :return: The cache limit.
-        :rtype: int
+        :return: The cache limit, or None for disabling the cache.
         """
         if "functions" in self.cache_limits:
             return self.cache_limits["functions"]
@@ -912,6 +911,30 @@ class Project:
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache functions
         return ((sz // 512) // 100 + 1) * 100
+
+    def get_cfg_node_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for CFG node caches.
+
+        :return: The cache limit, or None to disable the cache.
+        """
+        if "cfg_nodes" in self.cache_limits:
+            return self.cache_limits["cfg_nodes"]
+
+        if self.loader.main_object.cached_content is not None:
+            sz = len(self.loader.main_object.cached_content)
+        else:
+            # estimate a size using max address - min address
+            if self.loader.main_object.max_addr is not None and self.loader.main_object.min_addr is not None:
+                sz = self.loader.main_object.max_addr - self.loader.main_object.min_addr
+            else:
+                sz = None
+
+        if sz is None:
+            return 10000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't cache CFG nodes
+        return ((sz // 256) // 100 + 1) * 100
 
 
 from .factory import AngrObjectFactory

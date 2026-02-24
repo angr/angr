@@ -2,18 +2,17 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
-from collections.abc import Callable
-from collections import defaultdict
+from typing import Generic, TypeVar, TYPE_CHECKING
+
+from collections.abc import Iterator, Callable
 import string
 
 import networkx
-from sortedcontainers import SortedList
 
 import cle
+from archinfo.arch_soot import SootMethodDescriptor
 
 from angr.engines.vex.lifter import VEX_IRSB_MAX_SIZE
-from angr.misc.ux import once
 from angr.protos import cfg_pb2, primitives_pb2
 from angr.serializable import Serializable
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
@@ -21,12 +20,22 @@ from angr.errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
+from .spilling_cfg import SpillingCFG, get_block_key
 
 if TYPE_CHECKING:
-    from angr.knowledge_base.knowledge_base import KnowledgeBase
+    from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
-    from angr.utils.segment_list import SegmentList
+    from angr.rustylib import SegmentList
+
+    K = TypeVar("K", int, SootMethodDescriptor)
+
+    class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
+        def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
+
+else:
+    from sortedcontainers import SortedList
 
 
 l = logging.getLogger(name=__name__)
@@ -40,11 +49,13 @@ class CFGModel(Serializable):
     """
 
     __slots__ = (
+        "__weakref__",
+        "_blockid_to_blockkey",
+        "_cache_limit",
         "_cfg_manager",
+        "_db_batch_size",
         "_iropt_level",
         "_node_addrs",
-        "_nodes",
-        "_nodes_by_addr",
         "edges_to_repair",
         "graph",
         "ident",
@@ -55,16 +66,35 @@ class CFGModel(Serializable):
         "normalized",
     )
 
-    def __init__(self, ident, cfg_manager=None, is_arm=False):
+    def __init__(
+        self,
+        ident,
+        cfg_manager=None,
+        is_arm=False,
+        cache_limit: int | None = None,
+        db_batch_size: int = 1000,
+    ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
+        self._cache_limit = cache_limit
+        self._db_batch_size = db_batch_size
 
         # Necessary settings
         self._iropt_level = None
 
-        # The graph
-        self.graph = networkx.DiGraph()
+        # The graph - uses SpillingCFGGraph which stores nodes internally
+        # When cache_limit is None, spilling is disabled (regular dict for nodes)
+        rtdb = None
+        if cfg_manager is not None and hasattr(cfg_manager, "_kb") and cfg_manager._kb is not None:
+            rtdb = cfg_manager._kb.rtdb
+
+        self.graph: SpillingCFG = SpillingCFG(
+            rtdb=rtdb,
+            cfg_model=self,
+            cache_limit=cache_limit,
+            db_batch_size=db_batch_size,
+        )
 
         # Jump tables
         self.jump_tables: dict[int, IndirectJump] = {}
@@ -75,12 +105,10 @@ class CFGModel(Serializable):
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
-        # Lists of CFGNodes indexed by the address of each block. Don't serialize
-        self._nodes_by_addr: defaultdict[int, list[CFGNode]] = defaultdict(list)
-        # CFGNodes dict indexed by block ID. Don't serialize
-        self._nodes: dict[int, CFGNode] = {}
         # addresses of CFGNodes to speed up get_any_node(..., anyaddr=True). Don't serialize
         self._node_addrs: SortedList[int] | None = None
+        # block ID to block key mapping for compatibility reasons
+        self._blockid_to_blockkey: dict = {}
 
         self.normalized = False
 
@@ -96,20 +124,44 @@ class CFGModel(Serializable):
             return None
         return self._cfg_manager._kb._project
 
+    @property
+    def _nodes(self):
+        """CFGNodes dict indexed by block ID. Delegates to graph._nodes."""
+        return self.graph._nodes
+
+    @property
+    def node_addrs(self) -> SortedList[int]:
+        if self._node_addrs is None:
+            self._build_node_addr_index()
+            assert self._node_addrs is not None
+        return self._node_addrs
+
+    def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
+        yield from self.graph.nodes_by_addr(addr)
+
+    def has_node_addr(self, addr: int) -> bool:
+        return self.graph.has_node_addr(addr)
+
     #
     # Serialization
     #
 
     def __getstate__(self):
-        return {x: self.__getattribute__(x) for x in self.__slots__}
+        return {x: self.__getattribute__(x) for x in self.__slots__ if x not in {"__weakref__", "_cfg_manager"}}
 
     def __setstate__(self, state):
         for attribute, value in state.items():
             self.__setattr__(attribute, value)
 
+        # Restore cfg_model reference in the graph
+        self.graph._cfg_model = self
+
+        # Restore cfg_model reference in all nodes
         for addr in self._nodes:
             node = self._nodes[addr]
             node._cfg_model = self
+
+        self._cfg_manager = None
 
     @classmethod
     def _get_cmsg(cls):
@@ -169,24 +221,16 @@ class CFGModel(Serializable):
         # nodes
         for node_pb2 in cmsg.nodes:
             node = CFGNode.parse_from_cmessage(node_pb2, cfg=model)
-            model._nodes[node.block_id] = node
-            model._nodes_by_addr[node.addr].append(node)
+            node.dirty = True  # mark dirty so the node is saved to LMDB if evicted from the spilling cache
             model.graph.add_node(node)
-            if len(model._nodes_by_addr[node.block_id]) > 1 and once(
-                "cfg_model_parse_from_cmessage many nodes at addr"
-            ):
-                l.warning(
-                    "Importing a CFG with more than one node for a given address is currently unsupported. "
-                    "The resulting graph may be broken."
-                )
 
         model._node_addrs = None
 
         # edges
         for edge_pb2 in cmsg.edges:
             # more than one node at a given address is unsupported, grab the first one
-            src = model._nodes_by_addr[edge_pb2.src_ea][0]
-            dst = model._nodes_by_addr[edge_pb2.dst_ea][0]
+            src = next(model.graph.nodes_by_addr(edge_pb2.src_ea))
+            dst = next(model.graph.nodes_by_addr(edge_pb2.dst_ea))
             data = {
                 "jumpkind": cfg_jumpkind_from_pb(edge_pb2.jumpkind),
                 "ins_addr": edge_pb2.ins_addr if edge_pb2.ins_addr != 0xFFFF_FFFF_FFFF_FFFF else None,
@@ -216,28 +260,32 @@ class CFGModel(Serializable):
     #
 
     def copy(self):
-        model = CFGModel(self.ident, cfg_manager=self._cfg_manager, is_arm=self.is_arm)
-        model.graph = networkx.DiGraph(self.graph)
+        model = CFGModel(
+            self.ident,
+            cfg_manager=self._cfg_manager,
+            is_arm=self.is_arm,
+            cache_limit=self._cache_limit,
+            db_batch_size=self._db_batch_size,
+        )
+        model.graph = self.graph.copy()
+        model.graph._cfg_model = model
         model.jump_tables = self.jump_tables.copy()
         model.memory_data = self.memory_data.copy()
         model.insn_addr_to_memory_data = self.insn_addr_to_memory_data.copy()
-        model._nodes_by_addr = self._nodes_by_addr.copy()
-        model._nodes = self._nodes.copy()
         model.edges_to_repair = self.edges_to_repair.copy()
 
         return model
 
     def _build_node_addr_index(self):
-        self._node_addrs = SortedList(iter(k for k, lst in self._nodes_by_addr.items() if lst))
+        self._node_addrs = SortedList(iter(k for k, lst in self.graph._keys_by_addr.items() if lst))
 
     #
     # Node insertion and removal
     #
 
     def add_node(self, block_id: int, node: CFGNode) -> None:
-        self._nodes[block_id] = node
-        self._nodes_by_addr[node.addr].append(node)
-
+        self._blockid_to_blockkey[block_id] = get_block_key(node)
+        self.graph.add_node(node)
         if self._node_addrs is not None and isinstance(node.addr, int) and node.addr not in self._node_addrs:
             self._node_addrs.add(node.addr)
 
@@ -249,31 +297,34 @@ class CFGModel(Serializable):
         :param node:        The CFGNode instance to remove.
         :return:            None
         """
-        if block_id in self._nodes:
-            del self._nodes[block_id]
-
-        if node.addr in self._nodes_by_addr and node in self._nodes_by_addr[node.addr]:
-            self._nodes_by_addr[node.addr].remove(node)
-            if not self._nodes_by_addr[node.addr]:
-                del self._nodes_by_addr[node.addr]
-
-                if self._node_addrs is not None and isinstance(node.addr, int) and node.addr in self._node_addrs:
-                    self._node_addrs.remove(node.addr)
+        self._blockid_to_blockkey.pop(block_id, None)
+        self.graph.remove_node(node)
+        # Only remove from _node_addrs if no other nodes exist at this address
+        if (
+            self._node_addrs is not None
+            and isinstance(node.addr, int)
+            and node.addr in self._node_addrs
+            and not self.graph.has_node_addr(node.addr)
+        ):
+            self._node_addrs.remove(node.addr)
 
     #
     # CFG View
     #
 
-    def get_node(self, block_id):
+    def has_node_id(self, node_id) -> bool:
+        return node_id in self._blockid_to_blockkey
+
+    def get_node(self, block_id) -> CFGNode | None:
         """
-        Get a single node from node key.
+        Get a single node from Block ID.
 
         :param BlockID block_id: Block ID of the node.
-        :return:                 The CFGNode
-        :rtype:                  CFGNode
+        :return:                 The CFGNode, or None if the node does not exist.
         """
-        if block_id in self._nodes:
-            return self._nodes[block_id]
+        if block_id in self._blockid_to_blockkey:
+            block_key = self._blockid_to_blockkey[block_id]
+            return self.graph.get_node_by_key(block_key)
         return None
 
     def get_any_node(
@@ -291,17 +342,17 @@ class CFGModel(Serializable):
         :param anyaddr:         If anyaddr is True, then addr doesn't have to be the beginning address of a basic
                                 block. By default the entire graph.nodes() will be iterated, and the first node
                                 containing the specific address is returned, which can be slow.
-        :param force_fastpath:  If force_fastpath is True, it will only perform a dict lookup in the _nodes_by_addr
-                                dict.
+        :param force_fastpath:  If force_fastpath is True, it will only perform a dict lookup in the
+                                graph._keys_by_addr dict.
         :return:                A CFGNode if there is any that satisfies given conditions, or None otherwise
         """
 
         # fastpath: directly look in the nodes list
-        if not anyaddr or addr in self._nodes_by_addr:
+        if not anyaddr or self.graph.has_node_addr(addr):
             try:
                 if is_syscall is None:
-                    return self._nodes_by_addr[addr][0]
-                return next(iter(node for node in self._nodes_by_addr[addr] if node.is_syscall == is_syscall))
+                    return next(self.graph.nodes_by_addr(addr))
+                return next(iter(node for node in self.graph.nodes_by_addr(addr) if node.is_syscall == is_syscall))
             except (KeyError, IndexError, StopIteration):
                 pass
 
@@ -311,6 +362,7 @@ class CFGModel(Serializable):
         if isinstance(addr, int):
             if self._node_addrs is None:
                 self._build_node_addr_index()
+                assert self._node_addrs is not None
 
             # slower path
             # find all potential addresses that the block may cover
@@ -319,11 +371,12 @@ class CFGModel(Serializable):
             is_cfgemulated = self.ident == "CFGEmulated"
 
             while pos < len(self._node_addrs):
-                n = self._nodes_by_addr[self._node_addrs[pos]][0]
-                actual_addr = n.addr if not self.is_arm else n.addr & 0xFFFF_FFFE
+                node_addr = self._node_addrs[pos]
+                actual_addr = node_addr if not self.is_arm else node_addr & 0xFFFF_FFFE
                 if actual_addr > addr:
                     break
 
+                n = next(self.graph.nodes_by_addr(node_addr))
                 cond = n.looping_times == 0 if is_cfgemulated else True
                 if anyaddr and n.size is not None:
                     cond = cond and (addr == actual_addr or actual_addr <= addr < actual_addr + n.size)
@@ -501,7 +554,9 @@ class CFGModel(Serializable):
         """
         # use the reverse graph and query for successors (networkx.dfs_predecessors is misleading)
         # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
-        predecessors = set().union(*networkx.dfs_successors(self.graph.reverse(), cfgnode, depth_limit).values())
+        predecessors = set().union(
+            *networkx.dfs_successors(self.graph.to_networkx().reverse(), cfgnode, depth_limit).values()
+        )
         return list(predecessors)
 
     def get_all_successors(self, cfgnode, depth_limit=None):
@@ -514,7 +569,7 @@ class CFGModel(Serializable):
         :rtype: list
         """
         # dfs_successors returns a dict of (node, [predecessors]). We ignore the keyset and use the values
-        successors = set().union(*networkx.dfs_successors(self.graph, cfgnode, depth_limit).values())
+        successors = set().union(*networkx.dfs_successors(self.graph.to_networkx(), cfgnode, depth_limit).values())
         return list(successors)
 
     def get_branching_nodes(self):
@@ -584,6 +639,8 @@ class CFGModel(Serializable):
                                     in sequence to determine data types for memory data whose type is unknown.
         :return:                    True if new data entries are found, False otherwise.
         """
+
+        assert self.project is not None and self.project.loader is not None
 
         # Make sure all memory data entries cover all data sections
         keys = sorted(memory_data_addrs) if memory_data_addrs is not None else sorted(self.memory_data.keys())
@@ -761,6 +818,9 @@ class CFGModel(Serializable):
         :return: a tuple of (data type, size). (None, None) if we fail to determine the type or the size.
         :rtype: tuple
         """
+
+        assert self.project is not None and self.project.loader is not None
+
         if max_size is None:
             max_size = 0
 
@@ -888,6 +948,8 @@ class CFGModel(Serializable):
         max_size: int,
         extra_memory_regions: list[tuple[int, int]] | None = None,
     ):
+        assert self.project is not None and self.project.loader is not None
+
         pointers_count = 0
 
         max_pointer_array_size = min(512 * pointer_size, max_size)
@@ -924,6 +986,8 @@ class CFGModel(Serializable):
         :return:                A tuple of ('elf-header', size) if it is, or (None, None) if it is not.
         :rtype:                 tuple
         """
+
+        assert self.project is not None and self.project.loader is not None
 
         obj = self.project.loader.find_object_containing(data_addr)
         if obj is None:
@@ -1000,6 +1064,7 @@ class CFGModel(Serializable):
             kb = self.project.kb
 
         # FIXME: Track nodecodes as nodes in CFG and use graph to resolve instead of analyzing IRSBs here
+        assert kb is not None
 
         func = kb.functions.floor_func(addr)
         if func is None:

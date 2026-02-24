@@ -135,6 +135,10 @@ class CFGFastSoot(CFGFast):
                     block_id=addr,
                     soot_block=soot_block,
                 )
+
+                # add it to the model
+                self._model.add_node(addr, cfg_node)
+
             return addr, current_function_addr, cfg_node, soot_block
 
         except (SimMemoryError, SimEngineError):
