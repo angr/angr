@@ -7,7 +7,6 @@ disk-backed storage for CFGNode instances, following the SpillingFunctionDict pa
 
 from __future__ import annotations
 
-import pickle
 import logging
 import threading
 import weakref
@@ -20,6 +19,7 @@ import lmdb
 import networkx
 from archinfo.arch_soot import SootAddressDescriptor
 
+from angr.protos import cfg_pb2
 from .cfg_node import CFGNode, CFGENode
 
 if TYPE_CHECKING:
@@ -299,7 +299,7 @@ class SpillingCFGNodeDict:
             self.rtdb.drop_db(self._nodesdb)
             self._nodesdb = None
 
-    def _save_to_lmdb(self, nodes: list[tuple[int, CFGNode]]) -> None:
+    def _save_to_lmdb(self, nodes: list[tuple[K, CFGNode]]) -> None:
         if self.rtdb is None:
             return
 
@@ -309,10 +309,15 @@ class SpillingCFGNodeDict:
             try:
                 with self.rtdb.begin_txn(self._nodesdb, write=True) as txn:
                     for block_key, node in nodes:
-                        # Serialize using pickle with __getstate__
-                        state = node.__getstate__()
+                        cmsg = node.serialize_to_cmessage()
+                        payload = cmsg.SerializeToString()
+                        # Prefix with type byte: 0x00 for CFGNode, 0x01 for CFGENode
+                        if isinstance(node, CFGENode):
+                            data = b"\x01" + payload
+                        else:
+                            data = b"\x00" + payload
                         key = str(block_key).encode("utf-8")
-                        txn.put(key, pickle.dumps(state))
+                        txn.put(key, data)
                 break
             except lmdb.MapFullError:
                 self.rtdb.increase_lmdb_map_size()
@@ -338,16 +343,21 @@ class SpillingCFGNodeDict:
                 if value is None:
                     return None
 
-                state = pickle.loads(value)
+                type_byte = value[0]
+                payload = value[1:]
 
-                # Create node using __setstate__
-                node = object.__new__(CFGNode)
-                node.__setstate__(state)
+                if type_byte == 0x00:
+                    cmsg = cfg_pb2.CFGNode()
+                    cmsg.ParseFromString(payload)
+                    node = CFGNode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
+                elif type_byte == 0x01:
+                    cmsg = cfg_pb2.CFGENode()
+                    cmsg.ParseFromString(payload)
+                    node = CFGENode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
+                else:
+                    raise ValueError(f"Unknown node type byte: {type_byte:#x}")
+
                 node.dirty = False
-
-                # Restore cfg_model reference
-                if self._cfg_model is not None:
-                    node._cfg_model = self._cfg_model
 
             # Remove from spilled set and add to cache
             self._spilled_keys.discard(block_key)

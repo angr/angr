@@ -5,12 +5,43 @@ import "angr/protos/primitives.proto";
 
 package angr.protos;
 
+// A wrapper for int64 values that may be None (used in callstack_key and callsite_tuples).
+message OptionalInt64 {
+    bool has_value = 1;
+    int64 value = 2;
+}
+
+// Serialized form of BlockID (context-sensitive block identifier).
+message BlockIDProto {
+    uint64 addr = 1;
+    repeated OptionalInt64 callsite_tuples = 2;
+    string jump_type = 3;
+}
+
 message CFGNode {
     uint64          ea = 1; // Address of the node
     uint32          size = 2; // Size of the node
-    repeated int64  block_id = 3; // A unique identifier of the node
-    bool            returning = 4; // If it is a call node, does it return?
+    repeated int64  block_id = 3; // A unique identifier of the node (for int block_ids)
+    bool            returning = 4; // has_return property
     repeated uint64 instr_addrs = 5; // Instruction addresses
+    optional string simprocedure_name = 6; // Name of the SimProcedure, if any
+    bool            no_ret = 7; // Whether this node does not return
+    optional uint64 function_address = 8; // Address of the function this node belongs to
+    bool            thumb = 9; // Whether this is a Thumb mode block (ARM)
+    optional bytes  byte_string = 10; // Raw bytes of the block
+    optional string name = 11; // Display name of the node
+    bool            is_syscall = 12; // Whether this is a syscall node
+}
+
+message CFGENode {
+    CFGNode         base = 1; // Base CFGNode fields
+    repeated OptionalInt64 callstack_key = 2; // Context-sensitive callstack suffix
+    optional string syscall_name = 3; // Name of the syscall
+    int32           looping_times = 4; // Number of times this node has been looped
+    optional int32  depth = 5; // Depth in the exploration
+    optional uint64 return_target = 6; // Return target address for call nodes
+    optional string creation_failure_info = 7; // repr() of CFGNodeCreationFailure, if any
+    optional BlockIDProto block_id_obj = 8; // BlockID when block_id is a BlockID object (not int)
 }
 
 message CFG {

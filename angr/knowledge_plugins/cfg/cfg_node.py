@@ -290,33 +290,51 @@ class CFGNode(Serializable):
         return cfg_pb2.CFGNode()
 
     def serialize_to_cmessage(self):
-        if isinstance(self, CFGENode):
-            raise NotImplementedError("CFGEmulated instances are not currently serializable")
-
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
+        obj.returning = self.has_return
         obj.instr_addrs.extend(self.instruction_addrs)
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
-            else:  # should be a BlockID
-                raise NotImplementedError("CFGEmulated instances are not currently serializable")
+            else:
+                raise NotImplementedError("Non-integer block_id serialization is not supported for CFGNode")
+        if self.simprocedure_name is not None:
+            obj.simprocedure_name = self.simprocedure_name
+        obj.no_ret = self.no_ret
+        if self.function_address is not None:
+            obj.function_address = self.function_address
+        obj.thumb = self.thumb
+        if self.byte_string is not None:
+            obj.byte_string = self.byte_string
+        if self._name is not None:
+            obj.name = self._name
+        obj.is_syscall = self.is_syscall
         return obj
 
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
         block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
-
         instruction_addrs = None if not cmsg.instr_addrs else list(cmsg.instr_addrs)
 
-        return cls(
+        node = cls(
             cmsg.ea,
             cmsg.size,
             cfg=cfg,
             block_id=block_id,
             instruction_addrs=instruction_addrs,
+            simprocedure_name=cmsg.simprocedure_name if cmsg.HasField("simprocedure_name") else None,
+            no_ret=cmsg.no_ret,
+            function_address=cmsg.function_address if cmsg.HasField("function_address") else None,
+            thumb=cmsg.thumb,
+            byte_string=cmsg.byte_string if cmsg.HasField("byte_string") else None,
+            is_syscall=cmsg.is_syscall,
+            name=cmsg.name if cmsg.HasField("name") else None,
         )
+        node._has_return = cmsg.returning
+        node._dirty = False
+        return node
 
     #
     # Pickling
@@ -571,6 +589,133 @@ class CFGENode(CFGNode):
         return hash(
             (self.callstack_key, self.addr, self.looping_times, self.simprocedure_name, self.creation_failure_info)
         )
+
+    #
+    # Serialization
+    #
+
+    @classmethod
+    def _get_cmsg(cls):
+        return cfg_pb2.CFGENode()
+
+    def serialize_to_cmessage(self):
+        obj = self._get_cmsg()
+
+        # Serialize base CFGNode fields into obj.base
+        base = obj.base
+        base.ea = self.addr
+        base.size = self.size
+        base.returning = self.has_return
+        base.instr_addrs.extend(self.instruction_addrs)
+        if self.simprocedure_name is not None:
+            base.simprocedure_name = self.simprocedure_name
+        base.no_ret = self.no_ret
+        if self.function_address is not None:
+            base.function_address = self.function_address
+        base.thumb = self.thumb
+        if self.byte_string is not None:
+            base.byte_string = self.byte_string
+        if self._name is not None:
+            base.name = self._name
+        base.is_syscall = self.is_syscall
+
+        # Handle block_id (can be int or BlockID)
+        if self.block_id is not None:
+            if type(self.block_id) is int:
+                base.block_id.append(self.block_id)
+            else:
+                # BlockID object
+                block_id_msg = obj.block_id_obj
+                block_id_msg.addr = self.block_id.addr
+                if self.block_id.callsite_tuples is not None:
+                    for val in self.block_id.callsite_tuples:
+                        entry = block_id_msg.callsite_tuples.add()
+                        if val is not None:
+                            entry.has_value = True
+                            entry.value = val
+                block_id_msg.jump_type = self.block_id.jump_type
+
+        # CFGENode-specific fields
+        if self.callstack_key is not None:
+            for val in self.callstack_key:
+                entry = obj.callstack_key.add()
+                if val is not None:
+                    entry.has_value = True
+                    entry.value = val
+
+        if self.syscall_name is not None:
+            obj.syscall_name = self.syscall_name
+
+        obj.looping_times = self.looping_times
+
+        if self.depth is not None:
+            obj.depth = self.depth
+
+        if self.return_target is not None:
+            obj.return_target = self.return_target
+
+        if self.creation_failure_info is not None:
+            obj.creation_failure_info = self.creation_failure_info.long_reason
+
+        return obj
+
+    @classmethod
+    def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
+        base = cmsg.base
+
+        # Parse block_id
+        block_id = None
+        if cmsg.HasField("block_id_obj"):
+            from angr.analyses.cfg.cfg_job_base import BlockID
+
+            bid = cmsg.block_id_obj
+            callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
+            block_id = BlockID(bid.addr, callsite_tuples, bid.jump_type)
+        elif len(base.block_id) > 0:
+            block_id = base.block_id[0]
+
+        instruction_addrs = list(base.instr_addrs) if base.instr_addrs else None
+
+        callstack_key = None
+        if cmsg.callstack_key:
+            callstack_key = tuple(entry.value if entry.has_value else None for entry in cmsg.callstack_key)
+
+        node = cls(
+            base.ea,
+            base.size,
+            cfg,
+            simprocedure_name=base.simprocedure_name if base.HasField("simprocedure_name") else None,
+            no_ret=base.no_ret,
+            function_address=base.function_address if base.HasField("function_address") else None,
+            block_id=block_id,
+            instruction_addrs=instruction_addrs,
+            thumb=base.thumb,
+            byte_string=base.byte_string if base.HasField("byte_string") else None,
+            is_syscall=base.is_syscall,
+            name=base.name if base.HasField("name") else None,
+            # CFGENode specific
+            syscall_name=cmsg.syscall_name if cmsg.HasField("syscall_name") else None,
+            looping_times=cmsg.looping_times,
+            depth=cmsg.depth if cmsg.HasField("depth") else None,
+            callstack_key=callstack_key,
+        )
+
+        # Set fields that need post-init handling
+        node._has_return = base.returning
+        node._dirty = False
+
+        if cmsg.HasField("return_target"):
+            node.return_target = cmsg.return_target
+
+        if cmsg.HasField("creation_failure_info"):
+            # creation_failure_info is stored as repr(); reconstruct a stub object
+            cfi = object.__new__(CFGNodeCreationFailure)
+            cfi.short_reason = cmsg.creation_failure_info
+            cfi.long_reason = cmsg.creation_failure_info
+            cfi.traceback = []
+            node.creation_failure_info = cfi
+
+        return node
 
     #
     # Pickeling
