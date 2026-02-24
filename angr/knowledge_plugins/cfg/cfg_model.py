@@ -20,7 +20,7 @@ from angr.errors import AngrCFGError
 from .cfg_node import CFGNode
 from .memory_data import MemoryData, MemoryDataSort
 from .indirect_jump import IndirectJump
-from .spilling_cfg import SpillingCFG
+from .spilling_cfg import SpillingCFG, get_block_key
 
 if TYPE_CHECKING:
     from angr.knowledge_base import KnowledgeBase
@@ -284,7 +284,7 @@ class CFGModel(Serializable):
     #
 
     def add_node(self, block_id: int, node: CFGNode) -> None:
-        self._blockid_to_blockkey[block_id] = self.graph._get_block_key(node)
+        self._blockid_to_blockkey[block_id] = get_block_key(node)
         self.graph.add_node(node)
         if self._node_addrs is not None and isinstance(node.addr, int) and node.addr not in self._node_addrs:
             self._node_addrs.add(node.addr)
@@ -324,7 +324,7 @@ class CFGModel(Serializable):
         """
         if block_id in self._blockid_to_blockkey:
             block_key = self._blockid_to_blockkey[block_id]
-            return self.graph._get_node_by_key(block_key)
+            return self.graph.get_node_by_key(block_key)
         return None
 
     def get_any_node(

@@ -33,6 +33,7 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
+from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.procedures.procedure_dict import SIM_PROCEDURES
@@ -54,6 +55,7 @@ from .indirect_jump_resolvers.default_resolvers import default_indirect_jump_res
 
 if TYPE_CHECKING:
     from angr.sim_state import SimState
+    from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
 
     AddressType = int | SootAddressDescriptor
     MethodType = int | SootMethodDescriptor
@@ -375,7 +377,7 @@ class CFGBase(Analysis):
         return self._loop_back_edges
 
     @property
-    def graph(self) -> networkx.DiGraph[CFGNode]:
+    def graph(self) -> SpillingCFG:
         raise NotImplementedError
 
     def remove_edge(self, block_from, block_to):
@@ -1625,7 +1627,7 @@ class CFGBase(Analysis):
         self.kb.functions = FunctionManager(self.kb)
 
         blockaddr_to_funcaddr = {}
-        traversed_cfg_nodes = set()
+        traversed_cfg_node_keys = set()
 
         function_nodes = set()
 
@@ -1723,7 +1725,7 @@ class CFGBase(Analysis):
                 self._graph_traversal_handler,
                 blockaddr_to_funcaddr,
                 tmp_functions,
-                traversed_cfg_nodes,
+                traversed_cfg_node_keys,
             )
 
         # Don't forget those small function chunks that are not called by anything.
@@ -1738,8 +1740,12 @@ class CFGBase(Analysis):
             if node.addr not in blockaddr_to_funcaddr:
                 secondary_function_nodes.add(node)
 
-        missing_cfg_nodes = set(self.graph.nodes()) - traversed_cfg_nodes
-        missing_cfg_nodes = {node for node in missing_cfg_nodes if node.function_address is not None}
+        missing_cfg_node_keys = set(self.graph.node_keys) - traversed_cfg_node_keys
+        missing_cfg_nodes = {
+            self.graph.get_node_by_key(node_key)
+            for node_key in missing_cfg_node_keys
+            if self.graph.get_node_by_key(node_key).function_address is not None
+        }
         if missing_cfg_nodes:
             l.debug("%d CFGNodes are missing in the first traversal.", len(missing_cfg_nodes))
             secondary_function_nodes |= missing_cfg_nodes
@@ -1761,7 +1767,7 @@ class CFGBase(Analysis):
                 self._graph_traversal_handler,
                 blockaddr_to_funcaddr,
                 tmp_functions,
-                traversed_cfg_nodes,
+                traversed_cfg_node_keys,
             )
 
         to_remove = set()
@@ -2387,7 +2393,7 @@ class CFGBase(Analysis):
         callback: Callable,
         blockaddr_to_funcaddr: dict[int, int],
         known_functions: FunctionManager,
-        traversed_cfg_nodes: set | None = None,
+        traversed_cfg_node_keys: set | None = None,
     ) -> None:
         """
         A customized control flow graph BFS implementation with the following rules:
@@ -2399,19 +2405,20 @@ class CFGBase(Analysis):
         :param callback: Callback function for each edge and node.
         :param blockaddr_to_funcaddr: A mapping between block addresses to function addresses.
         :param known_functions: Already recovered functions.
-        :param traversed_cfg_nodes: A set of CFGNodes that are traversed before.
+        :param traversed_cfg_node_keys: A set of CFGNodes that are traversed before.
         """
 
         stack = OrderedSet(starts)
-        traversed = set() if traversed_cfg_nodes is None else traversed_cfg_nodes
+        traversed = set() if traversed_cfg_node_keys is None else traversed_cfg_node_keys
 
         while stack:
             n: CFGNode = stack.pop(last=False)
+            node_key = get_block_key(n)
 
-            if n in traversed:
+            if node_key in traversed:
                 continue
 
-            traversed.add(n)
+            traversed.add(node_key)
 
             if n.has_return:
                 callback(g, n, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_funcaddr, known_functions, None)
@@ -2429,7 +2436,7 @@ class CFGBase(Analysis):
 
                     jumpkind = data.get("jumpkind", "")
                     if (not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys"))) and (
-                        dst not in stack and dst not in traversed
+                        dst not in stack and get_block_key(dst) not in traversed
                     ):
                         stack.add(dst)
 

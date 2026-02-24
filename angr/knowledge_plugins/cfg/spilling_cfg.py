@@ -432,16 +432,16 @@ class _AdjacencyDict:
         self._src_block_key = src_block_key
 
     def __getitem__(self, dst_node: CFGNode) -> dict:
-        dst_block_key = self._graph._get_block_key(dst_node)
+        dst_block_key = get_block_key(dst_node)
         return self._graph._graph[self._src_block_key][dst_block_key]
 
     def __contains__(self, dst_node: CFGNode) -> bool:
-        dst_block_key = self._graph._get_block_key(dst_node)
+        dst_block_key = get_block_key(dst_node)
         return dst_block_key in self._graph._graph[self._src_block_key]
 
     def keys(self) -> Iterator[CFGNode]:
         for dst_block_key in self._graph._graph[self._src_block_key]:
-            yield self._graph._get_node_by_key(dst_block_key)
+            yield self._graph.get_node_by_key(dst_block_key)
 
     def values(self) -> Iterator[dict]:
         for dst_block_key in self._graph._graph[self._src_block_key]:
@@ -449,7 +449,7 @@ class _AdjacencyDict:
 
     def items(self) -> Iterator[tuple[CFGNode, dict]]:
         for dst_block_key in self._graph._graph[self._src_block_key]:
-            yield self._graph._get_node_by_key(dst_block_key), self._graph._graph[self._src_block_key][dst_block_key]
+            yield self._graph.get_node_by_key(dst_block_key), self._graph._graph[self._src_block_key][dst_block_key]
 
     def __iter__(self) -> Iterator[CFGNode]:
         return self.keys()
@@ -466,7 +466,7 @@ class _NodeView:
 
     def __iter__(self) -> Iterator[CFGNode]:
         for block_key in self._graph._graph.nodes():
-            yield self._graph._get_node_by_key(block_key)
+            yield self._graph.get_node_by_key(block_key)
 
     @overload
     def __call__(self, data: Literal[False] = False) -> Iterator[CFGNode]: ...
@@ -476,7 +476,7 @@ class _NodeView:
     def __call__(self, data: bool = False) -> Iterator[CFGNode] | Iterator[tuple[CFGNode, dict]]:
         if data:
             for block_key, node_data in self._graph._graph.nodes(data=True):
-                yield self._graph._get_node_by_key(block_key), node_data
+                yield self._graph.get_node_by_key(block_key), node_data
         else:
             yield from self
 
@@ -495,7 +495,7 @@ class _EdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.edges():
-            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
 
     @overload
     def __call__(self, data: Literal[False] = False) -> Iterator[tuple[CFGNode, CFGNode]]: ...
@@ -507,7 +507,7 @@ class _EdgeView:
     ) -> Iterator[tuple[CFGNode, CFGNode]] | Iterator[tuple[CFGNode, CFGNode, dict]]:
         if data:
             for src_id, dst_id, edge_data in self._graph._graph.edges(data=True):
-                yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data
+                yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data
         else:
             yield from self
 
@@ -530,18 +530,15 @@ class _InEdgeView:
         self, nbunch=None, data: bool = False
     ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
         if nbunch is not None:
-            if isinstance(nbunch, CFGNode):
-                nbunch = [self._graph._get_block_key(nbunch)]
-            else:
-                nbunch = [self._graph._get_block_key(n) for n in nbunch]
+            nbunch = [get_block_key(nbunch)] if isinstance(nbunch, CFGNode) else [get_block_key(n) for n in nbunch]
 
         if data:
             return [
-                (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data)
+                (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph._graph.in_edges(nbunch, data=True)
             ]
         return [
-            (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id))
+            (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id))
             for src_id, dst_id in self._graph._graph.in_edges(nbunch)
         ]
 
@@ -550,7 +547,7 @@ class _InEdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.in_edges():
-            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
 
     def __len__(self) -> int:
         return self._graph._graph.number_of_edges()
@@ -574,18 +571,15 @@ class _OutEdgeView:
         self, nbunch=None, data: bool = False
     ) -> list[tuple[CFGNode, CFGNode]] | list[tuple[CFGNode, CFGNode, dict]]:
         if nbunch is not None:
-            if isinstance(nbunch, CFGNode):
-                nbunch = [self._graph._get_block_key(nbunch)]
-            else:
-                nbunch = [self._graph._get_block_key(n) for n in nbunch]
+            nbunch = [get_block_key(nbunch)] if isinstance(nbunch, CFGNode) else [get_block_key(n) for n in nbunch]
 
         if data:
             return [
-                (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id), edge_data)
+                (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id), edge_data)
                 for src_id, dst_id, edge_data in self._graph._graph.out_edges(nbunch, data=True)
             ]
         return [
-            (self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id))
+            (self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id))
             for src_id, dst_id in self._graph._graph.out_edges(nbunch)
         ]
 
@@ -594,7 +588,7 @@ class _OutEdgeView:
 
     def __iter__(self) -> Iterator[tuple[CFGNode, CFGNode]]:
         for src_id, dst_id in self._graph._graph.out_edges():
-            yield self._graph._get_node_by_key(src_id), self._graph._get_node_by_key(dst_id)
+            yield self._graph.get_node_by_key(src_id), self._graph.get_node_by_key(dst_id)
 
     def __len__(self) -> int:
         return self._graph._graph.number_of_edges()
@@ -615,14 +609,14 @@ class _InDegreeView:
         return self[node]
 
     def __getitem__(self, node: CFGNode) -> int:
-        block_key = self._graph._get_block_key(node)
+        block_key = get_block_key(node)
         if block_key not in self._graph._graph:
             return 0
         return self._graph._graph.in_degree(block_key)
 
     def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
         for block_key, deg in self._graph._graph.in_degree():
-            yield self._graph._get_node_by_key(block_key), deg
+            yield self._graph.get_node_by_key(block_key), deg
 
     def __len__(self) -> int:
         return len(self._graph._graph)
@@ -643,17 +637,37 @@ class _OutDegreeView:
         return self[node]
 
     def __getitem__(self, node: CFGNode) -> int:
-        block_key = self._graph._get_block_key(node)
+        block_key = get_block_key(node)
         if block_key not in self._graph._graph:
             return 0
         return self._graph._graph.out_degree(block_key)
 
     def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
         for block_key, deg in self._graph._graph.out_degree():
-            yield self._graph._get_node_by_key(block_key), deg
+            yield self._graph.get_node_by_key(block_key), deg
 
     def __len__(self) -> int:
         return len(self._graph._graph)
+
+
+def get_block_key(node: CFGNode | CFGENode) -> K:
+    """
+    Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
+    the looping_times of the block (in case there are multiple blocks with the same address, which may happen after
+    loop unrolling in a CFGEmulated instance).
+
+    :param node:    The CFGNode or CFGENode instance to get the block key for.
+    :return:        The unique identifier.
+    """
+
+    block_id = node.block_id
+    if block_id is None:
+        block_id = node.addr
+    block_key = block_id, node.size if node.size is not None else -1
+
+    if isinstance(node, CFGENode):
+        return block_key, node.looping_times if node.looping_times is not None else 0
+    return block_key
 
 
 class SpillingCFG:
@@ -700,52 +714,31 @@ class SpillingCFG:
         self._cfg_model_ref = weakref.ref(value) if value is not None else None
         self._nodes._cfg_model = value
 
-    @staticmethod
-    def _get_block_key(node: CFGNode | CFGENode) -> K:
-        """
-        Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
-        the looping_times of the block (in case there are multiple blocks with the same address, which may happen after
-        loop unrolling in a CFGEmulated instance).
-
-        :param node:    The CFGNode or CFGENode instance to get the block key for.
-        :return:        The unique identifier.
-        """
-
-        block_id = node.block_id
-        if block_id is None:
-            block_id = node.addr
-        block_key = block_id, node.size if node.size is not None else -1
-
-        if isinstance(node, CFGENode):
-            return block_key, node.looping_times if node.looping_times is not None else 0
-        return block_key
-
-    def _get_node_by_key(self, block_key: K) -> CFGNode:
+    def get_node_by_key(self, block_key: K) -> CFGNode:
         """Get a CFGNode by block_id, with fallback to graph node data."""
         # First try the nodes dict (handles spilling)
         if block_key in self._nodes:
             return self._nodes[block_key]
-        # Fallback to graph node data (for nodes removed from _nodes but still in graph)
-        if block_key in self._graph:
-            node_data = self._graph.nodes[block_key]
-            if "_node" in node_data:
-                return node_data["_node"]
         raise KeyError(block_key)
+
+    @property
+    def node_keys(self) -> Iterator[K]:
+        """Get an iterator over all block_keys in the graph."""
+        yield from self._nodes
 
     #
     # Node operations
     #
 
     def add_node(self, node: CFGNode, **attr) -> None:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         self._nodes[block_key] = node
-        # Store node reference in graph data for fallback lookup
-        self._graph.add_node(block_key, _node=node, **attr)
+        self._graph.add_node(block_key, **attr)
         # update _keys_by_addr
         self._keys_by_addr[node.addr].add(block_key)
 
     def remove_node(self, node: CFGNode) -> None:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         if block_key in self._nodes:
             del self._nodes[block_key]
         self._keys_by_addr[node.addr].discard(block_key)
@@ -755,12 +748,12 @@ class SpillingCFG:
             self._graph.remove_node(block_key)
 
     def has_node(self, node: CFGNode) -> bool:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         return block_key in self._graph
 
     def nodes_by_addr(self, addr: int) -> Iterator[CFGNode]:
         for block_key in self._keys_by_addr.get(addr, []):
-            yield self._get_node_by_key(block_key)
+            yield self.get_node_by_key(block_key)
 
     def has_node_addr(self, addr: int) -> bool:
         return addr in self._keys_by_addr
@@ -781,15 +774,15 @@ class SpillingCFG:
 
     def __iter__(self) -> Iterator[CFGNode]:
         for block_key in self._graph:
-            yield self._get_node_by_key(block_key)
+            yield self.get_node_by_key(block_key)
 
     #
     # Edge operations
     #
 
     def add_edge(self, src: CFGNode, dst: CFGNode, **attr) -> None:
-        src_block_key = self._get_block_key(src)
-        dst_block_key = self._get_block_key(dst)
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
 
         # Always update _nodes with the passed nodes
         # This is needed for node replacement during _shrink_node
@@ -798,26 +791,26 @@ class SpillingCFG:
 
         # Ensure nodes exist in the graph structure
         if src_block_key not in self._graph:
-            self._graph.add_node(src_block_key, _node=src)
+            self._graph.add_node(src_block_key)
 
         if dst_block_key not in self._graph:
-            self._graph.add_node(dst_block_key, _node=dst)
+            self._graph.add_node(dst_block_key)
 
         self._graph.add_edge(src_block_key, dst_block_key, **attr)
 
     def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
-        src_block_key = self._get_block_key(src)
-        dst_block_key = self._get_block_key(dst)
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
         self._graph.remove_edge(src_block_key, dst_block_key)
 
     def has_edge(self, src: CFGNode, dst: CFGNode) -> bool:
-        src_block_key = self._get_block_key(src)
-        dst_block_key = self._get_block_key(dst)
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
         return self._graph.has_edge(src_block_key, dst_block_key)
 
     def get_edge_data(self, src: CFGNode, dst: CFGNode, default=None) -> dict | None:
-        src_block_key = self._get_block_key(src)
-        dst_block_key = self._get_block_key(dst)
+        src_block_key = get_block_key(src)
+        dst_block_key = get_block_key(dst)
         return self._graph.get_edge_data(src_block_key, dst_block_key, default)
 
     def number_of_edges(self) -> int:
@@ -833,14 +826,14 @@ class SpillingCFG:
     #
 
     def predecessors(self, node: CFGNode) -> Iterator[CFGNode]:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         for pred_key in self._graph.predecessors(block_key):
-            yield self._get_node_by_key(pred_key)
+            yield self.get_node_by_key(pred_key)
 
     def successors(self, node: CFGNode) -> Iterator[CFGNode]:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         for succ_key in self._graph.successors(block_key):
-            yield self._get_node_by_key(succ_key)
+            yield self.get_node_by_key(succ_key)
 
     @property
     def in_edges(self) -> _InEdgeView:
@@ -867,7 +860,7 @@ class SpillingCFG:
     #
 
     def __getitem__(self, node: CFGNode) -> _AdjacencyDict:
-        block_key = self._get_block_key(node)
+        block_key = get_block_key(node)
         if block_key not in self._graph:
             raise KeyError(node)
         return _AdjacencyDict(self, block_key)
@@ -898,15 +891,15 @@ class SpillingCFG:
         Return a subgraph as a regular networkx DiGraph with CFGNode instances.
         This is useful for algorithms that need a pure networkx graph.
         """
-        block_keys = [self._get_block_key(n) for n in nodes]
+        block_keys = [get_block_key(n) for n in nodes]
         sub = self._graph.subgraph(block_keys)
 
         # Convert to CFGNode-based graph
         result = networkx.DiGraph()
         for block_key in sub.nodes():
-            result.add_node(self._get_node_by_key(block_key))
+            result.add_node(self.get_node_by_key(block_key))
         for src_key, dst_key, data in sub.edges(data=True):
-            result.add_edge(self._get_node_by_key(src_key), self._get_node_by_key(dst_key), **data)
+            result.add_edge(self.get_node_by_key(src_key), self.get_node_by_key(dst_key), **data)
 
         return result
 
