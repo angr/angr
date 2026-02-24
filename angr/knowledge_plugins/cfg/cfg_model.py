@@ -8,7 +8,6 @@ from collections.abc import Iterator, Callable
 import string
 
 import networkx
-from sortedcontainers import SortedList
 
 import cle
 from archinfo.arch_soot import SootMethodDescriptor
@@ -31,9 +30,12 @@ if TYPE_CHECKING:
 
     K = TypeVar("K", int, SootMethodDescriptor)
 
-    class SortedList(Generic[K], list[K]):
+    class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring,unused-argument,no-self-use
         def irange(self, *args, **kwargs) -> Iterator[K]: ...
         def add(self, value: K) -> None: ...
+
+else:
+    from sortedcontainers import SortedList
 
 
 l = logging.getLogger(name=__name__)

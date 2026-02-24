@@ -65,7 +65,6 @@ class CFGNode(Serializable):
         "_name",
         "_no_ret",
         "_size",
-        "_syscall_name",
         "_thumb",
         "instruction_addrs",
         "irsb",
@@ -187,10 +186,6 @@ class CFGNode(Serializable):
     @property
     def is_syscall(self) -> bool:
         return self._is_syscall
-
-    @property
-    def syscall_name(self) -> str | None:
-        return self._syscall_name
 
     @property
     def thumb(self) -> bool:
@@ -457,6 +452,7 @@ class CFGENode(CFGNode):
 
     __slots__ = [
         "_callstack_key",
+        "_syscall_name",
         "creation_failure_info",
         "depth",
         "final_states",
@@ -531,6 +527,10 @@ class CFGENode(CFGNode):
     @property
     def creation_failed(self):
         return self.creation_failure_info is not None
+
+    @property
+    def syscall_name(self) -> str | None:
+        return self._syscall_name
 
     def downsize(self):
         """
