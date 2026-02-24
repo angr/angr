@@ -302,7 +302,8 @@ class CFGNode(Serializable):
                 raise NotImplementedError("Non-integer block_id serialization is not supported for CFGNode")
         if self.simprocedure_name is not None:
             obj.simprocedure_name = self.simprocedure_name
-        obj.no_ret = self.no_ret
+        if self.no_ret is not None:
+            obj.no_ret = self.no_ret
         if self.function_address is not None:
             obj.function_address = self.function_address
         obj.thumb = self.thumb
@@ -325,7 +326,7 @@ class CFGNode(Serializable):
             block_id=block_id,
             instruction_addrs=instruction_addrs,
             simprocedure_name=cmsg.simprocedure_name if cmsg.HasField("simprocedure_name") else None,
-            no_ret=cmsg.no_ret,
+            no_ret=cmsg.no_ret if cmsg.HasField("no_ret") else None,
             function_address=cmsg.function_address if cmsg.HasField("function_address") else None,
             thumb=cmsg.thumb,
             byte_string=cmsg.byte_string if cmsg.HasField("byte_string") else None,

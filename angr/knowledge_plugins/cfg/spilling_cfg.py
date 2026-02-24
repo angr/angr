@@ -312,10 +312,7 @@ class SpillingCFGNodeDict:
                         cmsg = node.serialize_to_cmessage()
                         payload = cmsg.SerializeToString()
                         # Prefix with type byte: 0x00 for CFGNode, 0x01 for CFGENode
-                        if isinstance(node, CFGENode):
-                            data = b"\x01" + payload
-                        else:
-                            data = b"\x00" + payload
+                        data = b"\x01" + payload if isinstance(node, CFGENode) else b"\x00" + payload
                         key = str(block_key).encode("utf-8")
                         txn.put(key, data)
                 break
