@@ -34,14 +34,14 @@ def apply_patches(proj: angr.Project, patches: list[tuple[int, str]]):
 
 
 def assert_models_equal(model_a: CFGModel, model_b: CFGModel):
-    assert model_a.graph.nodes() == model_b.graph.nodes()
-    assert model_a.graph.edges() == model_b.graph.edges()
+    assert set(model_a.graph.nodes()) == set(model_b.graph.nodes())
+    assert set(model_a.graph.edges()) == set(model_b.graph.edges())
     # FIXME: Check more
 
 
 def assert_function_graphs_equal(function_a: Function, function_b: Function):
-    nodes_a = function_a.graph.nodes()
-    nodes_b = function_b.graph.nodes()
+    nodes_a = set(function_a.graph.nodes())
+    nodes_b = set(function_b.graph.nodes())
     if nodes_a != nodes_b:
         log.error("Differing nodes!\nFunction:%s\nNodes A: %s\nNodes B: %s", function_a, nodes_a, nodes_b)
         assert False

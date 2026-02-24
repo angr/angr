@@ -85,7 +85,7 @@ class BaseGoal:
         """
 
         if max_steps is None:
-            yield networkx.dfs_edges(graph, source)
+            yield networkx.dfs_edges(graph.to_networkx(), source)
 
         else:
             steps_map = defaultdict(int)

@@ -113,10 +113,10 @@ class TestCfgemulate(unittest.TestCase):
         cfg = proj.analyses.CFGEmulated(context_sensitivity_level=1, fail_fast=True)
         end = time.time()
         duration = end - start
-        bbl_dict = cfg.model.nodes()
+        bbls = list(cfg.model.nodes())
 
         l.info("CFG generated in %f seconds.", duration)
-        l.info("Contains %d members in BBL dict.", len(bbl_dict))
+        l.info("Contains %d members in BBL dict.", len(bbls))
 
         if cfg_path is not None and os.path.isfile(cfg_path):
             # Compare the graph with a predefined CFG
@@ -402,7 +402,7 @@ class TestCfgemulate(unittest.TestCase):
         b = angr.Project(binary_path, load_options={"auto_load_libs": False})
         cfg = b.analyses.CFGEmulated(max_steps=5, fail_fast=True)
 
-        dfs_edges = networkx.dfs_edges(cfg.graph)
+        dfs_edges = networkx.dfs_edges(cfg.graph.to_networkx())
 
         depth_map = {}
         for src, dst in dfs_edges:
@@ -542,8 +542,10 @@ class TestCfgemulate(unittest.TestCase):
 
             for src, dst in edges[arch]:
                 src_node = cfg.model.get_any_node(src)
-                dst_node = cfg.model.get_any_node(dst)
-                assert dst_node in src_node.successors, f"CFG edge {src_node}-{dst_node} is not found."
+                dst_nodes = cfg.model.get_all_nodes(dst)
+                assert any(dst_node in src_node.successors for dst_node in dst_nodes), (
+                    f"CFG edge {src_node}-{dst} is not found."
+                )
 
     class CFGEmulatedAborted(angr.analyses.cfg.cfg_emulated.CFGEmulated):  # pylint:disable=abstract-method
         """

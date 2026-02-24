@@ -106,6 +106,7 @@ class TraversalAnalysis:
         state = self.start_states.get(node, None)
         if state is None:
             state = self.start_states[node] = self._initial_abstract_state()
+            state = state.copy()
         else:
             if node not in self._pending:
                 return

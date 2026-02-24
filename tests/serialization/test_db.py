@@ -37,7 +37,7 @@ class TestDb(unittest.TestCase):
         db1 = AngrDB(nullpool=True)
         new_proj = db1.load(db_file)
 
-        assert len(new_proj.kb.cfgs["CFGFast"].nodes()) == len(cfg.model.nodes())
+        assert len(list(new_proj.kb.cfgs["CFGFast"].nodes())) == len(list(cfg.model.nodes()))
         assert len(new_proj.kb.functions) == len(proj.kb.functions)
 
         # compare each function
