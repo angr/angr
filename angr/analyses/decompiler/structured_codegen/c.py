@@ -2062,6 +2062,7 @@ class CBinaryOp(CExpression):
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
         force_lhs_parens = False
+        narrow_cast_str = None
         if self._cstyle_null_cmp and self._has_const_null_rhs():
             if self.op == "CmpEQ":
                 skip_op_and_rhs = True
@@ -2072,6 +2073,17 @@ class CBinaryOp(CExpression):
                     force_lhs_parens = True
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
+            # C integer promotion widens char/short to int before arithmetic,
+            # so we need an explicit truncation cast for 8/16-bit comparisons
+            # to preserve narrow-width semantics.
+            if skip_op_and_rhs and isinstance(self.lhs, CBinaryOp):
+                try:
+                    ct_size = self.common_type.size  # in bits
+                    if ct_size is not None and ct_size < 32:
+                        narrow_cast_str = f"({self.common_type.c_repr(name=None)})"
+                        force_lhs_parens = True
+                except (TypeError, AttributeError):
+                    pass
 
         # In C, the signedness of ordered comparisons (<, <=, >, >=) depends on
         # the operand types.  When the AIL comparison carries an explicit signedness
@@ -2080,7 +2092,9 @@ class CBinaryOp(CExpression):
         rhs_sign_cast = self._cmp_signedness_cast(self.rhs) if not skip_op_and_rhs else None
 
         # lhs
-        if lhs_sign_cast is not None:
+        if narrow_cast_str is not None:
+            yield narrow_cast_str, None
+        elif lhs_sign_cast is not None:
             yield lhs_sign_cast, None
         if lhs_sign_cast is not None and not force_lhs_parens:
             force_lhs_parens = isinstance(self.lhs, CBinaryOp)
