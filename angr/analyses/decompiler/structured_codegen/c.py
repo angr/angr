@@ -1893,15 +1893,17 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+    __slots__ = ("_cmp_signed", "_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
 
-    def __init__(self, op, lhs, rhs, **kwargs):
+    def __init__(self, op, lhs, rhs, cmp_signed=None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
+        # Explicit signedness from the AIL comparison — None means "use operand types".
+        self._cmp_signed = cmp_signed
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
         if self.op.startswith("Cmp"):
@@ -2041,6 +2043,22 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
+    def _cmp_signedness_cast(self, operand: CExpression) -> str | None:
+        """Return a cast string like ``(unsigned char)`` when the operand signedness disagrees
+        with the intended comparison signedness (``_cmp_signed``).  Returns None when no cast
+        is needed."""
+        if self._cmp_signed is None:
+            return None
+        ty = operand.type
+        cur_signed = getattr(ty, "signed", None)
+        if cur_signed is None or cur_signed == self._cmp_signed:
+            return None
+        size = getattr(ty, "size", None)
+        if not size:
+            return None
+        new_ty = self.codegen.default_simtype_from_bits(size, self._cmp_signed)
+        return f"({new_ty.c_repr(name=None)})"
+
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
         force_lhs_parens = False
@@ -2054,7 +2072,18 @@ class CBinaryOp(CExpression):
                     force_lhs_parens = True
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
+
+        # In C, the signedness of ordered comparisons (<, <=, >, >=) depends on
+        # the operand types.  When the AIL comparison carries an explicit signedness
+        # flag that disagrees with the C operand types, emit casts.
+        lhs_sign_cast = self._cmp_signedness_cast(self.lhs)
+        rhs_sign_cast = self._cmp_signedness_cast(self.rhs) if not skip_op_and_rhs else None
+
         # lhs
+        if lhs_sign_cast is not None:
+            yield lhs_sign_cast, None
+        if lhs_sign_cast is not None and not force_lhs_parens:
+            force_lhs_parens = isinstance(self.lhs, CBinaryOp)
         if isinstance(self.lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > self.lhs.op_precedence):
             paren = CClosingObject("(")
             yield "(", paren
@@ -2067,6 +2096,8 @@ class CBinaryOp(CExpression):
             # operator
             yield op, self
             # rhs
+            if rhs_sign_cast is not None:
+                yield rhs_sign_cast, None
             if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
                 1 if self.op in ["Sub", "Div"] else 0
             ):
@@ -2936,6 +2967,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def default_simtype_from_bits(self, n: int, signed: bool = True) -> SimType:
         _mapping = {
+            128: SimTypeInt128,
             64: SimTypeLongLong,
             32: SimTypeInt,
             16: SimTypeShort,
@@ -3950,14 +3982,57 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
+        # Pass the AIL signedness flag for ordered comparisons so the C renderer
+        # can emit explicit casts when the C operand types disagree.
+        cmp_signed = expr.signed if expr.op in {"CmpLT", "CmpLE", "CmpGT", "CmpGE"} else None
+
+        # Propagate comparison signedness to local variable and constant types.
+        # This avoids ugly casts like ``(long long)v1 < (long long)3`` — instead
+        # the variable declaration becomes signed and the comparison is naturally
+        # correct.  Function parameters keep their ABI types; _cmp_signedness_cast
+        # handles those with explicit casts.
+        if cmp_signed is not None:
+            for operand in (lhs, rhs):
+                self._propagate_cmp_signedness(operand, cmp_signed)
+
         return CBinaryOp(
             expr.op,
             lhs,
             rhs,
+            cmp_signed=cmp_signed,
             tags=expr.tags,
             codegen=self,
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
+
+    def _propagate_cmp_signedness(self, cexpr: CExpression, signed: bool) -> None:
+        """Update a local variable's or constant's type to match comparison signedness.
+
+        For local variables this changes the declaration (via the variable manager)
+        so no explicit cast is needed.  Function parameters are left alone — the
+        ``_cmp_signedness_cast`` mechanism on ``CBinaryOp`` handles those.
+        """
+        ty = cexpr.type
+        cur_signed = getattr(ty, "signed", None)
+        if cur_signed is None or cur_signed == signed:
+            return
+        size = getattr(ty, "size", None)
+        if not size:
+            return
+        new_ty = self.default_simtype_from_bits(size, signed)
+
+        if isinstance(cexpr, CVariable):
+            # Don't touch function parameters — their types come from the ABI.
+            if self._func_args and cexpr.variable in self._func_args:
+                return
+            cexpr.variable_type = new_ty
+            if cexpr.variable in self._variables_in_use:
+                self._variables_in_use[cexpr.variable].variable_type = new_ty
+            # Also update the canonical type in the variable manager so the
+            # declaration (``variable_list_repr_chunks``) picks it up.
+            self._variable_kb.variables[self._func.addr].set_variable_type(cexpr.variable, new_ty)
+        elif isinstance(cexpr, CConstant):
+            cexpr._type = new_ty
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
