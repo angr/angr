@@ -1031,17 +1031,8 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         signed=True,
                     )
 
-                    cf = Expr.BinaryOp(
-                        None,
-                        "CmpLT",
-                        [
-                            dep_1,
-                            dep_2,
-                        ],
-                        False,
-                    )
-                    if cf.bits == ccall.bits:
-                        return cf
+                    # CF=1 iff dep_1 <u dep_2 (borrow on subtraction)
+                    cf = Expr.BinaryOp(None, "CmpLT", (dep_1, dep_2), False, bits=1, **ccall.tags)
                     return Expr.Convert(None, cf.bits, ccall.bits, False, cf, **ccall.tags)
 
                 if op_v in {
@@ -1050,25 +1041,19 @@ class AMD64CCallRewriter(CCallRewriterBase):
                     AMD64_OpTypes["G_CC_OP_DECL"],
                     AMD64_OpTypes["G_CC_OP_DECQ"],
                 }:
-                    # pc_actions_DEC
-                    bitmask = AMD64_CondBitMasks["G_CC_MASK_C"]
-                    bitmask_1 = AMD64_CondBitOffsets["G_CC_SHIFT_C"]
-                    assert isinstance(bitmask, int) and isinstance(bitmask_1, int)
-                    return Expr.BinaryOp(
+                    # DEC preserves CF from the previous operation (stored in ndep).
+                    # Extract CF as (ndep & 1).
+                    cf = Expr.BinaryOp(
                         None,
-                        "Shr",
-                        [
-                            Expr.BinaryOp(
-                                None,
-                                "And",
-                                [ndep, Expr.Const(None, None, bitmask, 64)],
-                                False,
-                            ),
-                            Expr.Const(None, None, bitmask_1, 64),
-                        ],
+                        "And",
+                        [ndep, Expr.Const(None, None, 1, ndep.bits)],
                         False,
+                        bits=ndep.bits,
                         **ccall.tags,
                     )
+                    if cf.bits != ccall.bits:
+                        cf = Expr.Convert(None, cf.bits, ccall.bits, False, cf, **ccall.tags)
+                    return cf
 
         return None
 
