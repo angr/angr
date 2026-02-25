@@ -580,7 +580,7 @@ class SuccessorsEngine(SimEngine[HeavyState, SimSuccessors]):
 
         # fix up the descriptions...
         description = str(self.successors)
-        l.info("Ticked state: %s", description)
+        l.debug("Ticked state: %s", description)
         for succ in self.successors.all_successors:
             succ.history.recent_description = description
         for succ in self.successors.flat_successors:

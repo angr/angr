@@ -432,7 +432,7 @@ class SimulationManager:
         :returns:           The simulation manager, for chaining.
         :rtype:             SimulationManager
         """
-        l.info("Stepping %s of %s", stash, self)
+        l.debug("Stepping %s of %s", stash, self)
         # 8<----------------- Compatibility layer -----------------
         if n is not None or until is not None:
             if once("simgr_step_n_until"):

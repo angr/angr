@@ -151,7 +151,7 @@ class MVListPage(
         merged_offsets = set()
         for b in sorted(changed_offsets):
             if merged_to is not None and not b >= merged_to:
-                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -162,7 +162,7 @@ class MVListPage(
             self_has_memory_object_set = False
             for sm, fv in zip(all_pages, merge_conditions):
                 if sm._contains(b, page_addr):
-                    l.info("... present in %s", fv)
+                    l.debug("... present in %s", fv)
                     memory_objects = set()
                     for mo in sm.content_gen(b):
                         if mo.includes(page_addr + b):
@@ -171,7 +171,7 @@ class MVListPage(
                     if sm is self:
                         self_has_memory_object_set = True
                 else:
-                    l.info("... not present in %s", fv)
+                    l.debug("... not present in %s", fv)
                     unconstrained_in.append((sm, fv))
 
             if not memory_object_sets:
@@ -238,7 +238,7 @@ class MVListPage(
                             min_size = i
                             break
                 merged_to = b + min_size
-                l.info("... determined minimum size of %d", min_size)
+                l.debug("... determined minimum size of %d", min_size)
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
