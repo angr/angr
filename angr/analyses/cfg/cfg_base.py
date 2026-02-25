@@ -3030,7 +3030,7 @@ class CFGBase(Analysis):
         :rtype:     set
         """
 
-        l.info("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
+        l.debug("%d indirect jumps to resolve.", len(self._indirect_jumps_to_resolve))
 
         all_targets = set()
         idx: int

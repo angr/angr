@@ -231,7 +231,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
 
         for b in sorted(changed_offsets):
             if merged_to is not None and not b >= merged_to:
-                l.info("merged_to = %d ... already merged byte 0x%x", merged_to, b)
+                l.debug("merged_to = %d ... already merged byte 0x%x", merged_to, b)
                 continue
             l.debug("... on byte 0x%x", b)
 
@@ -246,12 +246,12 @@ class UltraPage(MemoryObjectMixin, PageBase):
                 if pg.symbolic_bitmap[b]:
                     mo = pg._get_object(b, page_addr)
                     if mo is not None:
-                        l.info("... MO present in %s", fv)
+                        l.debug("... MO present in %s", fv)
                         memory_objects.append((mo, fv))
                         if pg is self:
                             our_mo = mo
                     else:
-                        l.info("... not present in %s", fv)
+                        l.debug("... not present in %s", fv)
                         unconstrained_in.append((pg, fv))
                 else:
                     # concrete data
@@ -311,7 +311,7 @@ class UltraPage(MemoryObjectMixin, PageBase):
                             min_size = i
                             break
                 merged_to = b + min_size
-                l.info("... determined minimum size of %d", min_size)
+                l.debug("... determined minimum size of %d", min_size)
 
                 # Now, we have the minimum size. We'll extract/create expressions of that
                 # size and merge them
