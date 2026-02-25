@@ -2057,7 +2057,16 @@ class CBinaryOp(CExpression):
         if not size:
             return None
         new_ty = self.codegen.default_simtype_from_bits(size, self._cmp_signed)
-        return f"({new_ty.c_repr(name=None)})"
+        new_repr = new_ty.c_repr(name=None)
+        # Don't emit a no-op cast when both types render identically in C
+        # AND the operand is a simple leaf (variable / field / constant) that
+        # won't be widened by C integer promotion.  For compound expressions
+        # like (a0 + a1), even though the *declared* element types are char,
+        # C promotes to int before the operation, so (char)(a0 + a1) is a
+        # real truncation and must be kept.
+        if new_repr == ty.c_repr(name=None) and isinstance(operand, (CVariable, CVariableField, CConstant)):
+            return None
+        return f"({new_repr})"
 
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
@@ -4006,6 +4015,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # correct.  Function parameters keep their ABI types; _cmp_signedness_cast
         # handles those with explicit casts.
         if cmp_signed is not None:
+            # First, try to absorb narrowing casts into variable declarations.
+            # E.g. ``(char)v3 < (char)v4`` → declare v3,v4 as ``char`` and emit
+            # ``v3 < v4``.
+            lhs = self._try_narrow_cmp_operand(lhs)
+            rhs = self._try_narrow_cmp_operand(rhs)
             for operand in (lhs, rhs):
                 self._propagate_cmp_signedness(operand, cmp_signed)
 
@@ -4047,6 +4061,41 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self._variable_kb.variables[self._func.addr].set_variable_type(cexpr.variable, new_ty)
         elif isinstance(cexpr, CConstant):
             cexpr._type = new_ty
+
+    def _try_narrow_cmp_operand(self, cexpr: CExpression) -> CExpression:
+        """If *cexpr* is a narrowing ``CTypeCast`` around a local ``CVariable``,
+        propagate the cast's destination type to the variable declaration and
+        return the unwrapped ``CVariable`` — eliminating the explicit cast.
+
+        This turns ``(char)v3 < (char)v4`` into ``v3 < v4`` (with ``v3`` and
+        ``v4`` declared as ``char``).  Struct field accesses and function
+        parameters are left alone.
+        """
+        if not isinstance(cexpr, CTypeCast):
+            return cexpr
+        dst_size = getattr(cexpr.dst_type, "size", None)
+        src_size = getattr(cexpr.src_type, "size", None)
+        if dst_size is None or src_size is None or dst_size >= src_size:
+            return cexpr  # not a narrowing cast
+        # Don't absorb pointer-to-integer casts — a pointer's width != its
+        # semantic type, so rewriting the declaration would lose type info.
+        if isinstance(cexpr.src_type, SimTypePointer):
+            return cexpr
+
+        inner = cexpr.expr
+        if isinstance(inner, CVariable):
+            # Don't touch function parameters — their types come from the ABI.
+            if self._func_args is not None and inner.variable in self._func_args:
+                return cexpr
+            inner.variable_type = cexpr.dst_type
+            if self._variables_in_use is not None and inner.variable in self._variables_in_use:
+                self._variables_in_use[inner.variable].variable_type = cexpr.dst_type
+            self._variable_kb.variables[self._func.addr].set_variable_type(inner.variable, cexpr.dst_type)
+            return inner
+        if isinstance(inner, CConstant):
+            inner._type = cexpr.dst_type
+            return inner
+        return cexpr
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
