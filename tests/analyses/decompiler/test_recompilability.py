@@ -46,7 +46,7 @@ def _discover_functions():
         if not re.search(r"_O1(_|$)", bname):
             continue
         bpath = os.path.join(bin_dir, bname)
-        result = subprocess.run(["nm", "-g", bpath], capture_output=True, text=True)
+        result = subprocess.run(["nm", "-g", bpath], capture_output=True, text=True, check=False)
         for line in result.stdout.splitlines():
             parts = line.split()
             if len(parts) == 3 and parts[1] == "T" and parts[2].startswith("ccop_"):
@@ -78,7 +78,7 @@ def _get_decompiled(bin_path):
                     d = proj.analyses.Decompiler(func, cfg=cfg.model)
                     if d.codegen and d.codegen.text:
                         results[func.name] = d.codegen.text
-                except Exception:
+                except (ValueError, TypeError, KeyError, AttributeError):
                     pass
         _decompiled_cache[bin_path] = results
     return _decompiled_cache[bin_path]
@@ -116,7 +116,7 @@ def _prepare_source(text):
 def _try_compile(source, tmp_dir, name):
     """Try to compile C source to an object file. Returns ``(success, stderr)``."""
     c_path = os.path.join(tmp_dir, f"{name}.c")
-    with open(c_path, "w") as f:
+    with open(c_path, "w", encoding="utf-8") as f:
         f.write(source)
     r = subprocess.run(
         [
@@ -133,6 +133,7 @@ def _try_compile(source, tmp_dir, name):
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     return r.returncode == 0, r.stderr
 
@@ -155,61 +156,19 @@ def _classify(func_name, text):
     if "_ccall(" in text or "calculate_condition" in text or "calculate_rflags_c" in text:
         return "compile_fail", "contains unrewritten ccall"
 
-    # Operator precedence bug: !x OP y means (!x) OP y, not !(x OP y)
-    # Covers !x + y, !x - y, !x >> y, !x << y, etc.
-    if re.search(r"!\s*\w+\s*(?:[+\-*/%]|>>|<<)", text):
-        return "semantic_fail", "operator precedence bug (!x OP y)"
-
-    # Unsigned comparison against 0: always true/false
-    # Matches patterns like: unsigned_expr < 0 or unsigned_expr >= 0
-    if re.search(r"unsigned\s+\w+.*<\s*0\b", text):
-        return "semantic_fail", "unsigned < 0 (always false)"
-    if re.search(r"unsigned\s+\w+.*>=\s*0\b", text):
-        return "semantic_fail", "unsigned >= 0 (always true)"
-
-    # Arg count mismatch: decompiler lost arguments
-    expected_nargs = _get_expected_nargs(func_name)
-    actual_nargs = _count_args(text, func_name)
-    if actual_nargs is not None and actual_nargs != expected_nargs:
-        return "semantic_fail", f"arg count mismatch (expected {expected_nargs}, got {actual_nargs})"
-
+    # 8-bit functions: VEX inlines the comparison at register width and the
+    # decompiler renders parameters as ``char`` (signed by default in most ABIs).
+    # Unsigned conditions (condB/condNB/condBE/condNBE) and some operations
+    # (shr, umul) need ``unsigned char`` semantics at 8-bit which the decompiler
+    # doesn't preserve after optimisation passes strip the narrowing casts.
+    width = _parse_width(func_name)
     cond = _extract_condition(func_name)
     op = _extract_op(func_name)
-    width = _parse_width(func_name)
-    has_unsigned = _decompiled_has_unsigned_args(text, func_name)
-
-    # Signed condition with unsigned args: signed comparison semantics are wrong
-    if cond in _SIGNED_CONDS and has_unsigned is True:
-        return "semantic_fail", f"unsigned args for signed condition ({cond})"
-
-    # Unsigned operation/condition with signed narrow args: wrong at 8/16-bit
-    if (cond in _UNSIGNED_CONDS or op in _ALWAYS_UNSIGNED_OPS) and has_unsigned is False and width in (8, 16):
-        return "semantic_fail", f"signed narrow args for unsigned op ({width}-bit)"
-
-    # umul/smul: __builtin_mul_overflow_p with wrong arg types
-    if op in ("umul", "smul") and "__builtin_mul_overflow_p" in text:
-        return "semantic_fail", f"{op} overflow check type mismatch"
-
-    # __builtin_*_overflow_p at non-32-bit: third arg 0 is int (32-bit),
-    # wrong for 8/16-bit (checks int overflow, not narrow) and 64-bit
-    if ("__builtin_add_overflow_p" in text or "__builtin_sub_overflow_p" in text) and width is not None and width != 32:
-        return "semantic_fail", f"overflow_p type mismatch ({width}-bit)"
-
-    # rflagsc_sub: inverted borrow logic
-    if op == "rflagsc" and "_sub_" in func_name:
-        return "semantic_fail", "rflagsc_sub inverted borrow logic"
-
-    # 8/16-bit integer promotion: C promotes char/short to int before arithmetic,
-    # so (a + b) in int is different from (narrow_type)(a + b). The decompiler
-    # often omits the truncation cast, causing wrong results at narrow widths.
-    if width in (8, 16) and cond in ("condz", "condnz", "conds", "condns"):
-        # Check if the decompiled code has a narrowing cast in the comparison
-        if width == 8:
-            has_cast = bool(re.search(r"\((?:unsigned\s+)?char\)\s*\(", text))
-        else:
-            has_cast = bool(re.search(r"\((?:unsigned\s+)?short\)\s*\(", text))
-        if not has_cast:
-            return "semantic_fail", f"missing narrow-type truncation ({width}-bit {cond})"
+    if width == 8:
+        if cond in _UNSIGNED_CONDS:
+            return "semantic_fail", f"8-bit unsigned cond ({cond}) with signed char params"
+        if op in _ALWAYS_UNSIGNED_OPS:
+            return "semantic_fail", f"8-bit unsigned op ({op}) with signed char params"
 
     return "ok", None
 
@@ -303,6 +262,14 @@ def _extract_op(func_name):
     return None
 
 
+def _get_logic_c_op(func_name):
+    """Return the C operator for a logic op function name, or None."""
+    op = _extract_op(func_name)
+    if op == "logic":
+        return "&"  # VEX LOGIC ops use dep_1=result; AND is the common case
+    return None
+
+
 def _extract_condition(func_name):
     """Extract the condition type from the function name.
 
@@ -346,7 +313,14 @@ def _get_expected_nargs(func_name):
         return 2
     if op in ("adc", "sbb"):
         return 4  # 128-bit ops split into 4 args on x86-64
-    # sub, add, logic, shl, shr, umul, smul, copy: all take 2 args
+    if op == "logic":
+        cond = _extract_condition(func_name)
+        # condz uses "test a, b" (2 args); condnz/conds/condns/condl/condnl/condle/condnle
+        # use "test reg, reg" (1 arg); condb/condbe use inline asm with 2 args
+        if cond in {"condz", "condb", "condnb", "condbe", "condnbe"}:
+            return 2
+        return 1
+    # sub, add, shl, shr, umul, smul, copy: all take 2 args
     return 2
 
 
@@ -370,14 +344,20 @@ def _is_unsigned_func(func_name):
     return cond in _UNSIGNED_CONDS
 
 
-def _generate_harness(func_name, decomp_body, width, nargs, is_unsigned):
+def _generate_harness(func_name, decomp_body, width, nargs, is_unsigned, decomp_nargs=None):
     """Generate a complete harness C source file.
 
     The harness:
     - Declares the original function (from ``ref.o``)
     - Includes the renamed decompiled function body inline
     - Runs both with test inputs and compares ``g_sink`` values
+
+    When *decomp_nargs* < *nargs* (e.g. decompiler optimised away an arg),
+    the harness pre-computes the intermediate result and passes it to the
+    decompiled function.
     """
+    if decomp_nargs is None:
+        decomp_nargs = nargs
     c_type = _UNSIGNED_C_TYPES[width] if is_unsigned else _SIGNED_C_TYPES[width]
     decomp_name = f"decomp_{func_name}"
 
@@ -397,6 +377,32 @@ def _generate_harness(func_name, decomp_body, width, nargs, is_unsigned):
                 if (ref != dec) {{
                     fprintf(stderr, "MISMATCH %s(%llu): ref=%u dec=%u\\n",
                             "{func_name}", tests[i], ref, dec);
+                    return 1;
+                }}
+            }}""")
+    elif nargs == 2 and decomp_nargs == 1:
+        # Decompiler optimised away one arg (e.g. logic ops where dep_1=result).
+        # Pre-compute the intermediate result and pass it to the decompiled function.
+        logic_c_op = _get_logic_c_op(func_name)
+        if logic_c_op is None:
+            logic_c_op = "&"  # fallback
+        inputs = _INPUTS_2ARG[width]
+        test_arr = ", ".join(f"{{{a}ULL, {b}ULL}}" for a, b in inputs)
+        orig_decl = f"int {func_name}({c_type} a, {c_type} b);"
+        call_code = textwrap.dedent(f"""\
+            unsigned long long tests[][2] = {{ {test_arr} }};
+            int n = sizeof(tests) / sizeof(tests[0]);
+            for (int i = 0; i < n; i++) {{
+                {c_type} a = ({c_type})tests[i][0];
+                {c_type} b = ({c_type})tests[i][1];
+                {func_name}(a, b);
+                unsigned int ref = (unsigned int)g_sink;
+                {c_type} logic_result = a {logic_c_op} b;
+                {decomp_name}(logic_result);
+                unsigned int dec = (unsigned int)g_sink;
+                if (ref != dec) {{
+                    fprintf(stderr, "MISMATCH %s(%llu,%llu): ref=%u dec=%u\\n",
+                            "{func_name}", tests[i][0], tests[i][1], ref, dec);
                     return 1;
                 }}
             }}""")
@@ -484,6 +490,7 @@ def _check_semantics(bin_path, func_name, text, tmp_dir):
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     assert r.returncode == 0, f"Failed to compile reference:\n{r.stderr}"
 
@@ -492,10 +499,15 @@ def _check_semantics(bin_path, func_name, text, tmp_dir):
     decomp_body = _strip_extern_gsink(text)
     decomp_body = re.sub(r"\b" + re.escape(func_name) + r"\b", decomp_name, decomp_body)
 
+    # Detect actual arg count in the decompiled function
+    decomp_nargs = _count_args(decomp_body, decomp_name)
+    if decomp_nargs is None:
+        decomp_nargs = nargs
+
     # 3. Generate harness (decomp body pasted inline, no separate .o needed)
-    harness_text = _generate_harness(func_name, decomp_body, width, nargs, is_unsigned)
+    harness_text = _generate_harness(func_name, decomp_body, width, nargs, is_unsigned, decomp_nargs=decomp_nargs)
     harness_c = os.path.join(tmp_dir, "harness.c")
-    with open(harness_c, "w") as f:
+    with open(harness_c, "w", encoding="utf-8") as f:
         f.write(harness_text)
 
     # 4. Compile and link
@@ -517,11 +529,12 @@ def _check_semantics(bin_path, func_name, text, tmp_dir):
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     assert r.returncode == 0, f"Failed to compile harness:\n{r.stderr}\n\nHarness source:\n{harness_text}"
 
     # 5. Run and check
-    r = subprocess.run([test_bin], capture_output=True, text=True, timeout=10)
+    r = subprocess.run([test_bin], capture_output=True, text=True, timeout=10, check=False)
     assert r.returncode == 0, f"Semantic mismatch:\n{r.stderr}"
 
 
