@@ -61,12 +61,13 @@ class TestSemvarNaming(unittest.TestCase):
         _, code = self._decompile_function("sum_matrix")
 
         # Check for outer loop with 'i'
-        assert re.search(r"for \(i = 0; i < [a-zA-Z0-9_]+; i \+= 1\)", code) is not None, (
+        # The loop bound may have a signedness cast, e.g. ``(int)a0``
+        assert re.search(r"for \(i = 0; i < (?:\([a-z ]+\))?[a-zA-Z0-9_]+; i \+= 1\)", code) is not None, (
             "Expected outer loop counter 'i' not found"
         )
 
         # Check for inner loop with 'j'
-        assert re.search(r"for \(j = 0; j < [a-zA-Z0-9_]+; j \+= 1\)", code) is not None, (
+        assert re.search(r"for \(j = 0; j < (?:\([a-z ]+\))?[a-zA-Z0-9_]+; j \+= 1\)", code) is not None, (
             "Expected inner loop counter 'j' not found"
         )
 
