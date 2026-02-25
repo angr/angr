@@ -33,7 +33,14 @@ def _replace_of_p(expr):
         builtin = _OF_P_MAP[expr.target]
         a = expr.args[0]
         tags = expr.tags or {}
-        zero = Expr.Const(None, None, 0, a.bits, **tags)
+        # The third argument conveys the type for the overflow check.
+        # Signedness comes from the overflow_signed tag set by the ccall rewriter
+        # (signed for ADD/SMUL overflow, unsigned for UMUL overflow).
+        # Tag the Const so the C codegen can emit the correct cast even after
+        # EvaluateConstConversions folds any wrapping Convert away.
+        is_signed = tags.get("overflow_signed", False)
+        zero_tags = {**tags, "overflow_p_signed": is_signed}
+        zero = Expr.Const(None, None, 0, a.bits, **zero_tags)
         return Expr.Call(expr.idx, builtin, args=[expr.args[0], expr.args[1], zero], bits=expr.bits, **tags)
 
     # Convert is a subclass of UnaryOp — check it first

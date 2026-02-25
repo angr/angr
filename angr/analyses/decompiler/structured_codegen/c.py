@@ -4359,10 +4359,51 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CAssignment(obj)
 
     def handle_CFunctionCall(self, obj: CFunctionCall):
-        prototype_args = [] if obj.prototype is None else obj.prototype.args
-        for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
-            obj.args[i] = self.collapse(arg_ty, c_arg)
-        return super().handle_CFunctionCall(obj)
+        # Collapse args against the prototype to remove redundant type casts.
+        # Skip for __builtin_*_overflow_p calls — their synthetic prototype
+        # (derived from arg types) would circularly strip intentional casts
+        # like (unsigned char)0 that convey the overflow check type.
+        callee = obj.callee_target
+        skip_collapse = isinstance(callee, str) and "_overflow_p" in callee
+        if not skip_collapse:
+            prototype_args = [] if obj.prototype is None else obj.prototype.args
+            for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
+                obj.args[i] = self.collapse(arg_ty, c_arg)
+        obj = super().handle_CFunctionCall(obj)
+
+        # __builtin_*_overflow_p: the 3rd arg's type determines the overflow check width
+        # and signedness.  Bare 0 is int (signed 32-bit) in C, so we need an explicit cast
+        # when the intended type differs.  This runs AFTER the implicit-cast walker so the
+        # cast won't be stripped.  Signedness comes from the overflow_p_signed tag set by
+        # the OverflowBuiltinPredicateSimplifier.
+        #
+        # Additionally, when the overflow check is signed (e.g., ADD CondO) but the function
+        # params are unsigned, the first two operands must also be cast to signed so that
+        # __builtin_*_overflow_p uses the signed interpretation of the values.
+        callee = obj.callee_target
+        if isinstance(callee, str) and "_overflow_p" in callee and len(obj.args) >= 3:
+            arg2 = obj.args[2]
+            if isinstance(arg2, CConstant) and arg2.tags is not None:
+                op_signed = arg2.tags.get("overflow_p_signed", True)
+                arg_bits = arg2.type.size if hasattr(arg2.type, "size") and arg2.type.size else 32
+                codegen = obj.codegen
+
+                # Cast 3rd arg (type-conveying zero) when width or signedness differs from int.
+                if arg_bits != 32 or not op_signed:
+                    dst_ty = codegen.default_simtype_from_bits(arg_bits, signed=op_signed)
+                    int_ty = SimTypeInt(signed=True).with_arch(codegen.project.arch)
+                    obj.args[2] = CTypeCast(int_ty, dst_ty, CConstant(0, int_ty, codegen=codegen), codegen=codegen)
+
+                # Cast first two operands when their signedness doesn't match the check type.
+                # E.g., for signed overflow with unsigned char params, emit (char)a0, (char)a1.
+                for i in range(min(2, len(obj.args))):
+                    arg_i = obj.args[i]
+                    arg_i_signed = getattr(arg_i.type, "signed", None)
+                    if arg_i_signed is not None and arg_i_signed != op_signed:
+                        target_ty = codegen.default_simtype_from_bits(arg_i.type.size, signed=op_signed)
+                        obj.args[i] = CTypeCast(arg_i.type, target_ty, arg_i, codegen=codegen)
+
+        return obj
 
     def handle_CReturn(self, obj: CReturn):
         obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)

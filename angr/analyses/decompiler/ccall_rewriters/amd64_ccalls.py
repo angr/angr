@@ -422,13 +422,14 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
                         cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        of_tags = {**ccall.tags, "overflow_signed": True}
                         r = Expr.Call(
                             ccall.idx,
                             "__OFADD__",
                             calling_convention=cc,
                             args=[dep_1, dep_2],
                             bits=ccall.bits,
-                            **ccall.tags,
+                            **of_tags,
                         )
                         if negate:
                             r = Expr.UnaryOp(None, "Not", r, bits=ccall.bits, **ccall.tags)
@@ -457,13 +458,14 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
                         cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        of_tags = {**ccall.tags, "overflow_signed": False}
                         r = Expr.Call(
                             ccall.idx,
                             "__OFMUL__",
                             calling_convention=cc,
                             args=[dep_1, dep_2],
                             bits=ccall.bits,
-                            **ccall.tags,
+                            **of_tags,
                         )
                         if negate:
                             r = Expr.UnaryOp(None, "Not", r, bits=ccall.bits, **ccall.tags)
@@ -492,13 +494,14 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                         )
                         cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        of_tags = {**ccall.tags, "overflow_signed": True}
                         r = Expr.Call(
                             ccall.idx,
                             "__OFMUL__",
                             calling_convention=cc,
                             args=[dep_1, dep_2],
                             bits=ccall.bits,
-                            **ccall.tags,
+                            **of_tags,
                         )
                         if negate:
                             r = Expr.UnaryOp(None, "Not", r, bits=ccall.bits, **ccall.tags)
