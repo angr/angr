@@ -2043,14 +2043,19 @@ class CBinaryOp(CExpression):
 
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
+        force_lhs_parens = False
         if self._cstyle_null_cmp and self._has_const_null_rhs():
             if self.op == "CmpEQ":
                 skip_op_and_rhs = True
                 yield "!", None
+                # Unary ! has higher C precedence than any binary op,
+                # so we must parenthesize any compound LHS.
+                if isinstance(self.lhs, CBinaryOp):
+                    force_lhs_parens = True
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
         # lhs
-        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
+        if isinstance(self.lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > self.lhs.op_precedence):
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
