@@ -21,6 +21,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
 from .cfg_node import CFGNode, CFGENode
+from .spilling_digraph import SpillingDiGraph
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
@@ -684,8 +685,19 @@ class SpillingCFG:
         cfg_model: CFGModel | None = None,
         cache_limit: int | None = None,
         db_batch_size: int = 1000,
+        edge_cache_limit: int | None = None,
+        edge_db_batch_size: int = 200,
     ):
-        self._graph: networkx.DiGraph = networkx.DiGraph()
+        if USE_SPILLING_CFGNODE_DICT:
+            effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else 2**31 - 1
+        else:
+            effective_edge_cache_limit = 2**31 - 1
+
+        self._graph: SpillingDiGraph = SpillingDiGraph(
+            rtdb=rtdb,
+            cache_limit=effective_edge_cache_limit,
+            db_batch_size=edge_db_batch_size,
+        )
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
         self._rtdb = rtdb
 
@@ -702,6 +714,7 @@ class SpillingCFG:
         )
         self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
         self._spilling_enabled = cache_limit is not None
+        self._edge_spilling_enabled = edge_cache_limit is not None
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -875,10 +888,13 @@ class SpillingCFG:
             cfg_model=self._cfg_model,
             cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
             db_batch_size=self._nodes.db_batch_size,
+            edge_cache_limit=self._graph._edge_cache_limit if self._edge_spilling_enabled else None,
+            edge_db_batch_size=self._graph._edge_db_batch_size,
         )
 
         new_graph._nodes = self._nodes.copy()
         new_graph._spilling_enabled = self._spilling_enabled
+        new_graph._edge_spilling_enabled = self._edge_spilling_enabled
         new_graph._keys_by_addr = defaultdict(set)
         for addr, keys in self._keys_by_addr.items():
             new_graph._keys_by_addr[addr] = set(keys)
@@ -976,18 +992,21 @@ class SpillingCFG:
 
     def __getstate__(self):
         self._nodes.load_all_spilled()
+        self._graph.load_all_spilled_edges()
         nodes_state = self._nodes.__getstate__()
 
         return {
             "graph": self._graph,
             "nodes": nodes_state,
             "spilling_enabled": self._spilling_enabled,
+            "edge_spilling_enabled": self._edge_spilling_enabled,
             "db_batch_size": self._nodes.db_batch_size,
         }
 
     def __setstate__(self, state: dict):
         self._graph = state["graph"]
         self._spilling_enabled = state["spilling_enabled"]
+        self._edge_spilling_enabled = state.get("edge_spilling_enabled", False)
         self._cfg_model_ref = None
         self._rtdb = None
         self._keys_by_addr = defaultdict(set)

@@ -54,6 +54,8 @@ class CFGModel(Serializable):
         "_cache_limit",
         "_cfg_manager",
         "_db_batch_size",
+        "_edge_cache_limit",
+        "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
         "edges_to_repair",
@@ -73,12 +75,16 @@ class CFGModel(Serializable):
         is_arm=False,
         cache_limit: int | None = None,
         db_batch_size: int = 1000,
+        edge_cache_limit: int | None = None,
+        edge_db_batch_size: int = 200,
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
         self._cache_limit = cache_limit
         self._db_batch_size = db_batch_size
+        self._edge_cache_limit = edge_cache_limit
+        self._edge_db_batch_size = edge_db_batch_size
 
         # Necessary settings
         self._iropt_level = None
@@ -94,6 +100,8 @@ class CFGModel(Serializable):
             cfg_model=self,
             cache_limit=cache_limit,
             db_batch_size=db_batch_size,
+            edge_cache_limit=edge_cache_limit,
+            edge_db_batch_size=edge_db_batch_size,
         )
 
         # Jump tables
@@ -266,6 +274,8 @@ class CFGModel(Serializable):
             is_arm=self.is_arm,
             cache_limit=self._cache_limit,
             db_batch_size=self._db_batch_size,
+            edge_cache_limit=self._edge_cache_limit,
+            edge_db_batch_size=self._edge_db_batch_size,
         )
         model.graph = self.graph.copy()
         model.graph._cfg_model = model
