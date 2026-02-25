@@ -4037,10 +4037,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(cexpr, CVariable):
             # Don't touch function parameters — their types come from the ABI.
-            if self._func_args and cexpr.variable in self._func_args:
+            if self._func_args is not None and cexpr.variable in self._func_args:
                 return
             cexpr.variable_type = new_ty
-            if cexpr.variable in self._variables_in_use:
+            if self._variables_in_use is not None and cexpr.variable in self._variables_in_use:
                 self._variables_in_use[cexpr.variable].variable_type = new_ty
             # Also update the canonical type in the variable manager so the
             # declaration (``variable_list_repr_chunks``) picks it up.
