@@ -6,17 +6,18 @@ disk-backed storage for graph adjacency data, following the SpillingCFGNodeDict 
 
 Edge attributes are serialized using the Edge protobuf message from primitives.proto.
 """
+# pylint:disable=no-member
 
 from __future__ import annotations
 
 import logging
 import struct
 import threading
-import msgspec
 from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
+import msgspec
 import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
@@ -520,6 +521,7 @@ class SpillingDiGraph(networkx.DiGraph):
     def adjlist_outer_dict_factory(self) -> SpillingAdjDict:
         return SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
 
+    @staticmethod
     def adjlist_inner_dict_factory(self) -> DirtyDict:
         return DirtyDict(dirty=True)
 

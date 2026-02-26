@@ -23,7 +23,7 @@ class BlockID:
             return "None" if addr is None else hex(addr)
 
         for i in range(0, len(self.callsite_tuples), 2):
-            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))
+            s.append("@".join(map(format_addr, self.callsite_tuples[i : i + 2])))  # pylint:disable=bad-builtin
         return " -> ".join(s)
 
     def __repr__(self):

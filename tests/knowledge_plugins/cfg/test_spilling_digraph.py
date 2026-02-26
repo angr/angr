@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Test cases for SpillingDiGraph and SpillingAdjDict functionality."""
-
+# pylint:disable=no-self-use
 from __future__ import annotations
 
 __package__ = __package__ or "tests.knowledge_plugins.cfg"  # pylint:disable=redefined-builtin
