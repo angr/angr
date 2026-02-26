@@ -7,10 +7,12 @@ __package__ = __package__ or "tests.knowledge_plugins.cfg"  # pylint:disable=red
 
 import os
 import unittest
+import pickle
 
 import angr
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.knowledge_plugins.cfg.spilling_digraph import SpillingAdjDict, SpillingDiGraph, DirtyDict
+from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
 
 from tests.common import bin_location
 
@@ -160,8 +162,6 @@ class TestSpillingAdjDict(unittest.TestCase):
 
     def test_pickling(self):
         """Test pickling support."""
-        import pickle
-
         adj, _proj = self._make_adj_dict_with_rtdb(cache_limit=2, db_batch_size=1)
 
         for i in range(5):
@@ -303,8 +303,6 @@ class TestSpillingDiGraphIntegration(unittest.TestCase):
         # Collect original edge data
         original_edges = {}
         for src, dst, data in graph.edges(data=True):
-            from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
-
             src_key = get_block_key(src)
             dst_key = get_block_key(dst)
             original_edges[(src_key, dst_key)] = dict(data)
@@ -323,8 +321,6 @@ class TestSpillingDiGraphIntegration(unittest.TestCase):
 
         # Load back and compare
         for src, dst, data in graph.edges(data=True):
-            from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
-
             src_key = get_block_key(src)
             dst_key = get_block_key(dst)
             orig = original_edges.get((src_key, dst_key))

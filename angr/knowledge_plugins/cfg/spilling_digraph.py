@@ -129,8 +129,7 @@ class SpillingAdjDict(MutableMapping):
         return len(self._data) + len(self._spilled_keys)
 
     def __iter__(self) -> Iterator[K]:
-        yield from self._data
-        yield from self._spilled_keys
+        yield from set(self._data) | set(self._spilled_keys)
 
     def get(self, key: K, default: dict[K, dict] | None = None) -> DirtyDict[K, dict] | None:  # type: ignore[override]
         try:
