@@ -5,8 +5,10 @@ import logging
 import os
 import re
 
+from angr.utils.lazy_import import lazy_import
+
 try:
-    import litellm  # type: ignore
+    lazy_import("litellm")  # type: ignore
 except ImportError:
     litellm = None
 
