@@ -27,12 +27,14 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
     from angr.rustylib import SegmentList
+    from .types import CFG_ADDR_TYPES
 
     K = TypeVar("K", int, SootMethodDescriptor)
 
     class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
         def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
+        def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
 
 else:
     from sortedcontainers import SortedList
@@ -78,7 +80,7 @@ class CFGModel(Serializable):
         db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
         edge_db_batch_size: int = 800,
-        addr_type: str = "int",
+        addr_type: CFG_ADDR_TYPES = "int",
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
@@ -87,7 +89,7 @@ class CFGModel(Serializable):
         self._db_batch_size = db_batch_size
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = edge_db_batch_size
-        self.graph = None
+        self.graph = None  # type:ignore
         self.addr_type = addr_type
 
         # Necessary settings
@@ -132,11 +134,11 @@ class CFGModel(Serializable):
     #
 
     @property
-    def addr_type(self) -> str:
+    def addr_type(self) -> CFG_ADDR_TYPES:
         return self._addr_type
 
     @addr_type.setter
-    def addr_type(self, value: str) -> None:
+    def addr_type(self, value: CFG_ADDR_TYPES) -> None:
         if value not in ("int", "block_id", "soot"):
             raise TypeError(f"Unsupported address type {value}. Supported types are 'int', 'block_id', and 'soot'.")
         self._addr_type = value
@@ -190,7 +192,7 @@ class CFGModel(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return cfg_pb2.CFG()
+        return cfg_pb2.CFG()  # type:ignore
 
     def serialize_to_cmessage(self):
         if "Emulated" in self.ident:
@@ -208,13 +210,13 @@ class CFGModel(Serializable):
         # edges
         edges = []
         for src, dst, data in self.graph.edges(data=True):
-            edge = primitives_pb2.Edge()
+            edge = primitives_pb2.Edge()  # type:ignore
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
             for k, v in data.items():
                 if k == "jumpkind":
                     jk = cfg_jumpkind_to_pb(v)
-                    edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk
+                    edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
                 elif k == "ins_addr":
                     edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
                 elif k == "stmt_idx":

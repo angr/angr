@@ -170,6 +170,7 @@ class SpillingCFGNodeDict:
         # Copy spilled data from LMDB
         if self._spilled_keys and self._nodesdb is not None and self.rtdb is not None:
             new_dict._init_lmdb()
+            assert new_dict._nodesdb is not None
             with (
                 self.rtdb.begin_txn(self._nodesdb) as src_txn,
                 self.rtdb.begin_txn(new_dict._nodesdb, write=True) as dst_txn,
@@ -305,6 +306,7 @@ class SpillingCFGNodeDict:
             return
 
         self._init_lmdb()
+        assert self._nodesdb is not None
 
         while True:
             try:
@@ -331,6 +333,8 @@ class SpillingCFGNodeDict:
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
+        assert self.rtdb is not None and self._nodesdb is not None
+
         self._loading_from_lmdb = True
 
         try:
@@ -345,11 +349,11 @@ class SpillingCFGNodeDict:
                 payload = value[1:]
 
                 if type_byte == 0x00:
-                    cmsg = cfg_pb2.CFGNode()
+                    cmsg = cfg_pb2.CFGNode()  # type:ignore
                     cmsg.ParseFromString(payload)
                     node = CFGNode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 elif type_byte == 0x01:
-                    cmsg = cfg_pb2.CFGENode()
+                    cmsg = cfg_pb2.CFGENode()  # type:ignore
                     cmsg.ParseFromString(payload)
                     node = CFGENode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 else:
@@ -654,7 +658,7 @@ class _OutDegreeView:
 @overload
 def get_block_key(node: CFGNode) -> CFGNODE_K | SOOTNODE_K: ...
 @overload
-def get_block_key(node: CFGENode) -> CFGENODE_K: ...
+def get_block_key(node: CFGENode) -> CFGENODE_K: ...  # type:ignore
 
 
 def get_block_key(node: CFGNode | CFGENode) -> K:

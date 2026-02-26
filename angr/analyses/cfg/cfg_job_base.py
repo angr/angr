@@ -115,7 +115,7 @@ class CFGJobBase:
         return self._call_stack
 
     def call_stack_copy(self):
-        return self._call_stack.copy()
+        return self._call_stack.copy()  # type:ignore
 
     def get_call_stack_suffix(self):
         return self._call_stack.stack_suffix(self._context_sensitivity_level)
@@ -127,7 +127,7 @@ class CFGJobBase:
     @func_addr.setter
     def func_addr(self, v):
         # Make a copy because we might be sharing it with other CFGJobs
-        self._call_stack = self._call_stack.copy()
+        self._call_stack = self._call_stack.copy()  # type:ignore
         self._call_stack.current_function_address = v
 
     @property

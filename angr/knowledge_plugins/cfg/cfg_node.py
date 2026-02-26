@@ -168,7 +168,7 @@ class CFGNode(Serializable):
         return self._block_id
 
     @property
-    def byte_string(self) -> bytes:
+    def byte_string(self) -> bytes | None:
         return self._byte_string
 
     @property
@@ -287,7 +287,7 @@ class CFGNode(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return cfg_pb2.CFGNode()
+        return cfg_pb2.CFGNode()  # type:ignore
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -597,7 +597,7 @@ class CFGENode(CFGNode):
 
     @classmethod
     def _get_cmsg(cls):
-        return cfg_pb2.CFGENode()
+        return cfg_pb2.CFGENode()  # type:ignore
 
     def serialize_to_cmessage(self):
         obj = self._get_cmsg()
@@ -620,21 +620,18 @@ class CFGENode(CFGNode):
             base.name = self._name
         base.is_syscall = self.is_syscall
 
-        # Handle block_id (can be int or BlockID)
+        # Handle block_id
         if self.block_id is not None:
-            if type(self.block_id) is int:
-                base.block_id.append(self.block_id)
-            else:
-                # BlockID object
-                block_id_msg = obj.block_id_obj
-                block_id_msg.addr = self.block_id.addr
-                if self.block_id.callsite_tuples is not None:
-                    for val in self.block_id.callsite_tuples:
-                        entry = block_id_msg.callsite_tuples.add()
-                        if val is not None:
-                            entry.has_value = True
-                            entry.value = val
-                block_id_msg.jump_type = self.block_id.jump_type
+            assert isinstance(self.block_id, BlockID)
+            block_id_msg = obj.block_id_obj
+            block_id_msg.addr = self.block_id.addr
+            if self.block_id.callsite_tuples is not None:
+                for val in self.block_id.callsite_tuples:
+                    entry = block_id_msg.callsite_tuples.add()
+                    if val is not None:
+                        entry.has_value = True
+                        entry.value = val
+            block_id_msg.jump_type = self.block_id.jump_type
 
         # CFGENode-specific fields
         if self.callstack_key is not None:
@@ -666,15 +663,12 @@ class CFGENode(CFGNode):
 
         # Parse block_id
         block_id = None
-        if cmsg.HasField("block_id_obj"):
-            bid = cmsg.block_id_obj
-            if bid.HasField("callsite_tuples"):
-                callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
-            else:
-                callsite_tuples = None
-            block_id = BlockID(bid.addr, callsite_tuples, bid.jump_type)
-        elif len(base.block_id) > 0:
-            block_id = base.block_id[0]
+        bid = cmsg.block_id_obj
+        if bid.HasField("callsite_tuples"):
+            callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
+        else:
+            callsite_tuples = None
+        block_id = BlockID(bid.addr, callsite_tuples, bid.jump_type)
 
         instruction_addrs = list(base.instr_addrs) if base.instr_addrs else None
 
