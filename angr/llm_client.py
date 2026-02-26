@@ -7,16 +7,16 @@ import re
 from typing import TypeVar
 
 try:
+    from pydantic import BaseModel
     from pydantic_ai import Agent  # type: ignore
     from pydantic_ai.settings import ModelSettings  # type: ignore
     from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
     from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
 except ImportError:
+    BaseModel = None  # type: ignore
     Agent = None  # type: ignore
 
-from pydantic import BaseModel
-
-T = TypeVar("T", bound=BaseModel)
+T = TypeVar("T")
 
 l = logging.getLogger(name=__name__)
 

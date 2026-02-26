@@ -28,7 +28,6 @@ from .decompilation_cache import DecompilationCache
 from .utils import remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
-from angr.llm_models import VariableNameSuggestions, FunctionNameSuggestion, VariableTypeSuggestions
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
 
@@ -879,6 +878,8 @@ class Decompiler(Analysis):
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
 
+        from angr.llm_models import VariableNameSuggestions
+
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions
         )
@@ -934,6 +935,8 @@ class Decompiler(Analysis):
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
 
+        from angr.llm_models import FunctionNameSuggestion
+
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion
         )
@@ -986,6 +989,8 @@ class Decompiler(Analysis):
             f"Current variable types: {var_type_info}\n\n"
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
+
+        from angr.llm_models import VariableTypeSuggestions
 
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions
