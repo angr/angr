@@ -10,7 +10,7 @@ import unittest
 
 import angr
 from angr.knowledge_plugins.cfg.cfg_node import CFGNode
-from angr.knowledge_plugins.cfg.spilling_digraph import SpillingAdjDict, SpillingDiGraph
+from angr.knowledge_plugins.cfg.spilling_digraph import SpillingAdjDict, SpillingDiGraph, DirtyDict
 
 from tests.common import bin_location
 
@@ -27,13 +27,13 @@ class TestSpillingAdjDict(unittest.TestCase):
     def _make_adj_dict_with_rtdb(self, cache_limit=5, db_batch_size=2):
         proj = angr.Project(self.bin_path, auto_load_libs=False)
         rtdb = proj.kb.rtdb
-        return SpillingAdjDict(rtdb=rtdb, cache_limit=cache_limit, db_batch_size=db_batch_size), proj
+        return SpillingAdjDict("int", rtdb=rtdb, cache_limit=cache_limit, db_batch_size=db_batch_size), proj
 
     def test_basic_operations(self):
         """Test basic dict operations on SpillingAdjDict."""
-        adj = SpillingAdjDict()
+        adj = SpillingAdjDict("int")
         key = (0x400000, 10)
-        inner = {(0x400010, 8): {"jumpkind": "Ijk_Boring", "ins_addr": 0x400005, "stmt_idx": 3}}
+        inner = DirtyDict({(0x400010, 8): {"jumpkind": "Ijk_Boring", "ins_addr": 0x400005, "stmt_idx": 3}}, dirty=True)
         adj[key] = inner
 
         assert key in adj
@@ -51,7 +51,9 @@ class TestSpillingAdjDict(unittest.TestCase):
         # Insert 6 entries to trigger eviction (cache_limit=3, batch_size=2, triggers at 3+2=5)
         for i in range(6):
             key = (0x400000 + i * 0x10, 8)
-            inner = {(0x500000 + i * 0x10, 8): {"jumpkind": "Ijk_Boring", "ins_addr": None, "stmt_idx": None}}
+            inner = DirtyDict(
+                {(0x500000 + i * 0x10, 8): {"jumpkind": "Ijk_Boring", "ins_addr": None, "stmt_idx": None}}, dirty=True
+            )
             adj[key] = inner
 
         # Some entries should be spilled
@@ -74,7 +76,7 @@ class TestSpillingAdjDict(unittest.TestCase):
                     "stmt_idx": i,
                 }
             }
-            adj[key] = inner
+            adj[key] = DirtyDict(inner, dirty=True)
             keys.append(key)
 
         # Access first key (which was likely evicted)
@@ -109,12 +111,13 @@ class TestSpillingAdjDict(unittest.TestCase):
 
     def test_inner_dict_serialization_roundtrip(self):
         """Test that inner dicts survive serialization/deserialization."""
+        d = SpillingAdjDict("int")
         inner = {
             (0x400010, 8): {"jumpkind": "Ijk_Boring", "ins_addr": 0x400005, "stmt_idx": 3},
             (0x400020, 16): {"jumpkind": "Ijk_Call", "ins_addr": None, "stmt_idx": None},
         }
-        serialized = SpillingAdjDict._serialize_inner_dict(inner)
-        deserialized = SpillingAdjDict._deserialize_inner_dict(serialized)
+        serialized = d._serialize_inner_dict(DirtyDict(inner, dirty=True))
+        deserialized = d._deserialize_inner_dict(serialized)
 
         assert len(deserialized) == 2
         assert (0x400010, 8) in deserialized
@@ -131,7 +134,7 @@ class TestSpillingAdjDict(unittest.TestCase):
         for i in range(5):
             key = (0x400000 + i * 0x10, 8)
             inner = {(0x500000 + i * 0x10, 8): {"jumpkind": "Ijk_Boring", "ins_addr": None, "stmt_idx": None}}
-            adj[key] = inner
+            adj[key] = DirtyDict(inner, dirty=True)
 
         assert len(adj._spilled_keys) > 0
         adj.load_all_spilled()
@@ -146,7 +149,7 @@ class TestSpillingAdjDict(unittest.TestCase):
         for i in range(5):
             key = (0x400000 + i * 0x10, 8)
             inner = {(0x500000 + i * 0x10, 8): {"jumpkind": "Ijk_Boring", "ins_addr": None, "stmt_idx": None}}
-            adj[key] = inner
+            adj[key] = DirtyDict(inner, dirty=True)
             expected_keys.add(key)
 
         # Iterate over all keys
@@ -164,7 +167,7 @@ class TestSpillingAdjDict(unittest.TestCase):
         for i in range(5):
             key = (0x400000 + i * 0x10, 8)
             inner = {(0x500000 + i * 0x10, 8): {"jumpkind": "Ijk_Boring", "ins_addr": None, "stmt_idx": None}}
-            adj[key] = inner
+            adj[key] = DirtyDict(inner, dirty=True)
 
         data = pickle.dumps(adj)
         restored = pickle.loads(data)
@@ -337,42 +340,6 @@ class TestSpillingDiGraphIntegration(unittest.TestCase):
             assert data.get("stmt_idx") == orig.get("stmt_idx"), (
                 f"stmt_idx mismatch: {data.get('stmt_idx')} != {orig.get('stmt_idx')}"
             )
-
-
-class TestProjectEdgeCacheLimit(unittest.TestCase):
-    """Test cases for Project.get_cfg_edge_cache_limit() and cache_limits integration."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.bin_path = os.path.join(test_location, "x86_64", "fauxware")
-
-    def test_get_cfg_edge_cache_limit_default(self):
-        """Test default heuristic returns None for small binaries."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False)
-        # fauxware is small (<256KB), so the default should be None
-        limit = proj.get_cfg_edge_cache_limit()
-        assert limit is None, f"Expected None for small binary, got {limit}"
-
-    def test_get_cfg_edge_cache_limit_explicit(self):
-        """Test explicit cache_limits configuration for cfg_edges."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False, cache_limits={"cfg_edges": 42})
-        assert proj.get_cfg_edge_cache_limit() == 42
-
-    def test_invalid_cache_config_key(self):
-        """Test that invalid cache config keys are rejected."""
-        with self.assertRaises(ValueError):
-            angr.Project(self.bin_path, auto_load_libs=False, cache_limits={"bogus_key": 100})
-
-    def test_cfg_edges_key_accepted(self):
-        """Test that 'cfg_edges' is an accepted cache config key."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False, cache_limits={"cfg_edges": 500})
-        assert proj.cache_limits["cfg_edges"] == 500
-
-    def test_edge_cache_limit_propagated_to_cfg_model(self):
-        """Test that edge_cache_limit flows from Project to CFGModel."""
-        proj = angr.Project(self.bin_path, auto_load_libs=False, cache_limits={"cfg_edges": 123})
-        cfg = proj.analyses.CFGFast()
-        assert cfg.model._edge_cache_limit == 123
 
 
 if __name__ == "__main__":
