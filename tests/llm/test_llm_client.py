@@ -7,13 +7,15 @@ import os
 import unittest
 from unittest import mock
 
+from pydantic import BaseModel
+
 from angr.llm_client import LLMClient
 
 
 class TestLLMClientFromEnv(unittest.TestCase):
     """Tests for LLMClient.from_env classmethod."""
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_from_env_returns_none_when_model_unset(self):
         """from_env returns None if ANGR_LLM_MODEL is not set."""
         env = {k: v for k, v in os.environ.items() if not k.startswith("ANGR_LLM_")}
@@ -21,7 +23,7 @@ class TestLLMClientFromEnv(unittest.TestCase):
             result = LLMClient.from_env()
             assert result is None
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_from_env_creates_client_with_model(self):
         """from_env creates an LLMClient when ANGR_LLM_MODEL is set."""
         env = {"ANGR_LLM_MODEL": "gpt-4"}
@@ -32,7 +34,7 @@ class TestLLMClientFromEnv(unittest.TestCase):
             assert client.api_key is None
             assert client.api_base is None
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_from_env_passes_all_env_vars(self):
         """from_env reads ANGR_LLM_API_KEY and ANGR_LLM_API_BASE."""
         env = {
@@ -41,105 +43,152 @@ class TestLLMClientFromEnv(unittest.TestCase):
             "ANGR_LLM_API_BASE": "http://localhost:11434",
         }
         with mock.patch.dict(os.environ, env, clear=True):
-            client = LLMClient.from_env()
-            assert client is not None
-            assert client.model == "ollama/llama2"
-            assert client.api_key == "test-key-123"
-            assert client.api_base == "http://localhost:11434"
+            with mock.patch("angr.llm_client.OpenAIProvider"), mock.patch("angr.llm_client.OpenAIChatModel"):
+                client = LLMClient.from_env()
+                assert client is not None
+                assert client.model == "ollama/llama2"
+                assert client.api_key == "test-key-123"
+                assert client.api_base == "http://localhost:11434"
 
 
 class TestLLMClientCompletion(unittest.TestCase):
-    """Tests for LLMClient.completion and completion_json."""
+    """Tests for LLMClient.completion, completion_structured, and completion_json."""
 
-    @staticmethod
-    def _make_mock_litellm():
-        return mock.MagicMock()
-
-    def _make_client_and_litellm(self, **kwargs):
-        """Create a client with a mocked litellm module."""
-        mock_litellm = self._make_mock_litellm()
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+    def _make_client(self, **kwargs):
+        """Create a client with mocked Agent."""
+        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
             client = LLMClient(model="test-model", **kwargs)
-        return client, mock_litellm
+        return client
 
-    def _set_response(self, mock_litellm, content):
-        resp = mock.MagicMock()
-        resp.choices = [mock.MagicMock()]
-        resp.choices[0].message.content = content
-        mock_litellm.completion.return_value = resp
+    def test_completion_calls_agent(self):
+        """completion() creates an Agent and calls run_sync."""
+        client = self._make_client(api_key="test-key")
 
-    def test_completion_calls_litellm(self):
-        """completion() calls litellm.completion with correct args."""
-        client, mock_litellm = self._make_client_and_litellm(api_key="test-key")
-        self._set_response(mock_litellm, "Hello world")
+        mock_result = mock.MagicMock()
+        mock_result.output = "Hello world"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
 
         messages = [{"role": "user", "content": "Hi"}]
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion(messages)
 
         assert result == "Hello world"
-        mock_litellm.completion.assert_called_once()
-        call_kwargs = mock_litellm.completion.call_args[1]
-        assert call_kwargs["model"] == "test-model"
-        assert call_kwargs["api_key"] == "test-key"
-        assert call_kwargs["messages"] == messages
+        mock_agent_instance.run_sync.assert_called_once()
+
+    def test_completion_structured_returns_model(self):
+        """completion_structured() returns a validated Pydantic model."""
+
+        class TestOutput(BaseModel):
+            name: str
+
+        client = self._make_client()
+
+        expected = TestOutput(name="test")
+        mock_result = mock.MagicMock()
+        mock_result.output = expected
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        messages = [{"role": "user", "content": "test"}]
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            result = client.completion_structured(messages, output_type=TestOutput)
+
+        assert result == expected
+        assert result.name == "test"
+
+    def test_completion_structured_returns_none_on_failure(self):
+        """completion_structured() returns None when the agent raises."""
+
+        class TestOutput(BaseModel):
+            name: str
+
+        client = self._make_client()
+
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.side_effect = RuntimeError("LLM failed")
+
+        messages = [{"role": "user", "content": "test"}]
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
+            result = client.completion_structured(messages, output_type=TestOutput)
+
+        assert result is None
 
     def test_completion_json_parses_json(self):
         """completion_json() parses a plain JSON response."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, '{"foo": "bar"}')
+        client = self._make_client()
 
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+        mock_result = mock.MagicMock()
+        mock_result.output = '{"foo": "bar"}'
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result == {"foo": "bar"}
 
     def test_completion_json_strips_markdown_fences(self):
         """completion_json() strips markdown code fences before parsing."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, '```json\n{"key": "value"}\n```')
+        client = self._make_client()
 
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+        mock_result = mock.MagicMock()
+        mock_result.output = '```json\n{"key": "value"}\n```'
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result == {"key": "value"}
 
-    def test_completion_json_strips_bare_fences(self):
-        """completion_json() strips bare ``` fences (without json tag)."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, '```\n{"a": 1}\n```')
-
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
-            result = client.completion_json([{"role": "user", "content": "test"}])
-        assert result == {"a": 1}
-
     def test_completion_json_returns_none_on_invalid_json(self):
         """completion_json() returns None when the response isn't valid JSON."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, "This is not JSON at all")
+        client = self._make_client()
 
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+        mock_result = mock.MagicMock()
+        mock_result.output = "This is not JSON at all"
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result is None
 
     def test_completion_json_returns_none_on_empty_response(self):
         """completion_json() returns None when the response is empty."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, "")
+        client = self._make_client()
 
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
+        mock_result = mock.MagicMock()
+        mock_result.output = ""
+        mock_agent_instance = mock.MagicMock()
+        mock_agent_instance.run_sync.return_value = mock_result
+
+        with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result is None
 
-    def test_completion_without_api_key_or_base(self):
-        """completion() omits api_key and api_base when not set."""
-        client, mock_litellm = self._make_client_and_litellm()
-        self._set_response(mock_litellm, "response")
+    def test_model_string_prefixed_with_openai(self):
+        """Model names without ':' get prefixed with 'openai:'."""
+        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
+            client = LLMClient(model="gpt-4o")
+        assert client._pydantic_model == "openai:gpt-4o"
 
-        with mock.patch("angr.llm_client.litellm", mock_litellm):
-            client.completion([{"role": "user", "content": "test"}])
+    def test_model_string_with_colon_passed_through(self):
+        """Model names containing ':' are passed through as-is."""
+        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
+            client = LLMClient(model="anthropic:claude-sonnet-4-6")
+        assert client._pydantic_model == "anthropic:claude-sonnet-4-6"
 
-        call_kwargs = mock_litellm.completion.call_args[1]
-        assert "api_key" not in call_kwargs
-        assert "api_base" not in call_kwargs
+    def test_model_with_api_base_uses_openai_provider(self):
+        """When api_base is set, OpenAIProvider and OpenAIChatModel are used."""
+        with (
+            mock.patch("angr.llm_client.Agent", mock.MagicMock()),
+            mock.patch("angr.llm_client.OpenAIProvider") as mock_provider,
+            mock.patch("angr.llm_client.OpenAIChatModel") as mock_chat_model,
+        ):
+            client = LLMClient(model="my-model", api_base="http://localhost:1234", api_key="sk-test")
+            mock_provider.assert_called_once_with(base_url="http://localhost:1234", api_key="sk-test")
+            mock_chat_model.assert_called_once_with("my-model", provider=mock_provider.return_value)
+            assert client._pydantic_model == mock_chat_model.return_value
 
 
 if __name__ == "__main__":

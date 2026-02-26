@@ -4,18 +4,26 @@ import json
 import logging
 import os
 import re
+from typing import TypeVar
 
 try:
-    import litellm  # type: ignore
+    from pydantic_ai import Agent  # type: ignore
+    from pydantic_ai.settings import ModelSettings  # type: ignore
+    from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
+    from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
 except ImportError:
-    litellm = None
+    Agent = None  # type: ignore
+
+from pydantic import BaseModel
+
+T = TypeVar("T", bound=BaseModel)
 
 l = logging.getLogger(name=__name__)
 
 
 class LLMClient:
     """
-    A client for interacting with LLMs via LiteLLM.
+    A client for interacting with LLMs via pydantic-ai.
     Used by the decompiler to suggest improved variable names, function names, and types.
     """
 
@@ -27,9 +35,9 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.0,
     ):
-        if litellm is None:
+        if Agent is None:
             raise ImportError(
-                "litellm is required for LLM support. Install it with: pip install angr[llm]  or  pip install litellm"
+                "pydantic-ai is required for LLM support. Install it with: pip install angr[llm]  or  pip install pydantic-ai"
             )
 
         self.model = model
@@ -37,6 +45,16 @@ class LLMClient:
         self.api_base = api_base
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self._pydantic_model = self._build_model()
+
+    def _build_model(self):
+        """Build a pydantic-ai model object from the configured settings."""
+        if self.api_base:
+            provider = OpenAIProvider(base_url=self.api_base, api_key=self.api_key or "no-key")
+            return OpenAIChatModel(self.model, provider=provider)
+        if ":" in self.model:
+            return self.model
+        return f"openai:{self.model}"
 
     @classmethod
     def from_env(cls) -> LLMClient | None:
@@ -53,29 +71,37 @@ class LLMClient:
         api_base = os.environ.get("ANGR_LLM_API_BASE")
         return cls(model=model, api_key=api_key, api_base=api_base)
 
+    def _model_settings(self) -> ModelSettings:
+        return ModelSettings(temperature=self.temperature, max_tokens=self.max_tokens)
+
     def completion(self, messages: list[dict[str, str]], **kwargs) -> str:
         """
         Call the LLM with the given messages and return the response text.
         """
-        call_kwargs: dict = {
-            "model": self.model,
-            "messages": messages,
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-        }
-        if self.api_key:
-            call_kwargs["api_key"] = self.api_key
-        if self.api_base:
-            call_kwargs["api_base"] = self.api_base
-        call_kwargs.update(kwargs)
+        prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
+        agent = Agent(self._pydantic_model, output_type=str)
+        result = agent.run_sync(prompt, model_settings=self._model_settings())
+        return result.output
 
-        response = litellm.completion(**call_kwargs)  # type: ignore
-        return response.choices[0].message.content
+    def completion_structured(self, messages: list[dict[str, str]], output_type: type[T], **kwargs) -> T | None:
+        """
+        Call the LLM with the given messages and return a validated Pydantic model.
+        Returns None if the call fails.
+        """
+        prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
+        try:
+            agent = Agent(self._pydantic_model, output_type=output_type)
+            result = agent.run_sync(prompt, model_settings=self._model_settings())
+            return result.output
+        except Exception:  # pylint:disable=broad-exception-caught
+            l.warning("Failed to get structured LLM response", exc_info=True)
+            return None
 
     def completion_json(self, messages: list[dict[str, str]], **kwargs) -> dict | None:
         """
         Call the LLM and parse the response as JSON.
         Strips markdown code fences if present. Returns None on parse failure.
+        Kept for backwards compatibility; prefer completion_structured().
         """
         text = self.completion(messages, **kwargs)
         if not text:

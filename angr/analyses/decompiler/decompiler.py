@@ -28,6 +28,7 @@ from .decompilation_cache import DecompilationCache
 from .utils import remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
+from angr.llm_models import VariableNameSuggestions, FunctionNameSuggestion, VariableTypeSuggestions
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
 
@@ -872,15 +873,16 @@ class Decompiler(Analysis):
 
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code, suggest better, "
-            "more descriptive variable names. Return ONLY a JSON object mapping old variable names to new names. "
-            "Only include variables that you want to rename. Use snake_case naming convention.\n\n"
+            "more descriptive variable names. Only include variables that you want to rename. "
+            "Use snake_case naming convention.\n\n"
             f"Current variable names: {var_names}\n\n"
-            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
-            'Respond with ONLY a JSON object like: {"old_name": "new_name", ...}'
+            f"Decompiled code:\n```c\n{code_text}\n```"
         )
 
-        result = llm_client.completion_json([{"role": "user", "content": prompt}])
-        if not result or not isinstance(result, dict):
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions
+        )
+        if not result:
             return False
 
         # build name-to-variable lookup
@@ -890,8 +892,10 @@ class Decompiler(Analysis):
             name_to_var[key] = v
 
         changed = False
-        for old_name, new_name in result.items():
-            if not isinstance(new_name, str) or not new_name:
+        for rename in result.renames:
+            old_name = rename.old_name
+            new_name = rename.new_name
+            if not new_name:
                 continue
             var = name_to_var.get(old_name)
             if var is None:
@@ -927,16 +931,17 @@ class Decompiler(Analysis):
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code, suggest a descriptive "
             "function name that reflects what the function does. Use snake_case naming convention.\n\n"
-            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
-            'Respond with ONLY a JSON object like: {"function_name": "descriptive_name"}'
+            f"Decompiled code:\n```c\n{code_text}\n```"
         )
 
-        result = llm_client.completion_json([{"role": "user", "content": prompt}])
-        if not result or not isinstance(result, dict):
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion
+        )
+        if not result:
             return False
 
-        new_name = result.get("function_name")
-        if not isinstance(new_name, str) or not new_name or new_name == current_name:
+        new_name = result.function_name
+        if not new_name or new_name == current_name:
             return False
 
         l.info("LLM renamed function %s -> %s", current_name, new_name)
@@ -976,16 +981,16 @@ class Decompiler(Analysis):
 
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code and the current "
-            "variable types, suggest better C types for the variables. Return ONLY a JSON object mapping "
-            "variable names to their suggested C type strings. Only include variables whose types you want "
-            "to change.\n\n"
+            "variable types, suggest better C types for the variables. Only include variables whose types "
+            "you want to change.\n\n"
             f"Current variable types: {var_type_info}\n\n"
-            f"Decompiled code:\n```c\n{code_text}\n```\n\n"
-            'Respond with ONLY a JSON object like: {"var_name": "int *", ...}'
+            f"Decompiled code:\n```c\n{code_text}\n```"
         )
 
-        result = llm_client.completion_json([{"role": "user", "content": prompt}])
-        if not result or not isinstance(result, dict):
+        result = llm_client.completion_structured(
+            [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions
+        )
+        if not result:
             return False
 
         # build name-to-variable lookup
@@ -995,8 +1000,10 @@ class Decompiler(Analysis):
             name_to_var[key] = v
 
         changed = False
-        for var_name, type_str in result.items():
-            if not isinstance(type_str, str) or not type_str:
+        for type_change in result.type_changes:
+            var_name = type_change.variable_name
+            type_str = type_change.new_type
+            if not type_str:
                 continue
             var = name_to_var.get(var_name)
             if var is None:
