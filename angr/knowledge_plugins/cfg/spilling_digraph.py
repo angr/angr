@@ -24,7 +24,7 @@ from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
 from angr.protos import primitives_pb2, cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
-from .types import K, CFGENODE_K, SOOTNODE_K, CFG_ADDR_TYPES
+from .types import K, CFG_ADDR_TYPES
 from .block_id import BlockID
 
 if TYPE_CHECKING:
@@ -76,7 +76,7 @@ class SpillingAdjDict(MutableMapping):
         cache_limit: int = 1000,
         db_batch_size: int = 800,
     ):
-        self.addr_type = addr_type
+        self.addr_type: CFG_ADDR_TYPES = addr_type
         self._data: dict[K, DirtyDict[K, dict]] = {}
         self._spilled_keys: set[K] = set()
 
@@ -136,7 +136,7 @@ class SpillingAdjDict(MutableMapping):
         try:
             return self[key]
         except KeyError:
-            return default
+            return DirtyDict(default, dirty=True) if default is not None else None
 
     #
     #  LRU cache management
@@ -220,9 +220,9 @@ class SpillingAdjDict(MutableMapping):
     @staticmethod
     def _serialize_edge_data(edge_data: dict) -> bytes:
         """Serialize an edge attribute dict to Edge protobuf bytes."""
-        edge = primitives_pb2.Edge()
+        edge = primitives_pb2.Edge()  # type:ignore
         jk = cfg_jumpkind_to_pb(edge_data.get("jumpkind"))
-        edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk
+        edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
         v = edge_data.get("ins_addr")
         edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
         v = edge_data.get("stmt_idx")
@@ -232,7 +232,7 @@ class SpillingAdjDict(MutableMapping):
     @staticmethod
     def _deserialize_edge_data(data: bytes) -> dict:
         """Deserialize Edge protobuf bytes to an edge attribute dict."""
-        edge = primitives_pb2.Edge()
+        edge = primitives_pb2.Edge()  # type:ignore
         edge.ParseFromString(data)
         return {
             "jumpkind": cfg_jumpkind_from_pb(edge.jumpkind),
@@ -260,8 +260,9 @@ class SpillingAdjDict(MutableMapping):
                     key_bytes = struct.pack("<Q", dst_key[0]) + struct.pack("<H", dst_key[1])
 
                 case "block_id":
-                    dst_key: CFGENODE_K
-                    block_id = cfg_pb2.BlockIDProto()
+                    # dst_key: CFGENODE_K
+                    assert isinstance(dst_key, tuple) and len(dst_key) == 3 and isinstance(dst_key[0], BlockID)
+                    block_id = cfg_pb2.BlockIDProto()  # type:ignore
                     block_id.addr = dst_key[0].addr
                     block_id.jump_type = dst_key[0].jump_type
                     if dst_key[0].callsite_tuples is not None:
@@ -275,7 +276,8 @@ class SpillingAdjDict(MutableMapping):
                     )
 
                 case "soot":
-                    dst_key: SOOTNODE_K
+                    # dst_key: SOOTNODE_K
+                    assert isinstance(dst_key, SootAddressDescriptor)
                     d = {
                         "class_name": dst_key.method.class_name,
                         "name": dst_key.method.name,
@@ -320,7 +322,7 @@ class SpillingAdjDict(MutableMapping):
                         raise ValueError(f"Invalid key length for block_id addr_type: {key_len}")
                     size = struct.unpack_from("<I", key_bytes, 0)[0]
                     looping_times = struct.unpack_from("<H", key_bytes, 4)[0]
-                    block_id = cfg_pb2.BlockIDProto()
+                    block_id = cfg_pb2.BlockIDProto()  # type:ignore
                     block_id.ParseFromString(key_bytes[6:])
                     if block_id.HasField("callsite_tuples"):
                         callsite_tuples = tuple(
@@ -358,6 +360,7 @@ class SpillingAdjDict(MutableMapping):
             return
 
         self._init_lmdb()
+        assert self._edgesdb is not None
 
         while True:
             try:
@@ -380,6 +383,8 @@ class SpillingAdjDict(MutableMapping):
     def _load_from_lmdb_core(self, key: K) -> DirtyDict[K, dict] | None:
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
+
+        assert self.rtdb is not None and self._edgesdb is not None
 
         self._loading_from_lmdb = True
 
@@ -475,6 +480,7 @@ class SpillingAdjDict(MutableMapping):
         # Copy spilled data from LMDB
         if self._spilled_keys and self._edgesdb is not None and self.rtdb is not None:
             new_dict._init_lmdb()
+            assert new_dict._edgesdb is not None
             with (
                 self.rtdb.begin_txn(self._edgesdb) as src_txn,
                 self.rtdb.begin_txn(new_dict._edgesdb, write=True) as dst_txn,
@@ -515,14 +521,14 @@ class SpillingDiGraph(networkx.DiGraph):
         self._rtdb = rtdb
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = db_batch_size
-        self._addr_type = addr_type
+        self._addr_type: CFG_ADDR_TYPES = addr_type
         super().__init__(**attr)
 
-    def adjlist_outer_dict_factory(self) -> SpillingAdjDict:
+    def adjlist_outer_dict_factory(self) -> SpillingAdjDict:  # type:ignore
         return SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
 
     @staticmethod
-    def adjlist_inner_dict_factory(self) -> DirtyDict:
+    def adjlist_inner_dict_factory(self) -> DirtyDict:  # type:ignore
         return DirtyDict(dirty=True)
 
     @property
