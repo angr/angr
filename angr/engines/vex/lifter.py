@@ -29,7 +29,7 @@ class VEXLifter(SimEngine):
         self,
         project,
         use_cache=None,
-        cache_size=50000,
+        cache_size=5000,
         default_opt_level=1,
         selfmodifying_code=None,
         single_step=False,
