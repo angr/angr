@@ -160,9 +160,9 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         target_var = unified_vars[0]
         old_name = target_var.name or str(target_var)
 
-        mock_client = _make_mock_llm_client([
-            VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name="renamed_var")])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name="renamed_var")])]
+        )
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is True
@@ -174,9 +174,9 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         dec = self._decompile("main")
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        mock_client = _make_mock_llm_client([
-            VariableNameSuggestions(renames=[VariableRename(old_name="nonexistent_var_xyz", new_name="new_name")])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableNameSuggestions(renames=[VariableRename(old_name="nonexistent_var_xyz", new_name="new_name")])]
+        )
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is False
@@ -192,9 +192,9 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         target_var = unified_vars[0]
         old_name = target_var.name or str(target_var)
 
-        mock_client = _make_mock_llm_client([
-            VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name=old_name)])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name=old_name)])]
+        )
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is False
@@ -227,9 +227,9 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         old_name = target_var.name or str(target_var)
         original_name = target_var.name
 
-        mock_client = _make_mock_llm_client([
-            VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name="")])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableNameSuggestions(renames=[VariableRename(old_name=old_name, new_name="")])]
+        )
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is False
@@ -251,12 +251,16 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         name_a = var_a.name or str(var_a)
         name_b = var_b.name or str(var_b)
 
-        mock_client = _make_mock_llm_client([
-            VariableNameSuggestions(renames=[
-                VariableRename(old_name=name_a, new_name="alpha"),
-                VariableRename(old_name=name_b, new_name="beta"),
-            ])
-        ])
+        mock_client = _make_mock_llm_client(
+            [
+                VariableNameSuggestions(
+                    renames=[
+                        VariableRename(old_name=name_a, new_name="alpha"),
+                        VariableRename(old_name=name_b, new_name="beta"),
+                    ]
+                )
+            ]
+        )
 
         result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is True
@@ -382,9 +386,9 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         target_var = unified_vars[0]
         var_name = target_var.name or str(target_var)
 
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[VariableTypeChange(variable_name=var_name, new_type="int")])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableTypeSuggestions(type_changes=[VariableTypeChange(variable_name=var_name, new_type="int")])]
+        )
 
         with mock.patch.object(dec.codegen, "reload_variable_types") as m_reload:
             result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
@@ -406,11 +410,13 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         target_var = unified_vars[0]
         var_name = target_var.name or str(target_var)
 
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[
-                VariableTypeChange(variable_name=var_name, new_type="not_a_valid_c_type!!!")
-            ])
-        ])
+        mock_client = _make_mock_llm_client(
+            [
+                VariableTypeSuggestions(
+                    type_changes=[VariableTypeChange(variable_name=var_name, new_type="not_a_valid_c_type!!!")]
+                )
+            ]
+        )
 
         result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is False
@@ -420,11 +426,13 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         dec = self._decompile("main")
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[
-                VariableTypeChange(variable_name="nonexistent_var_xyz", new_type="int")
-            ])
-        ])
+        mock_client = _make_mock_llm_client(
+            [
+                VariableTypeSuggestions(
+                    type_changes=[VariableTypeChange(variable_name="nonexistent_var_xyz", new_type="int")]
+                )
+            ]
+        )
 
         result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
         assert result is False
@@ -458,9 +466,9 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         target_var = unified_vars[0]
         var_name = target_var.name or str(target_var)
 
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[VariableTypeChange(variable_name=var_name, new_type="char *")])
-        ])
+        mock_client = _make_mock_llm_client(
+            [VariableTypeSuggestions(type_changes=[VariableTypeChange(variable_name=var_name, new_type="char *")])]
+        )
 
         with mock.patch.object(dec.codegen, "reload_variable_types"):
             result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
@@ -482,12 +490,16 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         name_a = var_a.name or str(var_a)
         name_b = var_b.name or str(var_b)
 
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[
-                VariableTypeChange(variable_name=name_a, new_type="int"),
-                VariableTypeChange(variable_name=name_b, new_type="char *"),
-            ])
-        ])
+        mock_client = _make_mock_llm_client(
+            [
+                VariableTypeSuggestions(
+                    type_changes=[
+                        VariableTypeChange(variable_name=name_a, new_type="int"),
+                        VariableTypeChange(variable_name=name_b, new_type="char *"),
+                    ]
+                )
+            ]
+        )
 
         with mock.patch.object(dec.codegen, "reload_variable_types"):
             result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
@@ -507,12 +519,16 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         var_name = target_var.name or str(target_var)
 
         # one valid, one invalid
-        mock_client = _make_mock_llm_client([
-            VariableTypeSuggestions(type_changes=[
-                VariableTypeChange(variable_name=var_name, new_type="int"),
-                VariableTypeChange(variable_name="bogus_var", new_type="also_bogus_type@@@"),
-            ])
-        ])
+        mock_client = _make_mock_llm_client(
+            [
+                VariableTypeSuggestions(
+                    type_changes=[
+                        VariableTypeChange(variable_name=var_name, new_type="int"),
+                        VariableTypeChange(variable_name="bogus_var", new_type="also_bogus_type@@@"),
+                    ]
+                )
+            ]
+        )
 
         with mock.patch.object(dec.codegen, "reload_variable_types"):
             result = dec.llm_suggest_variable_types(llm_client=mock_client, code_text=dec.codegen.text)
@@ -619,9 +635,11 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         mock_client = mock.MagicMock(spec=LLMClient)
         mock_client.completion_structured.side_effect = [
             VariableNameSuggestions(renames=[]),  # variable names
-            VariableTypeSuggestions(type_changes=[
-                VariableTypeChange(variable_name=var_name, new_type="int"),
-            ]),  # variable types (function name is skipped for "main")
+            VariableTypeSuggestions(
+                type_changes=[
+                    VariableTypeChange(variable_name=var_name, new_type="int"),
+                ]
+            ),  # variable types (function name is skipped for "main")
         ]
 
         try:
