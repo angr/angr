@@ -843,6 +843,9 @@ class Decompiler(Analysis):
         Ask the LLM to suggest better variable names for the decompiled code.
         Returns True if any variables were renamed.
         """
+
+        from angr.llm_models import VariableNameSuggestions  # pylint:disable=import-outside-toplevel
+
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -877,8 +880,6 @@ class Decompiler(Analysis):
             f"Current variable names: {var_names}\n\n"
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
-
-        from angr.llm_models import VariableNameSuggestions
 
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions
@@ -916,6 +917,9 @@ class Decompiler(Analysis):
         Only suggests rename for auto-generated names (starting with 'sub_' or 'fcn.').
         Returns True if the function was renamed.
         """
+
+        from angr.llm_models import FunctionNameSuggestion  # pylint:disable=import-outside-toplevel
+
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -934,8 +938,6 @@ class Decompiler(Analysis):
             "function name that reflects what the function does. Use snake_case naming convention.\n\n"
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
-
-        from angr.llm_models import FunctionNameSuggestion
 
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion
@@ -960,6 +962,9 @@ class Decompiler(Analysis):
         Ask the LLM to suggest better C types for variables.
         Returns True if any variable types were changed.
         """
+
+        from angr.llm_models import VariableTypeSuggestions  # pylint:disable=import-outside-toplevel
+
         if llm_client is None:
             llm_client = self.project.llm_client
         if llm_client is None:
@@ -989,8 +994,6 @@ class Decompiler(Analysis):
             f"Current variable types: {var_type_info}\n\n"
             f"Decompiled code:\n```c\n{code_text}\n```"
         )
-
-        from angr.llm_models import VariableTypeSuggestions
 
         result = llm_client.completion_structured(
             [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions

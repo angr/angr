@@ -1,4 +1,4 @@
-# pylint:disable=no-self-use
+# pylint:disable=no-self-use,missing-class-docstring
 from __future__ import annotations
 
 __package__ = __package__ or "tests.llm"  # pylint:disable=redefined-builtin
@@ -42,13 +42,16 @@ class TestLLMClientFromEnv(unittest.TestCase):
             "ANGR_LLM_API_KEY": "test-key-123",
             "ANGR_LLM_API_BASE": "http://localhost:11434",
         }
-        with mock.patch.dict(os.environ, env, clear=True):
-            with mock.patch("angr.llm_client.OpenAIProvider"), mock.patch("angr.llm_client.OpenAIChatModel"):
-                client = LLMClient.from_env()
-                assert client is not None
-                assert client.model == "ollama/llama2"
-                assert client.api_key == "test-key-123"
-                assert client.api_base == "http://localhost:11434"
+        with (
+            mock.patch.dict(os.environ, env, clear=True),
+            mock.patch("angr.llm_client.OpenAIProvider"),
+            mock.patch("angr.llm_client.OpenAIChatModel"),
+        ):
+            client = LLMClient.from_env()
+            assert client is not None
+            assert client.model == "ollama/llama2"
+            assert client.api_key == "test-key-123"
+            assert client.api_base == "http://localhost:11434"
 
 
 class TestLLMClientCompletion(unittest.TestCase):
@@ -57,8 +60,7 @@ class TestLLMClientCompletion(unittest.TestCase):
     def _make_client(self, **kwargs):
         """Create a client with mocked Agent."""
         with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
-            client = LLMClient(model="test-model", **kwargs)
-        return client
+            return LLMClient(model="test-model", **kwargs)
 
     def test_completion_calls_agent(self):
         """completion() creates an Agent and calls run_sync."""
@@ -94,6 +96,7 @@ class TestLLMClientCompletion(unittest.TestCase):
         with mock.patch("angr.llm_client.Agent", return_value=mock_agent_instance):
             result = client.completion_structured(messages, output_type=TestOutput)
 
+        assert result is not None
         assert result == expected
         assert result.name == "test"
 

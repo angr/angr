@@ -1,3 +1,4 @@
+# pylint:disable=unused-argument
 from __future__ import annotations
 
 import json
@@ -7,14 +8,15 @@ import re
 from typing import TypeVar
 
 try:
-    from pydantic import BaseModel
     from pydantic_ai import Agent  # type: ignore
     from pydantic_ai.settings import ModelSettings  # type: ignore
     from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
     from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
 except ImportError:
-    BaseModel = None  # type: ignore
     Agent = None  # type: ignore
+    ModelSettings = None  # type: ignore
+    OpenAIChatModel = None  # type: ignore
+    OpenAIProvider = None  # type: ignore
 
 T = TypeVar("T")
 
@@ -37,7 +39,8 @@ class LLMClient:
     ):
         if Agent is None:
             raise ImportError(
-                "pydantic-ai is required for LLM support. Install it with: pip install angr[llm]  or  pip install pydantic-ai"
+                "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
+                "pip install pydantic-ai"
             )
 
         self.model = model
@@ -74,10 +77,12 @@ class LLMClient:
     def _model_settings(self) -> ModelSettings:
         return ModelSettings(temperature=self.temperature, max_tokens=self.max_tokens)
 
-    def completion(self, messages: list[dict[str, str]], **kwargs) -> str:
+    def completion(self, messages: list[dict[str, str]], **kwargs) -> str:  # pylint:disable=unused-argument
         """
         Call the LLM with the given messages and return the response text.
         """
+        assert Agent is not None
+
         prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
         agent = Agent(self._pydantic_model, output_type=str)
         result = agent.run_sync(prompt, model_settings=self._model_settings())
@@ -88,6 +93,8 @@ class LLMClient:
         Call the LLM with the given messages and return a validated Pydantic model.
         Returns None if the call fails.
         """
+        assert Agent is not None
+
         prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
         try:
             agent = Agent(self._pydantic_model, output_type=output_type)
