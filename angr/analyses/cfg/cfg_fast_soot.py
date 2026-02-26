@@ -31,6 +31,8 @@ except ImportError:
 
 
 class CFGFastSoot(CFGFast):
+    addr_type = "soot"
+
     def __init__(self, support_jni=False, **kwargs):
         if not PYSOOT_INSTALLED:
             raise ImportError("Please install PySoot before analyzing Java byte code.")

@@ -28,16 +28,24 @@ class CFGManager(KnowledgeBasePlugin):
             if self._kb is not None and self._kb._project is not None:
                 is_arm = is_arm_arch(self._kb._project.arch)
                 cache_limit = self._kb._project.get_function_cache_limit()
+                edge_cache_limit = self._kb._project.get_cfg_edge_cache_limit()
             else:
                 is_arm = False
                 cache_limit = None
-            self.cfgs[ident] = CFGModel(ident, cfg_manager=self, is_arm=is_arm, cache_limit=cache_limit)
+                edge_cache_limit = None
+            self.cfgs[ident] = CFGModel(
+                ident,
+                cfg_manager=self,
+                is_arm=is_arm,
+                cache_limit=cache_limit,
+                edge_cache_limit=edge_cache_limit,
+            )
         return self.cfgs[ident]
 
     def __setitem__(self, ident, model):
         self.cfgs[ident] = model
 
-    def new_model(self, prefix):
+    def new_model(self, prefix, addr_type: str = "int"):
         if prefix not in self.cfgs:
             return self[prefix]
 
@@ -48,7 +56,9 @@ class CFGManager(KnowledgeBasePlugin):
             if ident not in self.cfgs:
                 break
             i += 1
-        return self[ident]
+        model = self[ident]
+        model.addr_type = addr_type
+        return model
 
     def copy(self):
         cm = CFGManager(self._kb)

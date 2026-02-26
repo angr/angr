@@ -61,7 +61,7 @@ def load_shellcode(shellcode: bytes | str, arch, start_offset=0, load_address=0,
     )
 
 
-CACHE_CONFIG_KEYS = {"functions", "cfg_nodes"}
+CACHE_CONFIG_KEYS = {"functions", "cfg_nodes", "cfg_edges"}
 
 _UNSET = object()
 
@@ -910,7 +910,7 @@ class Project:
             return 5000  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache functions
-        return ((sz // 512) // 100 + 1) * 100
+        return min(((sz // 512) // 100 + 1) * 100, 5000)
 
     def get_cfg_node_cache_limit(self) -> int | None:
         """
@@ -931,10 +931,34 @@ class Project:
                 sz = None
 
         if sz is None:
-            return 10000  # sigh
+            return 5000  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG nodes
-        return ((sz // 256) // 100 + 1) * 100
+        return min(((sz // 256) // 100 + 1) * 30, 5000)
+
+    def get_cfg_edge_cache_limit(self) -> int | None:
+        """
+        Get the cache limit for CFG edge caches (adjacency data spilling).
+
+        :return: The cache limit, or None to disable the cache.
+        """
+        if "cfg_edges" in self.cache_limits:
+            return self.cache_limits["cfg_edges"]
+
+        if self.loader.main_object.cached_content is not None:
+            sz = len(self.loader.main_object.cached_content)
+        else:
+            # estimate a size using max address - min address
+            if self.loader.main_object.max_addr is not None and self.loader.main_object.min_addr is not None:
+                sz = self.loader.main_object.max_addr - self.loader.main_object.min_addr
+            else:
+                sz = None
+
+        if sz is None:
+            return 10000  # sigh
+        if sz < 256 * 1024:
+            return None  # if the binary is small, don't cache CFG edges
+        return min(((sz // 256) // 100 + 1) * 50, 800)
 
 
 from .factory import AngrObjectFactory

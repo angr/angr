@@ -27,12 +27,14 @@ if TYPE_CHECKING:
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
     from angr.rustylib import SegmentList
+    from .types import CFG_ADDR_TYPES
 
     K = TypeVar("K", int, SootMethodDescriptor)
 
     class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
         def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
+        def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
 
 else:
     from sortedcontainers import SortedList
@@ -50,10 +52,13 @@ class CFGModel(Serializable):
 
     __slots__ = (
         "__weakref__",
+        "_addr_type",
         "_blockid_to_blockkey",
         "_cache_limit",
         "_cfg_manager",
         "_db_batch_size",
+        "_edge_cache_limit",
+        "_edge_db_batch_size",
         "_iropt_level",
         "_node_addrs",
         "edges_to_repair",
@@ -72,13 +77,20 @@ class CFGModel(Serializable):
         cfg_manager=None,
         is_arm=False,
         cache_limit: int | None = None,
-        db_batch_size: int = 1000,
+        db_batch_size: int = 800,
+        edge_cache_limit: int | None = None,
+        edge_db_batch_size: int = 800,
+        addr_type: CFG_ADDR_TYPES = "int",
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
         self.is_arm = is_arm
         self._cache_limit = cache_limit
         self._db_batch_size = db_batch_size
+        self._edge_cache_limit = edge_cache_limit
+        self._edge_db_batch_size = edge_db_batch_size
+        self.graph = None  # type:ignore
+        self.addr_type = addr_type
 
         # Necessary settings
         self._iropt_level = None
@@ -94,6 +106,9 @@ class CFGModel(Serializable):
             cfg_model=self,
             cache_limit=cache_limit,
             db_batch_size=db_batch_size,
+            edge_cache_limit=edge_cache_limit,
+            edge_db_batch_size=edge_db_batch_size,
+            addr_type=self.addr_type,
         )
 
         # Jump tables
@@ -117,6 +132,18 @@ class CFGModel(Serializable):
     #
     # Properties
     #
+
+    @property
+    def addr_type(self) -> CFG_ADDR_TYPES:
+        return self._addr_type
+
+    @addr_type.setter
+    def addr_type(self, value: CFG_ADDR_TYPES) -> None:
+        if value not in ("int", "block_id", "soot"):
+            raise TypeError(f"Unsupported address type {value}. Supported types are 'int', 'block_id', and 'soot'.")
+        self._addr_type = value
+        if self.graph is not None:
+            self.graph.addr_type = value
 
     @property
     def project(self):
@@ -165,7 +192,7 @@ class CFGModel(Serializable):
 
     @classmethod
     def _get_cmsg(cls):
-        return cfg_pb2.CFG()
+        return cfg_pb2.CFG()  # type:ignore
 
     def serialize_to_cmessage(self):
         if "Emulated" in self.ident:
@@ -183,13 +210,13 @@ class CFGModel(Serializable):
         # edges
         edges = []
         for src, dst, data in self.graph.edges(data=True):
-            edge = primitives_pb2.Edge()
+            edge = primitives_pb2.Edge()  # type:ignore
             edge.src_ea = src.addr
             edge.dst_ea = dst.addr
             for k, v in data.items():
                 if k == "jumpkind":
                     jk = cfg_jumpkind_to_pb(v)
-                    edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk
+                    edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
                 elif k == "ins_addr":
                     edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
                 elif k == "stmt_idx":
@@ -266,6 +293,8 @@ class CFGModel(Serializable):
             is_arm=self.is_arm,
             cache_limit=self._cache_limit,
             db_batch_size=self._db_batch_size,
+            edge_cache_limit=self._edge_cache_limit,
+            edge_db_batch_size=self._edge_db_batch_size,
         )
         model.graph = self.graph.copy()
         model.graph._cfg_model = model

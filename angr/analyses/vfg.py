@@ -11,7 +11,8 @@ import networkx
 
 from angr.utils.graph import GraphUtils
 from angr.analyses import ForwardAnalysis
-from .cfg.cfg_job_base import BlockID, FunctionKey, CFGJobBase
+from angr.knowledge_plugins.cfg import BlockID
+from .cfg.cfg_job_base import FunctionKey, CFGJobBase
 from angr import sim_options
 from angr.engines.procedure import ProcedureEngine
 from angr.engines import SimSuccessors

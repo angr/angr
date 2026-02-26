@@ -21,6 +21,8 @@ from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
 from .cfg_node import CFGNode, CFGENode
+from .spilling_digraph import SpillingDiGraph
+from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K, CFG_ADDR_TYPES
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
@@ -28,7 +30,6 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = tuple[int, ...] | tuple[SootAddressDescriptor, int]
 
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
@@ -60,7 +61,7 @@ class SpillingCFGNodeDict:
         self._all_keys: set[K] = set()  # all_keys == _data.keys() | _spilled_keys, used for iteration
 
         self._cache_limit: int = cache_limit
-        self._db_batch_size: int = max(cache_limit - 1, db_batch_size) if cache_limit > 0 else db_batch_size
+        self._db_batch_size: int = db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
@@ -169,6 +170,7 @@ class SpillingCFGNodeDict:
         # Copy spilled data from LMDB
         if self._spilled_keys and self._nodesdb is not None and self.rtdb is not None:
             new_dict._init_lmdb()
+            assert new_dict._nodesdb is not None
             with (
                 self.rtdb.begin_txn(self._nodesdb) as src_txn,
                 self.rtdb.begin_txn(new_dict._nodesdb, write=True) as dst_txn,
@@ -304,6 +306,7 @@ class SpillingCFGNodeDict:
             return
 
         self._init_lmdb()
+        assert self._nodesdb is not None
 
         while True:
             try:
@@ -330,6 +333,8 @@ class SpillingCFGNodeDict:
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
+        assert self.rtdb is not None and self._nodesdb is not None
+
         self._loading_from_lmdb = True
 
         try:
@@ -344,11 +349,11 @@ class SpillingCFGNodeDict:
                 payload = value[1:]
 
                 if type_byte == 0x00:
-                    cmsg = cfg_pb2.CFGNode()
+                    cmsg = cfg_pb2.CFGNode()  # type:ignore
                     cmsg.ParseFromString(payload)
                     node = CFGNode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 elif type_byte == 0x01:
-                    cmsg = cfg_pb2.CFGENode()
+                    cmsg = cfg_pb2.CFGENode()  # type:ignore
                     cmsg.ParseFromString(payload)
                     node = CFGENode.parse_from_cmessage(cmsg, cfg=self._cfg_model)
                 else:
@@ -650,6 +655,12 @@ class _OutDegreeView:
         return len(self._graph._graph)
 
 
+@overload
+def get_block_key(node: CFGNode) -> CFGNODE_K | SOOTNODE_K: ...
+@overload
+def get_block_key(node: CFGENode) -> CFGENODE_K: ...  # type:ignore
+
+
 def get_block_key(node: CFGNode | CFGENode) -> K:
     """
     Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
@@ -660,13 +671,16 @@ def get_block_key(node: CFGNode | CFGENode) -> K:
     :return:        The unique identifier.
     """
 
+    if isinstance(node.addr, SootAddressDescriptor):
+        return node.addr
+
     block_id = node.block_id
     if block_id is None:
         block_id = node.addr
     block_key = block_id, node.size if node.size is not None else -1
 
     if isinstance(node, CFGENode):
-        return block_key, node.looping_times if node.looping_times is not None else 0
+        return *block_key, node.looping_times if node.looping_times is not None else 0
     return block_key
 
 
@@ -676,6 +690,9 @@ class SpillingCFG:
     underlying networkx graph.
 
     This provides a networkx-compatible interface while supporting disk-backed storage for large CFGs.
+
+    addr_type must be "int", "block_id", or "soot". You can change addr_type before the first node is inserted but not
+    after, since it affects how keys are serialized and deserialized.
     """
 
     def __init__(
@@ -683,9 +700,23 @@ class SpillingCFG:
         rtdb: RuntimeDb | None = None,
         cfg_model: CFGModel | None = None,
         cache_limit: int | None = None,
-        db_batch_size: int = 1000,
+        db_batch_size: int = 800,
+        edge_cache_limit: int | None = None,
+        edge_db_batch_size: int = 800,
+        addr_type: CFG_ADDR_TYPES = "int",
     ):
-        self._graph: networkx.DiGraph = networkx.DiGraph()
+        if USE_SPILLING_CFGNODE_DICT:
+            effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else 2**31 - 1
+        else:
+            effective_edge_cache_limit = 2**31 - 1
+
+        self._addr_type = addr_type
+        self._graph: SpillingDiGraph = SpillingDiGraph(
+            rtdb=rtdb,
+            edge_cache_limit=effective_edge_cache_limit,
+            db_batch_size=edge_db_batch_size,
+            addr_type=addr_type,
+        )
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
         self._rtdb = rtdb
 
@@ -702,6 +733,20 @@ class SpillingCFG:
         )
         self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
         self._spilling_enabled = cache_limit is not None
+        self._edge_spilling_enabled = edge_cache_limit is not None
+
+    @property
+    def addr_type(self) -> str:
+        return self._addr_type
+
+    @addr_type.setter
+    def addr_type(self, value: str) -> None:
+        if value not in ("int", "block_id", "soot"):
+            raise ValueError("addr_type must be 'int', 'block_id', or 'soot'")
+        if self._nodes.total_count > 0:
+            raise RuntimeError("Cannot change addr_type after nodes have been added")
+        self._addr_type = value
+        self._graph.addr_type = value
 
     @property
     def _cfg_model(self) -> CFGModel | None:
@@ -875,10 +920,13 @@ class SpillingCFG:
             cfg_model=self._cfg_model,
             cache_limit=self._nodes._cache_limit if self._spilling_enabled else None,
             db_batch_size=self._nodes.db_batch_size,
+            edge_cache_limit=self._graph._edge_cache_limit if self._edge_spilling_enabled else None,
+            edge_db_batch_size=self._graph._edge_db_batch_size,
         )
 
         new_graph._nodes = self._nodes.copy()
         new_graph._spilling_enabled = self._spilling_enabled
+        new_graph._edge_spilling_enabled = self._edge_spilling_enabled
         new_graph._keys_by_addr = defaultdict(set)
         for addr, keys in self._keys_by_addr.items():
             new_graph._keys_by_addr[addr] = set(keys)
@@ -976,18 +1024,21 @@ class SpillingCFG:
 
     def __getstate__(self):
         self._nodes.load_all_spilled()
+        self._graph.load_all_spilled_edges()
         nodes_state = self._nodes.__getstate__()
 
         return {
             "graph": self._graph,
             "nodes": nodes_state,
             "spilling_enabled": self._spilling_enabled,
+            "edge_spilling_enabled": self._edge_spilling_enabled,
             "db_batch_size": self._nodes.db_batch_size,
         }
 
     def __setstate__(self, state: dict):
         self._graph = state["graph"]
         self._spilling_enabled = state["spilling_enabled"]
+        self._edge_spilling_enabled = state.get("edge_spilling_enabled", False)
         self._cfg_model_ref = None
         self._rtdb = None
         self._keys_by_addr = defaultdict(set)

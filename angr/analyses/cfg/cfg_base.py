@@ -1,6 +1,6 @@
 # pylint:disable=line-too-long,multiple-statements
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, overload
+from typing import TYPE_CHECKING, Any, overload, Literal
 
 from collections.abc import Callable
 import logging
@@ -69,7 +69,8 @@ class CFGBase(Analysis):
     The base class for control flow graphs.
     """
 
-    tag: str | None = None
+    tag: str = None  # type:ignore
+    addr_type: Literal["int", "block_id", "soot"] = None  # type: ignore
     _cle_pseudo_objects = (ExternObject, KernelObject, TLSObject)
 
     def __init__(
@@ -225,7 +226,7 @@ class CFGBase(Analysis):
         if model is not None:
             self._model = model
         else:
-            self._model: CFGModel = self.kb.cfgs.new_model(self.tag)
+            self._model: CFGModel = self.kb.cfgs.new_model(self.tag, self.addr_type)
 
         # necessary warnings
         regions_not_specified = regions is None and binary is None and not objects
