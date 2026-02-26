@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import struct
 import threading
-import json
+import msgspec
 from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
 from typing import TYPE_CHECKING, Any, TypeVar, Literal
@@ -255,11 +255,11 @@ class SpillingAdjDict(MutableMapping):
                 bytes   edge_proto_bytes     (Edge protobuf)
         """
         buf = bytearray()
-        buf.extend(struct.pack(">I", len(inner_dict)))
+        buf.extend(struct.pack("<I", len(inner_dict)))
         for dst_key, edge_data in inner_dict.items():
             match self.addr_type:
                 case "int":
-                    key_bytes = json.dumps(dst_key).encode("utf-8")
+                    key_bytes = struct.pack("<Q", dst_key[0]) + struct.pack("<H", dst_key[1])
 
                 case "block_id":
                     dst_key: CFGENODE_K
@@ -273,7 +273,7 @@ class SpillingAdjDict(MutableMapping):
                                 entry.has_value = True
                                 entry.value = val
                     key_bytes = (
-                        struct.pack(">I", dst_key[1]) + struct.pack(">H", dst_key[2]) + block_id.SerializeToString()
+                        struct.pack("<I", dst_key[1]) + struct.pack("<H", dst_key[2]) + block_id.SerializeToString()
                     )
 
                 case "soot":
@@ -285,15 +285,15 @@ class SpillingAdjDict(MutableMapping):
                         "block_idx": dst_key.block_idx,
                         "stmt_idx": dst_key.stmt_idx,
                     }
-                    key_bytes = json.dumps(d).encode("utf-8")
+                    key_bytes = msgspec.json.encode(d)
 
                 case _:
                     raise TypeError(f"Unsupported addr_type {self.addr_type}")
 
             proto_bytes = SpillingAdjDict._serialize_edge_data(edge_data)
-            buf.extend(struct.pack(">H", len(key_bytes)))
+            buf.extend(struct.pack("<H", len(key_bytes)))
             buf.extend(key_bytes)
-            buf.extend(struct.pack(">I", len(proto_bytes)))
+            buf.extend(struct.pack("<I", len(proto_bytes)))
             buf.extend(proto_bytes)
 
         return bytes(buf)
@@ -301,33 +301,27 @@ class SpillingAdjDict(MutableMapping):
     def _deserialize_inner_dict(self, data: bytes) -> DirtyDict[K, dict]:
         """Deserialize bytes back to an inner adjacency dict."""
         offset = 0
-        num_entries = struct.unpack_from(">I", data, offset)[0]
+        num_entries = struct.unpack_from("<I", data, offset)[0]
         offset += 4
 
         inner_dict: DirtyDict[K, dict] = DirtyDict()
         for _ in range(num_entries):
-            key_len = struct.unpack_from(">H", data, offset)[0]
+            key_len = struct.unpack_from("<H", data, offset)[0]
             offset += 2
             key_bytes = data[offset : offset + key_len]
             offset += key_len
 
             match self.addr_type:
                 case "int":
-                    dst_key = json.loads(key_bytes.decode("utf-8"))
-                    if (
-                        not isinstance(dst_key, list)
-                        or len(dst_key) != 2
-                        or not isinstance(dst_key[0], int)
-                        or not isinstance(dst_key[1], int)
-                    ):
-                        raise TypeError(f"Invalid dst_key format for addr_type 'int': {dst_key}")
-                    dst_key = tuple(dst_key)
+                    if len(key_bytes) != 10:
+                        raise TypeError(f"Invalid key_bytes size for addr_type 'int': {len(key_bytes)}")
+                    dst_key = struct.unpack("<QH", key_bytes)
 
                 case "block_id":
                     if key_len <= 6:
                         raise ValueError(f"Invalid key length for block_id addr_type: {key_len}")
-                    size = struct.unpack_from(">I", key_bytes, 0)[0]
-                    looping_times = struct.unpack_from(">H", key_bytes, 4)[0]
+                    size = struct.unpack_from("<I", key_bytes, 0)[0]
+                    looping_times = struct.unpack_from("<H", key_bytes, 4)[0]
                     block_id = cfg_pb2.BlockIDProto()
                     block_id.ParseFromString(key_bytes[6:])
                     if block_id.HasField("callsite_tuples"):
@@ -340,14 +334,14 @@ class SpillingAdjDict(MutableMapping):
                     dst_key = (block_id_obj, size, looping_times)
 
                 case "soot":
-                    d = json.loads(key_bytes.decode("utf-8"))
+                    d = msgspec.json.decode(key_bytes)
                     method = SootMethodDescriptor(d["class_name"], d["name"], d["params"])
                     dst_key = SootAddressDescriptor(method, d["block_idx"], d["stmt_idx"])
 
                 case _:
                     raise TypeError(f"Unsupported addr_type {self.addr_type}")
 
-            proto_len = struct.unpack_from(">I", data, offset)[0]
+            proto_len = struct.unpack_from("<I", data, offset)[0]
             offset += 4
             proto_bytes = data[offset : offset + proto_len]
             offset += proto_len
