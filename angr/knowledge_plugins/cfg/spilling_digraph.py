@@ -528,7 +528,7 @@ class SpillingDiGraph(networkx.DiGraph):
         return SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
 
     @staticmethod
-    def adjlist_inner_dict_factory(self) -> DirtyDict:  # type:ignore
+    def adjlist_inner_dict_factory() -> DirtyDict:  # type:ignore
         return DirtyDict(dirty=True)
 
     @property
