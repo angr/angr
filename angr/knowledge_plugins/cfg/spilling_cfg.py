@@ -22,7 +22,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from angr.protos import cfg_pb2
 from .cfg_node import CFGNode, CFGENode
 from .spilling_digraph import SpillingDiGraph
-from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K
+from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K, CFG_ADDR_TYPES
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
@@ -699,7 +699,7 @@ class SpillingCFG:
         db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
         edge_db_batch_size: int = 800,
-        addr_type: str = "int",
+        addr_type: CFG_ADDR_TYPES = "int",
     ):
         if USE_SPILLING_CFGNODE_DICT:
             effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else 2**31 - 1

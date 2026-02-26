@@ -15,7 +15,7 @@ import threading
 import msgspec
 from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
-from typing import TYPE_CHECKING, Any, TypeVar, Literal
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import lmdb
 import networkx
@@ -23,7 +23,7 @@ from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
 from angr.protos import primitives_pb2, cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
-from .types import K, CFGENODE_K, SOOTNODE_K
+from .types import K, CFGENODE_K, SOOTNODE_K, CFG_ADDR_TYPES
 from .block_id import BlockID
 
 if TYPE_CHECKING:
@@ -70,7 +70,7 @@ class SpillingAdjDict(MutableMapping):
 
     def __init__(
         self,
-        addr_type: Literal["int", "block_id", "soot"],
+        addr_type: CFG_ADDR_TYPES,
         rtdb: RuntimeDb | None = None,
         cache_limit: int = 1000,
         db_batch_size: int = 800,
@@ -463,7 +463,8 @@ class SpillingAdjDict(MutableMapping):
 
     def copy(self) -> SpillingAdjDict:
         new_dict = SpillingAdjDict(
-            self.rtdb,
+            self.addr_type,
+            rtdb=self.rtdb,
             cache_limit=self._cache_limit,
             db_batch_size=self._db_batch_size,
         )
@@ -512,8 +513,8 @@ class SpillingDiGraph(networkx.DiGraph):
         self,
         rtdb: RuntimeDb | None = None,
         edge_cache_limit: int = 1000,
-        db_batch_size: int = 800,
-        addr_type: str = "int",
+        db_batch_size: int = 2400,
+        addr_type: CFG_ADDR_TYPES = "int",
         **attr,
     ):
         self._rtdb = rtdb
@@ -529,7 +530,7 @@ class SpillingDiGraph(networkx.DiGraph):
         return DirtyDict(dirty=True)
 
     @property
-    def addr_type(self) -> str:
+    def addr_type(self) -> CFG_ADDR_TYPES:
         return self._addr_type
 
     @addr_type.setter
