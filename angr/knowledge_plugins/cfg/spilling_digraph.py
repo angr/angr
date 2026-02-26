@@ -78,7 +78,6 @@ class SpillingAdjDict(MutableMapping):
         self.addr_type = addr_type
         self._data: dict[K, DirtyDict[K, dict]] = {}
         self._spilled_keys: set[K] = set()
-        self._all_keys: set[K] = set()  # all_keys = cached keys | spilled keys
 
         self._cache_limit: int = cache_limit
         self._db_batch_size: int = db_batch_size
@@ -120,18 +119,18 @@ class SpillingAdjDict(MutableMapping):
         if key in self._data:
             del self._data[key]
         self._spilled_keys.discard(key)
-        self._all_keys.discard(key)
         if key in self._lru_order:
             del self._lru_order[key]
 
     def __contains__(self, key: object) -> bool:
-        return key in self._all_keys
+        return key in self._data or key in self._spilled_keys
 
     def __len__(self) -> int:
-        return len(self._all_keys)
+        return len(self._data) + len(self._spilled_keys)
 
     def __iter__(self) -> Iterator[K]:
-        yield from self._all_keys
+        yield from self._data
+        yield from self._spilled_keys
 
     def get(self, key: K, default: dict[K, dict] | None = None) -> DirtyDict[K, dict] | None:  # type: ignore[override]
         try:
@@ -150,7 +149,6 @@ class SpillingAdjDict(MutableMapping):
             self._lru_order[key] = None
 
     def _on_entry_stored(self, key: K) -> None:
-        self._all_keys.add(key)
         self._touch(key)
         self._spilled_keys.discard(key)
 
@@ -448,7 +446,6 @@ class SpillingAdjDict(MutableMapping):
         self._db_batch_size = state["db_batch_size"]
         self._data = state["data"]
         self._spilled_keys = set()
-        self._all_keys = set(self._data.keys())
         self.rtdb = None
         self._lru_order = OrderedDict()
         self._edgesdb = None
@@ -470,11 +467,9 @@ class SpillingAdjDict(MutableMapping):
         )
         new_dict._eviction_enabled = False
 
-        new_dict._all_keys = set(self._all_keys)
-
         # Copy in-memory entries
         for key, inner_dict in self._data.items():
-            new_dict._data[key] = {k: dict(v) for k, v in inner_dict.items()}
+            new_dict._data[key] = DirtyDict({k: dict(v) for k, v in inner_dict.items()}, dirty=True)
             new_dict._lru_order[key] = None
 
         # Copy spilled data from LMDB
