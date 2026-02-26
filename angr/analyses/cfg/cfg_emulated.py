@@ -40,14 +40,14 @@ from angr.errors import (
 from angr.sim_state import SimState
 from angr.state_plugins.callstack import CallStack
 from angr.state_plugins.sim_action import SimActionData
-from angr.knowledge_plugins.cfg import CFGENode, IndirectJump
+from angr.knowledge_plugins.cfg import CFGENode, IndirectJump, BlockID
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.analyses.cdg import CDG
 from angr.analyses.ddg import DDG
 from angr.analyses.backward_slice import BackwardSlice
 from angr.analyses.loopfinder import LoopFinder, Loop
 from .cfg_base import CFGBase
-from .cfg_job_base import BlockID, CFGJobBase
+from .cfg_job_base import CFGJobBase
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGNode
@@ -165,6 +165,7 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
     """
 
     tag = "CFGEmulated"
+    addr_type = "block_id"
 
     def __init__(
         self,

@@ -583,6 +583,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
     }
 
     tag = "CFGFast"
+    addr_type = "int"
 
     def __init__(
         self,

@@ -50,6 +50,7 @@ class CFGModel(Serializable):
 
     __slots__ = (
         "__weakref__",
+        "_addr_type",
         "_blockid_to_blockkey",
         "_cache_limit",
         "_cfg_manager",
@@ -74,9 +75,10 @@ class CFGModel(Serializable):
         cfg_manager=None,
         is_arm=False,
         cache_limit: int | None = None,
-        db_batch_size: int = 1000,
+        db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
-        edge_db_batch_size: int = 200,
+        edge_db_batch_size: int = 800,
+        addr_type: str = "int",
     ):
         self.ident = ident
         self._cfg_manager = cfg_manager
@@ -85,6 +87,8 @@ class CFGModel(Serializable):
         self._db_batch_size = db_batch_size
         self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = edge_db_batch_size
+        self.graph = None
+        self.addr_type = addr_type
 
         # Necessary settings
         self._iropt_level = None
@@ -102,6 +106,7 @@ class CFGModel(Serializable):
             db_batch_size=db_batch_size,
             edge_cache_limit=edge_cache_limit,
             edge_db_batch_size=edge_db_batch_size,
+            addr_type=self.addr_type,
         )
 
         # Jump tables
@@ -125,6 +130,18 @@ class CFGModel(Serializable):
     #
     # Properties
     #
+
+    @property
+    def addr_type(self) -> str:
+        return self._addr_type
+
+    @addr_type.setter
+    def addr_type(self, value: str) -> None:
+        if value not in ("int", "block_id", "soot"):
+            raise TypeError(f"Unsupported address type {value}. Supported types are 'int', 'block_id', and 'soot'.")
+        self._addr_type = value
+        if self.graph is not None:
+            self.graph.addr_type = value
 
     @property
     def project(self):

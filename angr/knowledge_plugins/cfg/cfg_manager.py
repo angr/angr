@@ -45,7 +45,7 @@ class CFGManager(KnowledgeBasePlugin):
     def __setitem__(self, ident, model):
         self.cfgs[ident] = model
 
-    def new_model(self, prefix):
+    def new_model(self, prefix, addr_type: str = "int"):
         if prefix not in self.cfgs:
             return self[prefix]
 
@@ -56,7 +56,9 @@ class CFGManager(KnowledgeBasePlugin):
             if ident not in self.cfgs:
                 break
             i += 1
-        return self[ident]
+        model = self[ident]
+        model.addr_type = addr_type
+        return model
 
     def copy(self):
         cm = CFGManager(self._kb)

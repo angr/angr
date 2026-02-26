@@ -235,7 +235,7 @@ class SpillingFunctionDict(UserDict[K, Function], FunctionDictBase[K]):
             maxsize=cache_limit, evict=self._meta_func_cache_evicted
         )
         self._funcsdb: str | None = None
-        self._db_batch_size: int = max(cache_limit - 1, db_batch_size)
+        self._db_batch_size: int = db_batch_size
         self._eviction_enabled: bool = True
         self._loading_from_lmdb: bool = False
         self._db_load_lock = threading.Lock()

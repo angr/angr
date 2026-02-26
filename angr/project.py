@@ -910,7 +910,7 @@ class Project:
             return 5000  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache functions
-        return ((sz // 512) // 100 + 1) * 100
+        return min(((sz // 512) // 100 + 1) * 100, 5000)
 
     def get_cfg_node_cache_limit(self) -> int | None:
         """
@@ -931,10 +931,10 @@ class Project:
                 sz = None
 
         if sz is None:
-            return 10000  # sigh
+            return 5000  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG nodes
-        return ((sz // 256) // 100 + 1) * 100
+        return min(((sz // 256) // 100 + 1) * 30, 5000)
 
     def get_cfg_edge_cache_limit(self) -> int | None:
         """
@@ -958,7 +958,7 @@ class Project:
             return 10000  # sigh
         if sz < 256 * 1024:
             return None  # if the binary is small, don't cache CFG edges
-        return ((sz // 256) // 100 + 1) * 100
+        return min(((sz // 256) // 100 + 1) * 50, 800)
 
 
 from .factory import AngrObjectFactory

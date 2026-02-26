@@ -11,10 +11,10 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.serializable import Serializable
 from angr.protos import cfg_pb2
+from .block_id import BlockID
 
 if TYPE_CHECKING:
     from angr.block import Block, SootBlock
-    from angr.analyses.cfg.cfg_job_base import BlockID
     from .cfg_model import CFGModel
 
 _l = logging.getLogger(__name__)
@@ -667,10 +667,11 @@ class CFGENode(CFGNode):
         # Parse block_id
         block_id = None
         if cmsg.HasField("block_id_obj"):
-            from angr.analyses.cfg.cfg_job_base import BlockID  # pylint:disable=import-outside-toplevel
-
             bid = cmsg.block_id_obj
-            callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
+            if bid.HasField("callsite_tuples"):
+                callsite_tuples = tuple(entry.value if entry.has_value else None for entry in bid.callsite_tuples)
+            else:
+                callsite_tuples = None
             block_id = BlockID(bid.addr, callsite_tuples, bid.jump_type)
         elif len(base.block_id) > 0:
             block_id = base.block_id[0]

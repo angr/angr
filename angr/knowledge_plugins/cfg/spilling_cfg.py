@@ -22,6 +22,7 @@ from archinfo.arch_soot import SootAddressDescriptor
 from angr.protos import cfg_pb2
 from .cfg_node import CFGNode, CFGENode
 from .spilling_digraph import SpillingDiGraph
+from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
@@ -29,7 +30,6 @@ if TYPE_CHECKING:
 
 l = logging.getLogger(name=__name__)
 
-K = tuple[int, ...] | tuple[SootAddressDescriptor, int]
 
 # a global flag to disable SpillingFunctionDict usage; mainly for testing purposes
 USE_SPILLING_CFGNODE_DICT = os.environ.get("USE_SPILLING_CFGNODE_DICT", "True").lower() not in ("0", "false", "no")
@@ -61,7 +61,7 @@ class SpillingCFGNodeDict:
         self._all_keys: set[K] = set()  # all_keys == _data.keys() | _spilled_keys, used for iteration
 
         self._cache_limit: int = cache_limit
-        self._db_batch_size: int = max(cache_limit - 1, db_batch_size) if cache_limit > 0 else db_batch_size
+        self._db_batch_size: int = db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
@@ -651,6 +651,12 @@ class _OutDegreeView:
         return len(self._graph._graph)
 
 
+@overload
+def get_block_key(node: CFGNode) -> CFGNODE_K | SOOTNODE_K: ...
+@overload
+def get_block_key(node: CFGENode) -> CFGENODE_K: ...
+
+
 def get_block_key(node: CFGNode | CFGENode) -> K:
     """
     Get the unique identifier for a CFGNode. Typically this unique identifier contains the address of the block and
@@ -661,13 +667,16 @@ def get_block_key(node: CFGNode | CFGENode) -> K:
     :return:        The unique identifier.
     """
 
+    if isinstance(node.addr, SootAddressDescriptor):
+        return node.addr
+
     block_id = node.block_id
     if block_id is None:
         block_id = node.addr
     block_key = block_id, node.size if node.size is not None else -1
 
     if isinstance(node, CFGENode):
-        return block_key, node.looping_times if node.looping_times is not None else 0
+        return *block_key, node.looping_times if node.looping_times is not None else 0
     return block_key
 
 
@@ -677,6 +686,9 @@ class SpillingCFG:
     underlying networkx graph.
 
     This provides a networkx-compatible interface while supporting disk-backed storage for large CFGs.
+
+    addr_type must be "int", "block_id", or "soot". You can change addr_type before the first node is inserted but not
+    after, since it affects how keys are serialized and deserialized.
     """
 
     def __init__(
@@ -684,19 +696,22 @@ class SpillingCFG:
         rtdb: RuntimeDb | None = None,
         cfg_model: CFGModel | None = None,
         cache_limit: int | None = None,
-        db_batch_size: int = 1000,
+        db_batch_size: int = 800,
         edge_cache_limit: int | None = None,
-        edge_db_batch_size: int = 200,
+        edge_db_batch_size: int = 800,
+        addr_type: str = "int",
     ):
         if USE_SPILLING_CFGNODE_DICT:
             effective_edge_cache_limit = edge_cache_limit if edge_cache_limit is not None else 2**31 - 1
         else:
             effective_edge_cache_limit = 2**31 - 1
 
+        self._addr_type = addr_type
         self._graph: SpillingDiGraph = SpillingDiGraph(
             rtdb=rtdb,
-            cache_limit=effective_edge_cache_limit,
+            edge_cache_limit=effective_edge_cache_limit,
             db_batch_size=edge_db_batch_size,
+            addr_type=addr_type,
         )
         self._cfg_model_ref: weakref.ref[CFGModel] | None = weakref.ref(cfg_model) if cfg_model is not None else None
         self._rtdb = rtdb
@@ -715,6 +730,19 @@ class SpillingCFG:
         self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
         self._spilling_enabled = cache_limit is not None
         self._edge_spilling_enabled = edge_cache_limit is not None
+
+    @property
+    def addr_type(self) -> str:
+        return self._addr_type
+
+    @addr_type.setter
+    def addr_type(self, value: str) -> None:
+        if value not in ("int", "block_id", "soot"):
+            raise ValueError("addr_type must be 'int', 'block_id', or 'soot'")
+        if self._nodes.total_count > 0:
+            raise RuntimeError("Cannot change addr_type after nodes have been added")
+        self._addr_type = value
+        self._graph.addr_type = value
 
     @property
     def _cfg_model(self) -> CFGModel | None:

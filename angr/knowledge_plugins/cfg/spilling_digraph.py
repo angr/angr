@@ -9,55 +9,79 @@ Edge attributes are serialized using the Edge protobuf message from primitives.p
 
 from __future__ import annotations
 
-import ast
 import logging
 import struct
 import threading
-from collections import OrderedDict
+import json
+from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeVar, Literal
 
 import lmdb
 import networkx
+from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
-from angr.protos import primitives_pb2
+from angr.protos import primitives_pb2, cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
+from .types import K, CFGENODE_K, SOOTNODE_K
+from .block_id import BlockID
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.rtdb.rtdb import RuntimeDb
 
 l = logging.getLogger(__name__)
 
-# Type alias for block keys used as graph node identifiers
-K = Any
+DK = TypeVar("DK")
+DV = TypeVar("DV")
+
+
+class DirtyDict(UserDict[DK, DV]):
+    """
+    A simple dict subclass that tracks whether it has been modified since creation or last reset.
+
+    This is used for edge attribute dicts to know when they need to be re-serialized and saved to LMDB.
+    """
+
+    def __init__(self, *args, dirty: bool = False, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dirty = dirty
+
+    def __setitem__(self, key: Any, value: Any) -> None:
+        super().__setitem__(key, value)
+        self.dirty = True
+
+    def __delitem__(self, key: Any) -> None:
+        super().__delitem__(key)
+        self.dirty = True
 
 
 class SpillingAdjDict(MutableMapping):
     """
     A dict-like container for adjacency data with LRU caching and LMDB spilling.
 
-    Keys are node keys (block_key tuples), values are inner adjacency dicts
-    (mapping neighbor_key -> edge_attr_dict).
+    Keys are node keys (block_key tuples), values are inner adjacency dicts (mapping neighbor_key -> edge_attr_dict).
 
-    When the number of cached entries exceeds ``cache_limit + db_batch_size``,
-    the ``db_batch_size`` least recently used entries are evicted to LMDB.
+    When the number of cached entries exceeds ``cache_limit + db_batch_size``, the ``db_batch_size`` least recently
+    used entries are evicted to LMDB.
 
-    Edge attributes within each inner dict are serialized/deserialized using
-    the ``Edge`` protobuf message from ``primitives.proto``.
+    Edge attributes within each inner dict are serialized/deserialized using the ``Edge`` protobuf message from
+    ``primitives.proto``.
     """
 
     def __init__(
         self,
+        addr_type: Literal["int", "block_id", "soot"],
         rtdb: RuntimeDb | None = None,
         cache_limit: int = 1000,
-        db_batch_size: int = 200,
+        db_batch_size: int = 800,
     ):
-        self._data: dict[K, dict[K, dict]] = {}
+        self.addr_type = addr_type
+        self._data: dict[K, DirtyDict[K, dict]] = {}
         self._spilled_keys: set[K] = set()
-        self._all_keys: set[K] = set()
+        self._all_keys: set[K] = set()  # all_keys = cached keys | spilled keys
 
         self._cache_limit: int = cache_limit
-        self._db_batch_size: int = max(cache_limit - 1, db_batch_size) if cache_limit > 0 else db_batch_size
+        self._db_batch_size: int = db_batch_size
 
         self.rtdb: RuntimeDb | None = rtdb
 
@@ -76,7 +100,7 @@ class SpillingAdjDict(MutableMapping):
     #  MutableMapping interface
     #
 
-    def __getitem__(self, key: K) -> dict[K, dict]:
+    def __getitem__(self, key: K) -> DirtyDict[K, dict]:
         if key in self._data:
             self._touch(key)
             return self._data[key]
@@ -88,7 +112,7 @@ class SpillingAdjDict(MutableMapping):
 
         raise KeyError(key)
 
-    def __setitem__(self, key: K, value: dict[K, dict]) -> None:
+    def __setitem__(self, key: K, value: DirtyDict[K, dict]) -> None:
         self._data[key] = value
         self._on_entry_stored(key)
 
@@ -109,7 +133,7 @@ class SpillingAdjDict(MutableMapping):
     def __iter__(self) -> Iterator[K]:
         yield from self._all_keys
 
-    def get(self, key: K, default: dict[K, dict] | None = None) -> dict[K, dict] | None:  # type: ignore[override]
+    def get(self, key: K, default: dict[K, dict] | None = None) -> DirtyDict[K, dict] | None:  # type: ignore[override]
         try:
             return self[key]
         except KeyError:
@@ -153,7 +177,7 @@ class SpillingAdjDict(MutableMapping):
             return 0
 
         evicted = 0
-        entries_to_save: list[tuple[K, dict[K, dict]]] = []
+        entries_to_save: list[tuple[K, DirtyDict[K, dict]]] = []
 
         for lru_key in list(self._lru_order):
             if evicted >= n:
@@ -164,7 +188,8 @@ class SpillingAdjDict(MutableMapping):
                 continue
 
             inner_dict = self._data[lru_key]
-            entries_to_save.append((lru_key, inner_dict))
+            if inner_dict.dirty:
+                entries_to_save.append((lru_key, inner_dict))
 
             del self._data[lru_key]
             del self._lru_order[lru_key]
@@ -217,8 +242,7 @@ class SpillingAdjDict(MutableMapping):
             "stmt_idx": edge.stmt_idx if edge.stmt_idx != -1 else None,
         }
 
-    @staticmethod
-    def _serialize_inner_dict(inner_dict: dict[K, dict]) -> bytes:
+    def _serialize_inner_dict(self, inner_dict: DirtyDict[K, dict]) -> bytes:
         """Serialize an inner adjacency dict to bytes.
 
         Format::
@@ -233,34 +257,101 @@ class SpillingAdjDict(MutableMapping):
         buf = bytearray()
         buf.extend(struct.pack(">I", len(inner_dict)))
         for dst_key, edge_data in inner_dict.items():
-            key_bytes = repr(dst_key).encode("utf-8")
+            match self.addr_type:
+                case "int":
+                    key_bytes = json.dumps(dst_key).encode("utf-8")
+
+                case "block_id":
+                    dst_key: CFGENODE_K
+                    block_id = cfg_pb2.BlockIDProto()
+                    block_id.addr = dst_key[0].addr
+                    block_id.jump_type = dst_key[0].jump_type
+                    if dst_key[0].callsite_tuples is not None:
+                        for val in dst_key[0].callsite_tuples:
+                            entry = block_id.callsite_tuples.add()
+                            if val is not None:
+                                entry.has_value = True
+                                entry.value = val
+                    key_bytes = (
+                        struct.pack(">I", dst_key[1]) + struct.pack(">H", dst_key[2]) + block_id.SerializeToString()
+                    )
+
+                case "soot":
+                    dst_key: SOOTNODE_K
+                    d = {
+                        "class_name": dst_key.method.class_name,
+                        "name": dst_key.method.name,
+                        "params": dst_key.method.params,
+                        "block_idx": dst_key.block_idx,
+                        "stmt_idx": dst_key.stmt_idx,
+                    }
+                    key_bytes = json.dumps(d).encode("utf-8")
+
+                case _:
+                    raise TypeError(f"Unsupported addr_type {self.addr_type}")
+
             proto_bytes = SpillingAdjDict._serialize_edge_data(edge_data)
-            buf.extend(struct.pack(">I", len(key_bytes)))
+            buf.extend(struct.pack(">H", len(key_bytes)))
             buf.extend(key_bytes)
             buf.extend(struct.pack(">I", len(proto_bytes)))
             buf.extend(proto_bytes)
+
         return bytes(buf)
 
-    @staticmethod
-    def _deserialize_inner_dict(data: bytes) -> dict[K, dict]:
+    def _deserialize_inner_dict(self, data: bytes) -> DirtyDict[K, dict]:
         """Deserialize bytes back to an inner adjacency dict."""
         offset = 0
-        (num_entries,) = struct.unpack_from(">I", data, offset)
+        num_entries = struct.unpack_from(">I", data, offset)[0]
         offset += 4
 
-        inner_dict: dict[K, dict] = {}
+        inner_dict: DirtyDict[K, dict] = DirtyDict()
         for _ in range(num_entries):
-            (key_len,) = struct.unpack_from(">I", data, offset)
-            offset += 4
-            key_str = data[offset : offset + key_len].decode("utf-8")
+            key_len = struct.unpack_from(">H", data, offset)[0]
+            offset += 2
+            key_bytes = data[offset : offset + key_len]
             offset += key_len
 
-            (proto_len,) = struct.unpack_from(">I", data, offset)
+            match self.addr_type:
+                case "int":
+                    dst_key = json.loads(key_bytes.decode("utf-8"))
+                    if (
+                        not isinstance(dst_key, list)
+                        or len(dst_key) != 2
+                        or not isinstance(dst_key[0], int)
+                        or not isinstance(dst_key[1], int)
+                    ):
+                        raise TypeError(f"Invalid dst_key format for addr_type 'int': {dst_key}")
+                    dst_key = tuple(dst_key)
+
+                case "block_id":
+                    if key_len <= 6:
+                        raise ValueError(f"Invalid key length for block_id addr_type: {key_len}")
+                    size = struct.unpack_from(">I", key_bytes, 0)[0]
+                    looping_times = struct.unpack_from(">H", key_bytes, 4)[0]
+                    block_id = cfg_pb2.BlockIDProto()
+                    block_id.ParseFromString(key_bytes[6:])
+                    if block_id.HasField("callsite_tuples"):
+                        callsite_tuples = tuple(
+                            entry.value if entry.has_value else None for entry in block_id.callsite_tuples
+                        )
+                    else:
+                        callsite_tuples = None
+                    block_id_obj = BlockID(block_id.addr, callsite_tuples, block_id.jump_type)
+                    dst_key = (block_id_obj, size, looping_times)
+
+                case "soot":
+                    d = json.loads(key_bytes.decode("utf-8"))
+                    method = SootMethodDescriptor(d["class_name"], d["name"], d["params"])
+                    dst_key = SootAddressDescriptor(method, d["block_idx"], d["stmt_idx"])
+
+                case _:
+                    raise TypeError(f"Unsupported addr_type {self.addr_type}")
+
+            proto_len = struct.unpack_from(">I", data, offset)[0]
             offset += 4
             proto_bytes = data[offset : offset + proto_len]
             offset += proto_len
 
-            dst_key = ast.literal_eval(key_str)
             edge_data = SpillingAdjDict._deserialize_edge_data(proto_bytes)
             inner_dict[dst_key] = edge_data
 
@@ -270,7 +361,7 @@ class SpillingAdjDict(MutableMapping):
     #  LMDB save / load
     #
 
-    def _save_to_lmdb(self, entries: list[tuple[K, dict[K, dict]]]) -> None:
+    def _save_to_lmdb(self, entries: list[tuple[K, DirtyDict[K, dict]]]) -> None:
         if self.rtdb is None:
             return
 
@@ -287,14 +378,14 @@ class SpillingAdjDict(MutableMapping):
             except lmdb.MapFullError:
                 self.rtdb.increase_lmdb_map_size()
 
-    def _load_from_lmdb(self, key: K) -> dict[K, dict] | None:
+    def _load_from_lmdb(self, key: K) -> DirtyDict[K, dict] | None:
         if self._edgesdb is None or self.rtdb is None:
             return None
 
         with self._db_load_lock:
             return self._load_from_lmdb_core(key)
 
-    def _load_from_lmdb_core(self, key: K) -> dict[K, dict] | None:
+    def _load_from_lmdb_core(self, key: K) -> DirtyDict[K, dict] | None:
         if self._loading_from_lmdb:
             raise RuntimeError("Recursive loading from LMDB detected. This is a bug.")
 
@@ -411,43 +502,48 @@ class SpillingAdjDict(MutableMapping):
 
 class SpillingDiGraph(networkx.DiGraph):
     """
-    A networkx DiGraph subclass whose ``adjlist_outer_dict_factory`` produces
-    :class:`SpillingAdjDict` instances, enabling LRU-based LMDB spilling of
-    adjacency data (edges and their attributes).
+    A networkx DiGraph subclass whose ``adjlist_outer_dict_factory`` produces :class:`SpillingAdjDict` instances,
+    enabling LRU-based LMDB spilling of adjacency data (edges and their attributes).
 
     :param rtdb:            RuntimeDb used for LMDB access.
-    :param cache_limit:     Maximum adjacency entries to keep in memory per
+    :param edge_cache_limit:     Maximum adjacency entries to keep in memory per
                             outer dict (``_adj`` and ``_pred`` each).
     :param db_batch_size:   Number of entries evicted in a single batch.
     """
 
+    _adj: SpillingAdjDict
+    _pred: SpillingAdjDict
+
     def __init__(
         self,
         rtdb: RuntimeDb | None = None,
-        cache_limit: int = 1000,
-        db_batch_size: int = 200,
+        edge_cache_limit: int = 1000,
+        db_batch_size: int = 800,
+        addr_type: str = "int",
         **attr,
     ):
         self._rtdb = rtdb
-        self._edge_cache_limit = cache_limit
+        self._edge_cache_limit = edge_cache_limit
         self._edge_db_batch_size = db_batch_size
+        self._addr_type = addr_type
         super().__init__(**attr)
 
-    #
-    #  Override adjlist_outer_dict_factory
-    #
+    def adjlist_outer_dict_factory(self) -> SpillingAdjDict:
+        return SpillingAdjDict(self.addr_type, self._rtdb, self._edge_cache_limit, self._edge_db_batch_size)
+
+    def adjlist_inner_dict_factory(self) -> DirtyDict:
+        return DirtyDict(dirty=True)
 
     @property
-    def adjlist_outer_dict_factory(self):  # type: ignore[override]
-        """Return a factory callable that creates :class:`SpillingAdjDict` instances."""
-        rtdb = getattr(self, "_rtdb", None)
-        cache_limit = getattr(self, "_edge_cache_limit", 1000)
-        db_batch_size = getattr(self, "_edge_db_batch_size", 200)
+    def addr_type(self) -> str:
+        return self._addr_type
 
-        def _factory() -> SpillingAdjDict:
-            return SpillingAdjDict(rtdb, cache_limit, db_batch_size)
-
-        return _factory
+    @addr_type.setter
+    def addr_type(self, value: str) -> None:
+        # you shouldn't change addr_type once the first adjlist_outer_dict has been created.
+        if value not in ("int", "block_id", "soot"):
+            raise ValueError(f"Invalid addr_type {value}, must be 'int', 'block_id', or 'soot'")
+        self._addr_type = value
 
     #
     #  Spilling helpers
@@ -455,17 +551,13 @@ class SpillingDiGraph(networkx.DiGraph):
 
     def load_all_spilled_edges(self) -> None:
         """Load all spilled adjacency entries back into memory."""
-        if isinstance(self._adj, SpillingAdjDict):
-            self._adj.load_all_spilled()
-        if isinstance(self._pred, SpillingAdjDict):
-            self._pred.load_all_spilled()
+        self._adj.load_all_spilled()
+        self._pred.load_all_spilled()
 
     def evict_all_cached_edges(self) -> None:
         """Evict all cached adjacency entries to LMDB."""
-        if isinstance(self._adj, SpillingAdjDict):
-            self._adj.evict_all_cached()
-        if isinstance(self._pred, SpillingAdjDict):
-            self._pred.evict_all_cached()
+        self._adj.evict_all_cached()
+        self._pred.evict_all_cached()
 
     #
     #  Pickling
