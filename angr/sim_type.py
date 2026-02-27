@@ -226,10 +226,10 @@ class SimType:
                 typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.EnumerationType):
                 label = encode_namespace(cle_typ.namespace, cle_typ.name)
-                enum_cases = []
+                members = dict()
                 for e in cle_typ.enumerator_values:
-                    enum_cases.append(SimEnumerationCase(e.const_value, e.name))
-                typ: SimType = SimEnumeration(None, enum_cases, label=label, arch=arch)
+                    members[e.name] = e.const_value
+                typ: SimType = SimTypeEnum(members, None, label=label, arch=arch)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
             elif isinstance(cle_typ, variable_type.VariantType):
@@ -293,8 +293,8 @@ class SimType:
                 typ: SimTypeArray = mapping[cle_typ]
                 typ.elem_type = resolve(cle_typ.element_type)
             elif isinstance(cle_typ, variable_type.EnumerationType):
-                typ: SimEnumeration = mapping[cle_typ]
-                typ.underlying_type = resolve(cle_typ.type)
+                typ: SimTypeEnum = mapping[cle_typ]
+                typ.elem_type = resolve(cle_typ.type)
             elif isinstance(cle_typ, variable_type.SubroutineType):
                 typ: SimTypeFunction = mapping[cle_typ]
                 typ.args = tuple(resolve(param.type) for param in cle_typ.parameters)
@@ -960,152 +960,6 @@ class SimTypeWideChar(SimTypeReg):
 
     def copy(self):
         return self.__class__(signed=self.signed, label=self.label, endness=self.endness, qualifier=self.qualifier)
-
-class SimEnumerationCase:
-    def __init__(self, value: int, name: str):
-        """
-        :param value: The concrete value associated with this particular enum case
-        :param name: The name of this particular variant case
-        """
-        self.value = value
-        self.name = name
-
-    def __repr__(self):
-        return f"SimEnumerationCase(value={self.value}, name={self.name})"
-
-    def __str__(self):
-        return self.__repr__()
-
-    def __eq__(self, other):
-        if isinstance(other, SimEnumerationCase):
-            return self.value == other.value
-        return False
-
-class SimEnumerationCaseValue:
-    def __init__(self, enum_case: SimEnumerationCase, constraint: claripy.ast.Bool):
-        """
-        :param enum_case:       A SimEnumerationCase instance describing this particular case
-        :param constraint:  A boolean claripy constraint that must be true in order for this enum case to be\
-        valid.
-        """
-        self.enum_case = enum_case
-        self.constraint = constraint
-
-    def __repr__(self):
-        return f"SimEnumerationCaseValue(name={self.name}, constraint={self.constraint})"
-
-    def __str__(self):
-        return self.__repr__()
-
-    @property
-    def value(self):
-        return self.enum_case.value
-
-    @property
-    def name(self):
-        return self.enum_case.name
-
-    def copy(self):
-        return SimEnumerationCaseValue(self.enum_case, self.constraint)
-
-class SimEnumeration(SimTypeReg):
-    _base_name = "enum"
-    _ident = "enum"
-
-    def __init__(self, underlying_type, cases: list[SimEnumerationCase], label=None, arch=None):
-        """
-        :param label: the type label.
-        """
-        SimTypeReg.__init__(self, None, label=label, arch=arch)
-        self.underlying_type = underlying_type
-        self.cases = cases
-        self.case_lookup = {c.value: c for c in cases}
-        self.case_lookup_by_name = {c.name: c for c in cases}
-
-    def __repr__(self):
-        return f"enum {self.label}"
-
-    def store(self, state, addr, value: StoreType | SimEnumerationCaseValue | str):
-        if isinstance(value, str):
-            if value in self.case_lookup_by_name:
-                data = self.case_lookup_by_name[value].value
-            else:
-                raise KeyError(f"Unable to find enumerator case named {value}")
-        elif isinstance(value, SimEnumerationCaseValue):
-            data = value.value
-        else:
-            data = value
-        self.underlying_type.store(state, addr, data)
-
-    @overload
-    def extract(self, state, addr, concrete: Literal[False] = ...) -> SimEnumerationValue:
-        ...
-
-    @overload
-    def extract(self, state, addr, concrete: Literal[True]) -> SimEnumerationCaseValue:
-        ...
-
-    def extract(self, state, addr, concrete=False) -> Any:
-        out = self.underlying_type.extract(state, addr, concrete=concrete)
-        if concrete:
-            if out in self.case_lookup:
-                return SimEnumerationCaseValue(self.case_lookup[out], claripy.ast.bool.true())
-            else:
-                return SimEnumerationCaseValue(SimEnumerationCase(out, "<unknown>"), claripy.ast.bool.true())
-        else:
-            case_values = []
-            for c in self.cases:
-                constraint = (c.value == out)
-                case_values.append(SimEnumerationCaseValue(c, constraint))
-            return SimEnumerationValue(out, case_values, self)
-
-    def _init_str(self):
-        return "{}({})".format(
-            self.__class__.__name__,
-            (f'label="{self.label}"') if self.label is not None else "",
-        )
-
-    @property
-    def size(self) -> int | None:
-        return self.underlying_type.size
-
-    def copy(self):
-        return self.__class__(self.underlying_type, list(self.cases), label=self.label)
-
-class SimEnumerationValue:
-    """
-    The value of an enumeration, which can be multiple values simultaneously - if for instance the underlying value is symbolic
-    """
-
-    def __init__(self, value: claripy.ast.Bits, cases: list[SimEnumerationCaseValue], enumeration: SimEnumeration):
-        """
-        :param value:        The underlying value of this enumeration. May be a mixture of symbolic and concrete data.
-        :param cases:        The possible cases that this variant could be.
-        :param enumeration:  A SimEnumeration instance describing the type of this enumeration
-        """
-        self.value = value
-        self.cases = cases
-        self.enumeration = enumeration
-
-    def __repr__(self):
-        return f"SimEnumerationValue(value={self.value}, cases={self.cases})"
-
-    def __getattr__(self, item: str):
-        return self[item]
-
-    def __getitem__(self, item: str | int):
-        if isinstance(item, int):
-            for v in self.cases:
-                if v.value == item:
-                    return v
-        elif isinstance(item, str):
-            for v in self.cases:
-                if v.name == item:
-                    return v
-        raise KeyError(f"Unknown enum case {item}")
-
-    def copy(self):
-        return SimEnumerationValue(self.value, self.cases, self.enumeration)
 
 class SimTypeBool(SimTypeReg):
     _args = ("signed", "label", "qualifier")
@@ -2842,8 +2696,10 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         base_type: SimType | None = None,
         name: str | None = None,
         qualifier: Iterable[str] | None = None,
+        label=None,
+        arch=None
     ):
-        super().__init__(name=name if name is not None else "<anon>")
+        super().__init__(name=name if name is not None else "<anon>", label=label, arch=arch)
         self.members: dict[str, int] = dict(members)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}
@@ -3399,6 +3255,7 @@ IDENT_TO_CLS: dict[str, type[SimType]] = {}
 _queue = [SimType]
 while _queue:
     _cls = _queue.pop()
+    print(_cls, _cls._ident)
     assert _cls._ident not in IDENT_TO_CLS
     IDENT_TO_CLS[_cls._ident] = _cls
     _queue.extend(_cls.__subclasses__())
