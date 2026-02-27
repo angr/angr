@@ -3255,7 +3255,6 @@ IDENT_TO_CLS: dict[str, type[SimType]] = {}
 _queue = [SimType]
 while _queue:
     _cls = _queue.pop()
-    print(_cls, _cls._ident)
     assert _cls._ident not in IDENT_TO_CLS
     IDENT_TO_CLS[_cls._ident] = _cls
     _queue.extend(_cls.__subclasses__())
