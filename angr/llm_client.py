@@ -67,8 +67,8 @@ class LLMClient:
 
         return infer_model(
             self.model,
-            provider_factory=self.infer_provider,
-        )  # type:ignore  # pylint:disable=unexpected-keyword-arg
+            provider_factory=self.infer_provider,  # type:ignore
+        )  # pylint:disable=unexpected-keyword-arg
 
     @classmethod
     def from_env(cls) -> LLMClient | None:
