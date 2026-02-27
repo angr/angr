@@ -16,6 +16,10 @@ T = TypeVar("T")
 
 l = logging.getLogger(name=__name__)
 
+Agent = None
+OpenAIChatModel = None
+OpenAIProvider = None
+
 
 class LLMClient:
     """
@@ -36,7 +40,7 @@ class LLMClient:
         self.api_base = api_base
         self.max_tokens = max_tokens
         self.temperature = temperature
-        self._pydantic_model: Model = self._build_model()
+        self._pydantic_model: Model | str = self._build_model()
 
     def infer_provider(self, provider: str) -> Provider[Any]:
         """Infer the provider from the provider name."""
@@ -54,19 +58,26 @@ class LLMClient:
         provider_class = infer_provider_class(provider)
         return provider_class(api_key=self.api_key)  # type: ignore
 
-    def _build_model(self):
+    def _build_model(self) -> Model | str:
         """Build a pydantic-ai model object from the configured settings."""
         if self.api_base:
-            from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
-            from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
+            global OpenAIChatModel, OpenAIProvider
+
+            if OpenAIChatModel is None or OpenAIProvider is None:
+                from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
+                from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
 
             provider = OpenAIProvider(base_url=self.api_base, api_key=self.api_key or "no-key")
             return OpenAIChatModel(self.model, provider=provider)
 
         from pydantic_ai.models import infer_model
 
+        model_name = self.model
+        if ":" not in model_name:
+            return self.model
+
         return infer_model(
-            self.model,
+            model_name,
             provider_factory=self.infer_provider,  # type:ignore
         )  # pylint:disable=unexpected-keyword-arg
 
@@ -95,13 +106,16 @@ class LLMClient:
         Call the LLM with the given messages and return the response text.
         """
 
-        try:
-            from pydantic_ai import Agent  # type: ignore
-        except ImportError:
-            raise ImportError(
-                "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
-                "pip install pydantic-ai"
-            ) from None
+        global Agent
+
+        if Agent is None:
+            try:
+                from pydantic_ai import Agent  # type: ignore
+            except ImportError:
+                raise ImportError(
+                    "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
+                    "pip install pydantic-ai"
+                ) from None
 
         prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
         agent = Agent(self._pydantic_model, output_type=str)
@@ -114,8 +128,11 @@ class LLMClient:
         Returns None if the call fails.
         """
 
+        global Agent
+
         try:
-            from pydantic_ai import Agent  # type: ignore
+            if Agent is None:
+                from pydantic_ai import Agent  # type: ignore
             from pydantic_ai import UserError
         except ImportError:
             raise ImportError(

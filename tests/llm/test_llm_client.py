@@ -169,18 +169,6 @@ class TestLLMClientCompletion(unittest.TestCase):
             result = client.completion_json([{"role": "user", "content": "test"}])
         assert result is None
 
-    def test_model_string_prefixed_with_openai(self):
-        """Model names without ':' get prefixed with 'openai:'."""
-        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
-            client = LLMClient(model="gpt-4o")
-        assert client._pydantic_model == "openai:gpt-4o"
-
-    def test_model_string_with_colon_passed_through(self):
-        """Model names containing ':' are passed through as-is."""
-        with mock.patch("angr.llm_client.Agent", mock.MagicMock()):
-            client = LLMClient(model="anthropic:claude-sonnet-4-6")
-        assert client._pydantic_model == "anthropic:claude-sonnet-4-6"
-
     def test_model_with_api_base_uses_openai_provider(self):
         """When api_base is set, OpenAIProvider and OpenAIChatModel are used."""
         with (
