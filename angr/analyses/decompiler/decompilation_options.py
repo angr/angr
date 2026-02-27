@@ -316,7 +316,7 @@ options = [
     ),
     O(
         "Refine decompilation output with LLM",
-        "Use a configured LLM (via LiteLLM) to suggest improved variable names, function names, and variable types "
+        "Use a configured LLM (via pydantic-ai) to suggest improved variable names, function names, and variable types "
         "for the decompiled code. Requires an LLM client to be configured on the project.",
         bool,
         "decompiler",

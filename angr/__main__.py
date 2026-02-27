@@ -174,7 +174,7 @@ def main():
     decompile_cmd_parser.add_argument(
         "--llm",
         help="Use an LLM to refine the decompilation output. The LLM must be configured separately using environment "
-        "variables. You may only need to set ANGR_LLM_MODEL (see LiteLLM model list) and ANGR_LLM_API_KEY. See "
+        "variables. You may only need to set ANGR_LLM_MODEL (see pydantic-ai model list) and ANGR_LLM_API_KEY. See "
         "the documentation for angr.LLMClient for details in LLM configuration.",
         action="store_true",
         default=False,

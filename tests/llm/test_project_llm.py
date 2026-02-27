@@ -29,7 +29,7 @@ class TestProjectLLMClient(unittest.TestCase):
             proj = self._get_project()
             assert proj.llm_client is None
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_llm_client_lazy_init_from_env(self):
         """Project.llm_client should be lazy-initialized from env vars."""
         env = {
@@ -53,7 +53,7 @@ class TestProjectLLMClient(unittest.TestCase):
             second = proj.llm_client
             assert first is second  # same None, but importantly not re-checked
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_llm_client_setter(self):
         """Project.llm_client can be set manually."""
         proj = self._get_project()
@@ -62,7 +62,7 @@ class TestProjectLLMClient(unittest.TestCase):
         assert proj.llm_client is client
         assert proj.llm_client.model == "manual-model"
 
-    @mock.patch("angr.llm_client.litellm", mock.MagicMock())
+    @mock.patch("angr.llm_client.Agent", mock.MagicMock())
     def test_llm_client_setter_override_env(self):
         """Manually set llm_client takes precedence over env vars."""
         env = {"ANGR_LLM_MODEL": "env-model"}
