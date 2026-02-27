@@ -13,6 +13,7 @@ from collections.abc import MutableMapping
 
 from archinfo import Endness, Arch
 import claripy
+import cle.backends.elf.variable_type as variable_type
 import cxxheaderparser.simple
 import cxxheaderparser.errors
 import cxxheaderparser.types
@@ -30,6 +31,12 @@ l = logging.getLogger(name=__name__)
 errorlog = logging.getLogger(name=__name__ + ".yacc")
 errorlog.setLevel(logging.ERROR)
 
+def ite_union(a, b):
+    # Simulate a union value by using a claripy.If. Note that claripy.union
+    # will not work here. Z3 doesn't seem to understand claripy.union, and it
+    # seems that this construct is used only by the VSA analyzer.
+    condition = claripy.BoolS("union_sym")
+    return claripy.If(condition, a, b)
 
 if TYPE_CHECKING:
     from angr.procedures.definitions import SimTypeCollection
@@ -49,13 +56,17 @@ class SimType:
     _ident: str = "simtype"
     base: bool = True
 
-    def __init__(self, label=None, qualifier: Iterable[str] | None = None):
+    def __init__(self, label=None, qualifier: Iterable[str] | None = None, arch=None):
         """
         :param label: the type label.
         """
         self.label = label
-        self._arch = None
+        self._arch = arch
         self.qualifier = qualifier
+
+    @property
+    def arch(self):
+        return self._arch
 
     @staticmethod
     def _simtype_eq(self_type: SimType, other: SimType, avoid: dict[str, set[SimType]] | None) -> bool:
@@ -169,6 +180,164 @@ class SimType:
         A type must have an arch associated in order to use this method.
         """
         raise NotImplementedError(f"extract_claripy is not implemented for {self}")
+    
+    @staticmethod
+    def from_cle(cle_types: list[variable_type.VariableType], arch=None) -> list[SimType]:
+        def encode_namespace(namespace, name):
+            return "::".join(namespace) + "::" + name
+
+        mapping: dict[variable_type.VariableType, SimType] = dict()
+        constructed_types: list[SimType] = []
+        # Perform the conversion in two passes. Once to construct all of the type objects, and the second
+        # to resolve all members of these types. This is done to ensure that types that recursively
+        # refer to themselves have pointers to themselves
+        for cle_typ in cle_types:
+            typ = None
+            if isinstance(cle_typ, variable_type.BaseType):
+                match cle_typ.encoding:
+                    case variable_type.BaseTypeEncoding.SIGNED:
+                        typ = SimTypeNum(cle_typ.byte_size * 8, True, label=cle_typ.name, arch=arch)
+                    case variable_type.BaseTypeEncoding.UNSIGNED:
+                        typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
+                    case variable_type.BaseTypeEncoding.FLOAT:
+                        typ = SimTypeFloat(arch=arch)
+                    case variable_type.BaseTypeEncoding.UTF:
+                        if cle_typ.byte_size == 4:
+                            typ = SimTypeWideChar(label=cle_typ.name, arch=arch)
+                        else:
+                            typ = SimTypeNum(cle_typ.byte_size * 8, False, label=cle_typ.name, arch=arch)
+                    case variable_type.BaseTypeEncoding.BOOLEAN:
+                        typ = SimTypeBool(arch=arch)
+                    case variable_type.BaseTypeEncoding.UNSIGNED_CHAR:
+                        typ = SimTypeChar(signed=False)
+                    case variable_type.BaseTypeEncoding.SIGNED_CHAR:
+                        typ = SimTypeChar(signed=True)
+                    case _:
+                        raise ValueError(f"Unable to convert cle base DWARF type {type(cle_typ)} with encoding {cle_typ.encoding} to corresponding angr type.")
+            elif isinstance(cle_typ, variable_type.UnionType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimType = SimUnion(dict(), label=label, name=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.StructType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimType = SimStruct(OrderedDict(), align=cle_typ.align, label=label, name=cle_typ.name, offsets=dict(), arch=arch)
+            elif isinstance(cle_typ, variable_type.PointerType):
+                typ: SimType = SimTypePointer(None, label=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.ArrayType):
+                typ: SimType = SimTypeArray(None, cle_typ.count, label=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.EnumerationType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                members = dict()
+                for e in cle_typ.enumerator_values:
+                    members[e.name] = e.const_value
+                typ: SimType = SimTypeEnum(members, None, label=label, arch=arch)
+            elif isinstance(cle_typ, variable_type.SubroutineType):
+                typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.VariantType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                tag_offset = None if cle_typ.tag is None else cle_typ.tag.addr_offset
+                typ: SimType = SimVariant(cle_typ.byte_size, None, tag_offset, [],
+                                          label=label, name=cle_typ.name, align=cle_typ.align, arch=arch)
+            elif isinstance(cle_typ, variable_type.SubprogramType):
+                typ: SimType = SimTypeFunction([], None, label=cle_typ.name, arch=arch)
+            elif isinstance(cle_typ, variable_type.TypedefType):
+                label = encode_namespace(cle_typ.namespace, cle_typ.name)
+                typ: SimTypedef = SimTypedef(None, name=cle_typ.name, label=label)
+            elif isinstance(cle_typ, variable_type.AtomicType):
+                typ: SimAtomic = SimAtomic(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.ConstType):
+                typ: SimConst = SimConst(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.ImmutableType):
+                typ: SimImmutable = SimImmutable(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.PackedType):
+                typ: SimPacked = SimPacked(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.ReferenceType):
+                typ: SimTypeReference = SimTypeReference(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.RestrictType):
+                typ: SimRestrict = SimRestrict(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.RValueReferenceType):
+                typ: SimTypeRValueReference = SimTypeRValueReference(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.SharedType):
+                typ: SimShared = SimShared(None, arch=arch)
+            elif isinstance(cle_typ, variable_type.VolatileType):
+                typ: SimVolatile = SimVolatile(None, arch=arch)
+            elif cle_typ is None:
+                typ: SimType = SimTypeBottom(arch=arch)
+            if typ is None:
+                raise ValueError(f"Unable to convert cle DWARF type {type(cle_typ)} to corresponding angr type.")
+            mapping[cle_typ] = typ
+            constructed_types.append(typ)
+        def resolve(key):
+            # This function makes the next pass a bit more robust to DWARF data that is malformed/doesn't
+            # contain enough information to resolve properly. In most cases this function will return None
+            # if some attributes are missing for part of a DWARF entry. This seems to happen pretty often
+            # in GCC C programs. This function is also a convenient place to put a debug breakpoint.
+            return mapping.get(key, None)
+        # At this point we have created all the objects for each type. On this second pass we now hook up
+        # all fields of the members
+        for cle_typ in cle_types:
+            if isinstance(cle_typ, variable_type.BaseType):
+                pass
+            elif isinstance(cle_typ, variable_type.UnionType):
+                typ: SimUnion = mapping[cle_typ]
+                for field in cle_typ.members:
+                    typ.members[field.name] = resolve(field.type)
+            elif isinstance(cle_typ, variable_type.StructType):
+                typ: SimStruct = mapping[cle_typ]
+                for field in cle_typ.members:
+                    typ.fields[field.name] = resolve(field.type)
+                    typ.offsets[field.name] = field.addr_offset
+            elif isinstance(cle_typ, variable_type.PointerType):
+                typ: SimTypePointer = mapping[cle_typ]
+                typ.pts_to = resolve(cle_typ.referenced_type)
+            elif isinstance(cle_typ, variable_type.ArrayType):
+                typ: SimTypeArray = mapping[cle_typ]
+                typ.elem_type = resolve(cle_typ.element_type)
+            elif isinstance(cle_typ, variable_type.EnumerationType):
+                typ: SimTypeEnum = mapping[cle_typ]
+                typ.elem_type = resolve(cle_typ.type)
+            elif isinstance(cle_typ, variable_type.SubroutineType):
+                typ: SimTypeFunction = mapping[cle_typ]
+                typ.args = tuple(resolve(param.type) for param in cle_typ.parameters)
+                return_ty = cle_typ.type
+                if return_ty is None:
+                    typ.returnty = SimTypeBottom(arch=arch)
+                else:
+                    typ.returnty = resolve(return_ty)
+            elif isinstance(cle_typ, variable_type.SubprogramType):
+                typ: SimTypeFunction = mapping[cle_typ]
+                typ.args = tuple(resolve(param.type) for param in cle_typ.parameters)
+                return_ty = cle_typ.type
+                if return_ty is None:
+                    typ.returnty = SimTypeBottom(arch=arch)
+                else:
+                    typ.returnty = resolve(return_ty)
+            elif isinstance(cle_typ, variable_type.VariantType):
+                typ: SimVariant = mapping[cle_typ]
+                if cle_typ.tag is not None:
+                    typ.tag = resolve(cle_typ.tag.type)
+                for c in cle_typ.cases:
+                    case = SimVariantCase(c.tag_value, c.name, c.member.addr_offset, resolve(c.type), align=c.align)
+                    typ.cases.append(case)
+            elif isinstance(cle_typ, variable_type.TypedefType):
+                typ: SimTypedef = mapping[cle_typ]
+                typ.type = resolve(cle_typ.type)
+            elif isinstance(cle_typ, variable_type.ReferenceType):
+                typ: SimTypeReference = mapping[cle_typ]
+                typ.refs = resolve(cle_typ.type)
+            elif isinstance(cle_typ, (variable_type.AtomicType, variable_type.ConstType,
+                                      variable_type.ImmutableType, variable_type.PackedType,
+                                      variable_type.RestrictType, variable_type.SharedType,
+                                      variable_type.VolatileType)):
+                typ: SimTypeModifier = mapping[cle_typ]
+                typ.type = resolve(cle_typ.type)
+            elif isinstance(cle_typ, variable_type.RValueReferenceType):
+                typ: SimTypeRValueReference = mapping[cle_typ]
+                typ.refs = resolve(cle_typ.type)
+            elif cle_typ is None:
+                pass
+        # The caller may want to preserve the correspondence between the input and output lists
+        assert(len(constructed_types) == len(cle_types))
+        return constructed_types
 
     def to_json(self, fields: Iterable[str] | None = None, memo: dict[str, SimTypeRef] | None = None) -> dict[str, Any]:
         """
@@ -250,7 +419,6 @@ class SimType:
                 value = new_value
             kwargs[field] = value
         return cls(**kwargs)
-
 
 class TypeRef(SimType):
     """
@@ -412,12 +580,13 @@ class SimTypeReg(SimType):
     _args = ("size", "label", "qualifier")
     _ident = "reg"
 
-    def __init__(self, size: int | None, label=None, qualifier: Iterable | None = None):
+    def __init__(self, size: int | None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         :param size: the size of the type (e.g. 32bit, 8bit, etc.).
+        :param arch: the arch of the type
         """
-        SimType.__init__(self, label=label, qualifier=qualifier)
+        SimType.__init__(self, label=label, qualifier=qualifier, arch=arch)
         self._size = size
 
     def __repr__(self):
@@ -454,13 +623,14 @@ class SimTypeNum(SimType):
     _args = ("size", "signed", "label", "qualifier")
     _ident = "num"
 
-    def __init__(self, size: int, signed=True, label=None, qualifier: Iterable | None = None):
+    def __init__(self, size: int, signed=True, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param size:        The size of the integer, in bits
         :param signed:      Whether the integer is signed or not
         :param label:       A label for the type
+        :param arch:        The arch of the type
         """
-        super().__init__(label)
+        super().__init__(label, arch=arch)
         self._size = size
         self.signed = signed
         self.qualifier = qualifier
@@ -745,11 +915,11 @@ class SimTypeWideChar(SimTypeReg):
     _base_name = "char"
     _ident = "wchar"
 
-    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE, qualifier: Iterable | None = None):
+    def __init__(self, signed=True, label=None, endness: Endness = Endness.BE, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         """
-        SimTypeReg.__init__(self, 16, label=label, qualifier=qualifier)
+        SimTypeReg.__init__(self, 16, label=label, qualifier=qualifier, arch=arch)
         self.signed = signed
         self.endness = endness
 
@@ -791,18 +961,17 @@ class SimTypeWideChar(SimTypeReg):
     def copy(self):
         return self.__class__(signed=self.signed, label=self.label, endness=self.endness, qualifier=self.qualifier)
 
-
 class SimTypeBool(SimTypeReg):
     _args = ("signed", "label", "qualifier")
     _base_name = "bool"
     _ident = "bool"
 
-    def __init__(self, signed=True, label=None, qualifier: Iterable | None = None):
+    def __init__(self, signed=True, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label: the type label.
         """
         # FIXME: Now the size of a char is state-dependent.
-        super().__init__(8, label=label, qualifier=qualifier)
+        super().__init__(8, label=label, qualifier=qualifier, arch=arch)
         self.signed = signed
 
     def __repr__(self):
@@ -908,12 +1077,13 @@ class SimTypePointer(SimTypeReg):
         offset=0,
         qualifier: Iterable[str] | None = None,
         disposition: PointerDisposition | int = PointerDisposition.UNKNOWN,
+        arch=None
     ):
         """
         :param label:   The type label.
         :param pts_to:  The type to which this pointer points.
         """
-        super().__init__(None, label=label, qualifier=qualifier)
+        super().__init__(None, label=label, qualifier=qualifier, arch=arch)
         self.pts_to = pts_to
         self.signed = False
         self.offset = offset
@@ -1009,8 +1179,8 @@ class SimTypeReference(SimTypeReg):
     _args = ("refs", "label", "qualifier")
     _ident = "ref"
 
-    def __init__(self, refs, label=None, qualifier: Iterable | None = None):
-        super().__init__(None, label=label, qualifier=qualifier)
+    def __init__(self, refs, label=None, qualifier: Iterable | None = None, arch=None):
+        super().__init__(None, label=label, qualifier=qualifier, arch=arch)
         self.refs: SimType = refs
 
     def __repr__(self):
@@ -1064,6 +1234,63 @@ class SimTypeReference(SimTypeReg):
             return out
         return state.solver.eval(out)
 
+class SimTypeRValueReference(SimTypeReg):
+    _args = ("refs", "label")
+    _ident = "r_value_reference"
+
+    def __init__(self, refs, label=None, arch=None):
+        super().__init__(None, label=label, arch=arch)
+        self.refs: SimType = refs
+
+    def __repr__(self):
+        return f"{self.refs}&&"
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        name = "&&" if name is None else f"&&{name}"
+        return self.refs.c_repr(name, full, memo, indent)
+
+    def make(self, refs):
+        new = type(self)(refs)
+        new._arch = self._arch
+        return new
+
+    @property
+    def size(self):
+        if self._arch is None:
+            raise ValueError("Can't tell my size without an arch!")
+        return self._arch.bits
+
+    def _with_arch(self, arch):
+        out = SimTypeRValueReference(self.refs.with_arch(arch), label=self.label)
+        out._arch = arch
+        return out
+
+    def _init_str(self):
+        return "{}({}{})".format(
+            self.__class__.__name__,
+            self.refs._init_str(),
+            (f', label="{self.label}"') if self.label is not None else "",
+        )
+
+    def copy(self):
+        return SimTypeReference(self.refs, label=self.label)
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[False] = ...) -> claripy.ast.BV: ...
+
+    @overload
+    def extract(self, state, addr, concrete: Literal[True]) -> int: ...
+
+    def extract(self, state, addr, concrete=False):
+        # TODO: EDG says this looks dangerously closed-minded. Just in case...
+        assert self.size % state.arch.byte_width == 0
+
+        out = state.memory.load(addr, self.size // state.arch.byte_width, endness=state.arch.memory_endness)
+        if not concrete:
+            return out
+        return state.solver.eval(out)
 
 class SimTypeArray(SimType):
     """
@@ -1074,13 +1301,13 @@ class SimTypeArray(SimType):
     _args = ("elem_type", "length", "label", "qualifier")
     _ident = "array"
 
-    def __init__(self, elem_type, length=None, label=None, qualifier: Iterable | None = None):
+    def __init__(self, elem_type, length=None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param label:       The type label.
         :param elem_type:   The type of each element in the array.
         :param length:      An expression of the length of the array, if known.
         """
-        super().__init__(label=label)
+        super().__init__(label=label, arch=arch)
         self.elem_type: SimType = elem_type
         self.length: int | None = length
         self.qualifier = qualifier
@@ -1352,6 +1579,7 @@ class SimTypeFunction(SimType):
         label=None,
         arg_names: Iterable[str] | None = None,
         variadic=False,
+        arch=None
     ):
         """
         :param label:    The type label
@@ -1359,7 +1587,7 @@ class SimTypeFunction(SimType):
         :param returnty: The return type of the function, or none for void
         :param variadic: Whether the function accepts varargs
         """
-        super().__init__(label=label)
+        super().__init__(label=label, arch=arch)
         self.args: tuple[SimType, ...] = tuple(args)
         self.returnty: SimType | None = returnty
         self.arg_names: tuple[str, ...] = tuple(arg_names) if arg_names else ()
@@ -1546,8 +1774,8 @@ class SimTypeFloat(SimTypeReg):
     _args = ("label", "qualifier")
     _ident = "float"
 
-    def __init__(self, size=32, label=None, qualifier: Iterable | None = None):
-        super().__init__(size, label=label, qualifier=qualifier)
+    def __init__(self, size=32, label=None, qualifier: Iterable | None = None, arch=None):
+        super().__init__(size, label=label, qualifier=qualifier, arch=arch)
 
     sort = claripy.FSORT_FLOAT
     signed = True
@@ -1588,9 +1816,9 @@ class SimTypeDouble(SimTypeFloat):
     _args = ("align_double", "label", "qualifier")
     _ident = "double"
 
-    def __init__(self, align_double=True, label=None, qualifier: Iterable | None = None):
+    def __init__(self, align_double=True, label=None, qualifier: Iterable | None = None, arch=None):
         self.align_double = align_double
-        super().__init__(64, label=label)
+        super().__init__(64, label=label, arch=arch)
         self.qualifier = qualifier
 
     sort = claripy.FSORT_DOUBLE
@@ -1621,13 +1849,16 @@ class SimStruct(NamedTypeMixin, SimType):
     def __init__(
         self,
         fields: dict[str, SimType] | OrderedDict[str, SimType],
+        label=None,
         name=None,
         pack=False,
         align=None,
         anonymous: bool = False,
+        offsets: dict[str, int] | None = None,
+        arch=None,
         qualifier: Iterable | None = None,
     ):
-        super().__init__(None, name="<anon>" if name is None else name)
+        super().__init__(label, name="<anon>" if name is None else name, arch=arch)
 
         self._pack = pack
         self._align = align
@@ -1641,6 +1872,7 @@ class SimStruct(NamedTypeMixin, SimType):
             self.anonymous = True
 
         self._arch_memo = {}
+        self._offsets = offsets
 
     #
     # pack and align are for supporting SimType.from_json and SimType.to_json
@@ -1664,6 +1896,9 @@ class SimStruct(NamedTypeMixin, SimType):
 
     @property
     def offsets(self) -> dict[str, int]:
+        if self._offsets is not None:
+            return self._offsets
+
         if self._arch is None:
             raise ValueError("Need an arch to calculate offsets")
 
@@ -1915,18 +2150,282 @@ class SimStructValue:
     def copy(self):
         return SimStructValue(self._struct, values=defaultdict(lambda: None, self._values))
 
+class SimVariantCase:
+    def __init__(self, tag_value: int, name: str, offset: int, type: SimType, align=None):
+        """
+        :param tag_value: The concrete tag value associated with this particular variant case
+        :param name: The name of this particular variant case
+        :param offset: The offset in bytes to the start of this variant in memory
+        :param type: The type that contains the values of this variant
+        :param align: The memory alignment of this variant case
+        """
+        self.tag_value = tag_value
+        self.name = name
+        self.offset = offset
+        self.type = type
+        self.align = align
+
+    def with_arch(self, arch):
+        return SimVariantCase(self.tag_value, self.name, self.offset, self.type.with_arch(arch))
+
+class SimVariant(NamedTypeMixin, SimType):
+    fields = ("cases", "name")
+    _ident = "variant"
+
+    def __init__(self, size: int, tag: SimType | None, tag_offset: int | None,
+                 cases: list[SimVariantCase], name=None,
+                 label=None, align: int | None = None, arch=None):
+        """
+        :param size:        The size of the variant
+        :param tag:         The type of the tag, if one is present
+        :param tag_offset:  The offset in bytes to the start of the tag
+        :param cases:       The possible cases of the variant
+        :param name:        The name of the variant
+        """
+        super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
+        self._size = size
+        self._align = align
+        self.tag = tag
+        self.tag_offset = tag_offset
+        self.cases = cases
+
+    def __getitem__(self, name: str):
+        for c in self.cases:
+            if c.name == name:
+                return c
+        raise ValueError(f"Unable to find variant case named {name}")
+
+    @property
+    def size(self):
+        return self._size
+
+    @property
+    def alignment(self):
+        if self._align is not None:
+            return self._align
+        if all(val.align is None for val in self.cases):
+            return NotImplemented
+        return max(val.align if val.align is not None else 1 for val in self.cases)
+
+    def _refine_dir(self):
+        return [c.name for c in self.cases]
+
+    def _refine(self, view, k):
+        c = None
+        if isinstance(k, int):
+            c = self.cases[k]
+        elif isinstance(k, str):
+            for cse in self.cases:
+                if cse.name == k:
+                    c = cse
+                    break
+        if c is None:
+            raise ValueError(f"Unknown variant case {k}")
+        return view._deeper(ty=c.type, addr=view._addr + c.offset)
+
+    def extract(self, state, addr, concrete=False):
+        # Note that a variant may not have a tag in the case where there is only a single case.
+        if self.tag is None:
+            tag_view = None
+        else:
+            tag_view = SimMemView(ty=self.tag, addr=addr + self.tag_offset, state=state)
+        if concrete:
+            if tag_view is None:
+                for c in self.cases:
+                    return SimMemView(ty=c.type, addr=addr + c.offset, state=state).resolved
+            else:
+                concrete_tag = tag_view.concrete
+                for c in self.cases:
+                    if c.tag_value == concrete_tag:
+                        return SimMemView(ty=c.type, addr=addr + c.offset, state=state).resolved
+                return None
+        else:
+            if tag_view is None:
+                tag = None
+            else:
+                tag = tag_view.resolved
+            case_values = []
+            for c in self.cases:
+                mem_view = SimMemView(ty=c.type, addr=addr + c.offset, state=state)
+                if tag is None:
+                    tag_constraint = claripy.ast.bool.true()
+                else:
+                    tag_constraint = tag == c.tag_value
+                case_values.append(SimVariantCaseValue(c, tag_constraint, mem_view.resolved))
+            return SimVariantValue(self, case_values, tag=tag)
+
+    def __repr__(self):
+        members = [f"{c.type!s} {c.name}" for c in self.cases]
+        return "variant " + self.name + " {\n" + "     " + str(self.tag) + " tag;\n\t" + "\n\t".join(members) + "\n}"
+
+    def c_repr(
+        self, name=None, full=0, memo=None, indent=0, name_parens: bool = True
+    ):  # pylint: disable=unused-argument
+        if not full or (memo is not None and self in memo):
+            return super().c_repr(name, full, memo, indent)
+
+        indented = " " * indent if indent is not None else ""
+        new_indent = indent + 4 if indent is not None else None
+        new_indented = " " * new_indent if new_indent is not None else ""
+        newline = "\n" if indent is not None else " "
+        new_memo = (self,) + (memo if memo is not None else ())
+        members = newline.join(
+            new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.cases.items()
+        )
+        return f"union {self.name} {{{newline}{members}{newline}{indented}}}{'' if name is None else ' ' + name}"
+
+    def _init_str(self):
+        return '{}({{{}}}, name="{}", label="{}")'.format(
+            self.__class__.__name__,
+            ", ".join([self._field_str(f, ty) for f, ty in self.cases.items()]),
+            self._name,
+            self.label,
+        )
+
+    @staticmethod
+    def _field_str(field_name, field_type):
+        return f'"{field_name}": {field_type._init_str()}'
+
+    def __str__(self):
+        return f"union {self.name}"
+
+    def _with_arch(self, arch):
+        out = SimVariant(self.size, self.tag.with_arch(arch), self.tag_offset,
+                         [c.with_arch(arch) for c in self.cases], name=self._name,
+                         align=self._align, label=self.label, arch=arch)
+        return out
+
+    def copy(self):
+        return SimVariant(self.size, self.tag, self.tag_offset, list(self.cases), self.name, self.label, self._align, self.arch)
+
+    def rust_c_abi(self):
+        # Here we construct a C representation of this variant for use in Rust programs where
+        # repr(C) is used on an enum. See this Rust RFC for more information:
+        # https://github.com/rust-lang/rfcs/pull/2195
+        # The ABI essentially consists of a tag field followed by a union of the cases
+        top_level_dict = OrderedDict()
+        top_level_dict["tag"] = self.tag
+
+        case_union = dict()
+        for c in self.cases:
+            case_union[c.name] = c.type
+
+        top_level_dict["values"] = SimUnion(case_union, arch=self.arch)
+
+        return SimStruct(top_level_dict, arch=self.arch)
+
+class SimTypedef(NamedTypeMixin, SimType):
+    _ident = "typedef"
+
+    def __init__(self, underlying_type, name=None, label=None, arch=None):
+        super().__init__(label, name=name, arch=arch)
+        self.type = underlying_type
+
+    @property
+    def size(self):
+        return self.type.size
+
+    @property
+    def alignment(self):
+        return self.type.alignment
+
+    def extract(self, *args, **kwargs):
+        return self.type.extract(*args, **kwargs)
+
+    def store(self, *args, **kwargs):
+        return self.type.store(*args, **kwargs)
+
+    def copy(self):
+        return SimTypedef(self.type, name=self.name, label=self.label, arch=self.arch)
+
+    def _with_arch(self, arch):
+        return SimTypedef(self.type, name=self.name, label=self.label, arch=arch)
+
+    def _refine(self, *args, **kwargs):
+        self.type._refine(*args, **kwargs)
+
+    def __repr__(self):
+        return self.c_repr()
+
+    def __str__(self):
+        return f"typedef {self.name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+        # TODO: Figure out what to do with these other parameters to c_repr
+        return f"typedef {self.name} {self.type.c_repr()}"
+
+class SimTypeModifier(NamedTypeMixin, SimType):
+    _ident = "_type_modifier"
+
+    def __init__(self, underlying_type, name=None, label=None, arch=None):
+        super().__init__(label, name=name, arch=arch)
+        self.type = underlying_type
+
+    @property
+    def size(self):
+        return self.type.size
+
+    @property
+    def alignment(self):
+        return self.type.alignment
+
+    def extract(self, *args, **kwargs):
+        return self.type.extract(*args, **kwargs)
+
+    def store(self, *args, **kwargs):
+        return self.type.store(*args, **kwargs)
+
+    def copy(self):
+        return self.__class__(self.type, name=self.name, label=self.label, arch=self.arch)
+
+    def _with_arch(self, arch):
+        return self.__class__(self.type, name=self.name, label=self.label, arch=arch)
+
+    def _refine(self, *args, **kwargs):
+        self.type._refine(*args, **kwargs)
+
+    def __repr__(self):
+        return self.c_repr()
+
+    def __str__(self):
+        return f"{self._ident} {self.type.name}"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):
+        # TODO: Figure out what to do with these other parameters to c_repr
+        return f"{self._ident} {self.type.c_repr()}"
+
+class SimAtomic(SimTypeModifier):
+    _ident = "atomic"
+
+class SimConst(SimTypeModifier):
+    _ident = "const"
+
+class SimImmutable(SimTypeModifier):
+    _ident = "immutable"
+
+class SimPacked(SimTypeModifier):
+    _ident = "packed"
+
+class SimRestrict(SimTypeModifier):
+    _ident = "restrict"
+
+class SimShared(SimTypeModifier):
+    _ident = "shared"
+
+class SimVolatile(SimTypeModifier):
+    _ident = "volatile"
 
 class SimUnion(NamedTypeMixin, SimType):
     fields = ("members", "name")
     _args = ("members", "name", "label", "qualifier")
     _ident = "union"
 
-    def __init__(self, members: dict[str, SimType], name=None, label=None, qualifier: Iterable | None = None):
+    def __init__(self, members: dict[str, SimType], name=None, label=None, qualifier: Iterable | None = None, arch=None):
         """
         :param members:     The members of the union, as a mapping name -> type
         :param name:        The name of the union
         """
-        super().__init__(label, name=name if name is not None else "<anon>")
+        super().__init__(label, name=name if name is not None else "<anon>", arch=arch)
         self.members = members
         if qualifier:
             self.qualifier = qualifier
@@ -2027,6 +2526,14 @@ class SimUnionValue:
         self._union = union
         self._values = defaultdict(lambda: None, values or ())
 
+    @property
+    def union(self):
+        return self._union
+
+    @property
+    def values(self):
+        return self._values
+
     def __indented_repr__(self, indent=0):
         fields = []
         for name, value in self._values.items():
@@ -2053,6 +2560,122 @@ class SimUnionValue:
     def copy(self):
         return SimUnionValue(self._union, values=self._values)
 
+class SimVariantCaseValue:
+    def __init__(self, variant_case: SimVariantCase, tag_constraint: claripy.ast.Bool, value):
+        """
+        :param variant_case:    A SimVariantCase instance describing this particular case
+        :param tag_constraint:  A boolean claripy constraint that must be true in order for this variant case to be\
+        valid.
+        :param value:           The value of the variant if this particular case is True
+        """
+        self.variant_case = variant_case
+        self.tag_constraint = tag_constraint
+        self.value = value
+
+    @property
+    def tag_value(self) -> int:
+        return self.variant_case.tag_value
+
+    @property
+    def name(self) -> str:
+        return self.variant_case.name
+
+    def copy(self):
+        return SimVariantCaseValue(self.variant_case, self.tag_constraint, self.value)
+
+    @property
+    def align(self):
+        return self.variant_case.align
+
+    @property
+    def type(self):
+        return self.variant_case.type
+
+class SimVariantValue:
+    """
+    The value of a variant, which depending on the variant's tag can be multiple values.
+    """
+
+    def __init__(self, variant: SimVariant, case_values: dict[str, tuple[...]] | list[SimVariantCaseValue],
+                 tag: int | claripy.ast.Bits | None = None):
+        """
+        :param variant:      A SimVariant instance describing the type of this variant
+        :param tag:          The tag of this variant. May be symbolic, concrete or a mixture of the two. If the tag\
+                             is not specified, the tag will take on any of the values used in case_values
+        :param case_values:  The memory contents of all possible values that this variant could be
+        """
+        if tag is None and variant.tag is not None:
+            if isinstance(case_values, list):
+                for c in case_values:
+                    t = claripy.BVV(c.tag_value, variant.tag.size)
+                    if tag is None:
+                        tag = t
+                    else:
+                        tag = ite_union(t, tag)
+            elif isinstance(case_values, dict):
+                for name in case_values:
+                    t = claripy.BVV(variant[name].tag_value, variant.tag.size)
+                    if tag is None:
+                        tag = t
+                    else:
+                        tag = ite_union(t, tag)
+        elif isinstance(tag, int):
+            tag = claripy.BVV(tag, variant.tag.size)
+
+        self.variant = variant
+        self.tag = tag
+        if isinstance(case_values, list):
+            self.case_values = case_values
+        else:
+            self.case_values = []
+            for (part_name, contents) in case_values.items():
+                v_case: SimVariantCase = variant[part_name]
+                case_contents = SimStructValue(v_case.type, {f"__{i}": val for (i, val) in enumerate(contents)})
+                if tag is None:
+                    constraint = claripy.ast.bool.true()
+                else:
+                    constraint = (tag == v_case.tag_value)
+                part_val = SimVariantCaseValue(v_case, constraint, case_contents)
+                self.case_values.append(part_val)
+
+    def __repr__(self):
+        return f"SimVariantValue(tag={self.tag}, case_values={self.case_values})"
+
+    def __getattr__(self, item: str):
+        return self[item]
+
+    def __getitem__(self, item: str | int) -> SimVariantCaseValue:
+        if isinstance(item, int):
+            for v in self.case_values:
+                if v.tag_value == item:
+                    return v
+            return self.variant_cases[item]
+        elif isinstance(item, str):
+            for v in self.case_values:
+                if v.name == item:
+                    return v
+        raise KeyError(f"Unknown variant case {item}")
+
+    def copy(self):
+        return SimVariantValue(self.variant, self.case_values, tag=self.tag)
+
+    def rust_c_abi(self):
+        # Here we construct a C representation of a Rust enum, per the following Rust RFC:
+        # https://github.com/rust-lang/rfcs/pull/2195
+        # We first convert the variant of this value to a struct containing a tag and a union
+        # Then we construct a SimStructValue and SimUnionValue for our values
+
+        # Convert the variant to the equivalent C representation
+        typ = self.variant.rust_c_abi()
+
+        # Construct a union of the different arms of our variant
+        fields = dict()
+        for c in self.case_values:
+            fields[c.name] = c.value
+        union_val = SimUnionValue(typ.fields["values"], fields)
+
+        # Construct the final struct containing the tag and the union
+        return SimStructValue(typ, {"tag": self.tag, "values": union_val})
 
 class SimTypeEnum(NamedTypeMixin, SimType):
     """
@@ -2073,8 +2696,10 @@ class SimTypeEnum(NamedTypeMixin, SimType):
         base_type: SimType | None = None,
         name: str | None = None,
         qualifier: Iterable[str] | None = None,
+        label=None,
+        arch=None
     ):
-        super().__init__(name=name if name is not None else "<anon>")
+        super().__init__(name=name if name is not None else "<anon>", label=label, arch=arch)
         self.members: dict[str, int] = dict(members)
         self._base_type = base_type if base_type is not None else SimTypeInt(signed=False)
         self._reverse_members: dict[int, str] = {v: k for k, v in members.items()}

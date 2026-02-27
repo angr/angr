@@ -54,7 +54,15 @@ class TypesStore(KnowledgeBasePlugin, UserDict[str, TypeRef]):
         if type(value) is not TypeRef:
             raise TypeError("Can only store TypeRefs in TypesStore")
 
-        super().__setitem__(item, value.with_arch(self._kb._project.arch))
+        # with_arch seems to make a deep copy of the entire type graph
+        # for each stored type. Needless to say this is bad for performance,
+        # and also destroys the type object graph
+        if value.type.arch == self._kb._project.arch:
+            stored_value = value
+        else:
+            stored_value = value.with_arch(self._kb._project.arch)
+
+        super().__setitem__(item, stored_value)
 
     def __iter__(self) -> Iterator[str]:
         yield from super().__iter__()

@@ -34,6 +34,10 @@ from .sim_type import (
     SimTypeBottom,
     parse_signature,
     SimTypeReference,
+    SimTypedef,
+    SimConst,
+    SimTypeBool, SimTypeModifier, SimUnionValue, SimVariant, SimVariantValue, ite_union, SimVariantCaseValue,
+    SimVariantCase,
     SimTypeRef,
     SimTypeBool,
     SimTypeEnum,
@@ -75,8 +79,15 @@ class AllocHelper:
             return SimStructValue(
                 val.struct, {field: self.translate(subval, base) for field, subval in val._values.items()}
             )
+        if isinstance(val, SimUnionValue):
+            return SimUnionValue(val._union, {field: self.translate(subval, base) for (field, subval) in val._values.items()})
         if isinstance(val, claripy.ast.Bits):
             return claripy.replace(val, self.base, base)
+        if isinstance(val, SimVariantValue):
+            return SimVariantValue(val.variant,
+                                   [SimVariantCaseValue(c.variant_case, c.tag_constraint, self.translate(c.value, base))
+                                    for c in val.case_values],
+                                   self.translate(val.tag, base))
         if type(val) is list:
             return [self.translate(subval, base) for subval in val]
         raise TypeError(type(val))
@@ -142,6 +153,8 @@ def refine_locs_with_struct_type(
     if treat_bot_as_int and isinstance(arg_type, SimTypeBottom):
         arg_type = SimTypeInt(label=arg_type.label).with_arch(arch)
 
+    if isinstance(arg_type, (SimTypedef, SimTypeModifier)):
+        return refine_locs_with_struct_type(arch, locs, arg_type.type, offset, treat_bot_as_int, treat_unsupported_as_int)
     if isinstance(arg_type, (SimTypeReg, SimTypeNum, SimTypeFloat)):
         assert arg_type.size is not None
         seen_bytes = 0
@@ -177,10 +190,22 @@ def refine_locs_with_struct_type(
         }
         return SimStructArg(arg_type, locs_dict)
     if isinstance(arg_type, SimUnion):
-        # Treat a SimUnion as functionality equivalent to its longest member
-        for member in arg_type.members.values():
-            if member.size == arg_type.size:
-                return refine_locs_with_struct_type(arch, locs, member, offset)
+        locs_dict = {
+            field: refine_locs_with_struct_type(arch, locs, field_ty, offset=0)
+            for field, field_ty in arg_type.members.items()
+        }
+        return SimUnionArg(arg_type, locs_dict)
+    if isinstance(arg_type, SimVariant):
+        tag_loc = refine_locs_with_struct_type(arch, locs, arg_type.tag, offset=0)
+        locs_dict = {
+            # Whenever I've looked at DWARF info in Rust programs, the structs that define
+            # a variant case start at offset 0, and the fields in the struct are defined
+            # relative to the start of the variant rather than relative to the end of
+            # the tag field
+            c.name: refine_locs_with_struct_type(arch, locs, c.type, offset=0)
+            for c in arg_type.cases
+        }
+        return SimVariantArg(arg_type, locs_dict, tag_loc)
 
     # for all other types, we basically treat them as integers until someone implements proper layouting logic
     if treat_unsupported_as_int:
@@ -284,6 +309,13 @@ class SimFunctionArgument:
             return value.raw_to_fp()
         return value
 
+    def union_value(self, state, value, cond=None, **kwargs):
+        """
+        The subclasses that implement this method should first get the value currently in the state,
+        then union on the passed value. This particular method is used for storing union values into memory
+        """
+        raise NotImplementedError
+
     def set_value(self, state, value, **kwargs):
         raise NotImplementedError
 
@@ -337,6 +369,14 @@ class SimRegArg(SimFunctionArgument):
     def check_offset(self, arch) -> int:
         return arch.registers[self.reg_name][0] + self.reg_offset
 
+    def union_value(self, state, value, cond=None, **kwargs):
+        curr_val = self.get_value(state)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, **kwargs)
+
     def set_value(self, state, value, **kwargs):  # pylint: disable=unused-argument,arguments-differ
         value = self.check_value_set(value, state.arch)
         offset = self.check_offset(state.arch)
@@ -387,6 +427,14 @@ class SimStackArg(SimFunctionArgument):
     def __hash__(self):
         return hash((self.size, self.stack_offset))
 
+    def union_value(self, state, value, stack_base=None, cond=None, **kwargs):
+        curr_val = self.get_value(state, stack_base=stack_base)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, stack_base=stack_base, **kwargs)
+
     def set_value(self, state, value, stack_base=None, **kwargs):  # pylint: disable=arguments-differ
         value = self.check_value_set(value, state.arch)
         if stack_base is None:
@@ -426,6 +474,14 @@ class SimComboArg(SimFunctionArgument, Generic[T]):
 
     def __eq__(self, other):
         return type(other) is SimComboArg and all(a == b for a, b in zip(self.locations, other.locations))
+
+    def union_value(self, state, value, cond=None, **kwargs):
+        curr_val = self.get_value(state)
+        if cond is None:
+            next_val = ite_union(value, curr_val)
+        else:
+            next_val = claripy.If(cond, value, curr_val)
+        self.set_value(state, next_val, **kwargs)
 
     def set_value(self, state, value, **kwargs):  # pylint:disable=arguments-differ
         value = self.check_value_set(value, state.arch)
@@ -511,6 +567,10 @@ class SimStructArg(SimFunctionArgument):
             return regs[0]
         return SimComboArg(regs)
 
+    def union_value(self, state, value, **kwargs):
+        for field, setter in self.locs.items():
+            setter.union_value(state, value[field], **kwargs)
+
     def get_value(self, state, **kwargs):
         return SimStructValue(
             self.struct, {field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()}
@@ -520,11 +580,77 @@ class SimStructArg(SimFunctionArgument):
         for field, setter in self.locs.items():
             setter.set_value(state, value[field], **kwargs)
 
+class SimUnionArg(SimFunctionArgument):
+    def __init__(self, union: SimUnion, locs: dict[str, SimFunctionArgument]):
+        super().__init__(max(loc.size for loc in locs.values()))
+        self.union = union
+        # The keys of the locs dictionary are the names of the members of the union
+        self.locs = locs
+
+    def union_value(self, state, value, **kwargs):
+        for field in value.values:
+            setter = self.locs[field]
+            setter.union_value(state, value[field], **kwargs)
+
+    def get_value(self, state, **kwargs):
+        return SimUnionValue(self.union, {
+            field: getter.get_value(state, **kwargs) for field, getter in self.locs.items()
+        })
+
+    def set_value(self, state, value, **kwargs):
+        # Note that we're going to say that it's okay if some members present in the
+        # union type aren't present in the value. This may happen
+        first = True
+        for field in value.values:
+            setter = self.locs[field]
+            # TODO: Figure out what to do if the first field doesn't cover all the data in the union
+            # if this happens the next case may have an unconstrained value. Is this okay?
+            if first:
+                setter.set_value(state, value[field], **kwargs)
+            else:
+                setter.union_value(state, value[field], **kwargs)
+            first = False
+
+class SimVariantArg(SimFunctionArgument):
+    def __init__(self, variant: SimVariant, locs: dict[str, SimFunctionArgument], tag: SimFunctionArgument):
+        super().__init__(max(loc.size for loc in locs.values()))
+        self.variant = variant
+        self.tag = tag
+        self.locs = locs
+
+    def union_value(self, state, value: SimVariantValue, **kwargs):
+        self.tag.union_value(state, value.tag, **kwargs)
+        for field in value.case_values:
+            setter = self.locs[field.name]
+            setter.union_value(state, value[field.name], **kwargs)
+
+    def get_value(self, state, **kwargs):
+        tag = self.tag.get_value(state, **kwargs)
+        case_values: list[SimVariantCaseValue] = []
+        for (name, getter) in self.locs.items():
+            c: SimVariantCase = self.variant[name]
+            val = SimVariantCaseValue(c, tag == c.tag_value, getter.get_value(state, **kwargs))
+            case_values.append(val)
+        return SimVariantValue(self.variant, case_values, tag)
+
+    def set_value(self, state, value: SimVariantValue, **kwargs):
+        # Set the tag of the variant
+        self.tag.set_value(state, value.tag, **kwargs)
+        for c_val in value.case_values:
+            # Union on all of the cases
+            setter = self.locs[c_val.name]
+            # Each of the case arms has a condition based on the tag
+            cond = (value.tag == c_val.tag_value)
+            setter.union_value(state, c_val.value, cond=cond)
 
 class SimArrayArg(SimFunctionArgument):
     def __init__(self, locs):
         super().__init__(sum(loc.size for loc in locs))
         self.locs = locs
+
+    def union_value(self, state, value, **kwargs):
+        for (subvalue, setter) in zip(value, self.locs):
+            setter.union_value(state, subvalue, **kwargs)
 
     def get_footprint(self):
         return {y for x in self.locs for y in x.get_footprint()}
@@ -555,6 +681,10 @@ class SimReferenceArgument(SimFunctionArgument):
 
     def get_footprint(self):
         return self.main_loc.get_footprint()
+
+    def union_value(self, state, value, **kwargs):
+        ptr_val = self.ptr_loc.get_value(state, **kwargs)
+        self.main_loc.union_value(state, value, stack_base=ptr_val, **kwargs)
 
     def get_value(self, state, **kwargs):
         ptr_val = self.ptr_loc.get_value(state, **kwargs)
@@ -789,6 +919,8 @@ class SimCC:
         return self.RETURN_ADDR
 
     def next_arg(self, session: ArgSession, arg_type: SimType) -> SimFunctionArgument:
+        if isinstance(arg_type, (SimTypedef, SimTypeModifier)):
+            return self.next_arg(session, arg_type.type)
         if isinstance(arg_type, (SimTypeArray, SimTypeFixedSizeArray)):  # hack
             arg_type = SimTypePointer(arg_type.elem_type).with_arch(self.arch)
         if isinstance(arg_type, (SimStruct, SimUnion, SimTypeFixedSizeArray)):
@@ -1041,6 +1173,8 @@ class SimCC:
 
     @staticmethod
     def _standardize_value(arg, ty, state, alloc):
+        if isinstance(ty, (SimTypedef, SimTypeModifier)):
+            return SimCC._standardize_value(arg, ty.type, state, alloc)
         if isinstance(arg, SimActionObject):
             return SimCC._standardize_value(arg.ast, ty, state, alloc)
         if isinstance(arg, PointerWrapper):
@@ -1109,9 +1243,7 @@ class SimCC:
                 val = alloc(val, state)
             return val
 
-        if isinstance(arg, (tuple, dict, SimStructValue)):
-            if not isinstance(ty, SimStruct):
-                raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct)")
+        if isinstance(arg, (tuple, dict, SimStructValue)) and isinstance(ty, SimStruct):
             if not isinstance(arg, SimStructValue):
                 if len(arg) != len(ty.fields):
                     raise TypeError(f"Wrong number of fields in struct, expected {len(ty.fields)} got {len(arg)}")
@@ -1119,6 +1251,25 @@ class SimCC:
             return SimStructValue(
                 ty, [SimCC._standardize_value(arg[field], ty.fields[field], state, alloc) for field in ty.fields]
             )
+
+        if isinstance(arg, (tuple, dict, SimUnionValue)) and isinstance(ty, SimUnion):
+            if not isinstance(arg, SimUnionValue):
+                arg = SimUnionValue(ty, arg)
+            return SimUnionValue(
+                ty, {field: SimCC._standardize_value(arg[field], ty.members[field], state, alloc) for field in arg.values}
+            )
+
+        if isinstance(arg, (dict, SimVariantValue)) and isinstance(ty, SimVariant):
+            if not isinstance(arg, SimVariantValue):
+                arg = SimVariantValue(ty, arg)
+            return SimVariantValue(
+                ty, [SimVariantCaseValue(c.variant_case, c.tag_constraint,
+                                         SimCC._standardize_value(c.value, c.type, state, alloc))
+                     for c in arg.case_values]
+            )
+
+        if isinstance(arg, (tuple, dict)):
+            raise TypeError(f"Type mismatch: Expected {ty}, got {type(arg)} (i.e. struct, union or variant)")
 
         if isinstance(arg, int):
             if isinstance(ty, SimTypeFloat):
@@ -1697,6 +1848,15 @@ class SimCCSystemVAMD64(SimCC):
             return ["SSE"] + ["SSEUP"] * (nchunks - 1)
         if isinstance(ty, (SimTypeReg, SimTypeNum, SimTypeBottom, SimTypeEnum, SimTypeBitfield)):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, (SimTypedef, SimTypeModifier)):
+            return self._classify(ty.type)
+        if isinstance(ty, SimVariant):
+            # Here we assume that the Rust variant has been annotated with the repr(C)
+            # ABI. Unfortunately this seems like the best we can do until the Rust
+            # developers make a stable ABI for the language. The DWARF information
+            # does not contain the ABI either. However a more sophisticated ABI inference
+            # system could make progress here.
+            return self._classify(ty.rust_c_abi())
         if isinstance(ty, SimCppClass) and not ty.fields and ty.size:
             raise TypeError("Cannot lay out an opaque class")
         if isinstance(ty, SimTypeArray) or (isinstance(ty, SimType) and isinstance(ty, NamedTypeMixin)):
@@ -1871,6 +2031,8 @@ class SimCCARM(SimCC):
             ty, (SimTypeInt, SimTypeChar, SimTypeBool, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)
         ):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, (SimTypedef, SimTypeModifier)):
+            return self._classify(ty.type)
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]
@@ -2315,6 +2477,8 @@ class SimCCO32(SimCC):
         nchunks = 1 if isinstance(ty, SimTypeBottom) else (ty.size // self.arch.byte_width + chunksize - 1) // chunksize
         if isinstance(ty, (SimTypeInt, SimTypeChar, SimTypePointer, SimTypeNum, SimTypeBottom, SimTypeReference)):
             return ["INTEGER"] * nchunks
+        if isinstance(ty, (SimTypedef, SimTypeModifier)):
+            return self._classify(ty.type)
         if isinstance(ty, (SimTypeFloat,)):
             if ty.size == 64:
                 return ["DOUBLEP"]
