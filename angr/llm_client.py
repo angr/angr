@@ -1,22 +1,16 @@
-# pylint:disable=unused-argument
+# pylint:disable=unused-argument,import-outside-toplevel
 from __future__ import annotations
 
 import json
 import logging
 import os
 import re
-from typing import TypeVar
+from typing import TypeVar, TYPE_CHECKING, Any
 
-try:
-    from pydantic_ai import Agent  # type: ignore
-    from pydantic_ai.settings import ModelSettings  # type: ignore
-    from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
-    from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
-except ImportError:
-    Agent = None  # type: ignore
-    ModelSettings = None  # type: ignore
-    OpenAIChatModel = None  # type: ignore
-    OpenAIProvider = None  # type: ignore
+if TYPE_CHECKING:
+    from pydantic_ai.models import Model
+    from pydantic_ai.settings import ModelSettings
+    from pydantic_ai.providers import Provider
 
 T = TypeVar("T")
 
@@ -37,27 +31,41 @@ class LLMClient:
         max_tokens: int = 4096,
         temperature: float = 0.0,
     ):
-        if Agent is None:
-            raise ImportError(
-                "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
-                "pip install pydantic-ai"
-            )
-
         self.model = model
         self.api_key = api_key
         self.api_base = api_base
         self.max_tokens = max_tokens
         self.temperature = temperature
-        self._pydantic_model = self._build_model()
+        self._pydantic_model: Model = self._build_model()
+
+    def infer_provider(self, provider: str) -> Provider[Any]:
+        """Infer the provider from the provider name."""
+        if provider.startswith("gateway/"):
+            from pydantic_ai.providers.gateway import gateway_provider
+
+            upstream_provider = provider.removeprefix("gateway/")
+            return gateway_provider(upstream_provider)
+        if provider in ("google-vertex", "google-gla"):
+            from pydantic_ai.providers.google import GoogleProvider
+
+            return GoogleProvider(vertexai=provider == "google-vertex")
+        from pydantic_ai.providers import infer_provider_class
+
+        provider_class = infer_provider_class(provider)
+        return provider_class(api_key=self.api_key)
 
     def _build_model(self):
         """Build a pydantic-ai model object from the configured settings."""
         if self.api_base:
+            from pydantic_ai.models.openai import OpenAIChatModel  # type: ignore
+            from pydantic_ai.providers.openai import OpenAIProvider  # type: ignore
+
             provider = OpenAIProvider(base_url=self.api_base, api_key=self.api_key or "no-key")
             return OpenAIChatModel(self.model, provider=provider)
-        if ":" in self.model:
-            return self.model
-        return f"openai:{self.model}"
+
+        from pydantic_ai.models import infer_model
+
+        return infer_model(self.model, provider_factory=self.infer_provider)
 
     @classmethod
     def from_env(cls) -> LLMClient | None:
@@ -75,13 +83,23 @@ class LLMClient:
         return cls(model=model, api_key=api_key, api_base=api_base)
 
     def _model_settings(self) -> ModelSettings:
+
+        from pydantic_ai.settings import ModelSettings  # type:ignore
+
         return ModelSettings(temperature=self.temperature, max_tokens=self.max_tokens)
 
     def completion(self, messages: list[dict[str, str]], **kwargs) -> str:  # pylint:disable=unused-argument
         """
         Call the LLM with the given messages and return the response text.
         """
-        assert Agent is not None
+
+        try:
+            from pydantic_ai import Agent  # type: ignore
+        except ImportError:
+            raise ImportError(
+                "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
+                "pip install pydantic-ai"
+            ) from None
 
         prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
         agent = Agent(self._pydantic_model, output_type=str)
@@ -93,13 +111,23 @@ class LLMClient:
         Call the LLM with the given messages and return a validated Pydantic model.
         Returns None if the call fails.
         """
-        assert Agent is not None
+
+        try:
+            from pydantic_ai import Agent  # type: ignore
+            from pydantic_ai import UserError
+        except ImportError:
+            raise ImportError(
+                "pydantic-ai is required for LLM support. You can install it with: pip install angr[llm] or "
+                "pip install pydantic-ai"
+            ) from None
 
         prompt = "\n\n".join(m["content"] for m in messages if m.get("content"))
         try:
             agent = Agent(self._pydantic_model, output_type=output_type)
             result = agent.run_sync(prompt, model_settings=self._model_settings())
             return result.output
+        except UserError:
+            l.error("Failed to get structured LLM response due to a user error.", exc_info=True)
         except Exception:  # pylint:disable=broad-exception-caught
             l.warning("Failed to get structured LLM response", exc_info=True)
             return None

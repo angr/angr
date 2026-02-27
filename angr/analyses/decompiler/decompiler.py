@@ -458,7 +458,7 @@ class Decompiler(Analysis):
                 try:
                     self.llm_refine()
                 except Exception:  # pylint:disable=broad-exception-caught
-                    l.warning("LLM refinement failed", exc_info=True)
+                    l.error("LLM refinement failed", exc_info=True)
 
         self._update_progress(95.0, text="Finishing up")
         if self.update_cache:
@@ -818,7 +818,7 @@ class Decompiler(Analysis):
 
         llm_client = self.project.llm_client
         if llm_client is None:
-            l.warning("llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client.")
+            l.error("llm_refine: no LLM client configured. Set ANGR_LLM_MODEL env var or assign project.llm_client.")
             return False
 
         code_text = self.codegen.text
