@@ -83,6 +83,11 @@ class AllocHelper:
             return SimUnionValue(val._union, {field: self.translate(subval, base) for (field, subval) in val._values.items()})
         if isinstance(val, claripy.ast.Bits):
             return claripy.replace(val, self.base, base)
+        if isinstance(val, SimVariantValue):
+            return SimVariantValue(val.variant,
+                                   [SimVariantCaseValue(c.variant_case, c.tag_constraint, self.translate(c.value, base))
+                                    for c in val.case_values],
+                                   self.translate(val.tag, base))
         if type(val) is list:
             return [self.translate(subval, base) for subval in val]
         raise TypeError(type(val))
