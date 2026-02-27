@@ -41,7 +41,7 @@ class LLMClient:
     def infer_provider(self, provider: str) -> Provider[Any]:
         """Infer the provider from the provider name."""
         if provider.startswith("gateway/"):
-            from pydantic_ai.providers.gateway import gateway_provider
+            from pydantic_ai.providers.gateway import gateway_provider  # type: ignore
 
             upstream_provider = provider.removeprefix("gateway/")
             return gateway_provider(upstream_provider)
@@ -52,7 +52,7 @@ class LLMClient:
         from pydantic_ai.providers import infer_provider_class
 
         provider_class = infer_provider_class(provider)
-        return provider_class(api_key=self.api_key)
+        return provider_class(api_key=self.api_key)  # type: ignore
 
     def _build_model(self):
         """Build a pydantic-ai model object from the configured settings."""
@@ -65,7 +65,10 @@ class LLMClient:
 
         from pydantic_ai.models import infer_model
 
-        return infer_model(self.model, provider_factory=self.infer_provider)
+        return infer_model(
+            self.model,
+            provider_factory=self.infer_provider,
+        )  # type:ignore  # pylint:disable=unexpected-keyword-arg
 
     @classmethod
     def from_env(cls) -> LLMClient | None:
@@ -83,7 +86,6 @@ class LLMClient:
         return cls(model=model, api_key=api_key, api_base=api_base)
 
     def _model_settings(self) -> ModelSettings:
-
         from pydantic_ai.settings import ModelSettings  # type:ignore
 
         return ModelSettings(temperature=self.temperature, max_tokens=self.max_tokens)
@@ -130,7 +132,7 @@ class LLMClient:
             l.error("Failed to get structured LLM response due to a user error.", exc_info=True)
         except Exception:  # pylint:disable=broad-exception-caught
             l.warning("Failed to get structured LLM response", exc_info=True)
-            return None
+        return None
 
     def completion_json(self, messages: list[dict[str, str]], **kwargs) -> dict | None:
         """
