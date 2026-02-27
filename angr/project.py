@@ -132,7 +132,7 @@ class Project:
         analyses_preset=None,
         concrete_target=None,
         eager_ifunc_resolution=None,
-        cache_limits: dict[str, int] | None = None,
+        cache_limits: dict[str, int | None] | None = None,
         **kwargs,
     ):
         # Step 1: Load the binary
