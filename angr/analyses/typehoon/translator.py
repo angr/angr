@@ -209,6 +209,30 @@ class TypeTranslator:
     def _translate_Fd(self, tc: typeconsts.Fd) -> sim_type.SimTypeFd:
         return sim_type.SimTypeFd(label=tc.name).with_arch(self.arch)
 
+    def _translate_SInt8(self, tc):
+        return sim_type.SimTypeChar(signed=True, label=tc.name).with_arch(self.arch)
+
+    def _translate_UInt8(self, tc):
+        return sim_type.SimTypeChar(signed=False, label=tc.name).with_arch(self.arch)
+
+    def _translate_SInt16(self, tc):
+        return sim_type.SimTypeShort(signed=True, label=tc.name).with_arch(self.arch)
+
+    def _translate_UInt16(self, tc):
+        return sim_type.SimTypeShort(signed=False, label=tc.name).with_arch(self.arch)
+
+    def _translate_SInt32(self, tc):
+        return sim_type.SimTypeInt(signed=True, label=tc.name).with_arch(self.arch)
+
+    def _translate_UInt32(self, tc):
+        return sim_type.SimTypeInt(signed=False, label=tc.name).with_arch(self.arch)
+
+    def _translate_SInt64(self, tc):
+        return sim_type.SimTypeLongLong(signed=True, label=tc.name).with_arch(self.arch)
+
+    def _translate_UInt64(self, tc):
+        return sim_type.SimTypeLongLong(signed=False, label=tc.name).with_arch(self.arch)
+
     #
     # Backpatching
     #
@@ -244,20 +268,30 @@ class TypeTranslator:
     def _translate_SimTypeInt512(self, st: sim_type.SimTypeChar) -> typeconsts.Int512:
         return typeconsts.Int512(name=st.label)
 
-    def _translate_SimTypeInt(self, st: sim_type.SimTypeInt) -> typeconsts.Int32:
-        return typeconsts.Int32(name=st.label)
+    def _translate_SimTypeInt(self, st: sim_type.SimTypeInt) -> typeconsts.TypeConstant:
+        if st.signed:
+            return typeconsts.SInt32(name=st.label)
+        return typeconsts.UInt32(name=st.label)
 
-    def _translate_SimTypeLong(self, st: sim_type.SimTypeLong) -> typeconsts.Int32:
-        return typeconsts.Int32(name=st.label)
+    def _translate_SimTypeLong(self, st: sim_type.SimTypeLong) -> typeconsts.TypeConstant:
+        if st.signed:
+            return typeconsts.SInt32(name=st.label)
+        return typeconsts.UInt32(name=st.label)
 
-    def _translate_SimTypeLongLong(self, st: sim_type.SimTypeLongLong) -> typeconsts.Int64:
-        return typeconsts.Int64(name=st.label)
+    def _translate_SimTypeLongLong(self, st: sim_type.SimTypeLongLong) -> typeconsts.TypeConstant:
+        if st.signed:
+            return typeconsts.SInt64(name=st.label)
+        return typeconsts.UInt64(name=st.label)
 
-    def _translate_SimTypeShort(self, st: sim_type.SimTypeInt) -> typeconsts.Int16:
-        return typeconsts.Int16(name=st.label)
+    def _translate_SimTypeShort(self, st: sim_type.SimTypeInt) -> typeconsts.TypeConstant:
+        if st.signed:
+            return typeconsts.SInt16(name=st.label)
+        return typeconsts.UInt16(name=st.label)
 
-    def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.Int8:
-        return typeconsts.Int8(name=st.label)
+    def _translate_SimTypeChar(self, st: sim_type.SimTypeChar) -> typeconsts.TypeConstant:
+        if st.signed:
+            return typeconsts.SInt8(name=st.label)
+        return typeconsts.UInt8(name=st.label)
 
     def _translate_SimTypeWideChar(self, st: sim_type.SimTypeWideChar) -> typeconsts.Int16:
         return typeconsts.Int16(name=st.label)
@@ -364,6 +398,14 @@ TypeConstHandlers = {
     typeconsts.Int128: TypeTranslator._translate_Int128,
     typeconsts.Int256: TypeTranslator._translate_Int256,
     typeconsts.Int512: TypeTranslator._translate_Int512,
+    typeconsts.SInt8: TypeTranslator._translate_SInt8,
+    typeconsts.UInt8: TypeTranslator._translate_UInt8,
+    typeconsts.SInt16: TypeTranslator._translate_SInt16,
+    typeconsts.UInt16: TypeTranslator._translate_UInt16,
+    typeconsts.SInt32: TypeTranslator._translate_SInt32,
+    typeconsts.UInt32: TypeTranslator._translate_UInt32,
+    typeconsts.SInt64: TypeTranslator._translate_SInt64,
+    typeconsts.UInt64: TypeTranslator._translate_UInt64,
     typeconsts.TypeVariableReference: TypeTranslator._translate_TypeVariableReference,
     typeconsts.Float32: TypeTranslator._translate_Float32,
     typeconsts.Float64: TypeTranslator._translate_Float64,
