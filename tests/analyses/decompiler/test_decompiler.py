@@ -1605,7 +1605,10 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
-        assert "__CFADD__" in d.codegen.text
+        # CarryFlagSimplifier rewrites __CFADD__(a, b) to (a + b) < a
+        assert d.codegen is not None and d.codegen.text is not None
+        assert "__CFADD__" not in d.codegen.text
+        assert " < " in d.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_division3(self, decompiler_options=None):

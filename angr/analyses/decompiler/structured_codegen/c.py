@@ -1893,15 +1893,17 @@ class CBinaryOp(CExpression):
     Binary operations.
     """
 
-    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
+    __slots__ = ("_cmp_signed", "_cstyle_null_cmp", "common_type", "lhs", "op", "rhs")
 
-    def __init__(self, op, lhs, rhs, **kwargs):
+    def __init__(self, op, lhs, rhs, cmp_signed=None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
         self.lhs = lhs
         self.rhs = rhs
         self._cstyle_null_cmp = self.codegen.cstyle_null_cmp
+        # Explicit signedness from the AIL comparison — None means "use operand types".
+        self._cmp_signed = cmp_signed
 
         self.common_type = self.compute_common_type(self.op, self.lhs.type, self.rhs.type)
         if self.op.startswith("Cmp"):
@@ -2041,16 +2043,71 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
+    def _cmp_signedness_cast(self, operand: CExpression) -> str | None:
+        """Return a cast string like ``(unsigned char)`` when the operand signedness disagrees
+        with the intended comparison signedness (``_cmp_signed``).  Returns None when no cast
+        is needed."""
+        if self._cmp_signed is None:
+            return None
+        ty = operand.type
+        cur_signed = getattr(ty, "signed", None)
+        if cur_signed is None or cur_signed == self._cmp_signed:
+            return None
+        size = getattr(ty, "size", None)
+        if not size:
+            return None
+        new_ty = self.codegen.default_simtype_from_bits(size, self._cmp_signed)
+        new_repr = new_ty.c_repr(name=None)
+        # Don't emit a no-op cast when both types render identically in C
+        # AND the operand is a simple leaf (variable / field / constant) that
+        # won't be widened by C integer promotion.  For compound expressions
+        # like (a0 + a1), even though the *declared* element types are char,
+        # C promotes to int before the operation, so (char)(a0 + a1) is a
+        # real truncation and must be kept.
+        if new_repr == ty.c_repr(name=None) and isinstance(operand, (CVariable, CVariableField, CConstant)):
+            return None
+        return f"({new_repr})"
+
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
+        force_lhs_parens = False
+        narrow_cast_str = None
         if self._cstyle_null_cmp and self._has_const_null_rhs():
             if self.op == "CmpEQ":
                 skip_op_and_rhs = True
                 yield "!", None
+                # Unary ! has higher C precedence than any binary op,
+                # so we must parenthesize any compound LHS.
+                if isinstance(self.lhs, CBinaryOp):
+                    force_lhs_parens = True
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
+            # C integer promotion widens char/short to int before arithmetic,
+            # so we need an explicit truncation cast for 8/16-bit comparisons
+            # to preserve narrow-width semantics.
+            if skip_op_and_rhs and isinstance(self.lhs, CBinaryOp):
+                try:
+                    ct_size = self.common_type.size  # in bits
+                    if ct_size is not None and ct_size < 32:
+                        narrow_cast_str = f"({self.common_type.c_repr(name=None)})"
+                        force_lhs_parens = True
+                except (TypeError, AttributeError):
+                    pass
+
+        # In C, the signedness of ordered comparisons (<, <=, >, >=) depends on
+        # the operand types.  When the AIL comparison carries an explicit signedness
+        # flag that disagrees with the C operand types, emit casts.
+        lhs_sign_cast = self._cmp_signedness_cast(self.lhs)
+        rhs_sign_cast = self._cmp_signedness_cast(self.rhs) if not skip_op_and_rhs else None
+
         # lhs
-        if isinstance(self.lhs, CBinaryOp) and self.op_precedence > self.lhs.op_precedence:
+        if narrow_cast_str is not None:
+            yield narrow_cast_str, None
+        elif lhs_sign_cast is not None:
+            yield lhs_sign_cast, None
+        if lhs_sign_cast is not None and not force_lhs_parens:
+            force_lhs_parens = isinstance(self.lhs, CBinaryOp)
+        if isinstance(self.lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > self.lhs.op_precedence):
             paren = CClosingObject("(")
             yield "(", paren
             yield from self._try_c_repr_chunks(self.lhs)
@@ -2062,6 +2119,8 @@ class CBinaryOp(CExpression):
             # operator
             yield op, self
             # rhs
+            if rhs_sign_cast is not None:
+                yield rhs_sign_cast, None
             if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
                 1 if self.op in ["Sub", "Div"] else 0
             ):
@@ -2931,6 +2990,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def default_simtype_from_bits(self, n: int, signed: bool = True) -> SimType:
         _mapping = {
+            128: SimTypeInt128,
             64: SimTypeLongLong,
             32: SimTypeInt,
             16: SimTypeShort,
@@ -3945,14 +4005,97 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         lhs = self._handle(expr.operands[0])
         rhs = self._handle(expr.operands[1], likely_signed=expr.op not in {"And", "Or"})
 
+        # Pass the AIL signedness flag for ordered comparisons so the C renderer
+        # can emit explicit casts when the C operand types disagree.
+        cmp_signed = expr.signed if expr.op in {"CmpLT", "CmpLE", "CmpGT", "CmpGE"} else None
+
+        # Propagate comparison signedness to local variable and constant types.
+        # This avoids ugly casts like ``(long long)v1 < (long long)3`` — instead
+        # the variable declaration becomes signed and the comparison is naturally
+        # correct.  Function parameters keep their ABI types; _cmp_signedness_cast
+        # handles those with explicit casts.
+        if cmp_signed is not None:
+            # First, try to absorb narrowing casts into variable declarations.
+            # E.g. ``(char)v3 < (char)v4`` → declare v3,v4 as ``char`` and emit
+            # ``v3 < v4``.
+            lhs = self._try_narrow_cmp_operand(lhs)
+            rhs = self._try_narrow_cmp_operand(rhs)
+            for operand in (lhs, rhs):
+                self._propagate_cmp_signedness(operand, cmp_signed)
+
         return CBinaryOp(
             expr.op,
             lhs,
             rhs,
+            cmp_signed=cmp_signed,
             tags=expr.tags,
             codegen=self,
             collapsed=expr.depth > self.binop_depth_cutoff,
         )
+
+    def _propagate_cmp_signedness(self, cexpr: CExpression, signed: bool) -> None:
+        """Update a local variable's or constant's type to match comparison signedness.
+
+        For local variables this changes the declaration (via the variable manager)
+        so no explicit cast is needed.  Function parameters are left alone — the
+        ``_cmp_signedness_cast`` mechanism on ``CBinaryOp`` handles those.
+        """
+        ty = cexpr.type
+        cur_signed = getattr(ty, "signed", None)
+        if cur_signed is None or cur_signed == signed:
+            return
+        size = getattr(ty, "size", None)
+        if not size:
+            return
+        new_ty = self.default_simtype_from_bits(size, signed)
+
+        if isinstance(cexpr, CVariable):
+            # Don't touch function parameters — their types come from the ABI.
+            if self._func_args is not None and cexpr.variable in self._func_args:
+                return
+            cexpr.variable_type = new_ty
+            if self._variables_in_use is not None and cexpr.variable in self._variables_in_use:
+                self._variables_in_use[cexpr.variable].variable_type = new_ty
+            # Also update the canonical type in the variable manager so the
+            # declaration (``variable_list_repr_chunks``) picks it up.
+            self._variable_kb.variables[self._func.addr].set_variable_type(cexpr.variable, new_ty)
+        elif isinstance(cexpr, CConstant):
+            cexpr._type = new_ty
+
+    def _try_narrow_cmp_operand(self, cexpr: CExpression) -> CExpression:
+        """If *cexpr* is a narrowing ``CTypeCast`` around a local ``CVariable``,
+        propagate the cast's destination type to the variable declaration and
+        return the unwrapped ``CVariable`` — eliminating the explicit cast.
+
+        This turns ``(char)v3 < (char)v4`` into ``v3 < v4`` (with ``v3`` and
+        ``v4`` declared as ``char``).  Struct field accesses and function
+        parameters are left alone.
+        """
+        if not isinstance(cexpr, CTypeCast):
+            return cexpr
+        dst_size = getattr(cexpr.dst_type, "size", None)
+        src_size = getattr(cexpr.src_type, "size", None)
+        if dst_size is None or src_size is None or dst_size >= src_size:
+            return cexpr  # not a narrowing cast
+        # Don't absorb pointer-to-integer casts — a pointer's width != its
+        # semantic type, so rewriting the declaration would lose type info.
+        if isinstance(cexpr.src_type, SimTypePointer):
+            return cexpr
+
+        inner = cexpr.expr
+        if isinstance(inner, CVariable):
+            # Don't touch function parameters — their types come from the ABI.
+            if self._func_args is not None and inner.variable in self._func_args:
+                return cexpr
+            inner.variable_type = cexpr.dst_type
+            if self._variables_in_use is not None and inner.variable in self._variables_in_use:
+                self._variables_in_use[inner.variable].variable_type = cexpr.dst_type
+            self._variable_kb.variables[self._func.addr].set_variable_type(inner.variable, cexpr.dst_type)
+            return inner
+        if isinstance(inner, CConstant):
+            inner._type = cexpr.dst_type
+            return inner
+        return cexpr
 
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
@@ -4265,10 +4408,51 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         return super().handle_CAssignment(obj)
 
     def handle_CFunctionCall(self, obj: CFunctionCall):
-        prototype_args = [] if obj.prototype is None else obj.prototype.args
-        for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
-            obj.args[i] = self.collapse(arg_ty, c_arg)
-        return super().handle_CFunctionCall(obj)
+        # Collapse args against the prototype to remove redundant type casts.
+        # Skip for __builtin_*_overflow_p calls — their synthetic prototype
+        # (derived from arg types) would circularly strip intentional casts
+        # like (unsigned char)0 that convey the overflow check type.
+        callee = obj.callee_target
+        skip_collapse = isinstance(callee, str) and "_overflow_p" in callee
+        if not skip_collapse:
+            prototype_args = [] if obj.prototype is None else obj.prototype.args
+            for i, (c_arg, arg_ty) in enumerate(zip(obj.args, prototype_args)):
+                obj.args[i] = self.collapse(arg_ty, c_arg)
+        obj = super().handle_CFunctionCall(obj)
+
+        # __builtin_*_overflow_p: the 3rd arg's type determines the overflow check width
+        # and signedness.  Bare 0 is int (signed 32-bit) in C, so we need an explicit cast
+        # when the intended type differs.  This runs AFTER the implicit-cast walker so the
+        # cast won't be stripped.  Signedness comes from the overflow_p_signed tag set by
+        # the OverflowBuiltinPredicateSimplifier.
+        #
+        # Additionally, when the overflow check is signed (e.g., ADD CondO) but the function
+        # params are unsigned, the first two operands must also be cast to signed so that
+        # __builtin_*_overflow_p uses the signed interpretation of the values.
+        callee = obj.callee_target
+        if isinstance(callee, str) and "_overflow_p" in callee and len(obj.args) >= 3:
+            arg2 = obj.args[2]
+            if isinstance(arg2, CConstant) and arg2.tags is not None:
+                op_signed = arg2.tags.get("overflow_p_signed", True)
+                arg_bits = arg2.type.size if hasattr(arg2.type, "size") and arg2.type.size else 32
+                codegen = obj.codegen
+
+                # Cast 3rd arg (type-conveying zero) when width or signedness differs from int.
+                if arg_bits != 32 or not op_signed:
+                    dst_ty = codegen.default_simtype_from_bits(arg_bits, signed=op_signed)
+                    int_ty = SimTypeInt(signed=True).with_arch(codegen.project.arch)
+                    obj.args[2] = CTypeCast(int_ty, dst_ty, CConstant(0, int_ty, codegen=codegen), codegen=codegen)
+
+                # Cast first two operands when their signedness doesn't match the check type.
+                # E.g., for signed overflow with unsigned char params, emit (char)a0, (char)a1.
+                for i in range(min(2, len(obj.args))):
+                    arg_i = obj.args[i]
+                    arg_i_signed = getattr(arg_i.type, "signed", None)
+                    if arg_i_signed is not None and arg_i_signed != op_signed:
+                        target_ty = codegen.default_simtype_from_bits(arg_i.type.size, signed=op_signed)
+                        obj.args[i] = CTypeCast(arg_i.type, target_ty, arg_i, codegen=codegen)
+
+        return obj
 
     def handle_CReturn(self, obj: CReturn):
         obj.retval = self.collapse(obj.codegen._func.prototype.returnty, obj.retval)

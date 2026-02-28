@@ -855,19 +855,17 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        # collect unified variables
-        varman = self._variable_kb.variables[self.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-
-        # also collect argument variables
-        arg_vars = []
-        if self.codegen and self.codegen.cfunc and self.codegen.cfunc.arg_list:
-            for cvar in self.codegen.cfunc.arg_list:
-                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                if v not in unified_vars:
-                    arg_vars.append(v)
-
-        all_vars = unified_vars + arg_vars
+        # collect variables that actually appear in the generated code
+        all_vars = []
+        if self.codegen and self.codegen.cfunc:
+            # local variables from the cfunc tree (only those visible in output)
+            all_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            # argument variables
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in all_vars:
+                        all_vars.append(v)
         if not all_vars:
             return False
 
@@ -975,7 +973,16 @@ class Decompiler(Analysis):
             return False
 
         varman = self._variable_kb.variables[self.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
+
+        # collect variables that actually appear in the generated code
+        unified_vars = []
+        if self.codegen and self.codegen.cfunc:
+            unified_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in unified_vars:
+                        unified_vars.append(v)
 
         if not unified_vars:
             return False
