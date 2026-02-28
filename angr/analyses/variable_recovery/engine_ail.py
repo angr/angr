@@ -675,9 +675,20 @@ class SimEngineVRAIL(
         r0 = self._expr_bv(arg0)
         r1 = self._expr_bv(arg1)
 
+        result_size = expr.bits
+        operand_size = arg0.bits
+
+        # emit signedness constraints based on signed/unsigned multiply
+        int_type_func = typeconsts.signed_int_type if expr.signed else typeconsts.unsigned_int_type
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, int_type_func(operand_size))
+            self.state.add_type_constraint(tc)
+        if isinstance(r1.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r1.typevar, int_type_func(operand_size))
+            self.state.add_type_constraint(tc)
+
         if r0.data.concrete and r1.data.concrete:
             # constants
-            result_size = expr.bits
             if r0.data.size() < result_size:
                 if expr.signed:
                     r0.data = claripy.SignExt(result_size - r0.data.size(), r0.data)
@@ -688,7 +699,7 @@ class SimEngineVRAIL(
                     r1.data = claripy.SignExt(result_size - r1.data.size(), r1.data)
                 else:
                     r1.data = claripy.ZeroExt(result_size - r1.data.size(), r1.data)
-            return RichR(r0.data * r1.data, typevar=typeconsts.int_type(result_size), type_constraints=None)
+            return RichR(r0.data * r1.data, typevar=int_type_func(result_size), type_constraints=None)
 
         r = self.state.top(expr.bits)
         return RichR(
@@ -703,6 +714,16 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         from_size = expr.bits
         to_size = r1.bits
+
+        if not expr.floating_point:
+            # emit signedness constraints
+            int_type_func = typeconsts.signed_int_type if expr.signed else typeconsts.unsigned_int_type
+            if isinstance(r0.typevar, typevars.TypeVariable):
+                tc = typevars.Subtype(r0.typevar, int_type_func(arg0.bits))
+                self.state.add_type_constraint(tc)
+            if isinstance(r1.typevar, typevars.TypeVariable):
+                tc = typevars.Subtype(r1.typevar, int_type_func(arg1.bits))
+                self.state.add_type_constraint(tc)
 
         if expr.floating_point:
             quotient = self.state.top(to_size)
@@ -725,6 +746,16 @@ class SimEngineVRAIL(
         r0 = self._expr_bv(arg0)
         r1 = self._expr_bv(arg1)
         result_size = expr.bits
+
+        if not expr.floating_point:
+            # emit signedness constraints
+            int_type_func = typeconsts.signed_int_type if expr.signed else typeconsts.unsigned_int_type
+            if isinstance(r0.typevar, typevars.TypeVariable):
+                tc = typevars.Subtype(r0.typevar, int_type_func(arg0.bits))
+                self.state.add_type_constraint(tc)
+            if isinstance(r1.typevar, typevars.TypeVariable):
+                tc = typevars.Subtype(r1.typevar, int_type_func(arg1.bits))
+                self.state.add_type_constraint(tc)
 
         if expr.floating_point:
             remainder = self.state.top(result_size)
@@ -754,14 +785,14 @@ class SimEngineVRAIL(
         if r0.data.concrete and r1.data.concrete:
             # constants
             result_size = arg0.bits
-            return RichR(r0.data ^ r1.data, typevar=typeconsts.int_type(result_size), type_constraints=None)
+            return RichR(r0.data ^ r1.data, typevar=typeconsts.unsigned_int_type(result_size), type_constraints=None)
 
         # xor does not transfer type variables; instead, it forces both operands to be unsigned integers
         if isinstance(r0.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r0.typevar, typeconsts.int_type(r0.data.size()))
+            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(r0.data.size()))
             self.state.add_type_constraint(tc)
         if isinstance(r1.typevar, typevars.TypeVariable):
-            tc = typevars.Subtype(r1.typevar, typeconsts.int_type(r1.data.size()))
+            tc = typevars.Subtype(r1.typevar, typeconsts.unsigned_int_type(r1.data.size()))
             self.state.add_type_constraint(tc)
 
         r = self.state.top(expr.bits)
@@ -789,6 +820,11 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
 
+        # logical right shift implies unsigned operand
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, typeconsts.unsigned_int_type(result_size))
+            self.state.add_type_constraint(tc)
+
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
@@ -797,7 +833,9 @@ class SimEngineVRAIL(
         shiftamount = r1.data.concrete_value
 
         return RichR(
-            claripy.LShR(r0.data, shiftamount), typevar=typeconsts.int_type(result_size), type_constraints=None
+            claripy.LShR(r0.data, shiftamount),
+            typevar=typeconsts.unsigned_int_type(result_size),
+            type_constraints=None,
         )
 
     def _handle_binop_Sal(self, expr):
@@ -823,6 +861,11 @@ class SimEngineVRAIL(
         r1 = self._expr_bv(arg1)
         result_size = arg0.bits
 
+        # arithmetic right shift implies signed operand
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, typeconsts.signed_int_type(result_size))
+            self.state.add_type_constraint(tc)
+
         if not r1.data.concrete:
             # we don't support symbolic shiftamount
             r = self.state.top(result_size)
@@ -830,7 +873,7 @@ class SimEngineVRAIL(
 
         shiftamount = r1.data.concrete_value
 
-        return RichR(r0.data >> shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
+        return RichR(r0.data >> shiftamount, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
 
     def _handle_binop_And(self, expr):
         arg0, arg1 = expr.operands
@@ -842,12 +885,12 @@ class SimEngineVRAIL(
         if r0.data.concrete and r1.data.concrete:
             return RichR(
                 r0.data & r1.data,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.unsigned_int_type(result_size),
                 type_constraints=None,
             )
 
         r = self.state.top(expr.bits)
-        return RichR(r, typevar=typeconsts.int_type(result_size))
+        return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
     def _handle_binop_Or(self, expr):
         arg0, arg1 = expr.operands
@@ -859,12 +902,12 @@ class SimEngineVRAIL(
         if r0.data.concrete and r1.data.concrete:
             return RichR(
                 r0.data | r1.data,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.unsigned_int_type(result_size),
                 type_constraints=None,
             )
 
         r = self.state.top(expr.bits)
-        return RichR(r, typevar=typeconsts.int_type(result_size))
+        return RichR(r, typevar=typeconsts.unsigned_int_type(result_size))
 
     def _handle_binop_LogicalAnd(self, expr):
         arg0, arg1 = expr.operands
@@ -938,10 +981,42 @@ class SimEngineVRAIL(
 
     _handle_binop_CmpEQ = _handle_binop_Cmp_Default
     _handle_binop_CmpNE = _handle_binop_Cmp_Default
-    _handle_binop_CmpLT = _handle_binop_Cmp_Default
-    _handle_binop_CmpLE = _handle_binop_Cmp_Default
-    _handle_binop_CmpGT = _handle_binop_Cmp_Default
-    _handle_binop_CmpGE = _handle_binop_Cmp_Default
+
+    def _handle_binop_Cmp_Signed(self, expr):
+        """Handle signed comparisons: add equivalence constraint plus signed type constraint on operands."""
+        arg0, arg1 = expr.operands
+
+        r0 = self._expr(arg0)
+        r1 = self._expr(arg1)
+        if (
+            r0.typevar is not None
+            and r1.typevar is not None
+            and (isinstance(r0.typevar, typevars.TypeVariable) or isinstance(r1.typevar, typevars.TypeVariable))
+        ):
+            tc = typevars.Equivalence(r0.typevar, r1.typevar)
+            self.state.add_type_constraint(tc)
+
+        # add signed type constraint for both operands
+        if isinstance(r0.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r0.typevar, typeconsts.signed_int_type(arg0.bits))
+            self.state.add_type_constraint(tc)
+        if isinstance(r1.typevar, typevars.TypeVariable):
+            tc = typevars.Subtype(r1.typevar, typeconsts.signed_int_type(arg1.bits))
+            self.state.add_type_constraint(tc)
+
+        return RichR(self.state.top(expr.bits))
+
+    def _handle_binop_CmpLT(self, expr):
+        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+
+    def _handle_binop_CmpLE(self, expr):
+        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+
+    def _handle_binop_CmpGT(self, expr):
+        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
+
+    def _handle_binop_CmpGE(self, expr):
+        return self._handle_binop_Cmp_Signed(expr) if expr.signed else self._handle_binop_Cmp_Default(expr)
 
     def _handle_binop_Default(self, expr):
         arg0, arg1 = expr.operands
