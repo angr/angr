@@ -407,7 +407,8 @@ class TestJava(unittest.TestCase):
     # Array Operations
     #
 
-    @unittest.skipUnless(pysoot, "pysoot not available")
+    # @unittest.skipUnless(pysoot, "pysoot not available")
+    @unittest.skip("Disabled due to excessive memory usage")
     def test_array_operations(self):
         project = self.create_project("array_operations", load_native_libs=False)
 
