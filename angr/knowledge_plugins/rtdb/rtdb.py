@@ -60,7 +60,7 @@ class RuntimeDb(KnowledgeBasePlugin):
         self._condom = RuntimeDbForkCondom(self)
 
     def __del__(self):
-        self._cleanup_lmdb()
+        self.cleanup()
 
     def _init_lmdb(self):
         if self._lmdb_env is not None:
@@ -225,6 +225,9 @@ class RuntimeDb(KnowledgeBasePlugin):
         with self._lmdb_env.begin(write=True) as txn:
             txn.drop(db)
         del self._dbs[db_name]
+
+    def cleanup(self):
+        self._cleanup_lmdb()
 
 
 KnowledgeBasePlugin.register_default("rtdb", RuntimeDb)
