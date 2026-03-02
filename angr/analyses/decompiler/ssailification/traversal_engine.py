@@ -19,6 +19,7 @@ from angr.ailment.expression import (
     DirtyExpression,
     Load,
     VirtualVariable,
+    Expression,
 )
 
 from angr.code_location import AILCodeLocation
@@ -475,6 +476,8 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
 
     def _handle_expr_Call(self, expr):
         target = expr.target
+        if isinstance(target, Expression):
+            self._expr(target)
 
         def_size = None
         def_size_arg = None
