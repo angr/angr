@@ -5,6 +5,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 from collections.abc import Generator
+import contextlib
 
 from rich.syntax import Syntax
 from rich.console import Console
@@ -17,6 +18,10 @@ from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
+
+pdb = __import__("pdb")
+with contextlib.suppress(ImportError):
+    pdb = __import__("ipdb")
 
 
 log = logging.getLogger(__name__)
@@ -67,6 +72,8 @@ def disassemble(args):
                 continue
             func.pp(show_bytes=True, min_edge_depth=10)
         except Exception as e:  # pylint:disable=broad-exception-caught
+            if args.pdb:
+                pdb.post_mortem(e.__traceback__)
             if not args.catch_exceptions:
                 raise
             log.exception(e)
@@ -80,7 +87,8 @@ def decompile(args):
         args.binary,
         functions=args.functions,
         structurer=args.structurer,
-        catch_errors=args.catch_exceptions,
+        catch_errors=args.catch_exceptions or args.pdb,
+        postmortem=args.pdb,
         show_casts=not args.no_casts,
         base_address=args.base_addr,
         preset=args.preset,
@@ -115,6 +123,14 @@ def _add_common_args(subparser):
         help="""
         Catch exceptions during analysis. The scope of error handling may depend on the command used for analysis.
         If multiple functions are specified for analysis, each function will be handled individually.""",
+        action="store_true",
+        default=False,
+    )
+    subparser.add_argument(
+        "--pdb",
+        help="""
+        Implies --catch-exceptions, and also laucnes a postmortem debug shell when we catch one.
+        """,
         action="store_true",
         default=False,
     )
