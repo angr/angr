@@ -72,7 +72,7 @@ dependencies = [
  "rangemap",
  "send_wrapper",
  "serde",
- "target-lexicon 0.12.16",
+ "target-lexicon 0.13.4",
  "tempfile",
 ]
 
