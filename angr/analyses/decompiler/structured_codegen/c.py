@@ -52,6 +52,7 @@ from angr.utils.library import get_cpp_function_name
 from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
 from angr.utils.types import unpack_typeref, unpack_pointer_and_array, dereference_simtype_by_lib
 from angr.utils.strings import decode_utf16_string
+from angr.utils.bits import u2s
 from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.errors import UnsupportedNodeTypeError
@@ -2260,18 +2261,7 @@ class CConstant(CExpression):
 
     @property
     def fmt_neg(self):
-        result = self.fmt.get("neg", None)
-        if result is None:
-            result = False
-            # guess it
-            if isinstance(self._type, (SimTypeInt, SimTypeChar)) and self._type.signed and isinstance(self.value, int):
-                value_size = self._type.size if self._type is not None else None
-                if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
-                    value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
-                ):
-                    result = True
-
-        return result
+        return self.fmt.get("neg", False)
 
     @fmt_neg.setter
     def fmt_neg(self, v):
@@ -3851,7 +3841,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     inline_string = True
             elif isinstance(type_, SimTypeInt):
                 # int
-                reference_values[type_] = expr.value
+                reference_values[type_] = u2s(expr.value, expr.bits) if type_.signed else expr.value
 
             # we don't know the type of this argument, or the type is not what we are expecting
             # edge cases: (void*)"this is a constant string pointer". in this case, the type_ will be a void*
