@@ -8,6 +8,7 @@ from .a_sub_a_div import ASubADiv
 from .modulo_simplifier import ModuloSimplifier
 from .a_sub_a_shr_const_shr_const import ASubAShrConstShrConst
 from .arm_cmpf import ARMCmpF
+from .bitwise_inserts import SimplifyBitwiseInserts
 from .bswap import Bswap
 from .cas_intrinsics import CASIntrinsics
 from .coalesce_same_cascading_ifs import CoalesceSameCascadingIfs
@@ -94,6 +95,7 @@ ALL_PEEPHOLE_OPTS: list[Any] = [
     RemoveRedundantReinterprets,
     RemoveRedundantShifts,
     RemoveRedundantShiftsAroundComparators,
+    SimplifyBitwiseInserts,
     SimplifyPcRelativeLoads,
     BasePointerOffsetAddN,
     BasePointerOffsetAndMask,
