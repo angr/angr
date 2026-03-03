@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import cast
 
@@ -267,13 +268,11 @@ class IcicleEngine(ConcreteEngine):
 
         # 1. Copy register values
         for register in base_translation_data.registers:
-            try:
+            with suppress(KeyError):
                 emu.reg_write(
                     register,
                     state.solver.eval(state.registers.load(register), cast_to=int),
                 )
-            except KeyError:
-                pass
 
         # Handle thumb/ARM mode
         if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
@@ -343,9 +342,8 @@ class IcicleEngine(ConcreteEngine):
         if extra_stop_points is not None:
             for addr in extra_stop_points:
                 addr = addr & ~1  # Clear thumb bit if set
-                if emu.pc != addr:
-                    if emu.add_breakpoint(addr):
-                        added_breakpoints.append(addr)
+                if emu.pc != addr and emu.add_breakpoint(addr):
+                    added_breakpoints.append(addr)
 
         # Set the instruction count limit
         if num_inst is not None and num_inst > 0:
