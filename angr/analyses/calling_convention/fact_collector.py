@@ -588,6 +588,9 @@ class FactCollector(Analysis):
                             if isinstance(expr, pyvex.IRExpr.Unop) and expr.op in {"Iop_32Sto64", "Iop_32Uto64"}:
                                 size = 4
 
+                            if isinstance(expr, pyvex.IRExpr.Const) and expr.con.value & 0xFFFF_FFFF_0000_0000 == 0:
+                                size = 4
+
                         if stmt.offset == retreg_offset:
                             retval_size = max(size, 1)
 
