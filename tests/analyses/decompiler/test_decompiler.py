@@ -622,8 +622,9 @@ class TestDecompiler(unittest.TestCase):
         assert "free(" in code
         assert "free(NULL" not in code and "free(0" not in code
 
-        # return values are either 0xffffffff or -1
-        assert "return 4294967295;" in code or "return -1;" in code
+        # failing return values must be -1; the return type of the function must be int (signed)
+        assert "return 4294967295;" not in code and "return -1;" in code
+        assert "\nint doit(" in code
 
         # the while loop containing puts("Empty title"); must have both continue and break
         for i, line in enumerate(code_lines):
