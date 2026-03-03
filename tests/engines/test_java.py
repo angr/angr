@@ -22,7 +22,8 @@ from angr.engines.soot.values import SimSootValue_ArrayRef, SimSootValue_ThisRef
 from angr.engines.soot.method_dispatcher import resolve_method
 
 try:
-    import pysoot
+    # import pysoot
+    pysoot = None
 except ModuleNotFoundError:
     pysoot = None
 
