@@ -773,7 +773,7 @@ class SimEngineVRAIL(
             # constants
             result_size = arg0.bits
             compute = r0.data * r1.data  # type: ignore
-            return RichR(compute, typevar=typeconsts.int_type(result_size), type_constraints=None)
+            return RichR(compute, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
 
         r = self.state.top(expr.bits)
         return RichR(
@@ -928,7 +928,7 @@ class SimEngineVRAIL(
             return RichR(r)
 
         shiftamount = r1.data.concrete_value
-        return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
+        return RichR(r0.data << shiftamount, typevar=typeconsts.unsigned_int_type(result_size), type_constraints=None)
 
     def _handle_binop_Shr(self, expr):
         arg0, arg1 = expr.operands
@@ -969,7 +969,7 @@ class SimEngineVRAIL(
 
         shiftamount = r1.data.concrete_value
 
-        return RichR(r0.data << shiftamount, typevar=typeconsts.int_type(result_size), type_constraints=None)
+        return RichR(r0.data << shiftamount, typevar=typeconsts.signed_int_type(result_size), type_constraints=None)
 
     def _handle_binop_Sar(self, expr):
         arg0, arg1 = expr.operands
@@ -1183,7 +1183,7 @@ class SimEngineVRAIL(
         if expr.data.concrete:
             return RichR(
                 ~expr.data,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.signed_int_type(result_size),
                 type_constraints=None,
             )
 
@@ -1199,7 +1199,7 @@ class SimEngineVRAIL(
         if expr.data.concrete:
             return RichR(
                 -expr.data,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.signed_int_type(result_size),
                 type_constraints=None,
             )
 
@@ -1215,7 +1215,7 @@ class SimEngineVRAIL(
         if expr.data.concrete:
             return RichR(
                 ~expr.data,
-                typevar=typeconsts.int_type(result_size),
+                typevar=typeconsts.unsigned_int_type(result_size),
                 type_constraints=None,
             )
 
