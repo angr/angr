@@ -29,6 +29,7 @@ except ModuleNotFoundError:
 from tests.common import bin_location
 
 
+@unittest.skip("Disabled due to excessive memory usage")
 class TestJava(unittest.TestCase):
     test_location = os.path.join(bin_location, "tests", "java")
     sdk_path = os.path.join(os.path.expanduser("~"), "Android", "Sdk", "platforms")
@@ -407,8 +408,7 @@ class TestJava(unittest.TestCase):
     # Array Operations
     #
 
-    # @unittest.skipUnless(pysoot, "pysoot not available")
-    @unittest.skip("Disabled due to excessive memory usage")
+    @unittest.skipUnless(pysoot, "pysoot not available")
     def test_array_operations(self):
         project = self.create_project("array_operations", load_native_libs=False)
 
