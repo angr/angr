@@ -155,11 +155,11 @@ class RuntimeDb(KnowledgeBasePlugin):
         """
         Clean up LMDB resources.
         """
-        if self._lmdb_env is not None:
+        if hasattr(self, "_lmdb_env") and self._lmdb_env is not None:
             self._lmdb_env.close()
             self._lmdb_env = None
 
-        if self._lmdb_path is not None:
+        if hasattr(self, "_lmdb_path") and self._lmdb_path is not None:
             with contextlib.suppress(OSError):
                 shutil.rmtree(self._lmdb_path)
             self._lmdb_path = None
