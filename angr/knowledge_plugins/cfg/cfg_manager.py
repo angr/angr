@@ -102,6 +102,8 @@ class CFGManager(KnowledgeBasePlugin):
     def __setstate__(self, state):
         self._kb = state["_kb"]
         self.cfgs = state["cfgs"]
+        for cfg_model in self.cfgs.values():
+            cfg_model._cfg_manager = self
 
 
 KnowledgeBasePlugin.register_default("cfgs", CFGManager)
