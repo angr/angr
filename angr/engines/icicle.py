@@ -327,9 +327,7 @@ class IcicleEngine(ConcreteEngine):
         if self._cached_emu is not None and self._snapshot_mode:
             # Fast path: restore snapshot and sync only changed state
             self._cached_emu.restore_snapshot()
-            translation_data = self.__sync_angr_state_to_icicle(
-                self._cached_emu, state, self._base_translation_data
-            )
+            translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu
         else:
             # Full init path
