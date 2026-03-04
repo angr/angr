@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import TestCase
 
 import archinfo
@@ -19,8 +20,9 @@ import cle
 
 import angr
 from angr import sim_options as o
+from angr.errors import SimMemoryError
 from angr.emulator import EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, UberIcicleEngine
+from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from tests.common import bin_location
 
@@ -180,6 +182,105 @@ class TestIcicle(TestCase):
         assert successors.successors[0].ip.concrete_value == 0x0
         # Check that the syscall was invoked
         assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
+
+
+class TestSnapshotSync(TestCase):
+    """Unit tests for snapshot sync behavior in the Icicle engine."""
+
+    def test_snapshot_sync_page_set_changes(self):
+        page_size = 0x1000
+        kept_page = 0x20
+        freed_page = 0x21
+        added_page = 0x22
+
+        class FakePerm:
+            def __init__(self, value):
+                self.concrete_value = value
+
+        class FakeMemory:
+            def __init__(self, pages):
+                self.page_size = page_size
+                self._pages = {page_num: object() for page_num in pages}
+                self._perms = {page_num: perm_bits for page_num, (perm_bits, _) in pages.items()}
+                self._contents = {page_num: content for page_num, (_, content) in pages.items()}
+
+            def permissions(self, addr):
+                page_num = addr // self.page_size
+                if page_num not in self._perms:
+                    raise SimMemoryError(f"{addr:#x} is not mapped")
+                return FakePerm(self._perms[page_num])
+
+            def concrete_load(self, addr, size):
+                assert size == self.page_size
+                page_num = addr // self.page_size
+                return self._contents[page_num]
+
+        class FakeState:
+            def __init__(self, pages):
+                self.memory = FakeMemory(pages)
+                self.project = None
+                self.arch = SimpleNamespace(name="AMD64")
+                self.addr = 0
+
+        class FakeEmu:
+            def __init__(self):
+                self.cpu_icount = 1234
+                self.mapped = []
+                self.unmapped = []
+                self.protected = []
+                self.writes = []
+
+            def mem_map(self, addr, size, perm):
+                self.mapped.append((addr, size, perm))
+
+            def mem_unmap(self, addr, size):
+                self.unmapped.append((addr, size))
+
+            def mem_protect(self, addr, size, perm):
+                self.protected.append((addr, size, perm))
+
+            def mem_write(self, addr, data):
+                self.writes.append((addr, data))
+
+        base_state = FakeState(
+            {
+                kept_page: (0b011, b"A" * page_size),
+                freed_page: (0b011, b"B" * page_size),
+            }
+        )
+        new_state = FakeState(
+            {
+                kept_page: (0b011, b"C" * page_size),
+                added_page: (0b011, b"D" * page_size),
+            }
+        )
+        emu = FakeEmu()
+
+        base_translation_data = IcicleStateTranslationData(
+            base_state=base_state,
+            registers=set(),
+            mapped_pages={kept_page, freed_page},
+            writable_pages={kept_page, freed_page},
+            explicit_page_metadata={kept_page: 0b011, freed_page: 0b011},
+            initial_cpu_icount=0,
+            icicle_arch="x86_64",
+        )
+
+        synced_translation_data = IcicleEngine._IcicleEngine__sync_angr_state_to_icicle(
+            emu, new_state, base_translation_data
+        )
+
+        assert {(addr // page_size, size, perm) for addr, size, perm in emu.mapped} == {(added_page, page_size, 0b011)}
+        assert {(addr // page_size, size) for addr, size in emu.unmapped} == {(freed_page, page_size)}
+        assert emu.protected == []
+
+        written_pages = {addr // page_size for addr, _ in emu.writes}
+        written_data = {addr // page_size: data for addr, data in emu.writes}
+        assert written_pages == {kept_page, added_page}
+        assert written_data[kept_page] == b"C" * page_size
+        assert written_data[added_page] == b"D" * page_size
+
+        assert synced_translation_data.writable_pages == {kept_page, added_page}
 
 
 class TestThumb(TestCase):

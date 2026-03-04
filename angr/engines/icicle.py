@@ -12,6 +12,7 @@ import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
 from typing_extensions import override
 
+from angr.errors import SimMemoryError
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
@@ -34,7 +35,9 @@ class IcicleStateTranslationData:
 
     base_state: HeavyConcreteState
     registers: set[str]
+    mapped_pages: set[int]
     writable_pages: set[int]
+    explicit_page_metadata: dict[int, int | None]
     initial_cpu_icount: int
     icicle_arch: str
 
@@ -120,10 +123,32 @@ class IcicleEngine(ConcreteEngine):
                 end = (addr + len(backer) - 1) // page_size
                 pages.update(range(start, end + 1))
 
-        # pages from the memory model
-        pages.update(state.memory._pages)
+        # The paged memory model stores explicit page overrides in _pages.
+        # A None entry means the page was explicitly unmapped and must shadow
+        # loader backers.
+        for page_num, page in state.memory._pages.items():
+            if page is None:
+                pages.discard(page_num)
+            else:
+                pages.add(page_num)
 
         return pages
+
+    @staticmethod
+    def __get_explicit_page_metadata(state: HeavyConcreteState) -> dict[int, int | None]:
+        """
+        Return explicit page overrides from the paged memory model.
+        The key is page number. Value is permission bits, or None when the page
+        is explicitly unmapped.
+        """
+        metadata = {}
+        page_size = state.memory.page_size
+        for page_num, page in state.memory._pages.items():
+            if page is None:
+                metadata[page_num] = None
+            else:
+                metadata[page_num] = state.memory.permissions(page_num * page_size).concrete_value
+        return metadata
 
     @staticmethod
     def __convert_angr_state_to_icicle(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
@@ -138,6 +163,7 @@ class IcicleEngine(ConcreteEngine):
         emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
 
         copied_registers = set()
+        explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
 
         # To create a state in Icicle, we need to do the following:
         # 1. Copy the register values
@@ -185,7 +211,9 @@ class IcicleEngine(ConcreteEngine):
         translation_data = IcicleStateTranslationData(
             base_state=state,
             registers=copied_registers,
+            mapped_pages=mapped_pages,
             writable_pages=writable_pages,
+            explicit_page_metadata=explicit_page_metadata,
             initial_cpu_icount=emu.cpu_icount,
             icicle_arch=icicle_arch,
         )
@@ -285,16 +313,62 @@ class IcicleEngine(ConcreteEngine):
         if state.arch.name == "X86":
             emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
-        # 2. Copy writable page contents only
-        for page_num in base_translation_data.writable_pages:
-            addr = page_num * state.memory.page_size
-            memory = state.memory.concrete_load(addr, state.memory.page_size)
+        # 2. Sync only mapping/permission deltas from explicit page changes.
+        page_size = state.memory.page_size
+        explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
+        base_explicit_page_metadata = base_translation_data.explicit_page_metadata
+
+        candidate_pages = set(base_explicit_page_metadata).symmetric_difference(explicit_page_metadata)
+        for page_num in set(base_explicit_page_metadata).intersection(explicit_page_metadata):
+            if base_explicit_page_metadata[page_num] != explicit_page_metadata[page_num]:
+                candidate_pages.add(page_num)
+
+        mapped_pages = set(base_translation_data.mapped_pages)
+        writable_pages = set()
+        writable_pages.update(base_translation_data.writable_pages)
+
+        for page_num in candidate_pages:
+            addr = page_num * page_size
+            old_mapped = page_num in mapped_pages
+
+            try:
+                perm_bits = state.memory.permissions(addr).concrete_value
+                new_mapped = True
+            except SimMemoryError:
+                perm_bits = 0
+                new_mapped = False
+
+            if old_mapped and not new_mapped:
+                emu.mem_unmap(addr, page_size)
+                mapped_pages.remove(page_num)
+                writable_pages.discard(page_num)
+                continue
+
+            if not old_mapped and new_mapped:
+                emu.mem_map(addr, page_size, perm_bits)
+                mapped_pages.add(page_num)
+            elif old_mapped and new_mapped:
+                base_perm_bits = base_translation_data.base_state.memory.permissions(addr).concrete_value
+                if base_perm_bits != perm_bits:
+                    emu.mem_protect(addr, page_size, perm_bits)
+
+            if perm_bits & 2:
+                writable_pages.add(page_num)
+            else:
+                writable_pages.discard(page_num)
+
+        # 3. Copy writable page contents.
+        for page_num in writable_pages:
+            addr = page_num * page_size
+            memory = state.memory.concrete_load(addr, page_size)
             emu.mem_write(addr, memory)
 
         return IcicleStateTranslationData(
             base_state=state,
             registers=base_translation_data.registers,
-            writable_pages=base_translation_data.writable_pages,
+            mapped_pages=mapped_pages,
+            writable_pages=writable_pages,
+            explicit_page_metadata=explicit_page_metadata,
             initial_cpu_icount=emu.cpu_icount,
             icicle_arch=icicle_arch,
         )
@@ -325,6 +399,8 @@ class IcicleEngine(ConcreteEngine):
     ) -> HeavyConcreteState:
         if self._cached_emu is not None and self._snapshot_mode:
             # Fast path: restore snapshot and sync only changed state
+            if self._base_translation_data is None:
+                raise ValueError("No base translation data. Run process_concrete first with snapshot mode enabled.")
             self._cached_emu.restore_snapshot()
             translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu
