@@ -194,10 +194,14 @@ class TestSnapshotSync(TestCase):
         added_page = 0x22
 
         class FakePerm:
+            """Minimal permission wrapper matching claripy concrete_value API."""
+
             def __init__(self, value):
                 self.concrete_value = value
 
         class FakeMemory:
+            """Small paged-memory stand-in for snapshot sync tests."""
+
             def __init__(self, pages):
                 self.page_size = page_size
                 self._pages = {page_num: object() for page_num in pages}
@@ -216,6 +220,8 @@ class TestSnapshotSync(TestCase):
                 return self._contents[page_num]
 
         class FakeState:
+            """State shim exposing only fields needed by sync code."""
+
             def __init__(self, pages):
                 self.memory = FakeMemory(pages)
                 self.project = None
@@ -223,6 +229,8 @@ class TestSnapshotSync(TestCase):
                 self.addr = 0
 
         class FakeEmu:
+            """Icicle emulator shim recording memory operation calls."""
+
             def __init__(self):
                 self.cpu_icount = 1234
                 self.mapped = []
@@ -272,7 +280,7 @@ class TestSnapshotSync(TestCase):
 
         assert {(addr // page_size, size, perm) for addr, size, perm in emu.mapped} == {(added_page, page_size, 0b011)}
         assert {(addr // page_size, size) for addr, size in emu.unmapped} == {(freed_page, page_size)}
-        assert emu.protected == []
+        assert not emu.protected
 
         written_pages = {addr // page_size for addr, _ in emu.writes}
         written_data = {addr // page_size: data for addr, data in emu.writes}
