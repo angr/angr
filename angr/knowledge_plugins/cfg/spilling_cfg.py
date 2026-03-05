@@ -264,26 +264,30 @@ class SpillingCFGNodeDict:
             return 0
 
         evicted = 0
+        nodes_to_save = []
         nodes_to_evict = []
-        for lru_block_key in list(self._lru_order):
+        for lru_block_key in self._lru_order:
             if evicted >= n:
                 break
 
             if lru_block_key not in self._data:
-                self._lru_order.pop(lru_block_key)
+                nodes_to_evict.append(lru_block_key)
                 continue
 
             node = self._data[lru_block_key]
             if node.dirty:
-                nodes_to_evict.append((lru_block_key, node))
+                nodes_to_save.append((lru_block_key, node))
 
             del self._data[lru_block_key]
-            del self._lru_order[lru_block_key]
+            nodes_to_evict.append(lru_block_key)
             self._spilled_keys.add(lru_block_key)
             evicted += 1
 
-        if nodes_to_evict:
-            self._save_to_lmdb(nodes_to_evict)
+        for key in nodes_to_evict:
+            del self._lru_order[key]
+
+        if nodes_to_save:
+            self._save_to_lmdb(nodes_to_save)
 
         return evicted
 
