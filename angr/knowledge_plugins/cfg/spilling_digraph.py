@@ -348,6 +348,7 @@ class SpillingAdjDict(MutableMapping):
 
             edge_data = SpillingAdjDict._deserialize_edge_data(proto_bytes)
             inner_dict[dst_key] = edge_data
+        inner_dict.dirty = False
 
         return inner_dict
 
