@@ -228,8 +228,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_get(self, base_offset: int, extra_offset: int, base_size: int) -> Value:
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
-        offset = base_offset + min(extra_offset, 0)
-        size = max(extra_offset, 0) + base_size
+        concrete_offset = base_offset + extra_offset
+        offset = min(concrete_offset, base_offset)
+        end_offset = max(concrete_offset, base_offset) + base_size
+        size = end_offset - offset
         if size >= MAX_STACK_VAR_SIZE:
             return set()
 
@@ -293,10 +295,10 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
     def stackvar_set(self, base_offset: int, extra_offset: int, base_size: int, value: Value):
         if extra_offset > 1 << (self.project.arch.bits - 1):
             extra_offset -= 1 << self.project.arch.bits
-        offset = base_offset + min(extra_offset, 0)
-        var_offset = max(extra_offset, 0)
-        size = var_offset + base_size
-        end_offset = offset + size
+        concrete_offset = base_offset + extra_offset
+        offset = min(concrete_offset, base_offset)
+        end_offset = max(concrete_offset, base_offset) + base_size
+        size = end_offset - offset
 
         if size >= MAX_STACK_VAR_SIZE:
             return
