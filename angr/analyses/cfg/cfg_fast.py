@@ -1635,9 +1635,11 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
     def _function_completed(self, func_addr: int):
         if self.project.arch.name == "AMD64":
+            func_block_count = self.kb.functions.get_func_block_count(func_addr)
+
             # determine if the function is __rust_probestack
-            func = self.kb.functions.get_by_addr(func_addr) if self.kb.functions.contains_addr(func_addr) else None
-            if func is not None and len(func.block_addrs_set) == 3:
+            if func_block_count == 3:
+                func = self.kb.functions.get_by_addr(func_addr)  # must exist
                 block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
                 if block_bytes == {
                     b"UH\x89\xe5I\x89\xc3I\x81\xfb\x00\x10\x00\x00v\x1c",
@@ -1647,7 +1649,8 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     func.info["is_rust_probestack"] = True
 
             # determine if the function is __alloca_probe
-            if func is not None and len(func.block_addrs_set) == 4:
+            if func_block_count == 4:
+                func = self.kb.functions.get_by_addr(func_addr)  # must exist
                 block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
                 if block_bytes == {
                     b"H\x83\xec\x10L\x89\x14$L\x89\\$\x08M3\xdbL\x8dT$\x18L+\xd0M\x0fB\xd3eL\x8b\x1c%\x10\x00\x00\x00M;\xd3s\x16",
@@ -1658,48 +1661,57 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     func.info["is_alloca_probe"] = True
 
             # determine if the function is _guard_xfg_dispatch_icall_nop or _guard_xfg_dispatch_icall_fptr
-            if func is not None and not func.is_simprocedure and len(func.block_addrs_set) in {1, 2}:
-                # _guard_xfg_dispatch_icall_nop jumps to _guard_xfg_dispatch_icall_fptr, but we may or may not identify
-                # _guard_xfg_dispatch_icall_fptr as a separate function.
-                # so, two possibilities:
-                # - _guard_xfg_dispatch_icall_nop is a function with one block and jumps to
-                #   _guard_xfg_dispatch_icall_fptr.
-                # - _guard_xfg_dispatch_icall_nop is a function with 2 blocks, and the second block is the body of
-                #   _guard_xfg_dispatch_icall_fptr.
-                try:
-                    block = func.get_block(func.addr)
-                except SimTranslationError:
-                    block = None
-                if block is not None and block.instructions == 1 and len(block.capstone.insns) == 1:
-                    insn = block.capstone.insns[0]
-                    if block.bytes == b"\xff\xe0":
-                        func.info["jmp_rax"] = True
-                    elif (
-                        insn.mnemonic == "jmp"
-                        and insn.operands[0].type == capstone.x86.X86_OP_MEM
-                        and insn.operands[0].mem.base == capstone.x86.X86_REG_RIP
-                        and insn.operands[0].mem.disp > 0
-                        and insn.operands[0].mem.index == 0
-                    ):
-                        # where is it jumping to?
-                        jumpout_targets = list(self.graph.successors(self.model.get_any_node(func.addr)))
-                        if len(jumpout_targets) == 1:
-                            jumpout_target = jumpout_targets[0].addr
-                            if len(func.block_addrs_set) == 1 and len(func.jumpout_sites) == 1:
-                                if (
-                                    self.kb.functions.contains_addr(jumpout_target)
-                                    and self.kb.functions.get_by_addr(jumpout_target).get_block(jumpout_target).bytes
-                                    == b"\xff\xe0"
+            if func_block_count in {1, 2}:
+                func = self.kb.functions.get_by_addr(func_addr)  # must exist
+                if not func.is_simprocedure:
+                    # _guard_xfg_dispatch_icall_nop jumps to _guard_xfg_dispatch_icall_fptr, but we may or may not
+                    # identify _guard_xfg_dispatch_icall_fptr as a separate function.
+                    # so, two possibilities:
+                    # - _guard_xfg_dispatch_icall_nop is a function with one block and jumps to
+                    #   _guard_xfg_dispatch_icall_fptr.
+                    # - _guard_xfg_dispatch_icall_nop is a function with 2 blocks, and the second block is the body of
+                    #   _guard_xfg_dispatch_icall_fptr.
+                    try:
+                        block = func.get_block(func.addr)
+                    except SimTranslationError:
+                        block = None
+                    if block is not None and block.instructions == 1 and len(block.capstone.insns) == 1:
+                        insn = block.capstone.insns[0]
+                        if block.bytes == b"\xff\xe0":
+                            func.info["jmp_rax"] = True
+                        elif (
+                            insn.mnemonic == "jmp"
+                            and insn.operands[0].type == capstone.x86.X86_OP_MEM
+                            and insn.operands[0].mem.base == capstone.x86.X86_REG_RIP
+                            and insn.operands[0].mem.disp > 0
+                            and insn.operands[0].mem.index == 0
+                        ):
+                            # where is it jumping to?
+                            jumpout_targets = list(self.graph.successors(self.model.get_any_node(func.addr)))
+                            if len(jumpout_targets) == 1:
+                                jumpout_target = jumpout_targets[0].addr
+                                if len(func.block_addrs_set) == 1 and len(func.jumpout_sites) == 1:
+                                    if (
+                                        self.kb.functions.contains_addr(jumpout_target)
+                                        and self.kb.functions.get_by_addr(jumpout_target)
+                                        .get_block(jumpout_target)
+                                        .bytes
+                                        == b"\xff\xe0"
+                                    ):
+                                        func.info["jmp_rax"] = True
+                                elif (
+                                    len(func.block_addrs_set) == 2
+                                    and func.get_block(jumpout_target).bytes == b"\xff\xe0"
                                 ):
+                                    # check the second block and ensure it's jmp rax
                                     func.info["jmp_rax"] = True
-                            elif len(func.block_addrs_set) == 2 and func.get_block(jumpout_target).bytes == b"\xff\xe0":
-                                # check the second block and ensure it's jmp rax
-                                func.info["jmp_rax"] = True
 
         elif self.project.arch.name == "X86":
+            func_block_count = self.kb.functions.get_func_block_count(func_addr)
+
             # determine if the function is __alloca_probe
-            func = self.kb.functions.get_by_addr(func_addr) if self.kb.functions.contains_addr(func_addr) else None
-            if func is not None and len(func.block_addrs_set) == 4:
+            if func_block_count == 4:
+                func = self.kb.functions.get_by_addr(func_addr)  # must exist
                 block_bytes = {func.get_block(block_addr).bytes for block_addr in func.block_addrs_set}
                 if block_bytes == {
                     b"-\x00\x10\x00\x00\x85\x00\xeb\xe9",
