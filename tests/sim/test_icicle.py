@@ -193,10 +193,10 @@ class TestSnapshotSync(TestCase):
         engine = IcicleEngine(project)
         engine.enable_snapshot_mode()
 
-        state_opts = dict(
-            remove_options={*o.symbolic},
-            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
-        )
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
 
         # First run: establish snapshot, page at 0x10000
         s1 = project.factory.blank_state(**state_opts)
