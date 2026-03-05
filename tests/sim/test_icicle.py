@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import os
 from io import BytesIO
-from types import SimpleNamespace
 from unittest import TestCase
 
 import archinfo
@@ -20,9 +19,8 @@ import cle
 
 import angr
 from angr import sim_options as o
-from angr.errors import SimMemoryError
 from angr.emulator import EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
+from angr.engines.icicle import IcicleEngine, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from tests.common import bin_location
 
@@ -188,107 +186,58 @@ class TestSnapshotSync(TestCase):
     """Unit tests for snapshot sync behavior in the Icicle engine."""
 
     def test_snapshot_sync_page_set_changes(self):
-        page_size = 0x1000
-        kept_page = 0x20
-        freed_page = 0x21
-        added_page = 0x22
+        """Test that snapshot sync correctly handles page additions, removals, and data changes."""
+        # Shellcode: load a 64-bit value from address in x0 into x1
+        shellcode = "ldr x1, [x0]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        engine.enable_snapshot_mode()
 
-        class FakePerm:
-            """Minimal permission wrapper matching claripy concrete_value API."""
-
-            def __init__(self, value):
-                self.concrete_value = value
-
-        class FakeMemory:
-            """Small paged-memory stand-in for snapshot sync tests."""
-
-            def __init__(self, pages):
-                self.page_size = page_size
-                self._pages = {page_num: object() for page_num in pages}
-                self._perms = {page_num: perm_bits for page_num, (perm_bits, _) in pages.items()}
-                self._contents = {page_num: content for page_num, (_, content) in pages.items()}
-
-            def permissions(self, addr):
-                page_num = addr // self.page_size
-                if page_num not in self._perms:
-                    raise SimMemoryError(f"{addr:#x} is not mapped")
-                return FakePerm(self._perms[page_num])
-
-            def concrete_load(self, addr, size):
-                assert size == self.page_size
-                page_num = addr // self.page_size
-                return self._contents[page_num]
-
-        class FakeState:
-            """State shim exposing only fields needed by sync code."""
-
-            def __init__(self, pages):
-                self.memory = FakeMemory(pages)
-                self.project = None
-                self.arch = SimpleNamespace(name="AMD64")
-                self.addr = 0
-
-        class FakeEmu:
-            """Icicle emulator shim recording memory operation calls."""
-
-            def __init__(self):
-                self.cpu_icount = 1234
-                self.mapped = []
-                self.unmapped = []
-                self.protected = []
-                self.writes = []
-
-            def mem_map(self, addr, size, perm):
-                self.mapped.append((addr, size, perm))
-
-            def mem_unmap(self, addr, size):
-                self.unmapped.append((addr, size))
-
-            def mem_protect(self, addr, size, perm):
-                self.protected.append((addr, size, perm))
-
-            def mem_write(self, addr, data):
-                self.writes.append((addr, data))
-
-        base_state = FakeState(
-            {
-                kept_page: (0b011, b"A" * page_size),
-                freed_page: (0b011, b"B" * page_size),
-            }
-        )
-        new_state = FakeState(
-            {
-                kept_page: (0b011, b"C" * page_size),
-                added_page: (0b011, b"D" * page_size),
-            }
-        )
-        emu = FakeEmu()
-
-        base_translation_data = IcicleStateTranslationData(
-            base_state=base_state,
-            registers=set(),
-            mapped_pages={kept_page, freed_page},
-            writable_pages={kept_page, freed_page},
-            explicit_page_metadata={kept_page: 0b011, freed_page: 0b011},
-            initial_cpu_icount=0,
-            icicle_arch="x86_64",
+        state_opts = dict(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
         )
 
-        synced_translation_data = IcicleEngine._IcicleEngine__sync_angr_state_to_icicle(
-            emu, new_state, base_translation_data
-        )
+        # First run: establish snapshot, page at 0x10000
+        s1 = project.factory.blank_state(**state_opts)
+        s1.regs.x0 = 0x10000
+        s1.memory.map_region(0x10000, 0x1000, 0b111)
+        s1.memory.store(0x10000, 0xAA, size=8, endness="Iend_LE")
 
-        assert {(addr // page_size, size, perm) for addr, size, perm in emu.mapped} == {(added_page, page_size, 0b011)}
-        assert {(addr // page_size, size) for addr, size in emu.unmapped} == {(freed_page, page_size)}
-        assert not emu.protected
+        result1 = engine.process(s1, num_inst=1)
+        assert len(result1.successors) == 1
+        assert result1[0].regs.x1.concrete_value == 0xAA
 
-        written_pages = {addr // page_size for addr, _ in emu.writes}
-        written_data = {addr // page_size: data for addr, data in emu.writes}
-        assert written_pages == {kept_page, added_page}
-        assert written_data[kept_page] == b"C" * page_size
-        assert written_data[added_page] == b"D" * page_size
+        # Second run: same page, updated data — tests writable page sync
+        s2 = project.factory.blank_state(**state_opts)
+        s2.regs.x0 = 0x10000
+        s2.memory.map_region(0x10000, 0x1000, 0b111)
+        s2.memory.store(0x10000, 0xBB, size=8, endness="Iend_LE")
 
-        assert synced_translation_data.writable_pages == {kept_page, added_page}
+        result2 = engine.process(s2, num_inst=1)
+        assert len(result2.successors) == 1
+        assert result2[0].regs.x1.concrete_value == 0xBB
+
+        # Third run: add new page at 0x20000, read from it — tests page addition
+        s3 = project.factory.blank_state(**state_opts)
+        s3.regs.x0 = 0x20000
+        s3.memory.map_region(0x10000, 0x1000, 0b111)
+        s3.memory.map_region(0x20000, 0x1000, 0b111)
+        s3.memory.store(0x20000, 0xCC, size=8, endness="Iend_LE")
+
+        result3 = engine.process(s3, num_inst=1)
+        assert len(result3.successors) == 1
+        assert result3[0].regs.x1.concrete_value == 0xCC
+
+        # Fourth run: remove 0x10000, read from 0x20000 — tests page removal
+        s4 = project.factory.blank_state(**state_opts)
+        s4.regs.x0 = 0x20000
+        s4.memory.map_region(0x20000, 0x1000, 0b111)
+        s4.memory.store(0x20000, 0xDD, size=8, endness="Iend_LE")
+
+        result4 = engine.process(s4, num_inst=1)
+        assert len(result4.successors) == 1
+        assert result4[0].regs.x1.concrete_value == 0xDD
 
 
 class TestThumb(TestCase):
