@@ -31,7 +31,6 @@ from archinfo.arch_soot import SootAddressDescriptor, SootMethodDescriptor
 from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
-from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
 from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
@@ -1121,27 +1120,21 @@ class CFGBase(Analysis):
         functions: FunctionManager = self.kb.functions
 
         if self._updated_nonreturning_functions is not None:
-            all_func_addrs = self._updated_nonreturning_functions
-
-            # Convert addresses to objects
-            all_functions_meta = [
-                functions.get_by_addr(f, meta_only=True) for f in all_func_addrs if functions.contains_addr(f)
-            ]
-
+            all_func_addrs = sorted(self._updated_nonreturning_functions)
         else:
-            all_functions_meta = list(functions.values(meta_only=True))
+            all_func_addrs = sorted(functions.function_addrs_set)
 
         analyzed_functions = set()
 
-        while all_functions_meta:
-            func_meta: Function = all_functions_meta.pop(-1)
-            analyzed_functions.add(func_meta.addr)
+        while all_func_addrs:
+            func_addr: int | SootMethodDescriptor = all_func_addrs.pop(-1)
+            analyzed_functions.add(func_addr)
 
-            if func_meta.returning is not None:
+            if not functions.is_func_returning_unknown(func_addr):
                 # It has been determined before. Skip it
                 continue
 
-            func = functions.get_by_addr(func_meta.addr)
+            func = functions.get_by_addr(func_addr)
             returning = self._determine_function_returning(func, all_funcs_completed=all_funcs_completed)
 
             if returning:
@@ -1158,7 +1151,7 @@ class CFGBase(Analysis):
                     if caller in analyzed_functions:
                         continue
                     if functions.contains_addr(caller):
-                        all_functions_meta.append(functions.get_by_addr(caller, meta_only=True))
+                        all_func_addrs.append(caller)
 
         return changes
 
