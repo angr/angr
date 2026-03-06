@@ -99,6 +99,19 @@ class TestUnpacking(TestCase):
         pd = proj.analyses.PackingDetector(cfg=cfg.model)
         assert pd.packed is True
 
+    def test_packing_detection_a94b(self):
+        binary_path = os.path.join(
+            bin_location,
+            "tests",
+            "i386",
+            "windows",
+            "a94bbeed0ef51db3d3964bb0cc2cbed0adab0e47997d88f34daa92faa1a91e8a",
+        )
+        proj = angr.Project(binary_path)
+        cfg = proj.analyses.CFG(force_smart_scan=False, force_complete_scan=False)
+        pd = proj.analyses.PackingDetector(cfg=cfg.model)  # should not raise exceptions
+        assert pd.packed is False
+
 
 if __name__ == "__main__":
     main()
