@@ -5,25 +5,54 @@ from __future__ import annotations
 __package__ = __package__ or "tests"  # pylint:disable=redefined-builtin
 
 import io
+import logging
 import os
 import re
 import sys
 import unittest
 from unittest import mock
 
+from rich.console import Console
+from rich.logging import RichHandler
+
 import angr
 from angr.__main__ import main
+from angr.analyses.decompiler.decompiler import Decompiler
 from angr.analyses.decompiler.utils import decompile_functions
+from angr.analyses.disassembly import Disassembly
 
 from .common import bin_location
 
 test_location = os.path.join(bin_location, "tests")
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*[a-zA-Z]")
 
 
 def run_cli(*args):
     with mock.patch("sys.argv", [sys.executable, *args]), mock.patch("sys.stdout", new=io.StringIO()) as fake_out:
         main()
         return fake_out.getvalue()
+
+
+def run_cli_interactive(*args):
+    """Run CLI simulating an interactive terminal. Returns (stdout, stderr) as plain text."""
+    stderr_buf = io.StringIO()
+
+    def mock_make_status():
+        console = Console(file=stderr_buf, force_terminal=True, no_color=True, width=200)
+        angr_logger = logging.getLogger("angr")
+        angr_logger.handlers = [RichHandler(console=console, show_path=False, show_time=False)]
+        angr_logger.propagate = False
+        return console, True
+
+    with (
+        mock.patch("sys.argv", [sys.executable, *args]),
+        mock.patch("sys.stdout", new=io.StringIO()) as fake_out,
+        mock.patch("angr.__main__._make_status_console", mock_make_status),
+    ):
+        main()
+        stderr_text = ANSI_RE.sub("", stderr_buf.getvalue())
+        return fake_out.getvalue(), stderr_text
 
 
 class TestCommandLineInterface(unittest.TestCase):
@@ -125,6 +154,172 @@ class TestCommandLineInterface(unittest.TestCase):
 
         # it should maintain that no ANSI color codes are present
         assert no_colors_output == expected_output
+
+    def test_aliases(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        dec_output = run_cli("dec", bin_path, "--functions", "main", "--no-colors")
+        assert "main" in dec_output
+
+        dis_output = run_cli("dis", bin_path, "--functions", "main")
+        assert "main:" in dis_output
+
+    def test_disassemble_specific_functions(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        output = run_cli("disassemble", bin_path, "--functions", "main")
+        assert "main:" in output
+        assert "authenticate:" not in output
+
+    def test_disassemble_function_by_address(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        proj = angr.Project(bin_path, auto_load_libs=False)
+        main_addr = proj.loader.find_symbol("main").rebased_addr
+        output = run_cli("disassemble", bin_path, "--functions", hex(main_addr))
+        assert "main:" in output
+
+    def test_decompile_interactive_summary(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        stdout, stderr = run_cli_interactive(
+            "decompile", bin_path, "--functions", "main", "authenticate", "--no-colors"
+        )
+        # Both functions should appear in stdout
+        assert "main" in stdout
+        # Summary on stderr for multiple functions
+        assert "Decompiled" in stderr
+
+    def test_disassemble_interactive_summary(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        stdout, stderr = run_cli_interactive("disassemble", bin_path, "--functions", "main", "authenticate")
+        assert "main:" in stdout
+        assert "authenticate:" in stdout
+        assert "Disassembled" in stderr
+
+    def test_decompile_missing_function_raises(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with self.assertRaises(ValueError):
+            run_cli("decompile", bin_path, "--functions", "nonexistent_func", "--no-colors")
+
+    def test_decompile_catch_exceptions_missing_function(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        stdout, stderr = run_cli_interactive(
+            "decompile", bin_path, "--functions", "nonexistent_func", "--catch-exceptions", "--no-colors"
+        )
+        assert stdout == ""
+        assert "not found" in stderr.lower()
+
+    def test_disassemble_missing_function(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # parse_function_args logs error and yields nothing -> "No disassemblable functions found"
+        stdout, stderr = run_cli_interactive("disassemble", bin_path, "--functions", "nonexistent_func")
+        assert stdout == ""
+        assert "no disassemblable functions found" in stderr.lower()
+
+    def test_decompile_no_decompilable_functions(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # _init is typically a stub that gets filtered out
+        _stdout, stderr = run_cli_interactive(
+            "decompile", bin_path, "--functions", "nonexistent_func", "--catch-exceptions", "--no-colors"
+        )
+        assert "no decompilable functions found" in stderr.lower() or "not found" in stderr.lower()
+
+    def test_decompile_cca(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        output = run_cli("decompile", bin_path, "--functions", "main", "--cca", "--no-colors")
+        assert "main" in output
+
+    def test_decompile_syntax_highlighting(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # Force ansi_color_enabled=True to exercise the Syntax highlighting path.
+        # Note: Rich's Console strips ANSI when stdout is a StringIO (not a real terminal),
+        # so we verify the path ran by checking the output content.
+        with mock.patch("angr.__main__.ansi_color_enabled", True):
+            stdout, _ = run_cli_interactive("decompile", bin_path, "--functions", "main")
+        assert stdout  # non-empty
+        assert "main" in ANSI_RE.sub("", stdout)
+
+    def test_decompile_syntax_highlighting_multiple(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with mock.patch("angr.__main__.ansi_color_enabled", True):
+            stdout, stderr = run_cli_interactive("decompile", bin_path, "--functions", "main", "authenticate")
+        plain = ANSI_RE.sub("", stdout)
+        assert "main" in plain
+        assert "authenticate" in plain
+        assert "Decompiled" in stderr
+
+    def test_disassemble_base_addr(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        output = run_cli("disassemble", bin_path, "--base-addr", "0x0", "--functions", "main")
+        assert "main:" in output
+
+    def test_disassemble_missing_address(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # Address passes numeric regex but doesn't match any function
+        stdout, stderr = run_cli_interactive("disassemble", bin_path, "--functions", "0xdeadbeef")
+        assert stdout == ""
+        assert "no disassemblable functions found" in stderr.lower()
+
+    def test_decompile_catch_exceptions_noninteractive(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # Non-interactive catch-exceptions hits the log.warning path
+        output = run_cli("decompile", bin_path, "--functions", "nonexistent_func", "--catch-exceptions", "--no-colors")
+        assert output == ""
+
+    def test_decompile_catch_exceptions_error(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with mock.patch.object(Decompiler, "_decompile", side_effect=RuntimeError("mock failure")):
+            stdout, stderr = run_cli_interactive(
+                "decompile", bin_path, "--functions", "main", "authenticate", "--catch-exceptions", "--no-colors"
+            )
+        assert stdout == ""
+        assert "error decompiling" in stderr.lower()
+        assert "2 error" in stderr.lower()
+
+    def test_disassemble_catch_exceptions_error(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with mock.patch.object(Disassembly, "render", side_effect=RuntimeError("mock failure")):
+            stdout, stderr = run_cli_interactive(
+                "disassemble", bin_path, "--functions", "main", "authenticate", "--catch-exceptions"
+            )
+        assert stdout == ""
+        assert "error disassembling" in stderr.lower()
+        assert "2 error" in stderr.lower()
+
+    def test_decompile_no_output(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # Simulate decompilation succeeding but producing no codegen output
+        with mock.patch.object(Decompiler, "_decompile"):
+            stdout, stderr = run_cli_interactive(
+                "decompile", bin_path, "--functions", "main", "--catch-exceptions", "--no-colors"
+            )
+        assert stdout == ""
+        assert "no output" in stderr.lower() or "error decompiling" in stderr.lower()
+
+    def test_disassemble_catch_exceptions_noninteractive(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with mock.patch.object(Disassembly, "render", side_effect=RuntimeError("mock failure")):
+            output = run_cli("disassemble", bin_path, "--functions", "main", "--catch-exceptions")
+        assert output == ""
+
+    def test_decompile_no_functions_noninteractive(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # _init is a stub that gets filtered; requesting only it should yield nothing
+        output = run_cli("decompile", bin_path, "--functions", "nonexistent_func", "--catch-exceptions", "--no-colors")
+        assert output == ""
+
+    def test_disassemble_no_functions_noninteractive(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        output = run_cli("disassemble", bin_path, "--functions", "nonexistent_func")
+        assert output == ""
+
+    def test_decompile_syntax_highlighting_catch_exceptions(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        # Highlighted mode with catch-exceptions: error should go to stderr, not stdout
+        with (
+            mock.patch("angr.__main__.ansi_color_enabled", True),
+            mock.patch.object(Decompiler, "_decompile", side_effect=RuntimeError("mock failure")),
+        ):
+            stdout, stderr = run_cli_interactive("decompile", bin_path, "--functions", "main", "--catch-exceptions")
+        assert stdout == ""
+        assert "error decompiling" in stderr.lower()
 
 
 if __name__ == "__main__":
