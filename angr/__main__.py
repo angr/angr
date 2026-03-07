@@ -1,18 +1,22 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import logging
 import re
 from typing import TYPE_CHECKING
 from collections.abc import Generator
 
+from rich import progress as rich_progress
+from rich.logging import RichHandler
 from rich.syntax import Syntax
 from rich.console import Console
+from rich.table import Column
 
 import angr
 from angr.analyses.decompiler import DECOMPILATION_PRESETS
+from angr.analyses.decompiler.decompilation_options import PARAM_TO_OPTION
 from angr.analyses.decompiler.structuring import STRUCTURER_CLASSES, DEFAULT_STRUCTURER
-from angr.analyses.decompiler.utils import decompile_functions
 from angr.utils.formatting import ansi_color_enabled
 
 if TYPE_CHECKING:
@@ -50,61 +54,332 @@ def parse_function_args(proj: angr.Project, func_args: list[str] | None) -> Gene
         log.error('Function "%s" not found', func_arg)
 
 
+def _make_status_console() -> tuple[Console, bool]:
+    """Create a stderr console for status messages and determine if interactive status should be shown.
+
+    Also installs a RichHandler on the angr logger so that log messages integrate
+    properly with Rich's live progress displays instead of corrupting them.
+    """
+    console = Console(stderr=True)
+    angr_logger = logging.getLogger("angr")
+    angr_logger.handlers = [RichHandler(console=console, show_path=False, show_time=False)]
+    angr_logger.propagate = False
+    return console, console.is_terminal
+
+
+def _make_progress(*extra_columns) -> tuple:
+    """Build the standard column set for progress bars.
+
+    The status text is placed *after* the bar so changing its length
+    doesn't shift the bar and percentage around.
+    """
+    return (
+        rich_progress.SpinnerColumn(),
+        rich_progress.TextColumn("{task.description}"),
+        rich_progress.BarColumn(),
+        rich_progress.TaskProgressColumn(),
+        rich_progress.TimeElapsedColumn(),
+        *extra_columns,
+    )
+
+
+@contextlib.contextmanager
+def _stderr_progress(console: Console, description: str, show: bool = True):
+    """Show a progress bar on stderr for a long-running analysis.
+
+    Yields a progress_callback compatible with angr's Analysis infrastructure.
+    When not in a terminal, yields None (no progress display).
+    """
+    if not show:
+        yield None
+        return
+
+    status_col = rich_progress.TextColumn("{task.fields[status]}")
+    p = rich_progress.Progress(*_make_progress(status_col), console=console, redirect_stderr=True, transient=True)
+    task_id = p.add_task(f"[bold]{description}", total=100, status="")
+
+    def callback(percentage: float, text: str | None = None, **_kwargs) -> None:
+        p.update(task_id, completed=percentage, status=text or "")
+
+    with p:
+        yield callback
+
+
+class _NoOpTracker:
+    """No-op tracker when progress display is disabled."""
+
+    @contextlib.contextmanager
+    def task(self, _name):  # pylint:disable=no-self-use
+        yield None
+
+
+_MAX_NAME_WIDTH = 20
+
+
+@contextlib.contextmanager
+def _multi_progress(console: Console, total: int, description: str, show: bool = True):
+    """Progress tracker with an overall bar and per-item sub-task progress.
+
+    The display is paused between tasks so stdout output doesn't corrupt the terminal.
+    Yields a tracker whose ``task()`` context manager creates a sub-task progress bar
+    and yields a ``progress_callback`` for the analysis.
+    """
+    if not show:
+        yield _NoOpTracker()
+        return
+
+    prefix_len = 2 if total > 1 else 0  # "  " indent for sub-tasks
+    desc_width = max(len(description), _MAX_NAME_WIDTH + prefix_len)
+    status_col = rich_progress.TextColumn("{task.fields[status]}")
+    p = rich_progress.Progress(
+        rich_progress.SpinnerColumn(),
+        rich_progress.TextColumn("{task.description}", table_column=Column(min_width=desc_width, max_width=desc_width)),
+        rich_progress.BarColumn(),
+        rich_progress.TaskProgressColumn(),
+        rich_progress.TimeElapsedColumn(),
+        status_col,
+        console=console,
+        redirect_stderr=True,
+        transient=True,
+    )
+    overall = p.add_task(f"[bold]{description}", total=total, status="") if total > 1 else None
+
+    class _Tracker:  # pylint:disable=missing-class-docstring
+        @contextlib.contextmanager
+        def task(self, name):  # pylint:disable=no-self-use
+            prefix = "  " if overall is not None else ""
+            display_name = (
+                name
+                if len(name) <= _MAX_NAME_WIDTH - len(prefix)
+                else name[: _MAX_NAME_WIDTH - len(prefix) - 1] + "\u2026"
+            )
+            sub = p.add_task(f"{prefix}{display_name}", total=100, status="")
+            p.start()
+
+            def callback(percentage: float, text: str | None = None, **_kwargs) -> None:
+                p.update(sub, completed=percentage, status=text or "")
+
+            try:
+                yield callback
+            finally:
+                p.remove_task(sub)
+                if overall is not None:
+                    p.advance(overall)
+                p.stop()
+
+    try:
+        yield _Tracker()
+    finally:
+        p.stop()
+
+
 def disassemble(args):
     """
     Disassemble functions.
     """
+    err, show_status = _make_status_console()
+
     loader_main_opts_kwargs = {}
     if args.base_addr is not None:
         loader_main_opts_kwargs["base_addr"] = args.base_addr
 
     proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
-    proj.analyses.CFG(normalize=True, data_references=True)
 
-    for func in parse_function_args(proj, args.functions):
-        try:
-            if func.is_plt or func.is_syscall or func.is_alignment or func.is_simprocedure:
-                continue
-            func.pp(show_bytes=True, min_edge_depth=10)
-        except Exception as e:  # pylint:disable=broad-exception-caught
-            if not args.catch_exceptions:
-                raise
-            log.exception(e)
+    with _stderr_progress(err, "Recovering control flow graph", show=show_status) as progress_cb:
+        proj.analyses.CFG(  # pyright: ignore[reportCallIssue]
+            normalize=True, data_references=True, progress_callback=progress_cb
+        )
+
+    # Collect disassemblable functions
+    funcs = [
+        f
+        for f in parse_function_args(proj, args.functions)
+        if not (f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure)
+    ]
+
+    total = len(funcs)
+    if total == 0:
+        if show_status:
+            err.print("[yellow]No disassemblable functions found[/yellow]")
+        return
+
+    success_count = 0
+    error_count = 0
+
+    with _multi_progress(err, total, "Disassembling", show=show_status) as tracker:
+        for func in funcs:
+            func_name = func.name or hex(func.addr)
+
+            exception_string = ""
+            text = ""
+            with tracker.task(func_name):
+                try:
+                    disasm = proj.analyses.Disassembly(func)
+                    text = disasm.render(show_bytes=True, min_edge_depth=10)
+                except Exception as e:  # pylint:disable=broad-exception-caught
+                    if not args.catch_exceptions:
+                        raise
+                    exception_string = str(e).replace("\n", " ")
+
+            # Progress is paused here -- safe to print to stdout / stderr
+            if exception_string:
+                error_count += 1
+                if show_status:
+                    err.print(f"[red]Error disassembling {func_name}:[/red] {exception_string}")
+                else:
+                    log.error(exception_string)
+            else:
+                success_count += 1
+                print(text)
+
+    # Summary for interactive sessions
+    if show_status and total > 1:
+        if error_count:
+            err.print(
+                f"Disassembled {success_count}/{total} functions ({error_count} error{'s' if error_count != 1 else ''})"
+            )
+        else:
+            err.print(f"Disassembled {success_count} functions")
 
 
 def decompile(args):
     """
     Decompile functions.
     """
-    decompilation = decompile_functions(
-        args.binary,
-        functions=args.functions,
-        structurer=args.structurer,
-        catch_errors=args.catch_exceptions,
-        show_casts=not args.no_casts,
-        base_address=args.base_addr,
-        preset=args.preset,
-        cca=args.cca,
-        cca_callsites=args.cca_callsites,
-        llm=args.llm,
-        progressbar=args.progress,
-    )
-
-    # Determine if we should use syntax highlighting
+    structurer = args.structurer or DEFAULT_STRUCTURER.NAME
     should_highlight = ansi_color_enabled and not args.no_colors
+    err, show_status = _make_status_console()
 
-    if should_highlight:
-        try:
-            console = Console()
-            syntax = Syntax(decompilation, "c", theme=args.theme, line_numbers=False)
-            console.print(syntax)
-        # pylint: disable=broad-exception-caught
-        except Exception as e:
-            log.warning("Syntax highlighting failed: %s", e)
-            # Fall back to plain text if syntax highlighting fails
-            print(decompilation)
+    # Resolve loader args
+    loader_main_opts_kwargs = {}
+    if args.base_addr is not None:
+        loader_main_opts_kwargs["base_addr"] = args.base_addr
+
+    # Load binary
+    proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
+
+    # CFG recovery with progress on stderr
+    with _stderr_progress(err, "Recovering control flow graph", show=show_status) as progress_cb:
+        cfg = proj.analyses.CFG(  # pyright: ignore[reportCallIssue]
+            normalize=True, data_references=True, progress_callback=progress_cb
+        )
+
+    # Complete calling conventions with progress on stderr
+    if args.cca:
+        with _stderr_progress(err, "Recovering calling conventions", show=show_status) as progress_cb:
+            proj.analyses.CompleteCallingConventions(
+                analyze_callsites=args.cca_callsites,
+                progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
+            )
+
+    # Collect and normalize function identifiers
+    if args.functions is None:
+        func_ids = sorted(cfg.kb.functions)
     else:
-        print(decompilation)
+        func_ids = []
+        for func_arg in args.functions:
+            try:
+                func_id = int(func_arg, 0) if isinstance(func_arg, str) else func_arg
+            except ValueError:
+                func_id = func_arg
+            if func_id not in cfg.functions:
+                if args.catch_exceptions:
+                    if show_status:
+                        err.print(f"[yellow]Warning:[/yellow] Function {func_arg!r} not found")
+                    else:
+                        log.warning("Function %s does not exist in the CFG.", func_arg)
+                    continue
+                raise ValueError(f"Function {func_arg} does not exist in the CFG.")
+            func_ids.append(func_id)
+
+    # Filter to decompilable functions
+    funcs = []
+    for func_id in func_ids:
+        f = cfg.functions[func_id]
+        if f is not None and not (f.is_plt or f.is_syscall or f.is_alignment or f.is_simprocedure):
+            funcs.append(f)
+
+    total = len(funcs)
+    if total == 0:
+        if show_status:
+            err.print("[yellow]No decompilable functions found[/yellow]")
+        return
+
+    # Prepare decompilation options
+    dec_options = [
+        (PARAM_TO_OPTION["structurer_cls"], structurer),
+        (PARAM_TO_OPTION["show_casts"], not args.no_casts),
+    ]
+    if args.llm:
+        dec_options.append(("llm_refine", True))
+
+    out = Console(highlight=False)
+    success_count = 0
+    error_count = 0
+
+    with _multi_progress(err, total, "Decompiling", show=show_status) as tracker:
+        for func in funcs:
+            func_name = func.name or hex(func.addr)
+
+            # Decompile with progress bar showing per-stage status
+            exception_string = ""
+            dec = None
+            with tracker.task(func_name) as progress_cb:
+                try:
+                    if args.catch_exceptions:
+                        dec = proj.analyses.Decompiler(
+                            func,
+                            cfg=cfg,
+                            options=dec_options,
+                            preset=args.preset,
+                            fail_fast=True,  # pyright: ignore[reportCallIssue]
+                            progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
+                        )
+                    else:
+                        dec = proj.analyses.Decompiler(
+                            func,
+                            cfg=cfg,
+                            options=dec_options,
+                            preset=args.preset,
+                            progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
+                        )
+                except Exception as e:  # pylint:disable=broad-exception-caught
+                    if not args.catch_exceptions:
+                        raise
+                    exception_string = str(e).replace("\n", " ")
+
+            # Progress is paused here -- safe to print to stdout / stderr
+            if not exception_string and (dec is None or not dec.codegen or not dec.codegen.text):
+                exception_string = "Decompilation produced no output"
+
+            if exception_string:
+                error_count += 1
+                if show_status:
+                    err.print(f"[red]Error decompiling {func_name}:[/red] {exception_string}")
+                else:
+                    log.critical("Failed to decompile %s: %s", func_name, exception_string)
+            else:
+                success_count += 1
+                assert dec is not None and dec.codegen is not None
+                text = dec.codegen.text
+                if should_highlight:
+                    syntax = Syntax(text + "\n", "c", theme=args.theme, line_numbers=False)  # type: ignore[operator]
+                    out.print(syntax)
+                else:
+                    print(text)
+
+    # Trailing newline for plain text output
+    if not should_highlight and success_count > 0:
+        print()
+
+    # Summary for interactive sessions
+    if show_status and total > 1:
+        if error_count:
+            err.print(
+                f"Decompiled {success_count}/{total} functions ({error_count} error{'s' if error_count != 1 else ''})"
+            )
+        else:
+            err.print(f"Decompiled {success_count} functions")
 
 
 def _add_common_args(subparser):
@@ -178,12 +453,6 @@ def main():
         "the documentation for angr.LLMClient for details in LLM configuration.",
         action="store_true",
         default=False,
-    )
-    decompile_cmd_parser.add_argument(
-        "-p",
-        "--progress",
-        help="Show a progress bar during decompilation.",
-        action="store_true",
     )
     decompile_cmd_parser.add_argument(
         "--functions",
