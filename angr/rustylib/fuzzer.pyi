@@ -98,6 +98,7 @@ class Fuzzer:
         apply_fn: Callable[[SimState, bytes], None],
         timeout: int = 0,
         seed: int | None = None,
+        max_mutations: int | None = None,
     ):
         """
         Initialize the fuzzer with the given parameters.
