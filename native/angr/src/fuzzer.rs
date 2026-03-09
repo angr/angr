@@ -2,6 +2,7 @@ pub mod corpus;
 pub mod executor;
 pub mod monitor;
 
+use std::num::NonZeroUsize;
 use std::time::Duration;
 
 use libafl::{
@@ -58,6 +59,7 @@ struct Fuzzer {
 #[pymethods]
 impl Fuzzer {
     #[new]
+    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None))]
     fn py_new(
         base_state: Bound<PyAny>,
         corpus: Bound<PyAny>,
@@ -65,6 +67,7 @@ impl Fuzzer {
         apply_fn: Bound<PyAny>,
         timeout: Option<u64>,
         seed: u64,
+        max_mutations: Option<u64>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
             return Err(PyTypeError::new_err("Expected a callable harness function"));
@@ -125,9 +128,15 @@ impl Fuzzer {
             CrashFeedback,
         > = StdFuzzer::new(QueueScheduler::new(), feedback, objective);
 
-        let stages = tuple_list!(StdMutationalStage::new(HavocScheduledMutator::new(
-            havoc_mutations()
-        )),);
+        let mutator = HavocScheduledMutator::new(havoc_mutations());
+        let stage = if let Some(max_iter) = max_mutations {
+            let max_iter = NonZeroUsize::new(max_iter as usize)
+                .ok_or_else(|| PyRuntimeError::new_err("max_mutations must be > 0"))?;
+            StdMutationalStage::with_max_iterations(mutator, max_iter)
+        } else {
+            StdMutationalStage::new(mutator)
+        };
+        let stages = tuple_list!(stage);
 
         let executor = PyExecutorInner::new(
             base_state,
