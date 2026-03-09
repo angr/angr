@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use backtrace::Backtrace;
 use libafl::{
-    executors::{Executor, ExitKind, HasObservers, HasTimeout},
+    executors::{Executor, ExitKind, HasObservers, HasTimeout, SetTimeout},
     observers::MapObserver,
     state::HasExecutions,
 };
@@ -203,7 +203,9 @@ impl<S> HasTimeout for PyExecutorInner<S> {
     fn timeout(&self) -> Duration {
         self.timeout.unwrap_or(Duration::ZERO)
     }
+}
 
+impl<S> SetTimeout for PyExecutorInner<S> {
     fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = Some(timeout);
     }

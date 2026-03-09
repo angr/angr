@@ -9,7 +9,7 @@ use libafl::{
     NopInputFilter, StdFuzzer,
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
-    inputs::{BytesInput, NopBytesConverter},
+    inputs::{BytesInput, NopToTargetBytes},
     mutators::{HavocMutationsType, HavocScheduledMutator, havoc_mutations},
     observers::OwnedMapObserver,
     schedulers::QueueScheduler,
@@ -41,7 +41,7 @@ pub(crate) type OT = tuple_list_type!(O);
 pub(crate) type Z = StdFuzzer<
     QueueScheduler,
     MaxMapFeedback<O, O>,
-    NopBytesConverter,
+    NopToTargetBytes,
     NopInputFilter,
     CrashFeedback,
 >;
@@ -123,7 +123,7 @@ impl Fuzzer {
         let fuzzer: StdFuzzer<
             QueueScheduler,
             MaxMapFeedback<OwnedMapObserver<u8>, OwnedMapObserver<u8>>,
-            NopBytesConverter,
+            NopToTargetBytes,
             NopInputFilter,
             CrashFeedback,
         > = StdFuzzer::new(QueueScheduler::new(), feedback, objective);
