@@ -182,6 +182,64 @@ class TestIcicle(TestCase):
         assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
 
 
+class TestSnapshotSync(TestCase):
+    """Unit tests for snapshot sync behavior in the Icicle engine."""
+
+    def test_snapshot_sync_page_set_changes(self):
+        """Test that snapshot sync correctly handles page additions, removals, and data changes."""
+        # Shellcode: load a 64-bit value from address in x0 into x1
+        shellcode = "ldr x1, [x0]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = IcicleEngine(project)
+        engine.enable_snapshot_mode()
+
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: establish snapshot, page at 0x10000
+        s1 = project.factory.blank_state(**state_opts)
+        s1.regs.x0 = 0x10000
+        s1.memory.map_region(0x10000, 0x1000, 0b111)
+        s1.memory.store(0x10000, 0xAA, size=8, endness="Iend_LE")
+
+        result1 = engine.process(s1, num_inst=1)
+        assert len(result1.successors) == 1
+        assert result1[0].regs.x1.concrete_value == 0xAA
+
+        # Second run: same page, updated data — tests writable page sync
+        s2 = project.factory.blank_state(**state_opts)
+        s2.regs.x0 = 0x10000
+        s2.memory.map_region(0x10000, 0x1000, 0b111)
+        s2.memory.store(0x10000, 0xBB, size=8, endness="Iend_LE")
+
+        result2 = engine.process(s2, num_inst=1)
+        assert len(result2.successors) == 1
+        assert result2[0].regs.x1.concrete_value == 0xBB
+
+        # Third run: add new page at 0x20000, read from it — tests page addition
+        s3 = project.factory.blank_state(**state_opts)
+        s3.regs.x0 = 0x20000
+        s3.memory.map_region(0x10000, 0x1000, 0b111)
+        s3.memory.map_region(0x20000, 0x1000, 0b111)
+        s3.memory.store(0x20000, 0xCC, size=8, endness="Iend_LE")
+
+        result3 = engine.process(s3, num_inst=1)
+        assert len(result3.successors) == 1
+        assert result3[0].regs.x1.concrete_value == 0xCC
+
+        # Fourth run: remove 0x10000, read from 0x20000 — tests page removal
+        s4 = project.factory.blank_state(**state_opts)
+        s4.regs.x0 = 0x20000
+        s4.memory.map_region(0x20000, 0x1000, 0b111)
+        s4.memory.store(0x20000, 0xDD, size=8, endness="Iend_LE")
+
+        result4 = engine.process(s4, num_inst=1)
+        assert len(result4.successors) == 1
+        assert result4[0].regs.x1.concrete_value == 0xDD
+
+
 class TestThumb(TestCase):
     """Thumb-specific tests for the Icicle engine."""
 

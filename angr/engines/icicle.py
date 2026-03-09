@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import cast
 
@@ -11,6 +12,7 @@ import pypcode
 from archinfo import Arch, ArchARMCortexM, ArchPcode, Endness
 from typing_extensions import override
 
+from angr.errors import SimMemoryError
 from angr.engines.concrete import ConcreteEngine, HeavyConcreteState
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
@@ -33,8 +35,11 @@ class IcicleStateTranslationData:
 
     base_state: HeavyConcreteState
     registers: set[str]
+    mapped_pages: set[int]
     writable_pages: set[int]
+    explicit_page_metadata: dict[int, int | None]
     initial_cpu_icount: int
+    icicle_arch: str
 
 
 class IcicleEngine(ConcreteEngine):
@@ -50,13 +55,19 @@ class IcicleEngine(ConcreteEngine):
     This class is the base class for the Icicle engine. It implements execution
     by creating an Icicle instance, copying the state from angr to Icicle, and then
     running the Icicle instance. The results are then copied back to the angr
-    state. It is likely the case that this can be improved by re-using the Icicle
-    instance across multiple runs and only copying the state when necessary.
+    state. When snapshot mode is enabled, the Icicle instance is reused across
+    multiple runs, restoring from a snapshot and only syncing changed state.
 
     For a more complete implementation, use the UberIcicleEngine class, which
     intends to provide a more complete set of features, such as hooks and syscalls.
 
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._cached_emu: Icicle | None = None
+        self._base_translation_data: IcicleStateTranslationData | None = None
+        self._snapshot_mode: bool = False
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -112,10 +123,32 @@ class IcicleEngine(ConcreteEngine):
                 end = (addr + len(backer) - 1) // page_size
                 pages.update(range(start, end + 1))
 
-        # pages from the memory model
-        pages.update(state.memory._pages)
+        # The paged memory model stores explicit page overrides in _pages.
+        # A None entry means the page was explicitly unmapped and must shadow
+        # loader backers.
+        for page_num, page in state.memory._pages.items():
+            if page is None:
+                pages.discard(page_num)
+            else:
+                pages.add(page_num)
 
         return pages
+
+    @staticmethod
+    def __get_explicit_page_metadata(state: HeavyConcreteState) -> dict[int, int | None]:
+        """
+        Return explicit page overrides from the paged memory model.
+        The key is page number. Value is permission bits, or None when the page
+        is explicitly unmapped.
+        """
+        metadata = {}
+        page_size = state.memory.page_size
+        for page_num, page in state.memory._pages.items():
+            if page is None:
+                metadata[page_num] = None
+            else:
+                metadata[page_num] = state.memory.permissions(page_num * page_size).concrete_value
+        return metadata
 
     @staticmethod
     def __convert_angr_state_to_icicle(state: HeavyConcreteState) -> tuple[Icicle, IcicleStateTranslationData]:
@@ -130,6 +163,7 @@ class IcicleEngine(ConcreteEngine):
         emu = Icicle(icicle_arch, PROCESSORS_DIR, True, True)
 
         copied_registers = set()
+        explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
 
         # To create a state in Icicle, we need to do the following:
         # 1. Copy the register values
@@ -177,8 +211,11 @@ class IcicleEngine(ConcreteEngine):
         translation_data = IcicleStateTranslationData(
             base_state=state,
             registers=copied_registers,
+            mapped_pages=mapped_pages,
             writable_pages=writable_pages,
+            explicit_page_metadata=explicit_page_metadata,
             initial_cpu_icount=emu.cpu_icount,
+            icicle_arch=icicle_arch,
         )
 
         # 3. Copy edge hitmap
@@ -244,6 +281,115 @@ class IcicleEngine(ConcreteEngine):
 
         return state
 
+    @staticmethod
+    def __sync_angr_state_to_icicle(
+        emu: Icicle,
+        state: HeavyConcreteState,
+        base_translation_data: IcicleStateTranslationData,
+    ) -> IcicleStateTranslationData:
+        """
+        Sync only registers and writable pages from an angr state to an existing
+        Icicle VM. This is much faster than a full conversion since it skips VM
+        creation, memory mapping, and read-only page copies.
+        """
+        icicle_arch = base_translation_data.icicle_arch
+
+        # 1. Copy register values
+        for register in base_translation_data.registers:
+            with suppress(KeyError):
+                emu.reg_write(
+                    register,
+                    state.solver.eval(state.registers.load(register), cast_to=int),
+                )
+
+        # Handle thumb/ARM mode
+        if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
+            emu.pc = state.addr & ~1
+            emu.isa_mode = 1
+        elif "arm" in icicle_arch:
+            emu.pc = state.addr
+
+        # Special case for x86 gs register
+        if state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+
+        # 2. Sync only mapping/permission deltas from explicit page changes.
+        page_size = state.memory.page_size
+        explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
+        base_explicit_page_metadata = base_translation_data.explicit_page_metadata
+
+        candidate_pages = set(base_explicit_page_metadata).symmetric_difference(explicit_page_metadata)
+        for page_num in set(base_explicit_page_metadata).intersection(explicit_page_metadata):
+            if base_explicit_page_metadata[page_num] != explicit_page_metadata[page_num]:
+                candidate_pages.add(page_num)
+
+        mapped_pages = set(base_translation_data.mapped_pages)
+        writable_pages = set()
+        writable_pages.update(base_translation_data.writable_pages)
+
+        for page_num in candidate_pages:
+            addr = page_num * page_size
+            old_mapped = page_num in mapped_pages
+
+            try:
+                perm_bits = state.memory.permissions(addr).concrete_value
+                new_mapped = True
+            except SimMemoryError:
+                perm_bits = 0
+                new_mapped = False
+
+            if old_mapped and not new_mapped:
+                emu.mem_unmap(addr, page_size)
+                mapped_pages.remove(page_num)
+                writable_pages.discard(page_num)
+                continue
+
+            if not old_mapped and new_mapped:
+                emu.mem_map(addr, page_size, perm_bits)
+                mapped_pages.add(page_num)
+            elif old_mapped and new_mapped:
+                base_perm_bits = base_translation_data.base_state.memory.permissions(addr).concrete_value
+                if base_perm_bits != perm_bits:
+                    emu.mem_protect(addr, page_size, perm_bits)
+
+            if perm_bits & 2:
+                writable_pages.add(page_num)
+            else:
+                writable_pages.discard(page_num)
+
+        # 3. Copy writable page contents.
+        for page_num in writable_pages:
+            addr = page_num * page_size
+            memory = state.memory.concrete_load(addr, page_size)
+            emu.mem_write(addr, memory)
+
+        return IcicleStateTranslationData(
+            base_state=state,
+            registers=base_translation_data.registers,
+            mapped_pages=mapped_pages,
+            writable_pages=writable_pages,
+            explicit_page_metadata=explicit_page_metadata,
+            initial_cpu_icount=emu.cpu_icount,
+            icicle_arch=icicle_arch,
+        )
+
+    def enable_snapshot_mode(self) -> None:
+        """Enable snapshot mode for VM reuse across multiple runs."""
+        self._snapshot_mode = True
+
+    def has_snapshot(self) -> bool:
+        """Check if a snapshot is available for fast restore."""
+        return self._cached_emu is not None and self._cached_emu.has_snapshot()
+
+    def restore_and_sync(self, state: HeavyConcreteState) -> None:
+        """Restore the cached VM from snapshot and sync the given state to it."""
+        if self._cached_emu is None or self._base_translation_data is None:
+            raise ValueError("No cached emulator. Run process_concrete first with snapshot mode enabled.")
+        self._cached_emu.restore_snapshot()
+        self._base_translation_data = self.__sync_angr_state_to_icicle(
+            self._cached_emu, state, self._base_translation_data
+        )
+
     @override
     def process_concrete(
         self,
@@ -251,16 +397,29 @@ class IcicleEngine(ConcreteEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
-        emu, translation_data = self.__convert_angr_state_to_icicle(state)
+        if self._cached_emu is not None and self._snapshot_mode:
+            # Fast path: restore snapshot and sync only changed state
+            if self._base_translation_data is None:
+                raise ValueError("No base translation data. Run process_concrete first with snapshot mode enabled.")
+            self._cached_emu.restore_snapshot()
+            translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
+            emu = self._cached_emu
+        else:
+            # Full init path
+            emu, translation_data = self.__convert_angr_state_to_icicle(state)
+            if self._snapshot_mode and self._cached_emu is None:
+                emu.save_snapshot()
+                self._cached_emu = emu
+                self._base_translation_data = translation_data
 
-        # Set extra stop points, skip the current PC. This assumes that if running
-        # with a stop point at the current PC, then the user has already done
-        # the necessary handling and is resuming execution.
+        # Set extra stop points, skip the current PC. Track which ones were
+        # actually added so we can clean them up after the run.
+        added_breakpoints = []
         if extra_stop_points is not None:
             for addr in extra_stop_points:
                 addr = addr & ~1  # Clear thumb bit if set
-                if emu.pc != addr:
-                    emu.add_breakpoint(addr)
+                if emu.pc != addr and emu.add_breakpoint(addr):
+                    added_breakpoints.append(addr)
 
         # Set the instruction count limit
         if num_inst is not None and num_inst > 0:
@@ -268,6 +427,10 @@ class IcicleEngine(ConcreteEngine):
 
         # Run it
         status = emu.run()
+
+        # Remove extra stop points to prevent accumulation across runs
+        for addr in added_breakpoints:
+            emu.remove_breakpoint(addr)
 
         return IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 

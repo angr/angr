@@ -233,6 +233,7 @@ struct Icicle {
     vm: icicle_vm::Vm,
     path_tracer: Option<PathTracerRef>,
     edge_count_hitmap: Option<Hitmap>,
+    snapshot: Option<icicle_vm::Snapshot>,
 }
 
 #[pymethods]
@@ -298,6 +299,7 @@ impl Icicle {
             vm,
             path_tracer,
             edge_count_hitmap,
+            snapshot: None,
         })
     }
 
@@ -398,13 +400,8 @@ impl Icicle {
 
     // Execution
 
-    pub fn add_breakpoint(&mut self, addr: u64) -> PyResult<()> {
-        if !self.vm.add_breakpoint(addr) {
-            return Err(PyRuntimeError::new_err(format!(
-                "Failed to add breakpoint at {addr:#x}"
-            )));
-        }
-        Ok(())
+    pub fn add_breakpoint(&mut self, addr: u64) -> bool {
+        self.vm.add_breakpoint(addr)
     }
 
     pub fn remove_breakpoint(&mut self, addr: u64) -> PyResult<()> {
@@ -478,6 +475,37 @@ impl Icicle {
             return Err(PyRuntimeError::new_err("Edge hitmap is not enabled"));
         }
         Ok(())
+    }
+
+    // Snapshot/restore
+
+    pub fn save_snapshot(&mut self) {
+        self.snapshot = Some(self.vm.snapshot());
+    }
+
+    pub fn restore_snapshot(&mut self) -> PyResult<()> {
+        let snapshot = self
+            .snapshot
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
+        self.vm.restore(snapshot);
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
+        if let Some(hitmap) = &mut self.edge_count_hitmap {
+            hitmap.as_slice_mut().fill(0);
+        }
+        Ok(())
+    }
+
+    pub fn has_snapshot(&self) -> bool {
+        self.snapshot.is_some()
+    }
+
+    pub fn clear_path_tracer(&mut self) {
+        if let Some(path_tracer) = self.path_tracer {
+            path_tracer.clear(&mut self.vm);
+        }
     }
 }
 
