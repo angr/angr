@@ -61,8 +61,8 @@ class ConstantResolver(IndirectJumpResolver):
             return False
 
         # for performance, we don't run constant resolver if the function is too large
-        func = cfg.functions.get_by_addr(func_addr)
-        if len(func.block_addrs_set) > self.max_func_nodes:
+        func_block_count = cfg.functions.get_func_block_count(func_addr)
+        if func_block_count is None or func_block_count > self.max_func_nodes:
             return False
 
         # we support both an indirect call and jump since the value can be resolved
