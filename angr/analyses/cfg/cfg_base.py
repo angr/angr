@@ -1901,7 +1901,7 @@ class CFGBase(Analysis):
             the_endpoint = next(a for a in function.endpoints if a.addr == endpoint_addr)
             endpoint_addr += the_endpoint.size
 
-            # sanity check: startpoint of the function should be greater than its endpoint
+            # sanity check: startpoint of the function should not be greater than its endpoint
             if startpoint_addr >= endpoint_addr:
                 continue
             if max_unresolved_jump_addr <= startpoint_addr or max_unresolved_jump_addr >= endpoint_addr:
@@ -2452,14 +2452,14 @@ class CFGBase(Analysis):
         g,
         src: CFGNode,
         dst: CFGNode,
-        data: dict,
+        data: dict | None,
         blockaddr_to_funcaddr: dict[AddressType, MethodType],
         known_functions: FunctionManager,
         all_edges: list | None,
     ) -> None:
         """
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
-        functions accordingly. Oh, it also create edges on the transition map of functions.
+        functions accordingly. Oh, it also creates edges on the transition map of functions.
 
         :param g:           The control flow graph that is currently being traversed.
         :param src:         Beginning of the edge, or a single node when dst is None.
@@ -2504,7 +2504,7 @@ class CFGBase(Analysis):
 
             # It must be calling a function
             dst_funcaddr = self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
-            dst_function = self.kb.functions.get_by_addr(dst_funcaddr)
+            dst_function = self.kb.functions.get_by_addr(dst_funcaddr, meta_only=True)
 
             n = self.model.get_any_node(src_addr, force_fastpath=True)
             if n is None:
