@@ -482,7 +482,7 @@ class CFGFastSoot(CFGFast):
                     self.functions[current_function_addr].returning = True
                     self._pending_jobs.add_returning_function(current_function_addr)
 
-                self.mark_node_has_return(cfg_node)
+                self.model.mark_node_addr_has_return(addr)
 
         elif target_addr is not None:
             # This is a direct jump with a concrete target.

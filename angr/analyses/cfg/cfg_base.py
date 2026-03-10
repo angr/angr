@@ -276,8 +276,6 @@ class CFGBase(Analysis):
         for start, end in self._regions.items():
             l.debug("... %#x - %#x", start, end)
 
-        self._block_addr_with_return: set[int | SootAddressDescriptor] = set()
-
     def __contains__(self, cfg_node):
         return cfg_node in self.graph
 
@@ -461,12 +459,6 @@ class CFGBase(Analysis):
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
-
-    def mark_node_has_return(self, node: CFGNode) -> None:
-        self._block_addr_with_return.add(node.addr)
-
-    def node_addr_has_return(self, node_addr: int | SootAddressDescriptor) -> bool:
-        return node_addr in self._block_addr_with_return
 
     def _arm_thumb_filter_jump_successors(self, irsb, successors, get_ins_addr, get_exit_stmt_idx, get_jumpkind):
         """
@@ -2424,7 +2416,7 @@ class CFGBase(Analysis):
 
             traversed.add(node_key)
 
-            if self.node_addr_has_return(node_addr):
+            if self.model.node_addr_has_return(node_addr):
                 callback(
                     g, node_addr, node_key, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_funcaddr, known_functions, None
                 )
@@ -2533,7 +2525,7 @@ class CFGBase(Analysis):
             if not all_edges or (dst_function.returning is False and dst_function.name != "UnresolvableCallTarget"):
                 fakeret_node = None
             else:
-                fakeret_node = self._one_fakeret_node(all_edges)
+                fakeret_node = self._one_fakeret_node_key(all_edges)
 
             if isinstance(dst_addr, SootAddressDescriptor):
                 dst_addr = dst_addr.method
@@ -2865,18 +2857,18 @@ class CFGBase(Analysis):
         return nop_length
 
     @staticmethod
-    def _one_fakeret_node(all_edges):
+    def _one_fakeret_node_key(all_edges) -> K | None:
         """
         Pick the first Ijk_FakeRet edge from all_edges, and return the destination node.
 
         :param list all_edges: A list of networkx.Graph edges with data.
         :return:               The first FakeRet node, or None if nothing is found.
-        :rtype:                CFGNode or None
+        :rtype:                CFGNode key or None
         """
 
-        for _, dst, data in all_edges:
+        for _, dst_key, data in all_edges:
             if data.get("jumpkind", None) == "Ijk_FakeRet":
-                return dst
+                return dst_key
         return None
 
     def _lift(self, addr, *args, opt_level=1, cross_insn_opt=False, **kwargs):

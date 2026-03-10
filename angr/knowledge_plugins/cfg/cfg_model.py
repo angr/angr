@@ -23,6 +23,8 @@ from .indirect_jump import IndirectJump
 from .spilling_cfg import SpillingCFG, get_block_key
 
 if TYPE_CHECKING:
+    from archinfo.arch_soot import SootAddressDescriptor
+
     from angr.knowledge_base import KnowledgeBase
     from angr.knowledge_plugins.xrefs import XRefManager, XRef
     from angr.knowledge_plugins.functions import Function
@@ -53,6 +55,7 @@ class CFGModel(Serializable):
     __slots__ = (
         "__weakref__",
         "_addr_type",
+        "_block_addrs_with_return",
         "_blockid_to_blockkey",
         "_cache_limit",
         "_cfg_manager",
@@ -125,6 +128,9 @@ class CFGModel(Serializable):
         # block ID to block key mapping for compatibility reasons
         self._blockid_to_blockkey: dict = {}
 
+        # addresses of blocks with a return or conditional return instruction
+        self._block_addrs_with_return: set[int | SootAddressDescriptor] = set()
+
         self.normalized = False
 
         self.edges_to_repair = []
@@ -168,6 +174,12 @@ class CFGModel(Serializable):
 
     def has_node_addr(self, addr: int) -> bool:
         return self.graph.has_node_addr(addr)
+
+    def mark_node_addr_has_return(self, node_addr: int | SootAddressDescriptor) -> None:
+        self._block_addrs_with_return.add(node_addr)
+
+    def node_addr_has_return(self, node_addr: int | SootAddressDescriptor) -> bool:
+        return node_addr in self._block_addrs_with_return
 
     #
     # Serialization
@@ -238,6 +250,10 @@ class CFGModel(Serializable):
 
         cmsg.normalized = self.normalized
 
+        # block addrs with return
+        block_addrs_with_return = list(self._block_addrs_with_return)
+        cmsg.block_addrs_with_return.extend(block_addrs_with_return)
+
         return cmsg
 
     @classmethod
@@ -279,6 +295,9 @@ class CFGModel(Serializable):
             model.jump_tables[ij.addr] = ij
 
         model.normalized = cmsg.normalized
+
+        # block addrs with return
+        model._block_addrs_with_return = set(cmsg.block_addrs_with_return)
 
         return model
 
@@ -1051,6 +1070,7 @@ class CFGModel(Serializable):
         """
         self.graph.remove_node(node)
         self.remove_node(node.addr, node)  # FIXME: block_id param
+        self._block_addrs_with_return.discard(node.addr)
 
     def get_intersecting_functions(
         self,

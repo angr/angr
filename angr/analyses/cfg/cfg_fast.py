@@ -2384,7 +2384,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if proc_returns:
             # it returns
-            self.mark_node_has_return(cfg_node)
+            self.model.mark_node_addr_has_return(addr)
             self._function_exits[current_func_addr].add(addr)
             self._function_add_return_site(addr, current_func_addr)
         else:
@@ -2618,7 +2618,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     self.functions[current_function_addr].returning = True
                     self._pending_jobs.add_returning_function(current_function_addr)
 
-                self.mark_node_has_return(cfg_node)
+                self.model.mark_node_addr_has_return(addr)
 
             elif self._resolve_indirect_jumps and (
                 jumpkind in ("Ijk_Boring", "Ijk_Call", "Ijk_InvalICache") or jumpkind.startswith("Ijk_Sys")

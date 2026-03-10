@@ -50,6 +50,7 @@ message CFG {
     repeated MemoryData     memory_data = 4;
     bool                    normalized = 5; // Whether the control flow graph has been normalized or not
     repeated IndirectJump   jump_tables = 6; // Jump tables / indirect jumps
+    repeated uint64         block_addrs_with_return = 7; // Addresses of blocks that have return statements
 }
 
 message MemoryData {
