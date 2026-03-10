@@ -12,7 +12,6 @@ from angr.utils.constants import DEFAULT_STATEMENT
 from angr.errors import AngrCFGError, SimMemoryError, SimEngineError
 from angr.codenode import HookNode, SootBlockNode
 from angr.knowledge_plugins.cfg import CFGNode
-from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr
 from angr.analyses import register_analysis
 from .cfg_fast import CFGFast, CFGJob, PendingJobs, FunctionTransitionEdge
 
@@ -608,7 +607,7 @@ class CFGFastSoot(CFGFast):
 
             self._graph_bfs_custom(
                 self.graph,
-                [block_key_to_addr(fn)],
+                [fn.addr],
                 self._graph_traversal_handler,
                 blockaddr_to_funcaddr,
                 tmp_functions,
@@ -645,7 +644,7 @@ class CFGFastSoot(CFGFast):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(
-                self.graph, [block_key_to_addr(fn)], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
+                self.graph, [fn.addr], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
             )
 
         to_remove = set()
