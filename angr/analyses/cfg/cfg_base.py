@@ -2282,11 +2282,11 @@ class CFGBase(Analysis):
 
     def _is_tail_call_optimization(
         self,
-        g: networkx.DiGraph[CFGNode],
+        g: SpillingCFG,
         src_addr,
         dst_addr,
         src_function,
-        all_edges: list[tuple[CFGNode, CFGNode, Any]],
+        all_edges: list[tuple[K, K, Any]],
         known_functions,
         blockaddr_to_funcaddr: dict[int, int],
     ):
@@ -2310,8 +2310,8 @@ class CFGBase(Analysis):
             return len(out_edges) > 1
 
         if len(all_edges) == 1 and dst_addr != src_addr:
-            the_edge = next(iter(all_edges))
-            _, dst, data = the_edge
+            the_edge = all_edges[0]
+            _, dst_key, data = the_edge
             if data.get("stmt_idx", None) != DEFAULT_STATEMENT:
                 return False
 
@@ -2323,6 +2323,7 @@ class CFGBase(Analysis):
             if full_src_node.addr <= dst_addr < full_src_node.addr + full_src_node.size:
                 return False
 
+            dst = g.get_node_by_key(dst_key)
             dst_in_edges = g.in_edges(dst, data=True)
             if len(dst_in_edges) > 1:
                 # there are other edges going to the destination node. check all edges to make sure all source nodes
@@ -2435,7 +2436,7 @@ class CFGBase(Analysis):
                 callback(g, node_addr, node_key, None, None, blockaddr_to_funcaddr, known_functions, None)
 
             else:
-                all_out_edges = g.out_edges_by_key(node_key, data=True)
+                all_out_edges = list(g.out_edges_by_key(node_key, data=True))
                 for _, dst_key, data in all_out_edges:
                     dst_addr = block_key_to_addr(dst_key)
                     callback(
