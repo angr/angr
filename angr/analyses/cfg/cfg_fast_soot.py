@@ -481,7 +481,7 @@ class CFGFastSoot(CFGFast):
                     self.functions[current_function_addr].returning = True
                     self._pending_jobs.add_returning_function(current_function_addr)
 
-                cfg_node.has_return = True
+                self.model.mark_node_addr_has_return(addr)
 
         elif target_addr is not None:
             # This is a direct jump with a concrete target.
@@ -607,7 +607,7 @@ class CFGFastSoot(CFGFast):
 
             self._graph_bfs_custom(
                 self.graph,
-                [fn],
+                [fn.addr],
                 self._graph_traversal_handler,
                 blockaddr_to_funcaddr,
                 tmp_functions,
@@ -644,7 +644,7 @@ class CFGFastSoot(CFGFast):
                 self._update_progress(progress)
 
             self._graph_bfs_custom(
-                self.graph, [fn], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
+                self.graph, [fn.addr], self._graph_traversal_handler, blockaddr_to_funcaddr, tmp_functions
             )
 
         to_remove = set()

@@ -12,7 +12,7 @@ import threading
 import weakref
 import os
 from collections import OrderedDict, defaultdict
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, overload, Literal
 
 import lmdb
@@ -20,6 +20,7 @@ import networkx
 from archinfo.arch_soot import SootAddressDescriptor
 
 from angr.protos import cfg_pb2
+from .block_id import BlockID
 from .cfg_node import CFGNode, CFGENode
 from .spilling_digraph import SpillingDiGraph
 from .types import CFGNODE_K, CFGENODE_K, SOOTNODE_K, K, CFG_ADDR_TYPES
@@ -688,6 +689,25 @@ def get_block_key(node: CFGNode | CFGENode) -> K:
     return block_key
 
 
+@overload
+def block_key_to_addr(block_key: CFGNODE_K | CFGENODE_K) -> int: ...
+@overload
+def block_key_to_addr(block_key: SOOTNODE_K) -> SootAddressDescriptor: ...
+
+
+def block_key_to_addr(block_key: K) -> int:
+    """Extract the address from a block key."""
+    if isinstance(block_key, SootAddressDescriptor):
+        return block_key
+    if isinstance(block_key, tuple) and len(block_key) >= 2:
+        item = block_key[0]
+        if isinstance(item, BlockID):
+            return item.addr
+        assert isinstance(item, int)
+        return item
+    raise ValueError(f"Invalid block key format: {block_key!r}")
+
+
 class SpillingCFG:
     """
     A graph wrapper that stores CFGNode instances in a spilling dict while keeping only primitive keys in the
@@ -903,6 +923,21 @@ class SpillingCFG:
     def out_degree(self) -> _OutDegreeView:
         """Return a view of out-degrees supporting call, subscript, len, and iteration."""
         return _OutDegreeView(self)
+
+    @overload
+    def out_edges_by_key(self, key: K, data: Literal[False] = False) -> Generator[tuple[K, K]]: ...
+    @overload
+    def out_edges_by_key(self, key: K, *, data: Literal[True]) -> Generator[tuple[K, K, dict]]: ...
+
+    def out_edges_by_key(self, key: K, data: bool = False) -> Generator[tuple[K, K] | tuple[K, K, dict]]:
+        if key not in self._graph:
+            return
+        yield from self._graph.out_edges(key, data=data)
+
+    def out_degree_by_key(self, key: K) -> int:
+        if key not in self._graph:
+            return 0
+        return self._graph.out_degree(key)
 
     #
     # Adjacency access
