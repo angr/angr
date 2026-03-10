@@ -332,8 +332,10 @@ class CFGFastSoot(CFGFast):
             return location.method
         return location
 
-    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
-        assert thumb is False
+    def _to_snippet(
+        self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None, byte_string=None
+    ):
+        assert thumb is False and byte_string is None
 
         if cfg_node is not None:
             addr = cfg_node.addr

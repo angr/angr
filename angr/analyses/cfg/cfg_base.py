@@ -473,9 +473,12 @@ class CFGBase(Analysis):
         addr = block_key_to_addr(node_key)
         size = block_key_to_size(node_key)
         thumb = is_arm_arch(self.project.arch) and addr % 2 == 1
-        byte_string = (
-            self._fast_memory_load_bytes(addr, size) if not thumb else self._fast_memory_load_bytes(addr - 1, size)
-        )
+        if not isinstance(addr, int):
+            byte_string = None
+        else:
+            byte_string = (
+                self._fast_memory_load_bytes(addr, size) if not thumb else self._fast_memory_load_bytes(addr - 1, size)
+            )
         return self._to_snippet(
             addr=addr,
             size=size,
