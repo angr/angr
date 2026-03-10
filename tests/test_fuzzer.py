@@ -144,8 +144,14 @@ class TestFuzzer:
 
         mutator = HavocMutator(max_stack_pow=2)
         fuzzer = Fuzzer(
-            base_state, corpus, solutions, _apply_fn, 0, 0,
-            max_mutations=2, mutator=mutator,
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=2,
+            mutator=mutator,
         )
 
         new_corpus_entry = fuzzer.run_once()
@@ -164,8 +170,14 @@ class TestFuzzer:
         # The deterministic mutator will produce 0x43 ('C') which triggers the crash path
         mutator = DeterministicMutator([b"\x43"])
         fuzzer = Fuzzer(
-            base_state, corpus, solutions, _apply_fn, 0, 0,
-            max_mutations=1, mutator=mutator,
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
         )
 
         fuzzer.run_once()
@@ -183,8 +195,14 @@ class TestFuzzer:
         # Only produce values that do NOT trigger the crash path
         mutator = DeterministicMutator([b"\x41"])
         fuzzer = Fuzzer(
-            base_state, corpus, solutions, _apply_fn, 0, 0,
-            max_mutations=1, mutator=mutator,
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
         )
 
         fuzzer.run_once()
@@ -202,8 +220,14 @@ class TestFuzzer:
         # Cycle: first produces 0x41 (path_a, no crash), then 0x43 (crash_path)
         mutator = DeterministicMutator([b"\x41", b"\x43"])
         fuzzer = Fuzzer(
-            base_state, corpus, solutions, _apply_fn, 0, 0,
-            max_mutations=1, mutator=mutator,
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
         )
 
         # First iteration: mutator produces 0x41 -> path_a -> no crash
@@ -257,7 +281,7 @@ class TestFuzzer:
 
         def stacksmash_apply_fn(state: angr.SimState, input_bytes: bytes):
             # Reset the saved rbp and return address each iteration
-            state.memory.store(RBP, struct.pack("<Q", 0))          # saved rbp
+            state.memory.store(RBP, struct.pack("<Q", 0))  # saved rbp
             state.memory.store(RBP + 8, struct.pack("<Q", STACK_RET))  # return addr
             # Write fuzzed input into the buffer at [rbp - 0x70].
             # >120 bytes overflows past saved rbp (8) into the return address.
@@ -273,8 +297,14 @@ class TestFuzzer:
         crash_input = b"A" * 128
         mutator = DeterministicMutator([crash_input])
         fuzzer = Fuzzer(
-            base_state, corpus, solutions, stacksmash_apply_fn, 0, 0,
-            max_mutations=1, mutator=mutator,
+            base_state,
+            corpus,
+            solutions,
+            stacksmash_apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
         )
 
         fuzzer.run_once()
