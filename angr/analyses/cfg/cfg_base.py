@@ -1402,6 +1402,9 @@ class CFGBase(Analysis):
             self._model.remove_node(n.block_id, n)
             self._model.add_node(n.block_id, new_node)
 
+            # Update block_addrs_with_return
+            self._model.mark_node_addr_has_return(new_node.addr, has_return=False)
+
             for p, _, data in original_predecessors:
                 # Consider the following case: two basic blocks ending at the same position, where A is larger, and
                 # B is smaller. Suppose there is an edge going from the end of A to A itself, and apparently there

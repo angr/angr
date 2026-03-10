@@ -175,8 +175,11 @@ class CFGModel(Serializable):
     def has_node_addr(self, addr: int) -> bool:
         return self.graph.has_node_addr(addr)
 
-    def mark_node_addr_has_return(self, node_addr: int | SootAddressDescriptor) -> None:
-        self._block_addrs_with_return.add(node_addr)
+    def mark_node_addr_has_return(self, node_addr: int | SootAddressDescriptor, has_return: bool = True) -> None:
+        if has_return:
+            self._block_addrs_with_return.add(node_addr)
+        else:
+            self._block_addrs_with_return.discard(node_addr)
 
     def node_addr_has_return(self, node_addr: int | SootAddressDescriptor) -> bool:
         return node_addr in self._block_addrs_with_return
