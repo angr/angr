@@ -70,8 +70,6 @@ jobs:
       - name: Relocate binaries directory
         run: mv binaries ..
       - name: Run tests
-        env:
-          COVERAGE_RUN_PATCH: fork
         run: |
           source .venv/bin/activate
           pytest -vv \
