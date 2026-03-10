@@ -22,7 +22,6 @@ message CFGNode {
     uint64          ea = 1; // Address of the node
     uint32          size = 2; // Size of the node
     repeated int64  block_id = 3; // A unique identifier of the node (for int block_ids)
-    bool            returning = 4; // has_return property
     repeated uint64 instr_addrs = 5; // Instruction addresses
     optional string simprocedure_name = 6; // Name of the SimProcedure, if any
     optional bool   no_ret = 7; // Whether this node does not return

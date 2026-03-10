@@ -59,7 +59,6 @@ class CFGNode(Serializable):
         "_cfg_model",
         "_dirty",
         "_function_address",
-        "_has_return",
         "_hash",
         "_is_syscall",
         "_name",
@@ -129,7 +128,6 @@ class CFGNode(Serializable):
 
         self.irsb = None
         self.soot_block = soot_block
-        self._has_return = False
         self._hash = None
         self._dirty = True
 
@@ -170,18 +168,6 @@ class CFGNode(Serializable):
     @property
     def byte_string(self) -> bytes | None:
         return self._byte_string
-
-    @property
-    def has_return(self) -> bool:
-        return self._has_return
-
-    @has_return.setter
-    def has_return(self, value: bool):
-        if value == self._has_return:
-            return
-
-        self._has_return = value
-        self.dirty = True
 
     @property
     def is_syscall(self) -> bool:
@@ -293,7 +279,6 @@ class CFGNode(Serializable):
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
-        obj.returning = self.has_return
         obj.instr_addrs.extend(self.instruction_addrs)
         if self.block_id is not None:
             if type(self.block_id) is int:
@@ -333,7 +318,6 @@ class CFGNode(Serializable):
             is_syscall=cmsg.is_syscall,
             name=cmsg.name if cmsg.HasField("name") else None,
         )
-        node._has_return = cmsg.returning
         node._dirty = False
         return node
 
@@ -354,7 +338,6 @@ class CFGNode(Serializable):
             "_name": self._name,
             "instruction_addrs": self.instruction_addrs,
             "is_syscall": self.is_syscall,
-            "has_return": self.has_return,
         }
 
     def __setstate__(self, state):
@@ -372,7 +355,6 @@ class CFGNode(Serializable):
             instruction_addrs=state["instruction_addrs"],
             is_syscall=state["is_syscall"],
         )
-        self.has_return = state["has_return"]
 
     #
     # Methods
@@ -606,7 +588,6 @@ class CFGENode(CFGNode):
         base = obj.base
         base.ea = self.addr
         base.size = self.size
-        base.returning = self.has_return
         base.instr_addrs.extend(self.instruction_addrs)
         if self.simprocedure_name is not None:
             base.simprocedure_name = self.simprocedure_name
@@ -697,7 +678,6 @@ class CFGENode(CFGNode):
         )
 
         # Set fields that need post-init handling
-        node._has_return = base.returning
         node._dirty = False
 
         if cmsg.HasField("return_target"):
