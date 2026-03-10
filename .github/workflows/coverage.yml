@@ -73,7 +73,7 @@ jobs:
         run: |
           source .venv/bin/activate
           pytest -vv \
-            -n auto --splits 10 --group ${{ matrix.runner_id }} --splitting-algorithm=least_duration \
+            -n auto --forked --splits 10 --group ${{ matrix.runner_id }} --splitting-algorithm=least_duration \
             --cov=angr --cov=tests --cov-report=xml \
             --junitxml=junit.xml -o junit_family=legacy \
             --store-durations --clean-durations --durations-path=test_durations.json \
