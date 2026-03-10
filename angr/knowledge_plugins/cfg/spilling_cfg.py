@@ -12,10 +12,8 @@ import threading
 import weakref
 import os
 from collections import OrderedDict, defaultdict
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from typing import TYPE_CHECKING, overload, Literal
-
-from collections.abc import Generator
 
 import lmdb
 import networkx
@@ -691,6 +689,12 @@ def get_block_key(node: CFGNode | CFGENode) -> K:
     return block_key
 
 
+@overload
+def block_key_to_addr(block_key: CFGNODE_K | CFGENODE_K) -> int: ...
+@overload
+def block_key_to_addr(block_key: SOOTNODE_K) -> SootAddressDescriptor: ...
+
+
 def block_key_to_addr(block_key: K) -> int:
     """Extract the address from a block key."""
     if isinstance(block_key, SootAddressDescriptor):
@@ -920,7 +924,12 @@ class SpillingCFG:
         """Return a view of out-degrees supporting call, subscript, len, and iteration."""
         return _OutDegreeView(self)
 
-    def out_edges_by_key(self, key: K, data: bool = False) -> Generator[K | tuple[K, dict]]:
+    @overload
+    def out_edges_by_key(self, key: K, data: Literal[False] = False) -> Generator[tuple[K, K]]: ...
+    @overload
+    def out_edges_by_key(self, key: K, *, data: Literal[True]) -> Generator[tuple[K, K, dict]]: ...
+
+    def out_edges_by_key(self, key: K, data: bool = False) -> Generator[tuple[K, K] | tuple[K, K, dict]]:
         if key not in self._graph:
             return
         yield from self._graph.out_edges(key, data=data)

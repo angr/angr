@@ -1288,7 +1288,7 @@ class CFGBase(Analysis):
 
     def _normalize_core(
         self,
-        graph: networkx.DiGraph[CFGNode],
+        graph: networkx.DiGraph[CFGNode] | SpillingCFG,
         callstack_key,
         smallest_node,
         other_nodes,
