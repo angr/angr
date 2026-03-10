@@ -32,7 +32,7 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from angr.knowledge_plugins.functions.function_manager import FunctionManager
 from angr.knowledge_plugins.cfg import IndirectJump, CFGNode, CFGENode, CFGModel  # pylint:disable=unused-import
-from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, get_block_key
+from angr.knowledge_plugins.cfg.spilling_cfg import block_key_to_addr, get_block_key, block_key_to_size
 from angr.procedures.stubs.UnresolvableJumpTarget import UnresolvableJumpTarget
 from angr.utils.constants import DEFAULT_STATEMENT
 from angr.procedures.procedure_dict import SIM_PROCEDURES
@@ -427,7 +427,16 @@ class CFGBase(Analysis):
         # Put the new node into node dicts
         self._model.add_node(new_node.block_id, new_node)
 
-    def _to_snippet(self, cfg_node=None, addr=None, size=None, thumb=False, jumpkind=None, base_state=None):
+    def _to_snippet(
+        self,
+        cfg_node=None,
+        addr=None,
+        size=None,
+        thumb=False,
+        jumpkind=None,
+        base_state=None,
+        byte_string: bytes | None = None,
+    ):
         """
         Convert a CFGNode instance to a CodeNode object.
 
@@ -453,9 +462,28 @@ class CFGBase(Analysis):
             size = hooker.kwargs.get("length", 0)
             return HookNode(addr, size, hooker)
 
-        if cfg_node is not None:
-            return BlockNode(addr, size, thumb=thumb, bytestr=cfg_node.byte_string)  # pylint: disable=no-member
+        if cfg_node is not None and byte_string is None:
+            byte_string = cfg_node.byte_string
+
+        if byte_string is not None:
+            return BlockNode(addr, size, thumb=thumb, bytestr=byte_string)  # pylint: disable=no-member
         return self.project.factory.snippet(addr, size=size, jumpkind=jumpkind, thumb=thumb, backup_state=base_state)
+
+    def _node_key_to_snippet(self, node_key: K, jumpkind: str | None = None, base_state=None) -> BlockNode:
+        addr = block_key_to_addr(node_key)
+        size = block_key_to_size(node_key)
+        thumb = is_arm_arch(self.project.arch) and addr % 2 == 1
+        byte_string = (
+            self._fast_memory_load_bytes(addr, size) if not thumb else self._fast_memory_load_bytes(addr - 1, size)
+        )
+        return self._to_snippet(
+            addr=addr,
+            size=size,
+            thumb=thumb,
+            jumpkind=jumpkind,
+            base_state=base_state,
+            byte_string=byte_string,
+        )
 
     def is_thumb_addr(self, addr):
         return addr in self._thumb_addrs
@@ -2420,23 +2448,18 @@ class CFGBase(Analysis):
             traversed.add(node_key)
 
             if self.model.node_addr_has_return(node_addr):
-                callback(
-                    g, node_addr, node_key, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_funcaddr, known_functions, None
-                )
+                callback(g, node_key, None, {"jumpkind": "Ijk_Ret"}, blockaddr_to_funcaddr, known_functions, None)
             # NOTE: A block that has_return CAN have successors that aren't the return.
             # This is particularly the case for ARM conditional instructions.  Yes, conditional rets are a thing.
 
             if g.out_degree_by_key(node_key) == 0:
                 # it's a single node
-                callback(g, node_addr, node_key, None, None, blockaddr_to_funcaddr, known_functions, None)
+                callback(g, node_key, None, None, blockaddr_to_funcaddr, known_functions, None)
 
             else:
                 all_out_edges = list(g.out_edges_by_key(node_key, data=True))
                 for _, dst_key, data in all_out_edges:
-                    dst_addr = block_key_to_addr(dst_key)
-                    callback(
-                        g, node_addr, node_key, dst_addr, data, blockaddr_to_funcaddr, known_functions, all_out_edges
-                    )
+                    callback(g, node_key, dst_key, data, blockaddr_to_funcaddr, known_functions, all_out_edges)
 
                     jumpkind = data.get("jumpkind", "")
                     if (not (jumpkind in ("Ijk_Call", "Ijk_Ret") or jumpkind.startswith("Ijk_Sys"))) and (
@@ -2460,9 +2483,8 @@ class CFGBase(Analysis):
     def _graph_traversal_handler(
         self,
         g,
-        src_addr: int | SootAddressDescriptor,
         src_node_key: K,
-        dst_addr: int | SootAddressDescriptor | None,
+        dst_node_key: int | SootAddressDescriptor | None,
         data: dict | None,
         blockaddr_to_funcaddr: dict[AddressType, MethodType],
         known_functions: FunctionManager,
@@ -2472,16 +2494,16 @@ class CFGBase(Analysis):
         Graph traversal handler. It takes in a node or an edge, and create new functions or add nodes to existing
         functions accordingly. Oh, it also creates edges on the transition map of functions.
 
-        :param g:           The control flow graph that is currently being traversed.
-        :param src_addr:    Address of the edge beginning, or a single node when dst_addr is None.
+        :param g:            The control flow graph that is currently being traversed.
         :param src_node_key: The key of the source node in the graph.
-        :param dst_addr:    Address of the edge destination. For processing a single node, `dst_addr` is None.
-        :param data:        Edge data in the CFG. 'jumpkind' should be there if it's not None.
+        :param dst_node_key: The key of the edge destination. For processing a single node, `dst_addr` is None.
+        :param data:         Edge data in the CFG. 'jumpkind' should be there if it's not None.
         :param blockaddr_to_funcaddr: A mapping between block addresses to their function addresses.
         :param known_functions: Already recovered functions.
         :param all_edges:   All edges going out from src.
         """
 
+        src_addr = block_key_to_addr(src_node_key)
         src_funcaddr = self._addr_to_funcaddr(src_addr, blockaddr_to_funcaddr, known_functions)
         src_function = self.kb.functions.get_by_addr(src_funcaddr)
 
@@ -2501,8 +2523,9 @@ class CFGBase(Analysis):
             from_node = src_addr if n is None else self._to_snippet(n)
             self.kb.functions._add_return_from(src_function.addr, from_node, None)
 
-        if dst_addr is None:
+        if dst_node_key is None:
             return
+        dst_addr = block_key_to_addr(dst_node_key)
 
         # get instruction address and statement index
         ins_addr = data.get("ins_addr")
@@ -2515,11 +2538,10 @@ class CFGBase(Analysis):
             dst_funcaddr = self._addr_to_funcaddr(dst_addr, blockaddr_to_funcaddr, known_functions)
             dst_function = self.kb.functions.get_by_addr(dst_funcaddr, meta_only=True)
 
-            n = self.model.get_any_node(src_addr, force_fastpath=True)
-            if n is None:
+            if not self.model.has_node_addr(src_addr):
                 src_snippet = self._to_snippet(addr=src_addr, base_state=self._base_state)
             else:
-                src_snippet = self._to_snippet(cfg_node=n)
+                src_snippet = self._node_key_to_snippet(src_node_key)
 
             # HACK: FIXME: We need a better way of representing unresolved calls and whether they return.
             # For now, assume UnresolvedTarget returns if we're calling to it
@@ -2575,11 +2597,8 @@ class CFGBase(Analysis):
 
         elif jumpkind in ("Ijk_Boring", "Ijk_InvalICache", "Ijk_Exception"):
             # convert src_addr and dst_addr to CodeNodes
-            n = self.model.get_any_node(src_addr, force_fastpath=True)
-            src_node = src_addr if n is None else self._to_snippet(cfg_node=n)
-
-            n = self.model.get_any_node(dst_addr, force_fastpath=True)
-            dst_node = dst_addr if n is None else self._to_snippet(cfg_node=n)
+            src_node = src_addr if not self.model.has_node_addr(src_addr) else self._node_key_to_snippet(src_node_key)
+            dst_node = dst_addr if not self.model.has_node_addr(dst_addr) else self._node_key_to_snippet(dst_node_key)
 
             if self._skip_unmapped_addrs:
                 # pre-check: if source and destination do not belong to the same section, it must be jumping to another
