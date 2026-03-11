@@ -708,6 +708,16 @@ def block_key_to_addr(block_key: K) -> int:
     raise ValueError(f"Invalid block key format: {block_key!r}")
 
 
+def block_key_to_size(block_key: K) -> int | None:
+    """Extract the size from a block key, if present."""
+    if isinstance(block_key, SootAddressDescriptor):
+        return None
+    if isinstance(block_key, tuple) and len(block_key) >= 2:
+        size = block_key[1]
+        return size if size != -1 else None
+    raise ValueError(f"Invalid block key format: {block_key!r}")
+
+
 class SpillingCFG:
     """
     A graph wrapper that stores CFGNode instances in a spilling dict while keeping only primitive keys in the
