@@ -3077,7 +3077,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if cc is None:
             cc_cls = default_cc(
                 self.project.arch.name,
-                platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
+                platform=self.project.simos.name
+                if self.project is not None and self.project.simos is not None
+                else None,
             )
             if cc_cls is None:
                 return arg_list
@@ -3097,7 +3099,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return arg_list
 
         existing_arg_regs = {
-            cvar.variable.reg for cvar in arg_list if isinstance(cvar, CVariable) and isinstance(cvar.variable, SimRegisterVariable)
+            cvar.variable.reg
+            for cvar in arg_list
+            if isinstance(cvar, CVariable) and isinstance(cvar.variable, SimRegisterVariable)
         }
         var_manager = self._variable_kb.variables[self._func.addr]
         promoted: list[tuple[int, SimRegisterVariable, CVariable]] = []
