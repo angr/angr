@@ -78,6 +78,7 @@ from .base import (
     IdentType,
     CConstantType,
 )
+
 if TYPE_CHECKING:
     import archinfo
     import angr
