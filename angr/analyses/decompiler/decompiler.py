@@ -438,6 +438,8 @@ class Decompiler(Analysis):
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                     const_formats=old_codegen.const_formats if old_codegen is not None else None,
                     externs=clinic.externs,
+                    stack_items=clinic.stack_items,
+                    stackvar_max_sizes=cache.stackvar_max_sizes,
                     binop_depth_cutoff=self.expr_collapse_depth,
                     notes=self.notes,
                     **self.options_to_params(self.options_by_class["codegen"]),
