@@ -341,7 +341,7 @@ _KNOWN_SEMANTIC_LIMITATIONS = {
         "t4_mutual_recursion",
         "t4_recursion",
         "t4_static_call",
-    }
+    },
 }
 
 _KNOWN_T5_PATTERNS_LIMITATIONS = {
