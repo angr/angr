@@ -3260,9 +3260,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 if not isinstance(ty, SimTypePointer):
                     continue
                 pts_to = unpack_typeref(ty.pts_to)
-                if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
-                    if pts_to.size is not None and pts_to.size <= self.project.arch.bits:
-                        return True
+                if (
+                    isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray))
+                    and pts_to.size is not None
+                    and pts_to.size <= self.project.arch.bits
+                ):
+                    return True
                 if isinstance(pts_to, SimTypeBottom):
                     void_pointer_registers += 1
                     if void_pointer_registers >= 2:

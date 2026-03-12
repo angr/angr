@@ -2053,6 +2053,7 @@ class Clinic(Analysis):
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.is_prototype_guessed = False
 
+    @timethis
     def _recover_and_link_variables(
         self,
         ail_graph,
