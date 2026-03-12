@@ -5463,9 +5463,7 @@ class AdjacentCopyPropagator(CStructuredCodeWalker):
 
         for idx, stmt in enumerate(obj.statements):
             if not (
-                isinstance(stmt, CAssignment)
-                and isinstance(stmt.rhs, CVariable)
-                and isinstance(stmt.lhs, CVariable)
+                isinstance(stmt, CAssignment) and isinstance(stmt.rhs, CVariable) and isinstance(stmt.lhs, CVariable)
             ):
                 continue
 
