@@ -56,7 +56,6 @@ from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from angr.calling_conventions import default_cc, SimRegArg
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.decompiler.region_identifier import MultiNode
 from angr.analyses.decompiler.structuring.structurer_nodes import (
@@ -79,8 +78,6 @@ from .base import (
     IdentType,
     CConstantType,
 )
-from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
-
 if TYPE_CHECKING:
     import archinfo
     import angr
@@ -2348,7 +2345,12 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        yield from self._c_repr_chunks(" >> ", lhs_cast_str=self._signedness_cast(self.lhs, True))
+        lhs_cast_str = None
+        lhs_size = getattr(self.lhs.type, "size", None)
+        int_size = self.codegen.project.arch.sizeof["int"] if self.codegen.project is not None else None
+        if lhs_size is None or int_size is None or lhs_size >= int_size:
+            lhs_cast_str = self._signedness_cast(self.lhs, True)
+        yield from self._c_repr_chunks(" >> ", lhs_cast_str=lhs_cast_str)
 
     def _c_repr_chunks_logicaland(self):
         yield from self._c_repr_chunks(" && ")
@@ -3037,8 +3039,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.reset_idx_counters()
         obj = self._handle(self._sequence)
 
-        arg_list = self._promote_input_register_args(arg_list)
-
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
         self.cfunc = CFunction(
@@ -3071,71 +3071,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         }
 
         self.regenerate_text()
-
-    def _promote_input_register_args(self, arg_list: list[CVariable]) -> list[CVariable]:
-        cc = self._func.calling_convention
-        if cc is None:
-            cc_cls = default_cc(
-                self.project.arch.name,
-                platform=self.project.simos.name
-                if self.project is not None and self.project.simos is not None
-                else None,
-            )
-            if cc_cls is None:
-                return arg_list
-            cc = cc_cls(self.project.arch)
-
-        # Ask the calling convention for a generous set of integer argument locations, then
-        # promote any read-only live-in register locals we emitted in those locations.
-        probe_proto = SimTypeFunction([SimTypeInt().with_arch(self.project.arch)] * 16, SimTypeInt()).with_arch(
-            self.project.arch
-        )
-        arg_reg_order: dict[int, int] = {}
-        for idx, arg_loc in enumerate(cc.arg_locs(probe_proto)):
-            if isinstance(arg_loc, SimRegArg):
-                arg_reg_order.setdefault(self.project.arch.registers[arg_loc.reg_name][0], idx)
-
-        if not arg_reg_order:
-            return arg_list
-
-        existing_arg_regs = {
-            cvar.variable.reg
-            for cvar in arg_list
-            if isinstance(cvar, CVariable) and isinstance(cvar.variable, SimRegisterVariable)
-        }
-        var_manager = self._variable_kb.variables[self._func.addr]
-        promoted: list[tuple[int, SimRegisterVariable, CVariable]] = []
-
-        for var, cvar in self._variables_in_use.items():
-            if not isinstance(var, SimRegisterVariable) or var.reg in existing_arg_regs or var.reg not in arg_reg_order:
-                continue
-
-            accesses = var_manager.get_variable_accesses(var)
-            if not accesses or any(access.access_type == VariableAccessSort.WRITE for access in accesses):
-                continue
-
-            var.name = f"a{arg_reg_order[var.reg]}"
-            promoted.append((arg_reg_order[var.reg], var, cvar))
-
-        if not promoted:
-            return arg_list
-
-        arg_list = list(arg_list)
-        functy_args = list(self._func.prototype.args) if self._func.prototype is not None else []
-        for arg_idx, var, cvar in sorted(promoted, key=lambda item: item[0]):
-            while len(functy_args) < arg_idx:
-                functy_args.append(SimTypeInt().with_arch(self.project.arch))
-            if len(functy_args) == arg_idx:
-                arg_ty = self._get_variable_type(var)
-                if arg_ty is None:
-                    arg_ty = self.default_simtype_from_bits(var.size * self.project.arch.byte_width)
-                functy_args.append(arg_ty)
-                arg_list.append(cvar)
-
-        if self._func.prototype is not None and tuple(functy_args) != self._func.prototype.args:
-            self._func.prototype.args = tuple(functy_args)
-
-        return arg_list
 
     def cleanup(self):
         """

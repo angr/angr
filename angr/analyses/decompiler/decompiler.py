@@ -804,13 +804,9 @@ class Decompiler(Analysis):
 
     def transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
         variable_kb = self._variable_kb
-        vvar_to_vvar_mapping = None
-        if self.clinic is not None:
-            vvar_to_vvar_mapping = self.clinic.vvar_to_vvar
         dephication = self.project.analyses.SeqNodeDephication(
             self.func,
             seq_node,
-            vvar_to_vvar_mapping=vvar_to_vvar_mapping,
             rewrite=True,
             variable_kb=variable_kb,
             kb=self.kb,
