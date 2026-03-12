@@ -3443,7 +3443,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
                 else:
                     result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
-                return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+                return self._access_constant_offset(
+                    result, remainder - field_offset, data_type, lvalue, renegotiate_type
+                )
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
