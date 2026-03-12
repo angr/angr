@@ -127,7 +127,7 @@ def _functions_for_binary(bname):
     return _SOURCE_FUNCTIONS[src_stem]
 
 
-def _discover_functions_nm(bin_dir, bpath, bname):
+def _discover_functions_nm(bpath):
     """Discover functions via nm (works for ELF binaries)."""
     result = subprocess.run(
         ["nm", "-g", bpath],
@@ -160,7 +160,7 @@ def _discover_functions():
                 continue
 
             # MSVC strips symbols; derive from source
-            funcs = _functions_for_binary(bname) if is_pe else _discover_functions_nm(bin_dir, bpath, bname)
+            funcs = _functions_for_binary(bname) if is_pe else _discover_functions_nm(bpath)
 
             for func_name in funcs:
                 test_id = f"{subdir}/{bname}/{func_name}"
@@ -268,7 +268,7 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _classify(func_name, text):
+def _classify(text):
     """Classify decompiled output.
 
     Returns ``(category, reason)`` where *category* is ``"ok"`` or
@@ -463,15 +463,15 @@ _FUNCTIONS = _discover_functions()
 
 
 @pytest.mark.skipif(not _FUNCTIONS, reason="recompile-dataset binaries not found")
-@pytest.mark.parametrize("bin_path,func_name,gcc_cmd,run_prefix,is_pe", _FUNCTIONS)
-def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_path):
+@pytest.mark.parametrize("bin_path,func_name,gcc_cmd,run_prefix,_is_pe", _FUNCTIONS)
+def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, _is_pe, tmp_path):
     """Decompile, recompile, and check semantic equivalence."""
     decompiled = _get_decompiled(bin_path)
     if func_name not in decompiled:
         pytest.skip("no decompilation output")
 
     text = decompiled[func_name]
-    category, reason = _classify(func_name, text)
+    category, reason = _classify(text)
 
     # Stage 1: Compilation check
     source = _prepare_source(text)
