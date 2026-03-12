@@ -465,10 +465,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             unified_var = self.variable_manager.unified_variable(var)
             if unified_var is not None:
                 key = unified_var
-                var_type = self.variable_manager.get_variable_type(var)  # FIXME
+                var_type = self.codegen._get_variable_type(var)  # FIXME
             else:
                 key = var
-                var_type = self.variable_manager.get_variable_type(var)
+                var_type = self.codegen._get_variable_type(var)
 
             if var_type is None:
                 var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
@@ -1754,11 +1754,21 @@ class CIndexedVariable(CExpression):
             yield "...", self
             return
 
+        variable = self.variable
+        variable_type = unpack_typeref(variable.type)
+        if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+            variable = CTypeCast(
+                variable.type,
+                SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
+                variable,
+                codegen=self.codegen,
+            )
+
         bracket = CClosingObject("[")
-        if not isinstance(self.variable, (CVariable, CVariableField)):
+        if not isinstance(variable, (CVariable, CVariableField)):
             yield "(", None
-        yield from self.variable.c_repr_chunks()
-        if not isinstance(self.variable, (CVariable, CVariableField)):
+        yield from variable.c_repr_chunks()
+        if not isinstance(variable, (CVariable, CVariableField)):
             yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
@@ -2068,7 +2078,32 @@ class CBinaryOp(CExpression):
             return None
         return f"({new_repr})"
 
+    def _scalarize_array_operand(self, operand: CExpression, other: CExpression) -> CExpression:
+        operand_type = unpack_typeref(operand.type)
+        target_type = unpack_typeref(self.common_type)
+        if not isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            return operand
+        if isinstance(target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)):
+            other_type = unpack_typeref(other.type)
+            if isinstance(other_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)):
+                return operand
+            target_type = other_type
+        if operand_type.size != target_type.size:
+            return operand
+        return CUnaryOp(
+            "Dereference",
+            CTypeCast(
+                operand.type,
+                SimTypePointer(target_type).with_arch(self.codegen.project.arch),
+                operand,
+                codegen=self.codegen,
+            ),
+            codegen=self.codegen,
+        )
+
     def _c_repr_chunks(self, op):
+        lhs = self._scalarize_array_operand(self.lhs, self.rhs)
+        rhs = self._scalarize_array_operand(self.rhs, self.lhs)
         skip_op_and_rhs = False
         force_lhs_parens = False
         narrow_cast_str = None
@@ -2078,14 +2113,14 @@ class CBinaryOp(CExpression):
                 yield "!", None
                 # Unary ! has higher C precedence than any binary op,
                 # so we must parenthesize any compound LHS.
-                if isinstance(self.lhs, CBinaryOp):
+                if isinstance(lhs, CBinaryOp):
                     force_lhs_parens = True
             elif self.op == "CmpNE":
                 skip_op_and_rhs = True
             # C integer promotion widens char/short to int before arithmetic,
             # so we need an explicit truncation cast for 8/16-bit comparisons
             # to preserve narrow-width semantics.
-            if skip_op_and_rhs and isinstance(self.lhs, CBinaryOp):
+            if skip_op_and_rhs and isinstance(lhs, CBinaryOp):
                 try:
                     ct_size = self.common_type.size  # in bits
                     if ct_size is not None and ct_size < 32:
@@ -2097,8 +2132,8 @@ class CBinaryOp(CExpression):
         # In C, the signedness of ordered comparisons (<, <=, >, >=) depends on
         # the operand types.  When the AIL comparison carries an explicit signedness
         # flag that disagrees with the C operand types, emit casts.
-        lhs_sign_cast = self._cmp_signedness_cast(self.lhs)
-        rhs_sign_cast = self._cmp_signedness_cast(self.rhs) if not skip_op_and_rhs else None
+        lhs_sign_cast = self._cmp_signedness_cast(lhs)
+        rhs_sign_cast = self._cmp_signedness_cast(rhs) if not skip_op_and_rhs else None
 
         # lhs
         if narrow_cast_str is not None:
@@ -2106,14 +2141,14 @@ class CBinaryOp(CExpression):
         elif lhs_sign_cast is not None:
             yield lhs_sign_cast, None
         if lhs_sign_cast is not None and not force_lhs_parens:
-            force_lhs_parens = isinstance(self.lhs, CBinaryOp)
-        if isinstance(self.lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > self.lhs.op_precedence):
+            force_lhs_parens = isinstance(lhs, CBinaryOp)
+        if isinstance(lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > lhs.op_precedence):
             paren = CClosingObject("(")
             yield "(", paren
-            yield from self._try_c_repr_chunks(self.lhs)
+            yield from self._try_c_repr_chunks(lhs)
             yield ")", paren
         else:
-            yield from self._try_c_repr_chunks(self.lhs)
+            yield from self._try_c_repr_chunks(lhs)
 
         if not skip_op_and_rhs:
             # operator
@@ -2121,15 +2156,15 @@ class CBinaryOp(CExpression):
             # rhs
             if rhs_sign_cast is not None:
                 yield rhs_sign_cast, None
-            if isinstance(self.rhs, CBinaryOp) and self.op_precedence > self.rhs.op_precedence - (
+            if isinstance(rhs, CBinaryOp) and self.op_precedence > rhs.op_precedence - (
                 1 if self.op in ["Sub", "Div"] else 0
             ):
                 paren = CClosingObject("(")
                 yield "(", paren
-                yield from self._try_c_repr_chunks(self.rhs)
+                yield from self._try_c_repr_chunks(rhs)
                 yield ")", paren
             else:
-                yield from self._try_c_repr_chunks(self.rhs)
+                yield from self._try_c_repr_chunks(rhs)
 
     def _c_repr_chunks_opfirst(self, op):
         yield op, self
@@ -2251,6 +2286,25 @@ class CTypeCast(CExpression):
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
+            return
+
+        src_type = unpack_typeref(self.src_type)
+        dst_type = unpack_typeref(self.dst_type)
+        if (
+            isinstance(src_type, (SimTypeArray, SimTypeFixedSizeArray))
+            and not isinstance(dst_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and src_type.size == dst_type.size
+        ):
+            yield from CUnaryOp(
+                "Dereference",
+                CTypeCast(
+                    self.src_type,
+                    SimTypePointer(dst_type).with_arch(self.codegen.project.arch),
+                    self.expr,
+                    codegen=self.codegen,
+                ),
+                codegen=self.codegen,
+            ).c_repr_chunks(indent=indent, asexpr=asexpr)
             return
         paren = CClosingObject("(")
         if self.codegen.show_casts:
@@ -2949,8 +3003,24 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _get_variable_type(self, var, is_global=False):
         if is_global:
-            return self._variable_kb.variables["global"].get_variable_type(var)
-        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+            ty = self._variable_kb.variables["global"].get_variable_type(var)
+        else:
+            ty = self._variable_kb.variables[self._func.addr].get_variable_type(var)
+
+        if isinstance(var, SimRegisterVariable) and not var.is_function_argument:
+            ty = unpack_typeref(ty)
+            if isinstance(ty, SimTypePointer):
+                pts_to = unpack_typeref(ty.pts_to)
+                if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                    ty = SimTypePointer(
+                        pts_to.elem_type,
+                        label=ty.label,
+                        offset=ty.offset,
+                        qualifier=ty.qualifier,
+                        disposition=ty.disposition,
+                    ).with_arch(self.project.arch)
+
+        return ty
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
@@ -3020,17 +3090,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _get_variable_reference(self, cvar: CVariable) -> CExpression:
         """
-        Return a reference to a CVariable instance with special handling of arrays and array pointers.
+        Return a reference to a CVariable instance with special handling of values that are already references.
 
         :param cvar:    The CVariable object.
         :return:        A reference to a CVariable object.
         """
 
-        if isinstance(cvar.type, (SimTypeArray, SimTypeFixedSizeArray)):
-            return cvar
-        if isinstance(cvar.type, SimTypePointer) and isinstance(
-            cvar.type.pts_to, (SimTypeArray, SimTypeFixedSizeArray)
-        ):
+        if isinstance(cvar.type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
             return cvar
         return CUnaryOp("Reference", cvar, codegen=self)
 
@@ -3067,12 +3133,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: CExpression) -> CUnaryOp:
             src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
             dst_type_ptr = SimTypePointer(dst_type_).with_arch(self.project.arch)
+            cast_expr = (
+                expr_
+                if isinstance(unpack_typeref(expr_.type), (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray))
+                else CUnaryOp("Reference", expr_, codegen=self)
+            )
             return CUnaryOp(
                 "Dereference",
                 CTypeCast(
                     src_type_ptr,
                     dst_type_ptr,
-                    CUnaryOp("Reference", expr_, codegen=self),
+                    cast_expr,
                     codegen=self,
                 ),
                 codegen=self,
@@ -3095,6 +3166,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
 
         base_expr = expr.operand if isinstance(expr, CUnaryOp) and expr.op == "Reference" else None
+        if base_expr is not None and isinstance(unpack_typeref(base_expr.type), SimTypePointer):
+            base_expr = None
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)

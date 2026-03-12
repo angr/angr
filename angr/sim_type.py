@@ -953,14 +953,17 @@ class SimTypePointer(SimTypeReg):
             if name is None:
                 return out
             return f"{out} {name}"
-        # if it points to an array, we do not need to add a *
-
-        deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
         quals = f"{' '.join(self.qualifier)}" if self.qualifier else ""
-        if quals:
-            name_with_deref = f"{deref_chr}{quals} {name}" if name else f"{deref_chr}{quals}"
+        if isinstance(self.pts_to, SimTypeArray):
+            # Pointers to arrays require parentheses to remain pointers in C declarations.
+            if quals:
+                name_with_deref = f"(*{quals} {name})" if name else f"(*{quals})"
+            else:
+                name_with_deref = f"(*{name})" if name else "(*)"
+        elif quals:
+            name_with_deref = f"*{quals} {name}" if name else f"*{quals}"
         else:
-            name_with_deref = f"{deref_chr}{name}" if name else deref_chr
+            name_with_deref = f"*{name}" if name else "*"
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):

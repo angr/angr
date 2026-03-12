@@ -216,6 +216,15 @@ class TestTypes(unittest.TestCase):
         assert byte.size == 8
         assert not byte.signed
 
+    def test_c_repr_pointer_to_array(self):
+        array_ptr = SimTypePointer(SimTypeArray(SimTypeChar(), 4))
+        assert array_ptr.c_repr(name="cur") == "char (*cur)[4]"
+        assert array_ptr.c_repr() == "char (*)[4]"
+
+        qualified_array_ptr = SimTypePointer(SimTypeArray(SimTypeChar(), 4), qualifier=("const",))
+        assert qualified_array_ptr.c_repr(name="cur") == "char (*const cur)[4]"
+        assert qualified_array_ptr.c_repr() == "char (*const)[4]"
+
     def test_self_referential_struct_or_union(self):
         struct_llist = angr.types.parse_type("struct llist { int data; struct llist *next; }")
         assert isinstance(struct_llist, SimStruct)
