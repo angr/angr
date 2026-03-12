@@ -1825,7 +1825,9 @@ class CIndexedVariable(CExpression):
 
         variable = self.variable
         variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+        if isinstance(variable_type, SimTypePointer) and isinstance(
+            unpack_typeref(variable_type.pts_to), SimTypeBottom
+        ):
             variable = CTypeCast(
                 variable.type,
                 SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
@@ -2020,13 +2022,17 @@ class CBinaryOp(CExpression):
 
         if (
             isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and lhs_ty.size == rhs_ty.size
         ):
             lhs_ty = rhs_ty
         elif (
             isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and rhs_ty.size == lhs_ty.size
         ):
             rhs_ty = lhs_ty
@@ -2187,7 +2193,9 @@ class CBinaryOp(CExpression):
             return operand
         if isinstance(target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)):
             other_type = unpack_typeref(other.type)
-            if isinstance(other_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)):
+            if isinstance(
+                other_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            ):
                 return operand
             target_type = other_type
         if operand_type.size != target_type.size:
@@ -2394,7 +2402,9 @@ class CTypeCast(CExpression):
         dst_type = unpack_typeref(self.dst_type)
         if (
             isinstance(src_type, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(dst_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                dst_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and src_type.size == dst_type.size
             and not isinstance(self.expr, CBinaryOp)
         ):
@@ -3182,7 +3192,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def stack_var_ref_name(self, variable: SimVariable) -> str | None:
         return self._stack_var_ref_names.get(variable)
 
-    def stack_var_decl_components(self, variable: SimStackVariable, var_type: SimType | None) -> tuple[SimType | None, int]:
+    def stack_var_decl_components(
+        self, variable: SimStackVariable, var_type: SimType | None
+    ) -> tuple[SimType | None, int]:
         if var_type is None:
             return None, 0
 
@@ -4929,7 +4941,9 @@ class ReverseCopyLoopFixer(CStructuredCodeWalker):
         src_ptr = self._match_pointer_step(loop.body.statements[2], positive=False)
         if dest_ptr is None or src_ptr is None or not isinstance(copy_stmt, CAssignment):
             return
-        if not self._expr_uses_variable(copy_stmt.lhs, dest_ptr) or not self._expr_uses_variable(copy_stmt.rhs, src_ptr):
+        if not self._expr_uses_variable(copy_stmt.lhs, dest_ptr) or not self._expr_uses_variable(
+            copy_stmt.rhs, src_ptr
+        ):
             return
         if not isinstance(loop.condition.lhs, CVariable) or not self._same_variable(loop.condition.lhs, src_ptr):
             return
