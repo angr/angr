@@ -3059,7 +3059,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.reload_variable_types()
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
-        self.cfunc = PostIncrementStoreFixer().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = LoopInitializerFixer().handle(self.cfunc)
         self.cfunc = DoWhileConditionFixer().handle(self.cfunc)
@@ -4896,59 +4895,6 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
                     op = "Add"
                 return CBinaryOp(op, out.operand.variable, const, tags=out.operand.tags, codegen=out.codegen)
             return out
-        return obj
-
-
-class PostIncrementStoreFixer(CStructuredCodeWalker):
-    @staticmethod
-    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
-        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
-        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
-        return lhs_var is rhs_var
-
-    def _match_pointer_step(self, stmt: CStatement) -> CVariable | None:
-        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
-            return None
-        if not isinstance(unpack_typeref(stmt.lhs.type), SimTypePointer):
-            return None
-        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op != "Add":
-            return None
-        if not isinstance(stmt.rhs.lhs, CVariable) or not self._same_variable(stmt.lhs, stmt.rhs.lhs):
-            return None
-        if not isinstance(stmt.rhs.rhs, CConstant) or stmt.rhs.rhs.value != 1:
-            return None
-        return stmt.lhs
-
-    def _expr_uses_variable(self, expr: CExpression, target: CVariable) -> bool:
-        if isinstance(expr, CVariable):
-            return self._same_variable(expr, target)
-        if isinstance(expr, CUnaryOp):
-            return self._expr_uses_variable(expr.operand, target)
-        if isinstance(expr, CBinaryOp):
-            return self._expr_uses_variable(expr.lhs, target) or self._expr_uses_variable(expr.rhs, target)
-        if isinstance(expr, CTypeCast):
-            return self._expr_uses_variable(expr.expr, target)
-        if isinstance(expr, CIndexedVariable):
-            return self._expr_uses_variable(expr.variable, target) or self._expr_uses_variable(expr.index, target)
-        return False
-
-    def _fix_post_increment_store(self, stmts: list[CStatement]) -> None:
-        for idx in range(len(stmts) - 1):
-            target = self._match_pointer_step(stmts[idx])
-            if target is None:
-                continue
-            store_stmt = stmts[idx + 1]
-            if not isinstance(store_stmt, CAssignment):
-                continue
-            if not self._expr_uses_variable(store_stmt.lhs, target):
-                continue
-            if self._expr_uses_variable(store_stmt.rhs, target):
-                continue
-            stmts[idx], stmts[idx + 1] = stmts[idx + 1], stmts[idx]
-
-    def handle_CStatements(self, obj):
-        obj = super().handle_CStatements(obj)
-        self._fix_post_increment_store(obj.statements)
         return obj
 
 
