@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+import os
 import os.path
+import struct
 import tempfile
 
 import angr
-from angr.rustylib.fuzzer import Fuzzer, InMemoryCorpus, OnDiskCorpus
+from angr.rustylib.fuzzer import (
+    DeterministicMutator,
+    Fuzzer,
+    HavocMutator,
+    InMemoryCorpus,
+    OnDiskCorpus,
+)
+from tests.common import bin_location
 
 # pylint: disable=missing-class-docstring,no-self-use
 
@@ -23,13 +32,32 @@ nop
 ret
 """
 
+# Shellcode with a crash path: 0x43 triggers an access to unmapped memory
+SHELLCODE_WITH_CRASH = """
+cmp al, 0x43
+je crash_path
+cmp al, 0x41
+je path_a
+ret
+path_a:
+nop
+ret
+crash_path:
+mov rdi, 0xdeadbeef
+mov byte ptr [rdi], 0
+ret
+"""
+
+RETURN_ADDR = 0x100
+
 
 def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
     # Feed the fuzzed byte into rax so the binary can branch on it.
     state.regs.rax = input[0] if input else 0
-    # Set the return address to the entry so the breakpoint is at a mapped addr.
+    # Set the return address so the executor's breakpoint fires on normal return.
+    # Must be inside the binary's mapped region but past the shellcode bytes.
     cc = state.project.factory.cc()
-    cc.return_addr.set_value(state, state.project.entry)
+    cc.return_addr.set_value(state, RETURN_ADDR)
 
 
 class TestFuzzer:
@@ -106,3 +134,179 @@ class TestFuzzer:
             assert 0 <= new_corpus_entry < len(live_corpus)
             live_solutions = fuzzer.solutions()
             assert isinstance(live_solutions, InMemoryCorpus)
+
+    def test_havoc_mutator_config(self):
+        """Test that HavocMutator with configuration options works."""
+        project = angr.load_shellcode(SHELLCODE, "amd64")
+        base_state = project.factory.entry_state()
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B", b"C"])
+        solutions = InMemoryCorpus()
+
+        mutator = HavocMutator(max_stack_pow=2)
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=2,
+            mutator=mutator,
+        )
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
+
+    def test_deterministic_mutator_finds_solution(self):
+        """Test that a deterministic mutator producing a crash value yields a solution."""
+        project = angr.load_shellcode(SHELLCODE_WITH_CRASH, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        # The deterministic mutator will produce 0x43 ('C') which triggers the crash path
+        mutator = DeterministicMutator([b"\x43"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        live_solutions = fuzzer.solutions()
+        assert len(live_solutions) >= 1, "Expected at least one solution from crash path"
+
+    def test_deterministic_mutator_no_crash(self):
+        """Test that a deterministic mutator with non-crash values does not produce solutions."""
+        project = angr.load_shellcode(SHELLCODE_WITH_CRASH, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        # Only produce values that do NOT trigger the crash path
+        mutator = DeterministicMutator([b"\x41"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        live_solutions = fuzzer.solutions()
+        assert len(live_solutions) == 0, "path_a should not crash"
+
+    def test_deterministic_mutator_sequence(self):
+        """Test that a deterministic mutator cycles through its sequence and finds solutions."""
+        project = angr.load_shellcode(SHELLCODE_WITH_CRASH, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        # Cycle: first produces 0x41 (path_a, no crash), then 0x43 (crash_path)
+        mutator = DeterministicMutator([b"\x41", b"\x43"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        # First iteration: mutator produces 0x41 -> path_a -> no crash
+        fuzzer.run_once()
+        solutions_after_first = fuzzer.solutions()
+        assert len(solutions_after_first) == 0, "path_a should not crash"
+
+        # Second iteration: mutator produces 0x43 -> crash_path -> solution
+        fuzzer.run_once()
+        solutions_after_second = fuzzer.solutions()
+        assert len(solutions_after_second) >= 1, "crash_path should produce a solution"
+
+    def test_vuln_stacksmash_deterministic(self):
+        """Test that DeterministicMutator detects a stack buffer overflow in a real binary.
+
+        vuln_stacksmash has main():
+            sub rsp, 0x70        // 112-byte buffer
+            read(0, buf, 0x800)  // reads up to 2048 bytes into 112-byte buffer
+            leave; ret
+
+        We start execution after the read() call and write fuzzed bytes directly
+        into the buffer.  Inputs longer than 120 bytes overwrite the return
+        address, causing MEMORY_ERROR on ret → CrashFeedback → solution.
+        """
+        bin_path = os.path.join(bin_location, "tests", "x86_64", "vuln_stacksmash")
+        project = angr.Project(bin_path, auto_load_libs=False)
+
+        AFTER_READ = 0x400505  # mov eax, 0 (instruction after call read@plt)
+        STACK_RET = 0x400100  # breakpoint address, within binary's mapped region
+
+        # Allocate and fully materialise a stack page so icicle can sync it.
+        # (concrete_load returns empty for sparse pages, causing lost writes.)
+        STACK_PAGE = 0x651000
+        base_state = project.factory.blank_state(
+            addr=AFTER_READ,
+            add_options={
+                angr.sim_options.ZERO_FILL_UNCONSTRAINED_MEMORY,
+                angr.sim_options.ZERO_FILL_UNCONSTRAINED_REGISTERS,
+            },
+        )
+        base_state.memory.map_region(STACK_PAGE, 0x1000, 7)  # rwx
+        base_state.memory.store(STACK_PAGE, b"\x00" * 0x1000)  # materialise
+
+        # Set up the stack frame as if main's prologue already ran:
+        #   push rbp; mov rbp, rsp; sub rsp, 0x70
+        RBP = STACK_PAGE + 0xFF0  # near top of page
+        RSP = RBP - 0x70
+
+        base_state.regs.rbp = RBP
+        base_state.regs.rsp = RSP
+
+        def stacksmash_apply_fn(state: angr.SimState, input_bytes: bytes):
+            # Reset the saved rbp and return address each iteration
+            state.memory.store(RBP, struct.pack("<Q", 0))  # saved rbp
+            state.memory.store(RBP + 8, struct.pack("<Q", STACK_RET))  # return addr
+            # Write fuzzed input into the buffer at [rbp - 0x70].
+            # >120 bytes overflows past saved rbp (8) into the return address.
+            state.memory.store(RBP - 0x70, input_bytes)
+            # Tell the executor where to set its breakpoint
+            cc = state.project.factory.cc()
+            cc.return_addr.set_value(state, STACK_RET)
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        # 128 bytes of 'A': overwrites buffer (112) + saved rbp (8) + return addr (8)
+        crash_input = b"A" * 128
+        mutator = DeterministicMutator([crash_input])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            stacksmash_apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        live_solutions = fuzzer.solutions()
+        assert len(live_solutions) >= 1, "Stack buffer overflow should produce a solution"

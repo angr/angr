@@ -1,6 +1,7 @@
 pub mod corpus;
 pub mod executor;
 pub mod monitor;
+pub mod mutator;
 
 use std::num::NonZeroUsize;
 use std::time::Duration;
@@ -10,7 +11,6 @@ use libafl::{
     events::SimpleEventManager,
     feedbacks::{CrashFeedback, MaxMapFeedback},
     inputs::{BytesInput, NopToTargetBytes},
-    mutators::{HavocMutationsType, HavocScheduledMutator, havoc_mutations},
     observers::OwnedMapObserver,
     schedulers::QueueScheduler,
     stages::StdMutationalStage,
@@ -27,6 +27,7 @@ use crate::fuzzer::{
     corpus::{DynCorpus, PyInMemoryCorpus, PyOnDiskCorpus},
     executor::PyExecutorInner,
     monitor::CallbackMonitor,
+    mutator::DynMutator,
 };
 
 // LibAFL uses a LOT of generics. To try and make it easier to read, these
@@ -46,7 +47,7 @@ pub(crate) type Z = StdFuzzer<
     CrashFeedback,
 >;
 pub(crate) type E = PyExecutorInner<S>;
-pub(crate) type M = HavocScheduledMutator<HavocMutationsType>;
+pub(crate) type M = DynMutator;
 
 #[pyclass(module = "angr.rustylib.fuzzer", unsendable)]
 struct Fuzzer {
@@ -59,7 +60,8 @@ struct Fuzzer {
 #[pymethods]
 impl Fuzzer {
     #[new]
-    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None))]
+    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None, mutator=None))]
+    #[allow(clippy::too_many_arguments)]
     fn py_new(
         base_state: Bound<PyAny>,
         corpus: Bound<PyAny>,
@@ -68,6 +70,7 @@ impl Fuzzer {
         timeout: Option<u64>,
         seed: u64,
         max_mutations: Option<u64>,
+        mutator: Option<Bound<PyAny>>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
             return Err(PyTypeError::new_err("Expected a callable harness function"));
@@ -128,7 +131,7 @@ impl Fuzzer {
             CrashFeedback,
         > = StdFuzzer::new(QueueScheduler::new(), feedback, objective);
 
-        let mutator = HavocScheduledMutator::new(havoc_mutations());
+        let mutator = mutator::build_mutator(mutator.as_ref())?;
         let stage = if let Some(max_iter) = max_mutations {
             let max_iter = NonZeroUsize::new(max_iter as usize)
                 .ok_or_else(|| PyRuntimeError::new_err("max_mutations must be > 0"))?;
@@ -210,5 +213,7 @@ pub fn fuzzer(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<corpus::PyInMemoryCorpus>()?;
     m.add_class::<corpus::PyOnDiskCorpus>()?;
     m.add_class::<monitor::ClientStats>()?;
+    m.add_class::<mutator::PyHavocMutator>()?;
+    m.add_class::<mutator::PyDeterministicMutator>()?;
     Ok(())
 }
