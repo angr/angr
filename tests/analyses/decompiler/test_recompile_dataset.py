@@ -92,6 +92,8 @@ _INPUTS = [
     (3, 7),
     (-3, -7),
 ]
+
+
 def _get_binary_path(bin_name: str) -> str:
     return os.path.join(test_location, bin_name)
 
