@@ -48,39 +48,47 @@ def _probe_targets():
 
     # aarch64 ELF -- requires cross gcc + qemu-user
     if shutil.which("aarch64-linux-gnu-gcc") and shutil.which("qemu-aarch64"):
-        targets.append((
-            "aarch64/recompile_dataset",
-            False,
-            ["aarch64-linux-gnu-gcc", "-static"],
-            ["qemu-aarch64"],
-        ))
+        targets.append(
+            (
+                "aarch64/recompile_dataset",
+                False,
+                ["aarch64-linux-gnu-gcc", "-static"],
+                ["qemu-aarch64"],
+            )
+        )
 
     # armhf ELF -- requires cross gcc + qemu-user
     if shutil.which("arm-linux-gnueabihf-gcc") and shutil.which("qemu-arm"):
-        targets.append((
-            "armhf/recompile_dataset",
-            False,
-            ["arm-linux-gnueabihf-gcc", "-static"],
-            ["qemu-arm"],
-        ))
+        targets.append(
+            (
+                "armhf/recompile_dataset",
+                False,
+                ["arm-linux-gnueabihf-gcc", "-static"],
+                ["qemu-arm"],
+            )
+        )
 
     # PE x86_64 -- requires mingw + wine
     if shutil.which("x86_64-w64-mingw32-gcc") and shutil.which("wine"):
-        targets.append((
-            "x86_64/recompile_dataset_pe",
-            True,
-            ["x86_64-w64-mingw32-gcc", "-static"],
-            ["wine"],
-        ))
+        targets.append(
+            (
+                "x86_64/recompile_dataset_pe",
+                True,
+                ["x86_64-w64-mingw32-gcc", "-static"],
+                ["wine"],
+            )
+        )
 
     # PE i386 -- requires mingw + wine
     if shutil.which("i686-w64-mingw32-gcc") and shutil.which("wine"):
-        targets.append((
-            "i386/recompile_dataset_pe",
-            True,
-            ["i686-w64-mingw32-gcc", "-static"],
-            ["wine"],
-        ))
+        targets.append(
+            (
+                "i386/recompile_dataset_pe",
+                True,
+                ["i686-w64-mingw32-gcc", "-static"],
+                ["wine"],
+            )
+        )
 
     return targets
 
@@ -111,8 +119,7 @@ def _functions_for_binary(bname):
     # Strip .exe/.pdb
     stem = bname
     for ext in (".exe", ".pdb"):
-        if stem.endswith(ext):
-            stem = stem[:-len(ext)]
+        stem = stem.removesuffix(ext)
     # Strip compiler + opt suffix
     src_stem = re.sub(r"_(gcc|clang|msvc)_.*$", "", stem)
     if src_stem not in _SOURCE_FUNCTIONS:
@@ -123,7 +130,10 @@ def _functions_for_binary(bname):
 def _discover_functions_nm(bin_dir, bpath, bname):
     """Discover functions via nm (works for ELF binaries)."""
     result = subprocess.run(
-        ["nm", "-g", bpath], capture_output=True, text=True, check=False,
+        ["nm", "-g", bpath],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     funcs = []
     for line in result.stdout.splitlines():
@@ -157,10 +167,16 @@ def _discover_functions():
 
             for func_name in funcs:
                 test_id = f"{subdir}/{bname}/{func_name}"
-                params.append(pytest.param(
-                    bpath, func_name, gcc_cmd, run_prefix, is_pe,
-                    id=test_id,
-                ))
+                params.append(
+                    pytest.param(
+                        bpath,
+                        func_name,
+                        gcc_cmd,
+                        run_prefix,
+                        is_pe,
+                        id=test_id,
+                    )
+                )
     return params
 
 
@@ -231,15 +247,21 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
     with open(c_path, "w", encoding="utf-8") as f:
         f.write(source)
     r = subprocess.run(
-        gcc_cmd + [
-            "-c", "-std=gnu11",
+        gcc_cmd
+        + [
+            "-c",
+            "-std=gnu11",
             "-Werror=implicit-function-declaration",
             "-Wno-unused-variable",
             "-Wno-unused-but-set-variable",
-            "-o", os.path.join(tmp_dir, f"{name}.o"),
+            "-o",
+            os.path.join(tmp_dir, f"{name}.o"),
             c_path,
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     return r.returncode == 0, r.stderr
 
@@ -247,6 +269,7 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
 # ──────────────────────────────────────────────────────────────────────
 # Classification
 # ──────────────────────────────────────────────────────────────────────
+
 
 def _classify(func_name, text):
     """Classify decompiled output.
@@ -297,8 +320,7 @@ def _get_source_path(bin_path):
     """
     bname = os.path.basename(bin_path)
     # Strip .exe if present
-    if bname.endswith(".exe"):
-        bname = bname[:-4]
+    bname = bname.removesuffix(".exe")
     # Strip compiler + opt suffix: everything from _{gcc,clang,msvc}_ onward
     src_name = re.sub(r"_(gcc|clang|msvc)_.*$", "", bname)
     return os.path.join(src_location, f"{src_name}.c")
@@ -371,14 +393,23 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     # 1. Compile original source -> ref.o
     ref_o = os.path.join(tmp_dir, "ref.o")
     r = subprocess.run(
-        gcc_cmd + [
-            "-c", "-O0", "-std=gnu11", "-fcommon",
+        gcc_cmd
+        + [
+            "-c",
+            "-O0",
+            "-std=gnu11",
+            "-fcommon",
             "-Dmain=__ref_unused_main",
-            "-I", os.path.dirname(src_path),
-            "-o", ref_o,
+            "-I",
+            os.path.dirname(src_path),
+            "-o",
+            ref_o,
             src_path,
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
     assert r.returncode == 0, f"Failed to compile reference:\n{r.stderr}"
 
@@ -401,20 +432,25 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     ext = ".exe" if run_prefix and run_prefix[0] == "wine" else ""
     test_bin = os.path.join(tmp_dir, f"test{ext}")
     r = subprocess.run(
-        gcc_cmd + [
-            "-std=gnu11", "-O0", "-fcommon",
+        gcc_cmd
+        + [
+            "-std=gnu11",
+            "-O0",
+            "-fcommon",
             "-Werror=implicit-function-declaration",
             "-Wno-unused-variable",
             "-Wno-unused-but-set-variable",
-            "-o", test_bin,
+            "-o",
+            test_bin,
             harness_c,
             ref_o,
         ],
-        capture_output=True, text=True, timeout=30, check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
     )
-    assert r.returncode == 0, (
-        f"Failed to compile harness:\n{r.stderr}\n\nHarness source:\n{harness_text}"
-    )
+    assert r.returncode == 0, f"Failed to compile harness:\n{r.stderr}\n\nHarness source:\n{harness_text}"
 
     # 5. Run and check
     cmd = run_prefix + [test_bin]
