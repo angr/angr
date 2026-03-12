@@ -515,7 +515,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 key=lambda x, ct=count: (isinstance(x, (SimTypeChar, SimTypeInt, SimTypeFloat)), ct[x], repr(x)),
             )
 
-            if isinstance(cvariable.variable, SimStackVariable) and self.codegen.stackvar_max_sizes:
+            if isinstance(cvariable.variable, SimStackVariable) and self.codegen.use_stack_frame:
                 continue
 
             yield indent_str, None
@@ -538,7 +538,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             yield "\n", None
             emitted_any = True
 
-        if self.codegen.stackvar_max_sizes:
+        if self.codegen.use_stack_frame:
             yield indent_str, None
             yield "struct __attribute__((packed)) {\n", None
             for name, field_type, pad_bytes in self.codegen.iter_stack_frame_fields(self.variable_manager):
@@ -1969,10 +1969,16 @@ class CUnaryOp(CExpression):
         yield ")", paren
 
     def _c_repr_chunks_reference(self):
+        if isinstance(self.operand, CUnaryOp) and self.operand.op == "Dereference":
+            yield from CExpression._try_c_repr_chunks(self.operand.operand)
+            return
         yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
     def _c_repr_chunks_dereference(self):
+        if isinstance(self.operand, CUnaryOp) and self.operand.op == "Reference":
+            yield from CExpression._try_c_repr_chunks(self.operand.operand)
+            return
         paren = CClosingObject("(")
         yield "*", self
         yield "(", paren
@@ -2931,6 +2937,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.stack_items = stack_items or {}
         self.stackvar_max_sizes = stackvar_max_sizes or {}
         self.stack_frame_name = "stack_frame"
+        self.use_stack_frame = False
         self._stack_var_field_names_by_offset: dict[int, str] = {}
         self._stack_var_named_variables_by_offset: dict[int, SimStackVariable] = {}
         self._stack_var_ref_names: dict[SimVariable, str] = {}
@@ -3027,9 +3034,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         )
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
-        self.cfunc = LoopInitializerFixer().handle(self.cfunc)
+        if self.use_stack_frame:
+            self.cfunc = LoopInitializerFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
-        self.cfunc = ReverseCopyLoopFixer().handle(self.cfunc)
+        if self.use_stack_frame:
+            self.cfunc = ReverseCopyLoopFixer().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -3167,7 +3176,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._stack_var_ref_names = {}
         self._stack_var_field_names_by_offset = {}
         self._stack_var_named_variables_by_offset = {}
-        if not self.stackvar_max_sizes:
+        self.use_stack_frame = self._should_use_stack_frame_layout(unified_local_vars)
+        if not self.use_stack_frame:
             return
 
         for variable, cvar_and_vartypes in unified_local_vars.items():
@@ -3188,6 +3198,28 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ref_name = f"{self.stack_frame_name}.{field_name}"
             self._stack_var_field_names_by_offset[variable.offset] = field_name
             self._stack_var_ref_names[variable] = ref_name
+
+    def _should_use_stack_frame_layout(
+        self, unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]]
+    ) -> bool:
+        if not self.stackvar_max_sizes:
+            return False
+
+        void_pointer_registers = 0
+        for cvar_and_vartypes in unified_local_vars.values():
+            for cvariable, var_type in cvar_and_vartypes:
+                if not isinstance(cvariable.variable, SimRegisterVariable):
+                    continue
+                ty = unpack_typeref(var_type)
+                if isinstance(ty, SimTypePointer) and isinstance(
+                    unpack_typeref(ty.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+                ):
+                    return True
+                if isinstance(ty, SimTypePointer) and isinstance(unpack_typeref(ty.pts_to), SimTypeBottom):
+                    void_pointer_registers += 1
+                    if void_pointer_registers >= 2:
+                        return True
+        return False
 
     def stack_var_ref_name(self, variable: SimVariable) -> str | None:
         return self._stack_var_ref_names.get(variable)
@@ -3219,7 +3251,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         for variable in self.stackvar_max_sizes:
             stack_vars_by_offset[variable.offset].append(variable)
 
-        all_offsets = {offset for offset in stack_vars_by_offset}
+        all_offsets = set(stack_vars_by_offset)
         all_offsets |= {offset for offset in self.stack_items if offset < 0}
 
         for offset in sorted(all_offsets):
@@ -4246,6 +4278,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         operand = self._handle(expr.operand, lvalue=expr.op == "Reference", type_=data_type, ref=ref)
 
         if expr.op == "Reference" and isinstance(operand, CUnaryOp) and operand.op == "Dereference":
+            # cancel out
+            return operand.operand
+        if expr.op == "Dereference" and isinstance(operand, CUnaryOp) and operand.op == "Reference":
             # cancel out
             return operand.operand
         return CUnaryOp(
