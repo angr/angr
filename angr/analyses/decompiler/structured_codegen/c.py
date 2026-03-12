@@ -235,7 +235,19 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
     elif isinstance(ty, SimType):
         assert name
         assert name_type
-        raw_type_str = ty.c_repr(name=name)
+        decl_type = ty
+        decl_type_unpacked = unpack_typeref(ty)
+        if (
+            isinstance(name_type, CVariable)
+            and isinstance(name_type.variable, (SimMemoryVariable, SimStackVariable))
+            and isinstance(decl_type_unpacked, SimTypePointer)
+            and isinstance(unpack_typeref(decl_type_unpacked.pts_to), (SimTypeArray, SimTypeFixedSizeArray))
+        ):
+            # Storage-backed arrays may be modeled as pointer-to-array types internally so codegen can
+            # treat them as references. Render their declarations using array syntax.
+            decl_type = decl_type_unpacked.pts_to
+
+        raw_type_str = decl_type.c_repr(name=name)
         assert name in raw_type_str
 
         type_pre, type_post = raw_type_str.rsplit(name, 1)
@@ -1329,6 +1341,21 @@ class CAssignment(CStatement):
             codegen=self.codegen,
         )
 
+    def _wrap_ptr_to_array_lvalue(self, operand: CExpression) -> CExpression:
+        if not isinstance(operand, CIndexedVariable):
+            return operand
+        variable_type = unpack_typeref(operand.variable.type)
+        if not isinstance(variable_type, SimTypePointer) or not isinstance(
+            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+        ):
+            return operand
+        return CIndexedVariable(
+            CUnaryOp("Dereference", operand.variable, codegen=self.codegen),
+            operand.index,
+            variable_type=operand.type,
+            codegen=self.codegen,
+        )
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         lhs = self.lhs
@@ -1348,6 +1375,8 @@ class CAssignment(CStatement):
             rhs = self._scalarize_array_operand(rhs, lhs_type)
         elif rhs_type is not None and not isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray)):
             lhs = self._scalarize_array_operand(lhs, rhs_type)
+
+        lhs = self._wrap_ptr_to_array_lvalue(lhs)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(lhs)
@@ -1823,42 +1852,12 @@ class CIndexedVariable(CExpression):
             yield "...", self
             return
 
-        variable = self.variable
-        variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), SimTypeBottom
-        ):
-            variable = CTypeCast(
-                variable.type,
-                SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
-                variable,
-                codegen=self.codegen,
-            )
-            variable_type = unpack_typeref(variable.type)
-
-        is_ptr_to_array = isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
-        )
-
         bracket = CClosingObject("[")
-        if is_ptr_to_array:
-            outer_paren = CClosingObject("(")
-            yield "(", outer_paren
-            yield "*", None
-            if not isinstance(variable, (CVariable, CVariableField)):
-                inner_paren = CClosingObject("(")
-                yield "(", inner_paren
-                yield from variable.c_repr_chunks()
-                yield ")", inner_paren
-            else:
-                yield from variable.c_repr_chunks()
-            yield ")", outer_paren
-        else:
-            if not isinstance(variable, (CVariable, CVariableField)):
-                yield "(", None
-            yield from variable.c_repr_chunks()
-            if not isinstance(variable, (CVariable, CVariableField)):
-                yield ")", None
+        if not isinstance(self.variable, (CVariable, CVariableField)):
+            yield "(", None
+        yield from self.variable.c_repr_chunks()
+        if not isinstance(self.variable, (CVariable, CVariableField)):
+            yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
         yield "]", bracket
@@ -3036,6 +3035,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = LoopInitializerFixer().handle(self.cfunc)
+        self.cfunc = ByteReadLoopFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = ReverseCopyLoopFixer().handle(self.cfunc)
@@ -3138,6 +3138,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ty = self._variable_kb.variables["global"].get_variable_type(var)
         else:
             ty = self._variable_kb.variables[self._func.addr].get_variable_type(var)
+
+        if is_global and ty is not None:
+            ty = unpack_typeref(ty)
+            if isinstance(ty, SimTypePointer):
+                pts_to = unpack_typeref(ty.pts_to)
+                if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray, SimStruct)):
+                    ty = pts_to.with_arch(self.project.arch)
+            if isinstance(ty, SimStruct) and len(ty.fields) == 1 and ty.offsets:
+                only_field_name, only_field_offset = next(iter(ty.offsets.items()))
+                if only_field_offset == 0:
+                    return ty.fields[only_field_name].with_arch(self.project.arch)
         return ty
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
@@ -3424,15 +3435,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         if isinstance(base_type, SimStruct) and base_type.offsets:
             # find the field that we're accessing
-            field_name, field_offset = max(
-                ((x, y) for x, y in base_type.offsets.items() if y <= remainder), key=lambda x: x[1]
-            )
-            field = CStructField(base_type, field_offset, field_name, codegen=self)
-            if base_expr:
-                result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
-            else:
-                result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
-            return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
+            field_candidates = [(x, y) for x, y in base_type.offsets.items() if y <= remainder]
+            if field_candidates:
+                field_name, field_offset = max(field_candidates, key=lambda x: x[1])
+                field = CStructField(base_type, field_offset, field_name, codegen=self)
+                if base_expr:
+                    result = CUnaryOp("Reference", CVariableField(base_expr, field, False, codegen=self), codegen=self)
+                else:
+                    result = CUnaryOp("Reference", CVariableField(expr, field, True, codegen=self), codegen=self)
+                return self._access_constant_offset(result, remainder - field_offset, data_type, lvalue, renegotiate_type)
 
         if isinstance(base_type, (SimTypeFixedSizeArray, SimTypeArray)):
             result = base_expr or expr  # death to C
@@ -3631,17 +3642,17 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # nothing has the ability to escape the kernel
             # go in deeper
             if isinstance(kernel_type, SimStruct):
-                field_name, field_offset = max(
-                    ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
-                )
-                field_type = kernel_type.fields[field_name]
-                kernel = CUnaryOp(
-                    "Reference",
-                    self._access_constant_offset(kernel, field_offset, field_type, True, renegotiate_type),
-                    codegen=self,
-                )
-                constant -= field_offset
-                continue
+                field_candidates = [(x, y) for x, y in kernel_type.offsets.items() if y <= constant]
+                if field_candidates:
+                    field_name, field_offset = max(field_candidates, key=lambda x: x[1])
+                    field_type = kernel_type.fields[field_name]
+                    kernel = CUnaryOp(
+                        "Reference",
+                        self._access_constant_offset(kernel, field_offset, field_type, True, renegotiate_type),
+                        codegen=self,
+                    )
+                    constant -= field_offset
+                    continue
 
             if isinstance(kernel_type, (SimTypeArray, SimTypeFixedSizeArray)):
                 inner = self._access_constant_offset(kernel, 0, kernel_type.elem_type, True, renegotiate_type)
@@ -4912,6 +4923,221 @@ class LoopInitializerFixer(CStructuredCodeWalker):
             if isinstance(stmt, CDoWhileLoop):
                 self._fix_loop_initializer(prior_stmt, stmt)
             prior_stmt = stmt
+        return obj
+
+
+class ByteReadLoopFixer(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
+        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
+        return lhs_var is rhs_var
+
+    @staticmethod
+    def _unwrap_single_statement(stmt: CStatement) -> CStatement | None:
+        if isinstance(stmt, CStatements):
+            if len(stmt.statements) != 1:
+                return None
+            return stmt.statements[0]
+        return stmt
+
+    @staticmethod
+    def _clone_variable(var: CVariable) -> CVariable:
+        return CVariable(
+            var.variable,
+            unified_variable=var.unified_variable,
+            variable_type=var.type,
+            vvar_id=var.vvar_id,
+            codegen=var.codegen,
+        )
+
+    def _make_int_constant(self, value: int, codegen: CStructuredCodeGenerator) -> CConstant:
+        return CConstant(value, SimTypeInt().with_arch(codegen.project.arch), codegen=codegen)
+
+    def _make_byte_index(self, var: CVariable, index: int) -> CIndexedVariable:
+        codegen = var.codegen
+        return CIndexedVariable(
+            self._clone_variable(var),
+            self._make_int_constant(index, codegen),
+            variable_type=SimTypeChar().with_arch(codegen.project.arch),
+            codegen=codegen,
+        )
+
+    def _match_positive_pointer_step(self, stmt: CStatement) -> CAssignment | None:
+        stmt = self._unwrap_single_statement(stmt)
+        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
+            return None
+        if not isinstance(unpack_typeref(stmt.lhs.type), SimTypePointer):
+            return None
+        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op != "Add":
+            return None
+        if not isinstance(stmt.rhs.lhs, CVariable) or not self._same_variable(stmt.lhs, stmt.rhs.lhs):
+            return None
+        if not isinstance(stmt.rhs.rhs, CConstant) or stmt.rhs.rhs.value != 1:
+            return None
+        return stmt
+
+    def _match_char_sub_one_access(self, expr: CExpression) -> CVariable | None:
+        if not isinstance(expr, CUnaryOp) or expr.op != "Dereference":
+            return None
+        if not isinstance(expr.operand, CTypeCast):
+            return None
+        dst_type = unpack_typeref(expr.operand.dst_type)
+        if not isinstance(dst_type, SimTypePointer) or not isinstance(unpack_typeref(dst_type.pts_to), SimTypeChar):
+            return None
+        if not isinstance(expr.operand.expr, CBinaryOp) or expr.operand.expr.op != "Sub":
+            return None
+        if not isinstance(expr.operand.expr.lhs, CVariable):
+            return None
+        if not isinstance(expr.operand.expr.rhs, CConstant) or expr.operand.expr.rhs.value != 1:
+            return None
+        return expr.operand.expr.lhs
+
+    def _match_byte_compare(self, stmt: CStatement, target: CVariable | None = None) -> CBinaryOp | None:
+        if not isinstance(stmt, CIfElse) or len(stmt.condition_and_nodes) != 1:
+            return None
+        condition, node = stmt.condition_and_nodes[0]
+        if not isinstance(node, (CBreak, CStatements)):
+            return None
+        if not isinstance(condition, CBinaryOp) or condition.op != "CmpEQ":
+            return None
+        byte_var = self._match_char_sub_one_access(condition.lhs)
+        if byte_var is None:
+            return None
+        if target is not None and not self._same_variable(byte_var, target):
+            return None
+        if not isinstance(condition.rhs, CConstant) or condition.rhs.value != 7:
+            return None
+        return condition
+
+    def _match_receive_call(self, stmt: CStatement, target: CVariable) -> CFunctionCall | None:
+        if not isinstance(stmt, CIfElse) or len(stmt.condition_and_nodes) != 1:
+            return None
+        condition, _ = stmt.condition_and_nodes[0]
+        if not isinstance(condition, CBinaryOp) or condition.op != "CmpNE":
+            return None
+        if not isinstance(condition.lhs, CTypeCast) or not isinstance(condition.lhs.expr, CFunctionCall):
+            return None
+        call = condition.lhs.expr
+        for arg in call.args:
+            if isinstance(arg, CVariable) and self._same_variable(arg, target):
+                return call
+        return None
+
+    def _find_first_assignment(self, stmt: CStatement) -> CAssignment | None:
+        if isinstance(stmt, CAssignment):
+            return stmt
+        if isinstance(stmt, CStatements):
+            for child in stmt.statements:
+                found = self._find_first_assignment(child)
+                if found is not None:
+                    return found
+            return None
+        stmt = self._unwrap_single_statement(stmt)
+        if stmt is None:
+            return None
+        if isinstance(stmt, CAssignment):
+            return stmt
+        if isinstance(stmt, CStatements):
+            for child in stmt.statements:
+                found = self._find_first_assignment(child)
+                if found is not None:
+                    return found
+        if isinstance(stmt, CIfElse):
+            for _, child in stmt.condition_and_nodes:
+                if child is None:
+                    continue
+                found = self._find_first_assignment(child)
+                if found is not None:
+                    return found
+            if stmt.else_node is not None:
+                return self._find_first_assignment(stmt.else_node)
+        return None
+
+    def _rewrite_byte_read_loop(self, block: CStatements, loop_idx: int) -> bool:
+        loop_stmt = block.statements[loop_idx]
+        if not isinstance(loop_stmt, CWhileLoop) or not isinstance(loop_stmt.body, CStatements):
+            return False
+        body = loop_stmt.body
+        if len(body.statements) < 6:
+            return False
+
+        step_wrapper = body.statements[2]
+        step_stmt = self._match_positive_pointer_step(step_wrapper)
+        if step_stmt is None:
+            return False
+        target = step_stmt.lhs
+
+        call = self._match_receive_call(body.statements[3], target)
+        if call is None:
+            return False
+
+        break_cmp = self._match_byte_compare(body.statements[5], target)
+        if break_cmp is None:
+            return False
+
+        post_if_idx = None
+        for idx in range(loop_idx + 1, len(block.statements)):
+            stmt = block.statements[idx]
+            unwrapped = self._unwrap_single_statement(stmt)
+            if unwrapped is None:
+                continue
+            if isinstance(stmt, CIfElse):
+                post_if_idx = idx
+            break
+        if post_if_idx is None:
+            return False
+
+        post_if = block.statements[post_if_idx]
+        post_cmp = self._match_byte_compare(post_if, target)
+        if post_cmp is None:
+            return False
+        post_assign = self._find_first_assignment(post_if.condition_and_nodes[0][1])
+        if post_assign is None:
+            return False
+        post_assign_var = self._match_char_sub_one_access(post_assign.lhs)
+        if post_assign_var is None or not self._same_variable(post_assign_var, target):
+            return False
+
+        codegen = target.codegen
+        byte_index = self._make_byte_index(target, 1)
+        byte_ref = CUnaryOp("Reference", self._make_byte_index(target, 1), codegen=codegen)
+
+        for idx, arg in enumerate(call.args):
+            if isinstance(arg, CVariable) and self._same_variable(arg, target):
+                call.args[idx] = byte_ref
+                break
+        else:
+            return False
+
+        break_cmp.lhs = byte_index
+        post_cmp.lhs = self._make_byte_index(target, 1)
+        post_assign.lhs = self._make_byte_index(target, 1)
+
+        body.statements.pop(2)
+        body.statements.append(step_wrapper)
+
+        adjust_ptr = CAssignment(
+            self._clone_variable(target),
+            CBinaryOp(
+                "Sub",
+                self._clone_variable(target),
+                self._make_int_constant(1, codegen),
+                codegen=codegen,
+            ),
+            codegen=codegen,
+        )
+        block.statements.insert(loop_idx, CStatements([adjust_ptr], codegen=codegen))
+        return True
+
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+        idx = 0
+        while idx < len(obj.statements):
+            if self._rewrite_byte_read_loop(obj, idx):
+                idx += 2
+                continue
+            idx += 1
         return obj
 
 
