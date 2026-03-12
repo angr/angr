@@ -6,7 +6,6 @@ from angr.ailment import AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
-from angr.ailment.block_walker import AILBlockWalker
 
 from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
@@ -15,25 +14,6 @@ from angr.analyses import register_analysis
 from angr.utils.ssa import is_phi_assignment
 
 l = logging.getLogger(name=__name__)
-
-
-class _VirtualVariableUseCollector(AILBlockWalker[None, None, set[int]]):
-    def __init__(self):
-        super().__init__()
-        self.used_vvar_ids: set[int] = set()
-
-    def _handle_block_end(self, stmt_results, block):
-        return self.used_vvar_ids
-
-    def _top(self, expr_idx, expr, stmt_idx, stmt, block):
-        return None
-
-    def _stmt_top(self, stmt_idx, stmt, block):
-        return None
-
-    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.used_vvar_ids.add(expr.varid)
-        return None
 
 
 class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
@@ -85,25 +65,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _analyze(self):
         self.vvar_to_vvar_mapping = self._collect_and_remap()
 
-    def _is_arg_copy_vvar(self, varid: int, arg_vvar_ids: set[int]) -> bool:
-        if varid in arg_vvar_ids or varid not in self._vvar_defloc:
-            return varid in arg_vvar_ids
-
-        (block_addr, block_idx), stmt_idx = self._vvar_defloc[varid]
-        block = self._blocks[(block_addr, block_idx)]
-        stmt = block.statements[stmt_idx]
-        if not isinstance(stmt, Assignment) or not isinstance(stmt.dst, VirtualVariable) or stmt.dst.varid != varid:
-            return False
-
-        collector = _VirtualVariableUseCollector()
-        collector.walk_expression(stmt.src)
-        used_vvar_ids = collector.used_vvar_ids
-        return len(used_vvar_ids) == 1 and next(iter(used_vvar_ids)) in arg_vvar_ids
-
     def _collect_and_remap(self) -> dict[int, int]:
         # collect phi assignments
         phi_to_srcvarid = self._collect_phi_assignments()
-        arg_vvar_ids = {vvar.varid for vvar in self._arg_vvars}
 
         # initialize phi_congruence_class
         phi_congruence_class: dict[int, set[int]] = {}
@@ -159,11 +123,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                             # case 4
                             unresolved_neighbor_map[var1].add(var2)
                             unresolved_neighbor_map[var2].add(var1)
-
-            if len({varid for _, varid in src_and_varids}) > 1:
-                for _, varid in src_and_varids:
-                    if self._is_arg_copy_vvar(varid, arg_vvar_ids):
-                        candidate_vvar_set.add(varid)
 
             # process unresolved_neighbor_map in a decreasing order of the number of neighbors
             while unresolved_neighbor_map:

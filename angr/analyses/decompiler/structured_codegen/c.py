@@ -1985,10 +1985,6 @@ class CUnaryOp(CExpression):
         if isinstance(self.operand, CUnaryOp) and self.operand.op == "Dereference":
             yield from CExpression._try_c_repr_chunks(self.operand.operand)
             return
-        operand_type = unpack_typeref(self.operand.type)
-        if isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            yield from CExpression._try_c_repr_chunks(self.operand)
-            return
         yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
@@ -3068,9 +3064,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.cfunc = LoopInitializerFixer().handle(self.cfunc)
         self.cfunc = DoWhileConditionFixer().handle(self.cfunc)
         self.cfunc = ByteReadLoopFixer().handle(self.cfunc)
+        self.cfunc = AdjacentCopyPropagator().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = ReverseCopyLoopFixer().handle(self.cfunc)
+        self.cfunc = RedundantAssignmentCleanup().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -3248,31 +3246,25 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _should_use_stack_frame_layout(
         self, unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]]
     ) -> bool:
+        # Pointer-to-array locals still need the packed stack-frame layout to preserve the recovered slot stride in
+        # recompiled output. Do not enable it for generic oversized stack slots, which regresses unrelated
+        # decompilations into stack-frame structs.
         if not self.stackvar_max_sizes:
             return False
 
         void_pointer_registers = 0
         for cvar_and_vartypes in unified_local_vars.values():
             for cvariable, var_type in cvar_and_vartypes:
-                if isinstance(cvariable.variable, SimStackVariable):
-                    ty = unpack_typeref(var_type)
-                    max_size = self.stackvar_max_sizes.get(cvariable.variable)
-                    if max_size is not None and ty is not None and ty.size is not None:
-                        type_bytes = ty.size // self.project.arch.byte_width
-                        if max_size > type_bytes:
-                            return True
-
                 if not isinstance(cvariable.variable, SimRegisterVariable):
                     continue
                 ty = unpack_typeref(var_type)
-                if isinstance(ty, SimTypePointer):
-                    pts_to = unpack_typeref(ty.pts_to)
-                    if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
-                        # Limit this layout hack to small stack-slot wrappers like char[4]*/uint32[2]*.
-                        # Larger pointer-to-array locals should keep ordinary stack variable rendering.
-                        if pts_to.size is not None and pts_to.size <= self.project.arch.bits:
-                            return True
-                if isinstance(ty, SimTypePointer) and isinstance(unpack_typeref(ty.pts_to), SimTypeBottom):
+                if not isinstance(ty, SimTypePointer):
+                    continue
+                pts_to = unpack_typeref(ty.pts_to)
+                if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                    if pts_to.size is not None and pts_to.size <= self.project.arch.bits:
+                        return True
+                if isinstance(pts_to, SimTypeBottom):
                     void_pointer_registers += 1
                     if void_pointer_registers >= 2:
                         return True
@@ -5355,6 +5347,160 @@ class ByteReadLoopFixer(CStructuredCodeWalker):
                 idx += 2
                 continue
             idx += 1
+        return obj
+
+
+class RedundantAssignmentCleanup(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
+        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
+        return lhs_var is rhs_var
+
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+        obj.statements = [
+            stmt
+            for stmt in obj.statements
+            if not (
+                isinstance(stmt, CAssignment)
+                and isinstance(stmt.lhs, CVariable)
+                and isinstance(stmt.rhs, CVariable)
+                and self._same_variable(stmt.lhs, stmt.rhs)
+            )
+        ]
+        return obj
+
+
+class AdjacentCopyPropagator(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
+        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
+        return lhs_var is rhs_var
+
+    @classmethod
+    def _is_safe_to_duplicate(cls, expr: CExpression) -> bool:
+        if isinstance(expr, (CConstant, CVariable)):
+            return True
+        if isinstance(expr, CTypeCast):
+            return cls._is_safe_to_duplicate(expr.expr)
+        if isinstance(expr, CUnaryOp):
+            return expr.op != "Dereference" and cls._is_safe_to_duplicate(expr.operand)
+        if isinstance(expr, CBinaryOp):
+            return cls._is_safe_to_duplicate(expr.lhs) and cls._is_safe_to_duplicate(expr.rhs)
+        return False
+
+    @classmethod
+    def _expr_variables(cls, expr: CExpression) -> set[SimVariable] | None:
+        if isinstance(expr, CConstant):
+            return set()
+        if isinstance(expr, CVariable):
+            var = expr.unified_variable if expr.unified_variable is not None else expr.variable
+            return {var}
+        if isinstance(expr, CTypeCast):
+            return cls._expr_variables(expr.expr)
+        if isinstance(expr, CUnaryOp):
+            return cls._expr_variables(expr.operand)
+        if isinstance(expr, CBinaryOp):
+            lhs_vars = cls._expr_variables(expr.lhs)
+            rhs_vars = cls._expr_variables(expr.rhs)
+            if lhs_vars is None or rhs_vars is None:
+                return None
+            return lhs_vars | rhs_vars
+        return None
+
+    @staticmethod
+    def _statement_written_variable(stmt: CStatement) -> SimVariable | None:
+        if isinstance(stmt, CAssignment) and isinstance(stmt.lhs, CVariable):
+            return stmt.lhs.unified_variable if stmt.lhs.unified_variable is not None else stmt.lhs.variable
+        return None
+
+    @classmethod
+    def _statement_mentions_any_variable(cls, stmt: CStatement, variables: set[SimVariable]) -> bool:
+        if isinstance(stmt, CAssignment):
+            lhs_vars = cls._expr_variables(stmt.lhs)
+            rhs_vars = cls._expr_variables(stmt.rhs)
+            if lhs_vars is None or rhs_vars is None:
+                return True
+            return bool((lhs_vars | rhs_vars) & variables)
+        if isinstance(stmt, CExpressionStatement):
+            expr_vars = cls._expr_variables(stmt.expr)
+            return expr_vars is None or bool(expr_vars & variables)
+        return True
+
+    @classmethod
+    def _clone_safe_expr(cls, expr: CExpression) -> CExpression:
+        tags = dict(expr.tags) if expr.tags else None
+        kwargs = {"codegen": expr.codegen, "tags": tags}
+
+        if isinstance(expr, CConstant):
+            return CConstant(expr.value, expr.type, reference_values=expr.reference_values, **kwargs)
+        if isinstance(expr, CVariable):
+            return CVariable(
+                expr.variable,
+                unified_variable=expr.unified_variable,
+                variable_type=expr.type,
+                vvar_id=expr.vvar_id,
+                **kwargs,
+            )
+        if isinstance(expr, CTypeCast):
+            return CTypeCast(expr.src_type, expr.dst_type, cls._clone_safe_expr(expr.expr), **kwargs)
+        if isinstance(expr, CUnaryOp):
+            return CUnaryOp(expr.op, cls._clone_safe_expr(expr.operand), **kwargs)
+        if isinstance(expr, CBinaryOp):
+            return CBinaryOp(
+                expr.op,
+                cls._clone_safe_expr(expr.lhs),
+                cls._clone_safe_expr(expr.rhs),
+                cmp_signed=expr._cmp_signed,
+                **kwargs,
+            )
+        raise TypeError(f"Unsupported expression type for cloning: {type(expr).__name__}")
+
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+
+        for idx, stmt in enumerate(obj.statements):
+            if not (
+                isinstance(stmt, CAssignment)
+                and isinstance(stmt.rhs, CVariable)
+                and isinstance(stmt.lhs, CVariable)
+            ):
+                continue
+
+            for prev_idx in range(idx - 1, -1, -1):
+                prev = obj.statements[prev_idx]
+                if not (
+                    isinstance(prev, CAssignment)
+                    and isinstance(prev.lhs, CVariable)
+                    and self._same_variable(prev.lhs, stmt.rhs)
+                    and not self._same_variable(prev.lhs, stmt.lhs)
+                    and self._is_safe_to_duplicate(prev.rhs)
+                ):
+                    continue
+
+                expr_vars = self._expr_variables(prev.rhs)
+                if expr_vars is None or any(
+                    isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable) for var in expr_vars
+                ):
+                    break
+
+                if any(
+                    (written_var := self._statement_written_variable(between_stmt)) is not None
+                    and written_var in expr_vars
+                    for between_stmt in obj.statements[prev_idx + 1 : idx]
+                ):
+                    break
+                if any(
+                    self._statement_mentions_any_variable(between_stmt, expr_vars)
+                    for between_stmt in obj.statements[prev_idx + 1 : idx]
+                ):
+                    break
+
+                stmt.rhs = self._clone_safe_expr(prev.rhs)
+                break
+
         return obj
 
 
