@@ -3258,7 +3258,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             offset = cvariable.variable.offset
             variables_by_offset[offset].append(variable)
             if offset not in self._stack_var_field_names_by_offset or (
-                cvariable.variable.name and not self._stack_var_named_variables_by_offset.get(offset, cvariable.variable).name
+                cvariable.variable.name
+                and not self._stack_var_named_variables_by_offset.get(offset, cvariable.variable).name
             ):
                 self._stack_var_field_names_by_offset[offset] = c_variable_name(variable)
             if offset not in self._stack_var_named_variables_by_offset or cvariable.variable.name:
