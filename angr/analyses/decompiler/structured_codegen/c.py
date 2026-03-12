@@ -3066,6 +3066,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = PostIncrementStoreFixer().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = LoopInitializerFixer().handle(self.cfunc)
+        self.cfunc = DoWhileConditionFixer().handle(self.cfunc)
         self.cfunc = ByteReadLoopFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         if self.use_stack_frame:
@@ -5023,6 +5024,120 @@ class LoopInitializerFixer(CStructuredCodeWalker):
             if isinstance(stmt, CDoWhileLoop):
                 self._fix_loop_initializer(prior_stmt, stmt)
             prior_stmt = stmt
+        return obj
+
+
+class DoWhileConditionFixer(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
+        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
+        return lhs_var is rhs_var
+
+    @staticmethod
+    def _clone_variable(var: CVariable) -> CVariable:
+        return CVariable(
+            var.variable,
+            unified_variable=var.unified_variable,
+            variable_type=var.type,
+            vvar_id=var.vvar_id,
+            codegen=var.codegen,
+        )
+
+    @staticmethod
+    def _const_as_signed_int(const: CConstant) -> int | None:
+        if not isinstance(const.value, int):
+            return None
+        ty = unpack_typeref(const.type)
+        if not isinstance(ty, SimTypeReg) or ty.size is None or ty.size not in {8, 16, 32, 64}:
+            return const.value
+        sign_bit = 1 << (ty.size - 1)
+        mask = (1 << ty.size) - 1
+        value = const.value & mask
+        return value - (1 << ty.size) if value & sign_bit else value
+
+    def _adjust_arithmetic_expr_for_iterator(
+        self, expr: CExpression, target: CVariable, step: int
+    ) -> CExpression | None:
+        if not isinstance(expr, CBinaryOp) or expr.op not in {"Add", "Sub"}:
+            return None
+        if isinstance(expr.lhs, CVariable) and self._same_variable(expr.lhs, target):
+            const = expr.rhs
+        elif isinstance(expr.rhs, CVariable) and self._same_variable(expr.rhs, target):
+            if expr.op != "Add":
+                return None
+            const = expr.lhs
+        else:
+            return None
+        if not isinstance(const, CConstant):
+            return None
+        signed_const = self._const_as_signed_int(const)
+        if signed_const is None:
+            return None
+        offset = signed_const if expr.op == "Add" else -signed_const
+        new_offset = offset - step
+        if new_offset == 0:
+            return self._clone_variable(target)
+        expr.op = "Add" if new_offset > 0 else "Sub"
+        const.value = abs(new_offset)
+        return expr
+
+    def _match_step(self, stmt: CStatement) -> tuple[CVariable, int] | None:
+        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
+            return None
+        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op not in ("Add", "Sub"):
+            return None
+        if not isinstance(stmt.rhs.lhs, CVariable) or not self._same_variable(stmt.lhs, stmt.rhs.lhs):
+            return None
+        if not isinstance(stmt.rhs.rhs, CConstant) or not isinstance(stmt.rhs.rhs.value, int):
+            return None
+        step = stmt.rhs.rhs.value if stmt.rhs.op == "Add" else -stmt.rhs.rhs.value
+        if step == 0:
+            return None
+        return stmt.lhs, step
+
+    def _adjust_condition_for_iterator(self, condition: CExpression, target: CVariable, step: int) -> CExpression | None:
+        if not isinstance(condition, CBinaryOp):
+            return None
+        if condition.op in {"Add", "Sub"}:
+            return self._adjust_arithmetic_expr_for_iterator(condition, target, step)
+        if condition.op not in {"CmpEQ", "CmpNE"}:
+            return None
+        if isinstance(condition.lhs, CConstant) and condition.lhs.value == 0:
+            adjusted = self._adjust_arithmetic_expr_for_iterator(condition.rhs, target, step)
+            if adjusted is not None:
+                condition.rhs = adjusted
+                return condition
+        if isinstance(condition.rhs, CConstant) and condition.rhs.value == 0:
+            adjusted = self._adjust_arithmetic_expr_for_iterator(condition.lhs, target, step)
+            if adjusted is not None:
+                condition.lhs = adjusted
+                return condition
+        if isinstance(condition.lhs, CVariable) and self._same_variable(condition.lhs, target):
+            const = condition.rhs
+        elif isinstance(condition.rhs, CVariable) and self._same_variable(condition.rhs, target):
+            const = condition.lhs
+        else:
+            return None
+        if not isinstance(const, CConstant):
+            return None
+        signed_const = self._const_as_signed_int(const)
+        if signed_const is None:
+            return None
+        const.value = signed_const + step
+        return condition
+
+    def handle_CDoWhileLoop(self, obj):
+        obj = super().handle_CDoWhileLoop(obj)
+        if not isinstance(obj.body, CStatements) or not obj.body.statements:
+            return obj
+        step_match = self._match_step(obj.body.statements[-1])
+        if step_match is None:
+            return obj
+        target, step = step_match
+        new_condition = self._adjust_condition_for_iterator(obj.condition, target, step)
+        if new_condition is not None:
+            obj.condition = new_condition
         return obj
 
 

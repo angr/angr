@@ -871,6 +871,7 @@ class Clinic(Analysis):
         variable_kb = self._recover_and_link_variables(
             self._ail_graph, self.arg_list, self.arg_vvars, self.vvar_to_vvar, self._type_hints
         )
+        self._augment_argument_list_from_input_variables(variable_kb)
 
         # Run simplification passes
         self._update_progress(85.0, text="Running simplifications 4")
@@ -2052,6 +2053,42 @@ class Clinic(Analysis):
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
         self.function.is_prototype_guessed = False
+
+    @timethis
+    def _augment_argument_list_from_input_variables(self, variable_kb: KnowledgeBase) -> None:
+        if (
+            self.arg_list is None
+            or self.function.calling_convention is None
+            or not self.function.is_prototype_guessed
+            or self.function.addr not in variable_kb.variables
+        ):
+            return
+
+        arg_vars = [arg for arg in self.arg_list if isinstance(arg, SimRegisterVariable)]
+        if len(arg_vars) >= len(self.function.calling_convention.ARG_REGS):
+            return
+
+        existing_regs = {arg.reg for arg in arg_vars}
+        input_vars = variable_kb.variables[self.function.addr].input_variables()
+        missing_by_reg = {
+            var.reg: var
+            for var in input_vars
+            if isinstance(var, SimRegisterVariable) and var.reg not in existing_regs
+        }
+        if not missing_by_reg:
+            return
+
+        next_arg_idx = len(self.arg_list)
+        start_idx = len(arg_vars)
+        for reg_name in self.function.calling_convention.ARG_REGS[start_idx:]:
+            reg_offset = self.project.arch.registers[reg_name][0]
+            arg = missing_by_reg.pop(reg_offset, None)
+            if arg is None:
+                break
+            if not arg.name or arg.name.startswith("ir_"):
+                arg.name = f"a{next_arg_idx}"
+            self.arg_list.append(arg)
+            next_arg_idx += 1
 
     @timethis
     def _recover_and_link_variables(
