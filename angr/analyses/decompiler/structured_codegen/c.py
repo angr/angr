@@ -159,6 +159,16 @@ def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]
 def c_variable_name(variable: SimVariable) -> str:
     if variable.name:
         return variable.name
+    if isinstance(variable, SimStackVariable):
+        if variable.offset < 0:
+            return f"stack_slot_{-variable.offset:x}"
+        if variable.offset > 0:
+            return f"stack_arg_{variable.offset:x}"
+        return "stack_slot_0"
+    if isinstance(variable, SimRegisterVariable):
+        return f"reg_{variable.reg:x}"
+    if isinstance(variable, SimMemoryVariable):
+        return f"mem_{variable.addr:x}"
     if isinstance(variable, SimTemporaryVariable):
         return f"tmp_{variable.tmp_id}"
     return str(variable)
@@ -242,6 +252,8 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
             and isinstance(name_type.variable, (SimMemoryVariable, SimStackVariable))
             and isinstance(decl_type_unpacked, SimTypePointer)
             and isinstance(unpack_typeref(decl_type_unpacked.pts_to), (SimTypeArray, SimTypeFixedSizeArray))
+            and decl_type_unpacked.size is not None
+            and name_type.variable.size != decl_type_unpacked.size // 8
         ):
             # Storage-backed arrays may be modeled as pointer-to-array types internally so codegen can
             # treat them as references. Render their declarations using array syntax.
@@ -1985,6 +1997,15 @@ class CUnaryOp(CExpression):
         if isinstance(self.operand, CUnaryOp) and self.operand.op == "Dereference":
             yield from CExpression._try_c_repr_chunks(self.operand.operand)
             return
+        operand_type = unpack_typeref(self.operand.type)
+        if isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            yield from CExpression._try_c_repr_chunks(self.operand)
+            return
+        if isinstance(operand_type, SimTypePointer) and isinstance(
+            unpack_typeref(operand_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+        ):
+            yield from CExpression._try_c_repr_chunks(self.operand)
+            return
         yield "&", self
         yield from CExpression._try_c_repr_chunks(self.operand)
 
@@ -3059,6 +3080,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.reload_variable_types()
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
+        self.cfunc = PostIncrementStoreFixer().handle(self.cfunc)
         if self.use_stack_frame:
             self.cfunc = LoopInitializerFixer().handle(self.cfunc)
         self.cfunc = DoWhileConditionFixer().handle(self.cfunc)
@@ -3223,6 +3245,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if not self.use_stack_frame:
             return
 
+        variables_by_offset: dict[int, list[SimVariable]] = defaultdict(list)
+
         for variable, cvar_and_vartypes in unified_local_vars.items():
             try:
                 cvariable = next(iter(cvar_and_vartypes))[0]
@@ -3231,29 +3255,60 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if not isinstance(cvariable.variable, SimStackVariable):
                 continue
 
-            field_name = c_variable_name(variable)
-            self._stack_var_field_names_by_offset[cvariable.variable.offset] = field_name
-            self._stack_var_named_variables_by_offset[cvariable.variable.offset] = cvariable.variable
-            self._stack_var_ref_names[variable] = f"{self.stack_frame_name}.{field_name}"
+            offset = cvariable.variable.offset
+            variables_by_offset[offset].append(variable)
+            if offset not in self._stack_var_field_names_by_offset or (
+                cvariable.variable.name and not self._stack_var_named_variables_by_offset.get(offset, cvariable.variable).name
+            ):
+                self._stack_var_field_names_by_offset[offset] = c_variable_name(variable)
+            if offset not in self._stack_var_named_variables_by_offset or cvariable.variable.name:
+                self._stack_var_named_variables_by_offset[offset] = cvariable.variable
 
         for variable in self.stackvar_max_sizes:
-            field_name = self._stack_var_field_names_by_offset.get(variable.offset, f"stack_slot_{-variable.offset:x}")
-            ref_name = f"{self.stack_frame_name}.{field_name}"
-            self._stack_var_field_names_by_offset[variable.offset] = field_name
-            self._stack_var_ref_names[variable] = ref_name
+            offset = variable.offset
+            variables_by_offset[offset].append(variable)
+            self._stack_var_field_names_by_offset.setdefault(offset, c_variable_name(variable))
+            if offset not in self._stack_var_named_variables_by_offset:
+                self._stack_var_named_variables_by_offset[offset] = variable
+
+        for offset, variables in variables_by_offset.items():
+            ref_name = f"{self.stack_frame_name}.{self._stack_var_field_names_by_offset[offset]}"
+            for variable in variables:
+                self._stack_var_ref_names[variable] = ref_name
 
     def _should_use_stack_frame_layout(
         self, unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]]
     ) -> bool:
         # Pointer-to-array locals still need the packed stack-frame layout to preserve the recovered slot stride in
-        # recompiled output. Do not enable it for generic oversized stack slots, which regresses unrelated
-        # decompilations into stack-frame structs.
+        # recompiled output. Anonymous stack slots whose recovered extent is larger than the variable object also need
+        # it; otherwise they fall back to placeholder identifiers and invalid declarations.
         if not self.stackvar_max_sizes:
             return False
+
+        max_stack_sizes_by_offset: dict[int, int] = {}
+        for stack_var, max_size in self.stackvar_max_sizes.items():
+            max_stack_sizes_by_offset[stack_var.offset] = max(
+                max_stack_sizes_by_offset.get(stack_var.offset, 0), max_size
+            )
 
         void_pointer_registers = 0
         for cvar_and_vartypes in unified_local_vars.values():
             for cvariable, var_type in cvar_and_vartypes:
+                if isinstance(cvariable.variable, SimStackVariable):
+                    max_size = max_stack_sizes_by_offset.get(cvariable.variable.offset)
+                    if max_size is not None:
+                        type_bytes = 0
+                        ty = unpack_typeref(var_type)
+                        if ty is not None and ty.size is not None:
+                            type_bytes = ty.size // self.project.arch.byte_width
+                        widened_slot = max_size > max(cvariable.variable.size or 0, type_bytes)
+                        if (
+                            widened_slot
+                            and max_size >= self.project.arch.bytes * 2
+                            and (not cvariable.variable.name or cvariable.variable.size == 1 or type_bytes == 1)
+                        ):
+                            return True
+
                 if not isinstance(cvariable.variable, SimRegisterVariable):
                     continue
                 ty = unpack_typeref(var_type)
@@ -3273,7 +3328,14 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return False
 
     def stack_var_ref_name(self, variable: SimVariable) -> str | None:
-        return self._stack_var_ref_names.get(variable)
+        ref_name = self._stack_var_ref_names.get(variable)
+        if ref_name is not None:
+            return ref_name
+        if isinstance(variable, SimStackVariable):
+            field_name = self._stack_var_field_names_by_offset.get(variable.offset)
+            if field_name is not None:
+                return f"{self.stack_frame_name}.{field_name}"
+        return None
 
     def stack_var_decl_components(
         self, variable: SimStackVariable, var_type: SimType | None
@@ -3310,6 +3372,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 variables = stack_vars_by_offset[offset]
                 field_name = self._stack_var_field_names_by_offset[offset]
                 chosen_var = self._stack_var_named_variables_by_offset.get(offset, variables[0])
+                if chosen_var not in self.stackvar_max_sizes:
+                    chosen_var = variables[0]
                 field_type, pad_bytes = self.stack_var_decl_components(
                     chosen_var, variable_manager.get_variable_type(chosen_var)
                 )
@@ -4898,6 +4962,75 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
                     op = "Add"
                 return CBinaryOp(op, out.operand.variable, const, tags=out.operand.tags, codegen=out.codegen)
             return out
+        return obj
+
+
+class PostIncrementStoreFixer(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(lhs: CVariable, rhs: CVariable) -> bool:
+        lhs_var = lhs.unified_variable if lhs.unified_variable is not None else lhs.variable
+        rhs_var = rhs.unified_variable if rhs.unified_variable is not None else rhs.variable
+        return lhs_var is rhs_var
+
+    def _match_pointer_step(self, stmt: CStatement) -> CVariable | None:
+        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
+            return None
+        if not isinstance(unpack_typeref(stmt.lhs.type), SimTypePointer):
+            return None
+        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op not in ("Add", "Sub"):
+            return None
+        if not isinstance(stmt.rhs.lhs, CVariable) or not self._same_variable(stmt.lhs, stmt.rhs.lhs):
+            return None
+        if not isinstance(stmt.rhs.rhs, CConstant) or stmt.rhs.rhs.value != 1:
+            return None
+        if stmt.rhs.op != "Add":
+            return None
+        return stmt.lhs
+
+    def _expr_uses_variable(self, expr: CExpression | None, target: CVariable) -> bool:
+        if expr is None:
+            return False
+        if isinstance(expr, CVariable):
+            return self._same_variable(expr, target)
+        if isinstance(expr, CIndexedVariable):
+            return self._expr_uses_variable(expr.variable, target) or self._expr_uses_variable(expr.index, target)
+        if isinstance(expr, CVariableField):
+            return self._expr_uses_variable(expr.variable, target)
+        if isinstance(expr, CUnaryOp):
+            return self._expr_uses_variable(expr.operand, target)
+        if isinstance(expr, CBinaryOp):
+            return self._expr_uses_variable(expr.lhs, target) or self._expr_uses_variable(expr.rhs, target)
+        if isinstance(expr, CTypeCast):
+            return self._expr_uses_variable(expr.expr, target)
+        if isinstance(expr, CITE):
+            return (
+                self._expr_uses_variable(expr.cond, target)
+                or self._expr_uses_variable(expr.iftrue, target)
+                or self._expr_uses_variable(expr.iffalse, target)
+            )
+        if isinstance(expr, CFunctionCall):
+            return self._expr_uses_variable(expr.callee_target, target) or any(
+                self._expr_uses_variable(arg, target) for arg in expr.args
+            )
+        return False
+
+    def _match_post_increment_store(self, step_stmt: CStatement, store_stmt: CStatement) -> bool:
+        pointer = self._match_pointer_step(step_stmt)
+        if pointer is None or not isinstance(store_stmt, CAssignment):
+            return False
+        if self._expr_uses_variable(store_stmt.rhs, pointer):
+            return False
+        return self._expr_uses_variable(store_stmt.lhs, pointer)
+
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+        idx = 0
+        while idx + 1 < len(obj.statements):
+            if self._match_post_increment_store(obj.statements[idx], obj.statements[idx + 1]):
+                obj.statements[idx], obj.statements[idx + 1] = obj.statements[idx + 1], obj.statements[idx]
+                idx += 2
+                continue
+            idx += 1
         return obj
 
 
