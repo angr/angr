@@ -5096,7 +5096,9 @@ class DoWhileConditionFixer(CStructuredCodeWalker):
             return None
         return stmt.lhs, step
 
-    def _adjust_condition_for_iterator(self, condition: CExpression, target: CVariable, step: int) -> CExpression | None:
+    def _adjust_condition_for_iterator(
+        self, condition: CExpression, target: CVariable, step: int
+    ) -> CExpression | None:
         if not isinstance(condition, CBinaryOp):
             return None
         if condition.op in {"Add", "Sub"}:

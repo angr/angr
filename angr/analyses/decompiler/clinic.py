@@ -2071,9 +2071,7 @@ class Clinic(Analysis):
         existing_regs = {arg.reg for arg in arg_vars}
         input_vars = variable_kb.variables[self.function.addr].input_variables()
         missing_by_reg = {
-            var.reg: var
-            for var in input_vars
-            if isinstance(var, SimRegisterVariable) and var.reg not in existing_regs
+            var.reg: var for var in input_vars if isinstance(var, SimRegisterVariable) and var.reg not in existing_regs
         }
         if not missing_by_reg:
             return
