@@ -3138,6 +3138,16 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             ty = self._variable_kb.variables["global"].get_variable_type(var)
         else:
             ty = self._variable_kb.variables[self._func.addr].get_variable_type(var)
+        if is_global and ty is not None:
+            ty = unpack_typeref(ty)
+            if isinstance(ty, SimTypePointer):
+                pts_to = unpack_typeref(ty.pts_to)
+                if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                    ty = pts_to.with_arch(self.project.arch)
+                elif isinstance(pts_to, SimStruct) and len(pts_to.fields) == 1 and pts_to.offsets:
+                    only_field_name, only_field_offset = next(iter(pts_to.offsets.items()))
+                    if only_field_offset == 0:
+                        return pts_to.fields[only_field_name].with_arch(self.project.arch)
         return ty
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
