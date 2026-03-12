@@ -65,17 +65,59 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _analyze(self):
         self.vvar_to_vvar_mapping = self._collect_and_remap()
 
+    @staticmethod
+    def _build_phi_ancestry(
+        phi_to_srcvarid: dict[int, set[tuple[tuple[int, int | None], int]]],
+    ) -> dict[int, set[int]]:
+        ancestry: dict[int, set[int]] = {}
+        in_progress: set[int] = set()
+
+        def _collect(phi_varid: int) -> set[int]:
+            if phi_varid in ancestry:
+                return ancestry[phi_varid]
+            if phi_varid in in_progress:
+                return {phi_varid}
+
+            in_progress.add(phi_varid)
+            related = {phi_varid}
+            for _, src_varid in phi_to_srcvarid.get(phi_varid, set()):
+                related.add(src_varid)
+                if src_varid in phi_to_srcvarid:
+                    related |= _collect(src_varid)
+            ancestry[phi_varid] = related
+            in_progress.discard(phi_varid)
+            return related
+
+        for phi_varid in phi_to_srcvarid:
+            _collect(phi_varid)
+        return ancestry
+
+    @staticmethod
+    def _classes_interfere(
+        interference_graph, phi_congruence_class: dict[int, set[int]], varid_0: int, varid_1: int
+    ) -> bool:
+        class_0 = phi_congruence_class[varid_0]
+        class_1 = phi_congruence_class[varid_1]
+        return any(
+            interference_graph.has_edge(member_0, member_1)
+            for member_0 in class_0
+            for member_1 in class_1
+            if member_0 != member_1
+        )
+
     def _collect_and_remap(self) -> dict[int, int]:
         # collect phi assignments
         phi_to_srcvarid = self._collect_phi_assignments()
 
+        phi_ancestry = self._build_phi_ancestry(phi_to_srcvarid)
+
         # initialize phi_congruence_class
         phi_congruence_class: dict[int, set[int]] = {}
         for phi_varid in phi_to_srcvarid:
-            phi_congruence_class[phi_varid] = {phi_varid}
+            phi_congruence_class[phi_varid] = set(phi_ancestry.get(phi_varid, {phi_varid}))
         for src_and_varids in phi_to_srcvarid.values():
             for _, varid in src_and_varids:
-                phi_congruence_class[varid] = {varid}
+                phi_congruence_class[varid] = set(phi_ancestry.get(varid, {varid}))
 
         # compute liveness
         liveness = self.project.analyses.SLiveness(
@@ -85,6 +127,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
         live_ins = liveness.model.live_ins
         live_outs = liveness.model.live_outs
         interference = liveness.interference_graph()
+        arg_vvar_ids = {arg_vvar.varid for arg_vvar in self._arg_vvars}
 
         unresolved_neighbor_map = defaultdict(set)
 
@@ -106,7 +149,7 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                     if var1 == var2:
                         continue
 
-                    if interference.has_edge(var1, var2):
+                    if self._classes_interfere(interference, phi_congruence_class, var1, var2):
                         intersection_1 = phi_congruence_class[var1].intersection(live_outs[src1])
                         intersection_2 = phi_congruence_class[var2].intersection(live_outs[src2])
                         if intersection_1 and not intersection_2:
@@ -139,6 +182,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
 
             if candidate_vvar_set:
                 candidate_vvar_set_to_phiid[frozenset(candidate_vvar_set)].add(phi_id)
+            arg_sources = {varid for _, varid in src_and_varids if varid in arg_vvar_ids}
+            if arg_sources:
+                candidate_vvar_set_to_phiid[frozenset(arg_sources)].add(phi_id)
 
         for vvar_set, phi_ids in candidate_vvar_set_to_phiid.items():
             # insert copies of variables as needed

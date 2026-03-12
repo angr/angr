@@ -56,6 +56,7 @@ from angr.analyses.decompiler.utils import structured_node_is_simple_return
 from angr.analyses.decompiler.notes.deobfuscated_strings import DeobfuscatedStringsNote
 from angr.errors import UnsupportedNodeTypeError
 from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.calling_conventions import default_cc, SimRegArg
 from angr.analyses import Analysis, register_analysis
 from angr.analyses.decompiler.region_identifier import MultiNode
 from angr.analyses.decompiler.structuring.structurer_nodes import (
@@ -78,6 +79,7 @@ from .base import (
     IdentType,
     CConstantType,
 )
+from angr.knowledge_plugins.variables.variable_access import VariableAccessSort
 
 if TYPE_CHECKING:
     import archinfo
@@ -1653,6 +1655,12 @@ class CGoto(CStatement):
         self.target: int | CExpression = target
         self.target_idx = target_idx
 
+    @staticmethod
+    def _unwrap_computed_target(target: CExpression) -> CExpression:
+        while isinstance(target, CTypeCast) and not isinstance(unpack_typeref(target.dst_type), SimTypePointer):
+            target = target.expr
+        return target
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
         lbl = None
@@ -1667,7 +1675,15 @@ class CGoto(CStatement):
             if isinstance(self.target, int):
                 yield f"LABEL_{self.target:#x}", None
             else:
-                yield from self.target.c_repr_chunks()
+                yield "*", None
+                target = self._unwrap_computed_target(self.target)
+                if isinstance(target, (CVariable, CVariableField, CConstant, CIndexedVariable)):
+                    yield from target.c_repr_chunks()
+                else:
+                    paren = CClosingObject("(")
+                    yield "(", paren
+                    yield from target.c_repr_chunks()
+                    yield ")", paren
         else:
             yield lbl.name, lbl
         yield ";", self
@@ -2166,20 +2182,17 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
-    def _cmp_signedness_cast(self, operand: CExpression) -> str | None:
-        """Return a cast string like ``(unsigned char)`` when the operand signedness disagrees
-        with the intended comparison signedness (``_cmp_signed``).  Returns None when no cast
-        is needed."""
-        if self._cmp_signed is None:
+    def _signedness_cast(self, operand: CExpression, desired_signed: bool | None) -> str | None:
+        if desired_signed is None:
             return None
         ty = operand.type
         cur_signed = getattr(ty, "signed", None)
-        if cur_signed is None or cur_signed == self._cmp_signed:
+        if cur_signed is None or cur_signed == desired_signed:
             return None
         size = getattr(ty, "size", None)
         if not size:
             return None
-        new_ty = self.codegen.default_simtype_from_bits(size, self._cmp_signed)
+        new_ty = self.codegen.default_simtype_from_bits(size, desired_signed)
         new_repr = new_ty.c_repr(name=None)
         # Don't emit a no-op cast when both types render identically in C
         # AND the operand is a simple leaf (variable / field / constant) that
@@ -2190,6 +2203,12 @@ class CBinaryOp(CExpression):
         if new_repr == ty.c_repr(name=None) and isinstance(operand, (CVariable, CVariableField, CConstant)):
             return None
         return f"({new_repr})"
+
+    def _cmp_signedness_cast(self, operand: CExpression) -> str | None:
+        """Return a cast string like ``(unsigned char)`` when the operand signedness disagrees
+        with the intended comparison signedness (``_cmp_signed``).  Returns None when no cast
+        is needed."""
+        return self._signedness_cast(operand, self._cmp_signed)
 
     def _scalarize_array_operand(self, operand: CExpression, other: CExpression) -> CExpression:
         operand_type = unpack_typeref(operand.type)
@@ -2216,7 +2235,7 @@ class CBinaryOp(CExpression):
             codegen=self.codegen,
         )
 
-    def _c_repr_chunks(self, op):
+    def _c_repr_chunks(self, op, lhs_cast_str: str | None = None):
         lhs = self._scalarize_array_operand(self.lhs, self.rhs)
         rhs = self._scalarize_array_operand(self.rhs, self.lhs)
         skip_op_and_rhs = False
@@ -2253,9 +2272,11 @@ class CBinaryOp(CExpression):
         # lhs
         if narrow_cast_str is not None:
             yield narrow_cast_str, None
+        elif lhs_cast_str is not None:
+            yield lhs_cast_str, None
         elif lhs_sign_cast is not None:
             yield lhs_sign_cast, None
-        if lhs_sign_cast is not None and not force_lhs_parens:
+        if (lhs_cast_str is not None or lhs_sign_cast is not None) and not force_lhs_parens:
             force_lhs_parens = isinstance(lhs, CBinaryOp)
         if isinstance(lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > lhs.op_precedence):
             paren = CClosingObject("(")
@@ -2327,7 +2348,7 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        yield from self._c_repr_chunks(" >> ")
+        yield from self._c_repr_chunks(" >> ", lhs_cast_str=self._signedness_cast(self.lhs, True))
 
     def _c_repr_chunks_logicaland(self):
         yield from self._c_repr_chunks(" && ")
@@ -3016,6 +3037,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.reset_idx_counters()
         obj = self._handle(self._sequence)
 
+        arg_list = self._promote_input_register_args(arg_list)
+
         self.cnode2ailexpr = {v: k[0] for k, v in self.ailexpr2cnode.items()}
 
         self.cfunc = CFunction(
@@ -3048,6 +3071,67 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         }
 
         self.regenerate_text()
+
+    def _promote_input_register_args(self, arg_list: list[CVariable]) -> list[CVariable]:
+        cc = self._func.calling_convention
+        if cc is None:
+            cc_cls = default_cc(
+                self.project.arch.name,
+                platform=self.project.simos.name if self.project is not None and self.project.simos is not None else None,
+            )
+            if cc_cls is None:
+                return arg_list
+            cc = cc_cls(self.project.arch)
+
+        # Ask the calling convention for a generous set of integer argument locations, then
+        # promote any read-only live-in register locals we emitted in those locations.
+        probe_proto = SimTypeFunction([SimTypeInt().with_arch(self.project.arch)] * 16, SimTypeInt()).with_arch(
+            self.project.arch
+        )
+        arg_reg_order: dict[int, int] = {}
+        for idx, arg_loc in enumerate(cc.arg_locs(probe_proto)):
+            if isinstance(arg_loc, SimRegArg):
+                arg_reg_order.setdefault(self.project.arch.registers[arg_loc.reg_name][0], idx)
+
+        if not arg_reg_order:
+            return arg_list
+
+        existing_arg_regs = {
+            cvar.variable.reg for cvar in arg_list if isinstance(cvar, CVariable) and isinstance(cvar.variable, SimRegisterVariable)
+        }
+        var_manager = self._variable_kb.variables[self._func.addr]
+        promoted: list[tuple[int, SimRegisterVariable, CVariable]] = []
+
+        for var, cvar in self._variables_in_use.items():
+            if not isinstance(var, SimRegisterVariable) or var.reg in existing_arg_regs or var.reg not in arg_reg_order:
+                continue
+
+            accesses = var_manager.get_variable_accesses(var)
+            if not accesses or any(access.access_type == VariableAccessSort.WRITE for access in accesses):
+                continue
+
+            var.name = f"a{arg_reg_order[var.reg]}"
+            promoted.append((arg_reg_order[var.reg], var, cvar))
+
+        if not promoted:
+            return arg_list
+
+        arg_list = list(arg_list)
+        functy_args = list(self._func.prototype.args) if self._func.prototype is not None else []
+        for arg_idx, var, cvar in sorted(promoted, key=lambda item: item[0]):
+            while len(functy_args) < arg_idx:
+                functy_args.append(SimTypeInt().with_arch(self.project.arch))
+            if len(functy_args) == arg_idx:
+                arg_ty = self._get_variable_type(var)
+                if arg_ty is None:
+                    arg_ty = self.default_simtype_from_bits(var.size * self.project.arch.byte_width)
+                functy_args.append(arg_ty)
+                arg_list.append(cvar)
+
+        if self._func.prototype is not None and tuple(functy_args) != self._func.prototype.args:
+            self._func.prototype.args = tuple(functy_args)
+
+        return arg_list
 
     def cleanup(self):
         """
@@ -3221,10 +3305,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 if not isinstance(cvariable.variable, SimRegisterVariable):
                     continue
                 ty = unpack_typeref(var_type)
-                if isinstance(ty, SimTypePointer) and isinstance(
-                    unpack_typeref(ty.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
-                ):
-                    return True
+                if isinstance(ty, SimTypePointer):
+                    pts_to = unpack_typeref(ty.pts_to)
+                    if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                        # Limit this layout hack to small stack-slot wrappers like char[4]*/uint32[2]*.
+                        # Larger pointer-to-array locals should keep ordinary stack variable rendering.
+                        if pts_to.size is not None and pts_to.size <= self.project.arch.bits:
+                            return True
                 if isinstance(ty, SimTypePointer) and isinstance(unpack_typeref(ty.pts_to), SimTypeBottom):
                     void_pointer_registers += 1
                     if void_pointer_registers >= 2:
