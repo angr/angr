@@ -61,6 +61,7 @@ class RustCallingConventionAnalysis(Analysis):
         is_call_expr=None,
         depth=0,
         max_depth=8,
+        callsite_discriminant_hint=None,
     ):
         self.func: Function = func
         self.callsite_path = callsite_path
@@ -68,6 +69,7 @@ class RustCallingConventionAnalysis(Analysis):
         self.is_call_expr = is_call_expr
         self.depth = depth
         self.max_depth = max_depth
+        self.callsite_discriminant_hint = callsite_discriminant_hint
         self.graph = None
 
         self.calling_convention = func.calling_convention or default_cc(self.project.arch.name)(self.project.arch)
@@ -214,14 +216,19 @@ class RustCallingConventionAnalysis(Analysis):
                     smaller, larger = sorted(ret_values)
                     if larger - smaller == 1:
                         # Discriminants differ by 1 → Result<T, E>
+                        ok_discriminant, err_discriminant = smaller, larger
+                        err_disc = self._resolve_err_discriminant(ret_values)
+                        if err_disc is not None:
+                            err_discriminant = err_disc
+                            ok_discriminant = (ret_values - {err_disc}).pop()
                         payload_ty = RustSimTypeInt(self.project.arch.bits, signed=False)
                         return (
                             RustSimTypeResult(
                                 payload_ty,
-                                smaller,
+                                ok_discriminant,
                                 arch_bytes,
                                 payload_ty,
-                                larger,
+                                err_discriminant,
                                 arch_bytes,
                             ).with_arch(self.project.arch),
                             False,
@@ -367,6 +374,22 @@ class RustCallingConventionAnalysis(Analysis):
 
     # -- enum inference ------------------------------------------------------
 
+    def _resolve_err_discriminant(self, discriminant_values):
+        """
+        Use the callsite discriminant hint to determine the Err discriminant.
+        Returns the Err discriminant value if determined, else None.
+        """
+        if not self.callsite_discriminant_hint:
+            return None
+        value, is_err = self.callsite_discriminant_hint
+        if is_err:
+            return value if value in discriminant_values else None
+        else:
+            # value is Ok; derive Err as the other discriminant
+            if len(discriminant_values) == 2 and value in discriminant_values:
+                return (discriminant_values - {value}).pop()
+        return None
+
     def _remove_discriminant_from_struct(self, struct_type: RustSimStruct):
         field_types = list(struct_type.fields.values())[1:]
         fields = OrderedDict()
@@ -436,10 +459,20 @@ class RustCallingConventionAnalysis(Analysis):
                     )
                 elif None not in discriminants:
                     # Result<T, E> with both discriminants known
+                    # Default: sort by discriminant value (smaller = Ok, larger = Err)
                     struct_type_and_discriminant = tuple(
                         sorted(candidates_and_discriminants, key=lambda item: item[1].value)
                     )
                     (ok_type, ok_discriminant), (err_type, err_discriminant) = struct_type_and_discriminant
+                    # Override with callsite hint if available
+                    disc_values = {d.value for d in discriminants if d is not None}
+                    err_disc = self._resolve_err_discriminant(disc_values)
+                    if err_disc is not None:
+                        for candidate, disc in candidates_and_discriminants:
+                            if disc.value == err_disc:
+                                err_type, err_discriminant = candidate, disc
+                            else:
+                                ok_type, ok_discriminant = candidate, disc
                     ok_type = self._remove_discriminant_from_struct(ok_type)
                     err_type = self._remove_discriminant_from_struct(err_type)
                     discriminant_size = discriminant_size // 8
