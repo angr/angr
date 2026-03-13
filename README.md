@@ -1,12 +1,14 @@
 # Oxidizer: Toward Concise and High-fidelity Rust Decompilation
 
-Oxidizer is a Rust decompiler built on top of [angr](https://github.com/angr/angr) that generates concise and high-fidelity Rust pseudocode from stripped Rust binaries. Unlike existing C-oriented decompilers, Oxidizer is specifically designed to handle Rust's unique compilation patterns and recover high-level Rust abstractions such as enums, pattern matching, error propagation (`?` operator), and macros (`println!`, `format!`, `panic!`, etc.).
+Oxidizer is a Rust decompiler built on top of [angr](https://github.com/angr/angr) that generates concise and high-fidelity Rust pseudocode from stripped Rust binaries. 
+Unlike existing C-oriented decompilers, Oxidizer is specifically designed to handle Rust's unique compilation patterns and recover high-level Rust abstractions such as enums, pattern matching, error propagation (`?` operator), and macros (`println!`, `format!`, `panic!`, etc.).
+It is brought to you by [SEFCOM at Arizona State University](https://sefcom.asu.edu).
 
 ## Publication
 
 **Oxidizer: Toward Concise and High-fidelity Rust Decompilation**
 Yibo Liu, Zion Leonahenahe Basque, Arvind S. Raj, Chavin Udomwongsa, Chang Zhu, Jie Hu, Changyu Zhao, Fangzhou Dong, Adam Doupé, Tiffany Bao, Yan Shoshitaishvili, Ruoyu Wang
-*IEEE Symposium on Security and Privacy (S&P), 2026*.
+*IEEE Symposium on Security and Privacy (S&P), 2026*. (To appear)
 
 ## Overview
 
