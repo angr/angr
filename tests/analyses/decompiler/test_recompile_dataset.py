@@ -159,11 +159,7 @@ def _discover_functions():
             if bname.endswith(".pdb"):
                 continue
 
-            if is_pe:
-                # MSVC strips symbols; derive from source
-                funcs = _functions_for_binary(bname)
-            else:
-                funcs = _discover_functions_nm(bin_dir, bpath, bname)
+            funcs = _functions_for_binary(bname) if is_pe else _discover_functions_nm(bin_dir, bpath, bname)
 
             for func_name in funcs:
                 test_id = f"{subdir}/{bname}/{func_name}"
@@ -247,8 +243,8 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
     with open(c_path, "w", encoding="utf-8") as f:
         f.write(source)
     r = subprocess.run(
-        gcc_cmd
-        + [
+        [
+            *gcc_cmd,
             "-c",
             "-std=gnu11",
             "-Werror=implicit-function-declaration",
@@ -393,8 +389,8 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     # 1. Compile original source -> ref.o
     ref_o = os.path.join(tmp_dir, "ref.o")
     r = subprocess.run(
-        gcc_cmd
-        + [
+        [
+            *gcc_cmd,
             "-c",
             "-O0",
             "-std=gnu11",
@@ -432,8 +428,8 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     ext = ".exe" if run_prefix and run_prefix[0] == "wine" else ""
     test_bin = os.path.join(tmp_dir, f"test{ext}")
     r = subprocess.run(
-        gcc_cmd
-        + [
+        [
+            *gcc_cmd,
             "-std=gnu11",
             "-O0",
             "-fcommon",
@@ -453,7 +449,7 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     assert r.returncode == 0, f"Failed to compile harness:\n{r.stderr}\n\nHarness source:\n{harness_text}"
 
     # 5. Run and check
-    cmd = run_prefix + [test_bin]
+    cmd = [*run_prefix, test_bin]
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
     assert r.returncode == 0, f"Semantic mismatch:\n{r.stderr}"
 
