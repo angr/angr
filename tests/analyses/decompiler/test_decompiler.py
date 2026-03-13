@@ -1778,7 +1778,7 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         assert "if (timespec_cmp(" in dec.codegen.text or "if ((int)timespec_cmp(" in dec.codegen.text
-        assert "&& localtime_rz(" in dec.codegen.text
+        assert "&& localtime_rz(localtz, " in dec.codegen.text
 
     @structuring_algo("sailr")
     def test_cascading_boolean_and(self, decompiler_options=None):
