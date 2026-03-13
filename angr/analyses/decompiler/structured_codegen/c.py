@@ -3267,7 +3267,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         for variable in self.stackvar_max_sizes:
             self._stack_var_field_names_by_offset.setdefault(variable.offset, c_variable_name(variable))
-            self._stack_var_ref_names[variable] = f"{self.stack_frame_name}.{self._stack_var_field_names_by_offset[variable.offset]}"
+            self._stack_var_ref_names[variable] = (
+                f"{self.stack_frame_name}.{self._stack_var_field_names_by_offset[variable.offset]}"
+            )
 
     def _should_use_stack_frame_layout(
         self, unified_local_vars: dict[SimVariable, set[tuple[CVariable, SimType]]]
