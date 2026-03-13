@@ -11,8 +11,13 @@ from typing import Any, cast
 
 import archinfo
 from archinfo.arch_soot import SootAddressDescriptor, ArchSoot
+
+import angr.sim_type
 import cle
+from cle import ELF
 from .sim_procedure import SimProcedure
+
+from .sim_type import SimType, TypeRef
 from .llm_client import LLMClient
 
 from .errors import AngrNoPluginError
@@ -257,6 +262,8 @@ class Project:
         if not set(self.cache_limits.keys()).issubset(CACHE_CONFIG_KEYS):
             raise ValueError(f"Invalid cache configuration keys: {set(self.cache_limits.keys()) - CACHE_CONFIG_KEYS}")
 
+        self._populate_debug_info(**kwargs)
+
         self.is_java_project = isinstance(self.arch, ArchSoot)
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
@@ -327,6 +334,37 @@ class Project:
         """
         self._analyses = cast("AnalysesHubWithDefault", AnalysesHub(self))
         self._analyses.use_plugin_preset(self._analyses_preset if self._analyses_preset is not None else "default")
+
+    def _make_function(self,
+                       elf: ELF,
+                       cle_func: cle.backends.elf.variable_type.SubprogramType,
+                       angr_func: angr.sim_type.SimTypeFunction) -> angr.knowledge_plugins.functions.Function:
+        function_manager = self.kb.functions
+        relative_addr = cle_func.low_pc
+        rebased_addr = cle.address_translator.AT.from_rva(relative_addr, elf).to_mva()
+        # TODO: Figure out what other kwargs we need to pass to Function here
+        return angr.knowledge_plugins.functions.Function(function_manager, rebased_addr, cle_func.name,
+                                                         syscall=False, is_simprocedure=False,
+                                                         prototype=angr_func,
+                                                         is_prototype_guessed=False)
+
+    def _populate_debug_info(self, load_debug_info=False, **kwargs):
+        if load_debug_info:
+            # Import types from debug info into the types KB
+            # First we need to convert from the CLE types into angr SimTypes
+            cle_types = []
+            for elf_obj in self.loader.all_elf_objects:
+                cle_types.extend([(elf_obj, typ) for typ in elf_obj.type_list.values()])
+            angr_types = SimType.from_cle([typ for (_, typ) in cle_types], arch=self.arch)
+            # Add the types into the KB
+            for ((elf_obj, cle_typ), typ) in zip(cle_types, angr_types):
+                if isinstance(cle_typ, cle.backends.elf.variable_type.SubprogramType):
+                    if cle_typ.low_pc is not None:
+                        f = self._make_function(elf_obj, cle_typ, typ)
+                        self.kb.functions[f.addr] = f
+                else:
+                    if typ.label is not None and typ.label not in self.kb.types:
+                        self.kb.types[typ.label] = TypeRef(typ.label, typ)
 
     def _register_object(self, obj, sim_proc_arch):
         """
