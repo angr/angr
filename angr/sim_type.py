@@ -955,7 +955,7 @@ class SimTypePointer(SimTypeReg):
             return f"{out} {name}"
         quals = f"{' '.join(self.qualifier)}" if self.qualifier else ""
         if isinstance(self.pts_to, SimTypeArray):
-            # Pointers to arrays require parentheses to remain pointers in C declarations.
+            # Pointers to arrays require parentheses to stay pointers in C declarations.
             if quals:
                 name_with_deref = f"(*{quals} {name})" if name else f"(*{quals})"
             else:

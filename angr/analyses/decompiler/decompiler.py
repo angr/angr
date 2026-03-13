@@ -12,7 +12,7 @@ from angr import ailment
 from angr.analyses.cfg import CFGFast
 from angr.knowledge_plugins.functions.function import Function
 from angr.knowledge_base import KnowledgeBase
-from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable, SimVariable
+from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVariable
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
@@ -665,8 +665,6 @@ class Decompiler(Analysis):
         stack_offset_typevars = cache.stack_offset_typevars
         stackvar_max_sizes = cache.stackvar_max_sizes
         codegen = cache.codegen
-        if not isinstance(codegen, CStructuredCodeGenerator):
-            return None
 
         var_kb = self._variable_kb if self._variable_kb is not None else KnowledgeBase(self.project)
 
@@ -807,12 +805,7 @@ class Decompiler(Analysis):
     def transform_seqnode_from_ssa(self, seq_node: SequenceNode) -> SequenceNode:
         variable_kb = self._variable_kb
         dephication = self.project.analyses.SeqNodeDephication(
-            self.func,
-            seq_node,
-            rewrite=True,
-            variable_kb=variable_kb,
-            kb=self.kb,
-            fail_fast=self._fail_fast,
+            self.func, seq_node, rewrite=True, variable_kb=variable_kb, kb=self.kb, fail_fast=self._fail_fast
         )
         return dephication.output
 
@@ -861,7 +854,17 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        all_vars = self._collect_llm_candidate_variables()
+        # collect variables that actually appear in the generated code
+        all_vars = []
+        if self.codegen and self.codegen.cfunc:
+            # local variables from the cfunc tree (only those visible in output)
+            all_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            # argument variables
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in all_vars:
+                        all_vars.append(v)
         if not all_vars:
             return False
 
@@ -959,7 +962,16 @@ class Decompiler(Analysis):
             return False
 
         varman = self._variable_kb.variables[self.func.addr]
-        unified_vars = self._collect_llm_candidate_variables()
+
+        # collect variables that actually appear in the generated code
+        unified_vars = []
+        if self.codegen and self.codegen.cfunc:
+            unified_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in unified_vars:
+                        unified_vars.append(v)
 
         if not unified_vars:
             return False
@@ -1008,29 +1020,10 @@ class Decompiler(Analysis):
             changed = True
             l.info("LLM changed type of %s to %s", var_name, type_str)
 
-        if changed and self.codegen is not None:
+        if changed and self.codegen:
             self.codegen.reload_variable_types()
 
         return changed
-
-    def _collect_llm_candidate_variables(self) -> list[SimVariable]:
-        varman = self._variable_kb.variables[self.func.addr]
-        candidates: list[SimVariable] = [
-            *varman.get_unified_variables(sort="reg"),
-            *varman.get_unified_variables(sort="stack"),
-        ]
-
-        if self.codegen is not None and self.codegen.cfunc is not None:
-            for v in self.codegen.cfunc.unified_local_vars:
-                if v not in candidates:
-                    candidates.append(v)
-            if self.codegen.cfunc.arg_list:
-                for cvar in self.codegen.cfunc.arg_list:
-                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                    if v is not None and v not in candidates:
-                        candidates.append(v)
-
-        return candidates
 
     def llm_summarize_function(self, llm_client=None, code_text: str | None = None) -> str | None:
         """
