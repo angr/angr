@@ -274,8 +274,8 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
 
 
 def cast_stack_frame_reference_for_pointer_context(
-    expr: "CExpression", target_type: SimType | None, codegen: "StructuredCodeGenerator"
-) -> "CExpression":
+    expr: CExpression, target_type: SimType | None, codegen: StructuredCodeGenerator
+) -> CExpression:
     target_type = unpack_typeref(target_type)
     if not isinstance(target_type, SimTypePointer):
         return expr
