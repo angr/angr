@@ -3353,12 +3353,38 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         if type_bytes <= 0 or max_size <= type_bytes:
             return var_type, 0
 
-        if isinstance(var_type, SimTypeChar) or variable.size < type_bytes:
+        if isinstance(var_type, SimTypeChar):
             if max_size % type_bytes == 0:
                 return SimTypeArray(var_type, max_size // type_bytes).with_arch(self.project.arch), 0
             return SimTypeArray(SimTypeChar().with_arch(self.project.arch), max_size).with_arch(self.project.arch), 0
 
         return var_type, max_size - type_bytes
+
+    def _stack_frame_variable_sort_key(
+        self, variable: SimStackVariable, variable_manager: VariableManagerInternal
+    ) -> tuple[int, int, int, str, str, int]:
+        var_type = variable_manager.get_variable_type(variable)
+        ty = unpack_typeref(var_type) if var_type is not None else None
+        max_size = self.stackvar_max_sizes.get(variable, variable.size or 0)
+        type_bytes = ty.size // self.project.arch.byte_width if ty is not None and ty.size is not None else 0
+
+        if ty is None or isinstance(ty, SimTypeBottom):
+            type_rank = 0
+        elif isinstance(ty, (SimStruct, SimCppClass, SimTypeArray, SimTypeFixedSizeArray)):
+            type_rank = 3
+        elif isinstance(ty, (SimTypeChar, SimTypeInt, SimTypeFloat)):
+            type_rank = 1
+        else:
+            type_rank = 2
+
+        return (
+            0 if variable.name else 1,
+            -max(max_size, variable.size or 0, type_bytes),
+            -type_rank,
+            repr(ty),
+            c_variable_name(variable),
+            variable.size or 0,
+        )
 
     def iter_stack_frame_fields(self, variable_manager: VariableManagerInternal):
         stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
@@ -3370,11 +3396,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         for offset in sorted(all_offsets):
             if offset in stack_vars_by_offset:
-                variables = stack_vars_by_offset[offset]
+                variables = sorted(
+                    stack_vars_by_offset[offset],
+                    key=lambda var: self._stack_frame_variable_sort_key(var, variable_manager),
+                )
                 field_name = self._stack_var_field_names_by_offset[offset]
-                chosen_var = self._stack_var_named_variables_by_offset.get(offset, variables[0])
-                if chosen_var not in self.stackvar_max_sizes:
-                    chosen_var = variables[0]
+                chosen_var = variables[0]
                 field_type, pad_bytes = self.stack_var_decl_components(
                     chosen_var, variable_manager.get_variable_type(chosen_var)
                 )

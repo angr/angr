@@ -4,6 +4,7 @@ from __future__ import annotations
 __package__ = __package__ or "tests.factory"  # pylint:disable=redefined-builtin
 
 import os
+import math
 import unittest
 
 import claripy
@@ -134,10 +135,10 @@ class TestCallable(unittest.TestCase):
 
         args_conc = s.batch_eval(args, 1)[0]
         assert s.eval(result, 1)[0] == 27.7
-        # not almost equal!! totally equal!!! z3 is magic, if kinda slow!!!!!
+        # The symbolic result is exact; use fsum here so Python's accumulation order does not introduce rounding noise.
         for arg_conc in args_conc:
             assert arg_conc > 1.0
-        assert sum(args_conc) == 27.7
+        assert math.isclose(math.fsum(args_conc), 27.7, rel_tol=0.0, abs_tol=1e-12)
 
     def test_fauxware_armel(self):
         self.run_fauxware("armel")
