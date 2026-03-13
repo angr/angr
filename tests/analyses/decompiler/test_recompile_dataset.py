@@ -127,7 +127,7 @@ def _functions_for_binary(bname):
     return _SOURCE_FUNCTIONS[src_stem]
 
 
-def _discover_functions_nm(bin_dir, bpath, bname):
+def _discover_functions_nm(_bin_dir, bpath, _bname):
     """Discover functions via nm (works for ELF binaries)."""
     result = subprocess.run(
         ["nm", "-g", bpath],
@@ -268,7 +268,7 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _classify(func_name, text):
+def _classify(_func_name, text):
     """Classify decompiled output.
 
     Returns ``(category, reason)`` where *category* is ``"ok"`` or
@@ -466,6 +466,7 @@ _FUNCTIONS = _discover_functions()
 @pytest.mark.parametrize("bin_path,func_name,gcc_cmd,run_prefix,is_pe", _FUNCTIONS)
 def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_path):
     """Decompile, recompile, and check semantic equivalence."""
+    _ = is_pe
     decompiled = _get_decompiled(bin_path)
     if func_name not in decompiled:
         pytest.skip("no decompilation output")

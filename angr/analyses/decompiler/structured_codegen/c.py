@@ -4944,8 +4944,8 @@ class VoidPointerIndexFixer(CStructuredCodeWalker):
         if obj.op != "Dereference" or not isinstance(obj.operand, CTypeCast):
             return obj
 
-        cast = obj.operand
-        dst_type = unpack_typeref(cast.dst_type)
+        type_cast = obj.operand
+        dst_type = unpack_typeref(type_cast.dst_type)
         if not isinstance(dst_type, SimTypePointer):
             return obj
 
@@ -4954,7 +4954,7 @@ class VoidPointerIndexFixer(CStructuredCodeWalker):
         if elem_size != 1:
             return obj
 
-        base_and_offset = self._const_offset(cast.expr)
+        base_and_offset = self._const_offset(type_cast.expr)
         if base_and_offset is None:
             return obj
 
