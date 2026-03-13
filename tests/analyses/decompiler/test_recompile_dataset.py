@@ -319,6 +319,7 @@ _INPUTS = [
     (-3, -7),
 ]
 
+
 def _get_source_stem(bin_path):
     """Map binary path to original source path.
 
