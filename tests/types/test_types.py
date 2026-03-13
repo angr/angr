@@ -225,6 +225,10 @@ class TestTypes(unittest.TestCase):
         assert qualified_array_ptr.c_repr(name="cur") == "char (*const cur)[4]"
         assert qualified_array_ptr.c_repr() == "char (*const)[4]"
 
+    def test_c_repr_int128(self):
+        assert angr.types.SimTypeInt128().c_repr(name="x") == "__int128 x"
+        assert angr.types.SimTypeInt128(signed=False).c_repr(name="x") == "unsigned __int128 x"
+
     def test_self_referential_struct_or_union(self):
         struct_llist = angr.types.parse_type("struct llist { int data; struct llist *next; }")
         assert isinstance(struct_llist, SimStruct)
