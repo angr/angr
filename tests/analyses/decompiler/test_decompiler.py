@@ -403,11 +403,10 @@ class TestDecompiler(unittest.TestCase):
             and code.count("((int)32) <=") == 0
             and code.count("((int)32) >") == 0
         )
-        meaningful_32s = len(re.findall(r"(?<!\[)\b32\b(?!])", code))
         if "*(&stack_base-56:32)" in code:
-            assert meaningful_32s == 3
+            assert code.count("32") == 3
         else:
-            assert meaningful_32s == 2
+            assert code.count("32") == 2
 
     @broken
     @for_all_structuring_algos
@@ -770,17 +769,11 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(dec)
 
         code = dec.codegen.text
-        m = re.search(
-            r"(?m)^\s*(?P<lhs>(?:v\d+|stack_frame\.\w+))\s*=\s*(?:\([^)]*\))?strlen\("
-            r"(?P<rhs>&?(?:v\d+|stack_frame\.\w+)(?:\[\d+\])?)\);",
-            code,
-        )
+        m = re.search(r"v(\d+) = (\(.*\))?strlen\(&v(\d+)\);", code)  # e.g., s_428 = (int)strlen(&s_418);
         assert m is not None, (
             "The result of strlen() should be directly assigned to a stack variable because of call-expression folding."
         )
-        lhs = m.group("lhs").replace("stack_frame.", "")
-        rhs = m.group("rhs").replace("stack_frame.", "").lstrip("&").removesuffix("[0]")
-        assert lhs != rhs
+        assert m.group(1) != m.group(2)
 
         func_1 = cfg.functions["strlen_should_not_fold"]
         dec = p.analyses[Decompiler].prep(fail_fast=True)(func_1, cfg=cfg.model, options=decompiler_options)
@@ -1080,7 +1073,7 @@ class TestDecompiler(unittest.TestCase):
         select_var = None
         select_line = None
         for idx, line in enumerate(lines):
-            m = re.search(r"((?:\w+|stack_frame\.\w+))\s*=\s*select\(", line)
+            m = re.search(r"(\w+) = select\(\w+,", line)
             if m is not None:
                 select_line = idx
                 select_var = m.group(1)
@@ -1091,7 +1084,7 @@ class TestDecompiler(unittest.TestCase):
         assert select_line is not None
         next_lines = " ".join(lines[select_line + 1 : select_line + 3])
         assert next_lines.startswith(f"if (0 <= {select_var})") or re.search(
-            r"(\w+) = " + re.escape(select_var) + r"; if \(0 <= \1\)", next_lines
+            r"(\w+) = " + select_var + r"; if \(0 <= \1\)", next_lines
         )  # non-folded
 
     @for_all_structuring_algos
@@ -1612,10 +1605,7 @@ class TestDecompiler(unittest.TestCase):
         d = proj.analyses[Decompiler].prep(fail_fast=True)(f, cfg=cfg.model, options=decompiler_options)
         print_decompilation_result(d)
 
-        # CarryFlagSimplifier rewrites __CFADD__(a, b) to (a + b) < a
-        assert d.codegen is not None and d.codegen.text is not None
-        assert "__CFADD__" not in d.codegen.text
-        assert " < " in d.codegen.text
+        assert "__CFADD__" in d.codegen.text
 
     @for_all_structuring_algos
     def test_decompiling_division3(self, decompiler_options=None):
@@ -1755,14 +1745,13 @@ class TestDecompiler(unittest.TestCase):
         assert d.codegen is not None and isinstance(d.codegen.text, str)
 
         print_decompilation_result(d)
-        normalized_text = d.codegen.text.replace("stack_frame.", "")
 
         # TODO c_val
-        assert "b_ptr = &c_ptr->c2[argc];" in normalized_text
-        assert "c_ptr->c3[argc] = argc;" in normalized_text
-        assert "c_ptr->c2[argc].b2.a2 = argc;" in normalized_text
-        assert "b_ptr += 1;" in normalized_text
-        assert "return c_ptr->c4->c2[argc].b2.a2;" in normalized_text
+        assert "b_ptr = &c_ptr->c2[argc];" in d.codegen.text
+        assert "c_ptr->c3[argc] = argc;" in d.codegen.text
+        assert "c_ptr->c2[argc].b2.a2 = argc;" in d.codegen.text
+        assert "b_ptr += 1;" in d.codegen.text
+        assert "return c_ptr->c4->c2[argc].b2.a2;" in d.codegen.text
 
     @for_all_structuring_algos
     def test_call_return_variable_folding(self, decompiler_options=None):
@@ -3791,11 +3780,7 @@ class TestDecompiler(unittest.TestCase):
         text = d.codegen.text
         # *((unsigned short *)&v5[v26]) = v5[v26] ^ 145 + (unsigned short)v26;
 
-        m1 = re.search(
-            r"\*\(\(unsigned short \*\)&(?:stack_frame\.)?\w+\[\w+\]\) = "
-            r"(?:stack_frame\.)?\w+\[\w+\] \^ 145 \+ [^;\n]*(?:stack_frame\.)?\w+;",
-            text,
-        )
+        m1 = re.search(r"\*\(\(unsigned short \*\)&\w+\[\w+\]\) = \w+\[\w+\] \^ 145 \+ [^;\n]*\w+;", text)
         assert m1 is not None
 
     @structuring_algo("sailr")
@@ -5074,13 +5059,10 @@ class TestDecompiler(unittest.TestCase):
         assert f"{str_name}.c_str()" in dec.codegen.text
         # assert there exists a stack-based buffer that is 12-byte long
         # this is to test the type hint that strncpy provides
-        m = re.search(
-            r'strncpy\((?:&)?(?:stack_frame\.)?(?P<dest>\w+), "FWe#JID%WkOCZy7", 15\);',
-            dec.codegen.text,
-        )
+        m = re.search(r"char (\w+)\[16];", dec.codegen.text)
         assert m is not None
-        bufvar = m.group("dest")
-        assert re.search(rf"char {re.escape(bufvar)}\[16\];", dec.codegen.text) is not None
+        bufvar = m.group(1)
+        assert f'strncpy(&{bufvar}, "FWe#JID%WkOCZy7", 15);' in dec.codegen.text
         # ensure the stack argument for sub_401a90 is correct
         assert "sub_401a90(2406527224);" in dec.codegen.text
         # ensure the stack argument for the first indirect call is incorrect
@@ -5196,7 +5178,7 @@ class TestDecompiler(unittest.TestCase):
             if lines[i] == "}":
                 break
             line = lines[i]
-            if re.match(r"(?:stack_frame\.)?\w+ = " + re.escape(v) + ";", line):
+            if re.match(r"\w+ = " + v + ";", line):
                 assert v11_eq_v24_line_no is None
                 v11_eq_v24_line_no = i
             elif re.match(v + r"\.with_capacity\(", line):
