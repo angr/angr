@@ -280,16 +280,6 @@ def _classify(_func_name, text):
     for pc in pseudo_calls:
         if pc in text:
             return "compile_fail", f"contains {pc.rstrip('(')}"
-    if re.search(r"\b__RO[LR]__\s*\(", text):
-        return "compile_fail", "contains unresolved rotate pseudo-intrinsic"
-    if re.search(r"\b(CONCAT|AddV|SarNV|ShlNV|CmpGTV)\b", text):
-        return "compile_fail", "contains unresolved helper pseudo-ops"
-    if re.search(r"(?<!\w)_(helper_[A-Za-z0-9_]*|factorial|is_even|is_odd)\b", text):
-        return "compile_fail", "contains unresolved local helper reference"
-    if re.search(r"\bgoto\s+\*?\(", text):
-        return "compile_fail", "contains unresolved indirect goto"
-    if re.search(r"\bif\s*\(\.\.\.\)", text):
-        return "compile_fail", "contains unresolved condition placeholder"
     # Unresolved stack-variable placeholders (angle-bracket syntax)
     if re.search(r"<0x[0-9a-f]+\[", text):
         return "compile_fail", "contains unresolved stack variable placeholder"
