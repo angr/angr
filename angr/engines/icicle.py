@@ -433,9 +433,7 @@ class IcicleEngine(ConcreteEngine):
         # modified set, allowing __convert_icicle_state_to_angr to skip
         # pages that were not touched.
         page_size = state.memory.page_size
-        emu.reset_page_modification_tracking(
-            [page_num * page_size for page_num in translation_data.writable_pages]
-        )
+        emu.reset_page_modification_tracking([page_num * page_size for page_num in translation_data.writable_pages])
 
         # Run it
         status = emu.run()
