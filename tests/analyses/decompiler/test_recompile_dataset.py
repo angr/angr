@@ -277,8 +277,7 @@ def _get_source_path(bin_path):
     ``t2_types_msvc_O2.exe``   -> ``t2_types.c``
     """
     bname = os.path.basename(bin_path)
-    if bname.endswith(".exe"):
-        bname = bname[:-4]
+    bname = bname.removesuffix(".exe")
     src_name = re.sub(r"_(gcc|clang|msvc)_.*$", "", bname)
     return os.path.join(src_location, f"{src_name}.c")
 
