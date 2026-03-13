@@ -1841,7 +1841,9 @@ class CIndexedVariable(CExpression):
 
         variable = self.variable
         variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+        if isinstance(variable_type, SimTypePointer) and isinstance(
+            unpack_typeref(variable_type.pts_to), SimTypeBottom
+        ):
             variable = CTypeCast(
                 variable.type,
                 SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
@@ -2226,7 +2228,9 @@ class CBinaryOp(CExpression):
                 and self.codegen.stackvar_max_sizes.get(operand.variable, 0)
                 > operand_type.size // self.codegen.project.arch.byte_width
             ):
-                if isinstance(target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)):
+                if isinstance(
+                    target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+                ):
                     other_type = unpack_typeref(other.type)
                     if isinstance(
                         other_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
@@ -4904,7 +4908,11 @@ class ReverseArrayCopyFixer(_LoopFixerBase):
             loop = obj.statements[idx + 1]
             if not isinstance(init_block, CStatements) or not isinstance(loop, CDoWhileLoop):
                 continue
-            if len(init_block.statements) != 3 or not isinstance(loop.body, CStatements) or len(loop.body.statements) != 3:
+            if (
+                len(init_block.statements) != 3
+                or not isinstance(loop.body, CStatements)
+                or len(loop.body.statements) != 3
+            ):
                 continue
 
             init_j, _, init_node = init_block.statements
@@ -4941,7 +4949,11 @@ class ArrayReverseLoopFixer(_LoopFixerBase):
             if not isinstance(stmt, CStatements):
                 continue
             for child in stmt.statements:
-                if isinstance(child, CAssignment) and isinstance(child.lhs, CVariable) and self._same_variable(child.lhs, cur_var):
+                if (
+                    isinstance(child, CAssignment)
+                    and isinstance(child.lhs, CVariable)
+                    and self._same_variable(child.lhs, cur_var)
+                ):
                     rhs = child.rhs
                     if isinstance(rhs, CUnaryOp) and rhs.op == "Reference" and isinstance(rhs.operand, CVariable):
                         return self._clone_variable(rhs.operand)
@@ -4965,7 +4977,9 @@ class ArrayReverseLoopFixer(_LoopFixerBase):
                 continue
 
             load_stmt, low_store, high_store, cur_step, iter_step = loop.body.statements
-            if not all(isinstance(stmt, CAssignment) for stmt in (load_stmt, low_store, high_store, cur_step, iter_step)):
+            if not all(
+                isinstance(stmt, CAssignment) for stmt in (load_stmt, low_store, high_store, cur_step, iter_step)
+            ):
                 continue
             if not isinstance(cur_step.lhs, CVariable) or not isinstance(iter_step.lhs, CVariable):
                 continue
@@ -5026,7 +5040,9 @@ class MatrixTraceFixer(_LoopFixerBase):
             if isinstance(init_i.rhs.operand, CIndexedVariable) and isinstance(init_i.rhs.operand.variable, CVariable):
                 if isinstance(init_i.rhs.operand.index, CConstant) and init_i.rhs.operand.index.value == 4:
                     base_buf = self._clone_variable(init_i.rhs.operand.variable)
-            elif isinstance(init_i.rhs.operand, CVariable) and isinstance(init_i.rhs.operand.variable, SimStackVariable):
+            elif isinstance(init_i.rhs.operand, CVariable) and isinstance(
+                init_i.rhs.operand.variable, SimStackVariable
+            ):
                 end_ref = init_i.codegen._stack_var_end_reference(init_i.rhs.operand.variable)
                 if (
                     isinstance(end_ref, CUnaryOp)
@@ -5042,7 +5058,9 @@ class MatrixTraceFixer(_LoopFixerBase):
 
             codegen = sink_assign.codegen
             uint_ty = SimTypeInt(signed=False).with_arch(codegen.project.arch)
-            codegen.stackvar_max_sizes[base_buf.variable] = max(codegen.stackvar_max_sizes.get(base_buf.variable, 0), 80)
+            codegen.stackvar_max_sizes[base_buf.variable] = max(
+                codegen.stackvar_max_sizes.get(base_buf.variable, 0), 80
+            )
             init_i.rhs = CUnaryOp(
                 "Reference",
                 CIndexedVariable(base_buf, self._int_const(codegen, 4), variable_type=uint_ty, codegen=codegen),
