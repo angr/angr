@@ -434,7 +434,7 @@ def _generate_harness(func_name, decomp_body, width, nargs, is_unsigned, decomp_
 
         extern volatile int g_sink;
 
-        /* Original function (from ``ref.o``) */
+        /* Original function (from ref.o) */
         {orig_decl}
 
         /* Decompiled function (renamed, pasted inline) */
