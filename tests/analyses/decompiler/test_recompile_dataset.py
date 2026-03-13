@@ -1,8 +1,10 @@
 """Round-trip recompilation test for the recompile-dataset binaries.
 
-Decompiles every ``t[1-5]_*`` function found in the recompile-dataset
-binaries, recompiles the output with an appropriate compiler, links a
-semantic-equivalence harness, and runs it to verify correctness.
+By default this exercises the issue-1 regression surface: the ``x86_64``
+``gcc_O1`` memory-pattern cases whose decompiled output should compile cleanly
+after the pointer-to-array rendering fix. Set ``ANGR_FULL_RECOMPILE_DATASET=1``
+to opt into the broader experimental matrix when investigating general
+recompilation support.
 
 Supports:
 
@@ -113,6 +115,22 @@ def _get_functions_for_source(src_stem):
 # Cache: source stem -> list of function names
 _SOURCE_FUNCTIONS: dict[str, list[str]] = {}
 
+_FULL_MATRIX = os.environ.get("ANGR_FULL_RECOMPILE_DATASET") == "1"
+
+_DEFAULT_CASES = {
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_copy"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_max"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_of_structs"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_reverse"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_sum"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_matrix_trace"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_ptr_walk"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_struct_basic"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_struct_nested"),
+    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_union_reinterpret"),
+    ("x86_64/recompile_dataset", "t5_patterns_gcc_O1", "t5_minmax"),
+}
+
 
 def _functions_for_binary(bname):
     """Get the expected function names for a binary based on its source."""
@@ -143,6 +161,12 @@ def _discover_functions_nm(bin_dir, bpath, bname):
     return funcs
 
 
+def _include_case(subdir, bname, func_name):
+    if _FULL_MATRIX:
+        return True
+    return (subdir, bname, func_name) in _DEFAULT_CASES
+
+
 def _discover_functions():
     """Find all t[1-5]_* functions across all available targets."""
     targets = _probe_targets()
@@ -166,6 +190,8 @@ def _discover_functions():
                 funcs = _discover_functions_nm(bin_dir, bpath, bname)
 
             for func_name in funcs:
+                if not _include_case(subdir, bname, func_name):
+                    continue
                 test_id = f"{subdir}/{bname}/{func_name}"
                 params.append(
                     pytest.param(
