@@ -3042,6 +3042,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
+        self.cfunc = VoidPointerIndexFixer().handle(self.cfunc)
         self.cfunc = ReverseArrayCopyFixer().handle(self.cfunc)
         self.cfunc = ArrayReverseLoopFixer().handle(self.cfunc)
         self.cfunc = MatrixTraceFixer().handle(self.cfunc)
@@ -3220,7 +3221,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     continue
                 if not isinstance(ty, SimTypePointer):
                     continue
-                if isinstance(unpack_typeref(ty.pts_to), (SimTypeArray, SimTypeFixedSizeArray)):
+                pts_to = unpack_typeref(ty.pts_to)
+                if (
+                    isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray))
+                    and pts_to.size is not None
+                    and pts_to.size <= self.project.arch.bits
+                ):
                     return True
         return False
 
@@ -3964,6 +3970,32 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return CAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
+    @staticmethod
+    def _is_direct_call_target_variable(expr: CExpression) -> bool:
+        return (
+            isinstance(expr, CVariable)
+            and isinstance(expr.variable, SimMemoryVariable)
+            and not isinstance(expr.variable, SimStackVariable)
+            and expr.variable.size == 1
+        )
+
+    def _normalize_call_target(self, target: CExpression | str):
+        if not isinstance(target, CUnaryOp):
+            return target
+
+        if target.op == "Reference" and self._is_direct_call_target_variable(target.operand):
+            return target.operand
+
+        if (
+            target.op == "Dereference"
+            and isinstance(target.operand, CUnaryOp)
+            and target.operand.op == "Reference"
+            and self._is_direct_call_target_variable(target.operand.operand)
+        ):
+            return target.operand.operand
+
+        return target
+
     def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
@@ -3975,16 +4007,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         except UnsupportedNodeTypeError:
             target = stmt.expr.target
 
-        if (
-            isinstance(target, CUnaryOp)
-            and target.op == "Reference"
-            and isinstance(target.operand, CVariable)
-            and isinstance(target.operand.variable, SimMemoryVariable)
-            and not isinstance(target.operand.variable, SimStackVariable)
-            and target.operand.variable.size == 1
-        ):
-            # special case: convert &global_var to just global_var if it's used as the call target
-            target = target.operand
+        target = self._normalize_call_target(target)
 
         target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
@@ -4053,15 +4076,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         except UnsupportedNodeTypeError:
             target = expr.target
 
-        if (
-            isinstance(target, CUnaryOp)
-            and target.op == "Reference"
-            and isinstance(target.operand, CVariable)
-            and isinstance(target.operand.variable, SimMemoryVariable)
-            and not isinstance(target.operand.variable, SimStackVariable)
-            and target.operand.variable.size == 1
-        ):
-            target = target.operand
+        target = self._normalize_call_target(target)
 
         target_func = self.kb.functions.function(addr=target.value) if isinstance(target, CConstant) else None
 
@@ -4857,6 +4872,64 @@ class PointerArithmeticFixer(CStructuredCodeWalker):
                 return CBinaryOp(op, out.operand.variable, const, tags=out.operand.tags, codegen=out.codegen)
             return out
         return obj
+
+
+class VoidPointerIndexFixer(CStructuredCodeWalker):
+    @staticmethod
+    def _index_base(base: CExpression, elem_type: SimType) -> CExpression:
+        if isinstance(base, CVariable):
+            return CVariable(
+                base.variable,
+                unified_variable=base.unified_variable,
+                variable_type=SimTypePointer(elem_type).with_arch(base.codegen.project.arch),
+                vvar_id=base.vvar_id,
+                codegen=base.codegen,
+            )
+        return base
+
+    @staticmethod
+    def _const_offset(expr: CExpression) -> tuple[CExpression, int] | None:
+        if not isinstance(expr, CBinaryOp) or expr.op not in ("Add", "Sub"):
+            return None
+
+        if isinstance(expr.rhs, CConstant) and isinstance(expr.rhs.value, int):
+            return expr.lhs, expr.rhs.value if expr.op == "Add" else -expr.rhs.value
+        if expr.op == "Add" and isinstance(expr.lhs, CConstant) and isinstance(expr.lhs.value, int):
+            return expr.rhs, expr.lhs.value
+        return None
+
+    def handle_CUnaryOp(self, obj):
+        obj = super().handle_CUnaryOp(obj)
+
+        if obj.op != "Dereference" or not isinstance(obj.operand, CTypeCast):
+            return obj
+
+        cast = obj.operand
+        dst_type = unpack_typeref(cast.dst_type)
+        if not isinstance(dst_type, SimTypePointer):
+            return obj
+
+        elem_type = unpack_typeref(dst_type.pts_to)
+        elem_size = elem_type.size // obj.codegen.project.arch.byte_width if elem_type.size else None
+        if elem_size != 1:
+            return obj
+
+        base_and_offset = self._const_offset(cast.expr)
+        if base_and_offset is None:
+            return obj
+
+        base, offset = base_and_offset
+        base_type = unpack_typeref(base.type)
+        if not isinstance(base_type, SimTypePointer) or not isinstance(unpack_typeref(base_type.pts_to), SimTypeBottom):
+            return obj
+
+        return CIndexedVariable(
+            self._index_base(base, elem_type),
+            CConstant(offset, SimTypeInt(), tags=obj.tags, codegen=obj.codegen),
+            variable_type=elem_type,
+            tags=obj.tags,
+            codegen=obj.codegen,
+        )
 
 
 class _LoopFixerBase(CStructuredCodeWalker):
