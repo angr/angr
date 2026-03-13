@@ -29,9 +29,24 @@ Modern C decompilers (Hex-Rays, Ghidra, Binary Ninja, angr) produce verbose and 
 6. **Rust Pseudocode Generation** — Outputs structured, human-readable Rust pseudocode.
 
 ## Quick Start
+### Docker
+1. Build the Docker image:
+```bash
+git clone https://github.com/sefcom/oxidizer.git
+cd oxidizer
+docker build -t oxidizer .
+```
+2. Run the demo on a stripped Rust binary:
+```bash
+docker run -it --rm oxidizer python demo.py
+```
+
+### Local Setup
 1. Clone the repository and install dependencies:
 ```bash
-git clone https://github.com/bluesadi/oxidizer.git
+git clone https://github.com/sefcom/oxidizer.git
+pip install setuptools setuptools-rust
+pip install rust_demangler==1.0
 pip install git+https://github.com/angr/archinfo.git@84ad167543028b32e170d3659650707b3866185c
 pip install git+https://github.com/angr/claripy.git@8b890bb13fe743bfdbaae119062631db4f10047b
 pip install git+https://github.com/angr/pyvex.git@3f92fece7147e91cea401e14a3936f20860a402e
@@ -44,7 +59,8 @@ pip install --no-build-isolation -e .
 ```bash
 python demo.py
 ```
-Output:
+
+### Output
 ```rust
 fn sub_455300(a0: i64, a1: i64, a2: i64, a3: i64) -> u32 {
     let v0: struct4;  // [bp-0x818]
