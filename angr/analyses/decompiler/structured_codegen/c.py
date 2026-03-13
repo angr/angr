@@ -3234,15 +3234,31 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 return f"{self.stack_frame_name}.{field_name}"
         return None
 
-    def iter_stack_frame_fields(self) -> Iterator[tuple[str, SimType]]:
+    def _stack_frame_variables_by_offset(self) -> dict[int, list[SimStackVariable]]:
         stack_vars_by_offset: dict[int, list[SimStackVariable]] = defaultdict(list)
+
+        for variable in self._stack_var_ref_names:
+            if isinstance(variable, SimStackVariable):
+                stack_vars_by_offset[variable.offset].append(variable)
+
         for variable in self.stackvar_max_sizes:
             stack_vars_by_offset[variable.offset].append(variable)
 
-        for offset in sorted(stack_vars_by_offset):
+        return stack_vars_by_offset
+
+    def iter_stack_frame_fields(self) -> Iterator[tuple[str, SimType]]:
+        stack_vars_by_offset = self._stack_frame_variables_by_offset()
+
+        for offset in sorted(self._stack_var_field_names_by_offset):
             field_name = self._stack_var_field_names_by_offset[offset]
             variables = stack_vars_by_offset[offset]
-            field_size = max(self.stackvar_max_sizes[variable] for variable in variables)
+            field_size = max(
+                [self.stackvar_max_sizes.get(variable, 0) for variable in variables]
+                + [variable.size for variable in variables if variable.size > 0],
+                default=0,
+            )
+            if field_size <= 0:
+                continue
             field_type = None
 
             for variable in variables:
