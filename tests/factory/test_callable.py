@@ -135,7 +135,7 @@ class TestCallable(unittest.TestCase):
 
         args_conc = s.batch_eval(args, 1)[0]
         assert s.eval(result, 1)[0] == 27.7
-        # Use fsum to avoid Python-side accumulation noise in the concrete check.
+        # The symbolic result is exact; use fsum here so Python's accumulation order does not introduce rounding noise.
         for arg_conc in args_conc:
             assert arg_conc > 1.0
         assert math.isclose(math.fsum(args_conc), 27.7, rel_tol=0.0, abs_tol=1e-12)

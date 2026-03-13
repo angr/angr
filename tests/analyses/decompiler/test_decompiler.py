@@ -5154,7 +5154,7 @@ class TestDecompiler(unittest.TestCase):
 
         assert proj.kb.functions[0x1400021E0].info.get("jmp_rax", False) is True  # guard_dispatch_icall_fptr
         assert "1400021e0" not in dec.codegen.text.lower()
-        assert "140005670(" in dec.codegen.text or "(g_140005670)();" in dec.codegen.text
+        assert "140005670(" in dec.codegen.text
 
     def test_decompiling_rust_fmt_main(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "decompiler", "fmt_rust")
@@ -5264,12 +5264,9 @@ class TestDecompiler(unittest.TestCase):
         # we expect two equivalence checks like v3[1] == 7
         var_ids = []
         for line in lines:
-            m = re.search(
-                r"(?:v(?P<idx>\d+)\[1\]|\*\(\(char \*\)\((?:stack_frame\.)?v(?P<ptr>\d+) \+ 1\)\)) == 7",
-                line,
-            )
+            m = re.search(r"v(\d+)\[1] == 7", line)
             if m is not None:
-                var_ids.append(m.group("idx") or m.group("ptr"))
+                var_ids.append(m.group(1))
         assert len(var_ids) == 2, f"Expected two equivalence checks, found {len(var_ids)}: {var_ids}"
         assert len(set(var_ids)) == 1, f"Expected the same variable in both equivalence checks, found {var_ids}"
 
