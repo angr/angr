@@ -81,7 +81,11 @@ def _get_decompiled(bin_path: str) -> dict[str, str]:
 
     results: dict[str, str] = {}
     for func in cfg.kb.functions.values():
-        if func.name in _TARGET_FUNCTIONS.get(os.path.basename(bin_path), ()) and not func.is_plt and not func.is_simprocedure:
+        if (
+            func.name in _TARGET_FUNCTIONS.get(os.path.basename(bin_path), ())
+            and not func.is_plt
+            and not func.is_simprocedure
+        ):
             try:
                 dec = proj.analyses.Decompiler(func, cfg=cfg.model)
             except (AttributeError, KeyError, TypeError, ValueError):
