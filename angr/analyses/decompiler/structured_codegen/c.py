@@ -2036,13 +2036,17 @@ class CBinaryOp(CExpression):
 
         if (
             isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and lhs_ty.size == rhs_ty.size
         ):
             lhs_ty = rhs_ty
         elif (
             isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and rhs_ty.size == lhs_ty.size
         ):
             rhs_ty = lhs_ty
@@ -4894,7 +4898,11 @@ class ReverseArrayCopyFixer(_LoopFixerBase):
             loop = obj.statements[idx + 1]
             if not isinstance(init_block, CStatements) or not isinstance(loop, CDoWhileLoop):
                 continue
-            if len(init_block.statements) != 3 or not isinstance(loop.body, CStatements) or len(loop.body.statements) != 3:
+            if (
+                len(init_block.statements) != 3
+                or not isinstance(loop.body, CStatements)
+                or len(loop.body.statements) != 3
+            ):
                 continue
 
             init_j, _, init_node = init_block.statements
@@ -5024,7 +5032,9 @@ class MatrixTraceFixer(_LoopFixerBase):
             if isinstance(init_i.rhs.operand, CIndexedVariable) and isinstance(init_i.rhs.operand.variable, CVariable):
                 if isinstance(init_i.rhs.operand.index, CConstant) and init_i.rhs.operand.index.value == 4:
                     base_buf = self._clone_variable(init_i.rhs.operand.variable)
-            elif isinstance(init_i.rhs.operand, CVariable) and isinstance(init_i.rhs.operand.variable, SimStackVariable):
+            elif isinstance(init_i.rhs.operand, CVariable) and isinstance(
+                init_i.rhs.operand.variable, SimStackVariable
+            ):
                 end_ref = init_i.codegen._stack_var_end_reference(init_i.rhs.operand.variable)
                 if (
                     isinstance(end_ref, CUnaryOp)
@@ -5040,7 +5050,9 @@ class MatrixTraceFixer(_LoopFixerBase):
 
             codegen = sink_assign.codegen
             uint_ty = SimTypeInt(signed=False).with_arch(codegen.project.arch)
-            codegen.stackvar_max_sizes[base_buf.variable] = max(codegen.stackvar_max_sizes.get(base_buf.variable, 0), 80)
+            codegen.stackvar_max_sizes[base_buf.variable] = max(
+                codegen.stackvar_max_sizes.get(base_buf.variable, 0), 80
+            )
             init_i.rhs = CUnaryOp(
                 "Reference",
                 CIndexedVariable(base_buf, self._int_const(codegen, 4), variable_type=uint_ty, codegen=codegen),
