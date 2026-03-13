@@ -239,10 +239,13 @@ class IcicleEngine(ConcreteEngine):
         if IcicleEngine.__is_arm(emu.architecture):  # Hack to work around us calling it r15t
             state.registers.store("pc", (emu.pc | 1) if emu.isa_mode == 1 else emu.pc)
 
-        # 2. Copy the memory contents
+        # 2. Copy only memory pages that were actually modified during execution
+        modified_addrs = set(emu.modified_pages)
+        page_size = state.memory.page_size
         for page_num in translation_data.writable_pages:
-            addr = page_num * state.memory.page_size
-            state.memory.store(addr, emu.mem_read(addr, state.memory.page_size))
+            addr = page_num * page_size
+            if addr in modified_addrs:
+                state.memory.store(addr, emu.mem_read(addr, page_size))
 
         # 3. Set history
         # 3.1 history.jumpkind
@@ -424,6 +427,15 @@ class IcicleEngine(ConcreteEngine):
         # Set the instruction count limit
         if num_inst is not None and num_inst > 0:
             emu.icount_limit = num_inst
+
+        # Reset page modification tracking so only writes during execution
+        # are recorded.  This clears per-page modified flags and the global
+        # modified set, allowing __convert_icicle_state_to_angr to skip
+        # pages that were not touched.
+        page_size = state.memory.page_size
+        emu.reset_page_modification_tracking(
+            [page_num * page_size for page_num in translation_data.writable_pages]
+        )
 
         # Run it
         status = emu.run()
