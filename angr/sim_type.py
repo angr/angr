@@ -661,15 +661,9 @@ class SimTypeFixedSizeInt(SimTypeInt):
 
 
 class SimTypeInt128(SimTypeFixedSizeInt):
-    _base_name = "__int128"
+    _base_name = "int128_t"
     _ident = "int128"
     _fixed_size = 128
-
-    def c_repr(self, name=None, full=0, memo=None, indent=None, name_parens=True):
-        out = "unsigned __int128" if not self.signed else "__int128"
-        if name is None:
-            return out
-        return f"{out} {name}"
 
 
 class SimTypeInt256(SimTypeFixedSizeInt):
