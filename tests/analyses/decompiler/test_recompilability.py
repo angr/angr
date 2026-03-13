@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-from functools import lru_cache
+from functools import cache
 
 import pytest
 
@@ -37,7 +37,7 @@ def _prepare_source(text: str) -> str:
     return PREAMBLE + "\n".join(lines)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _decompile_binary(binary_name: str) -> dict[str, str]:
     bin_path = os.path.join(TEST_DIR, binary_name)
     proj = angr.Project(bin_path, auto_load_libs=False)
