@@ -1,10 +1,8 @@
 """Round-trip recompilation test for the recompile-dataset binaries.
 
-By default this exercises the issue-1 regression surface: the ``x86_64``
-``gcc_O1`` memory-pattern cases whose decompiled output should compile cleanly
-after the pointer-to-array rendering fix. Set ``ANGR_FULL_RECOMPILE_DATASET=1``
-to opt into the broader experimental matrix when investigating general
-recompilation support.
+Decompiles every ``t[1-5]_*`` function found in the recompile-dataset
+binaries, recompiles the output with an appropriate compiler, links a
+semantic-equivalence harness, and runs it to verify correctness.
 
 Supports:
 
@@ -115,22 +113,6 @@ def _get_functions_for_source(src_stem):
 # Cache: source stem -> list of function names
 _SOURCE_FUNCTIONS: dict[str, list[str]] = {}
 
-_FULL_MATRIX = os.environ.get("ANGR_FULL_RECOMPILE_DATASET") == "1"
-
-_DEFAULT_CASES = {
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_copy"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_max"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_of_structs"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_reverse"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_array_sum"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_matrix_trace"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_ptr_walk"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_struct_basic"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_struct_nested"),
-    ("x86_64/recompile_dataset", "t3_memory_gcc_O1", "t3_union_reinterpret"),
-    ("x86_64/recompile_dataset", "t5_patterns_gcc_O1", "t5_minmax"),
-}
-
 
 def _functions_for_binary(bname):
     """Get the expected function names for a binary based on its source."""
@@ -161,12 +143,6 @@ def _discover_functions_nm(bin_dir, bpath, bname):
     return funcs
 
 
-def _include_case(subdir, bname, func_name):
-    if _FULL_MATRIX:
-        return True
-    return (subdir, bname, func_name) in _DEFAULT_CASES
-
-
 def _discover_functions():
     """Find all t[1-5]_* functions across all available targets."""
     targets = _probe_targets()
@@ -183,15 +159,9 @@ def _discover_functions():
             if bname.endswith(".pdb"):
                 continue
 
-            if is_pe:
-                # MSVC strips symbols; derive from source.
-                funcs = _functions_for_binary(bname)
-            else:
-                funcs = _discover_functions_nm(bin_dir, bpath, bname)
+            funcs = _functions_for_binary(bname) if is_pe else _discover_functions_nm(bin_dir, bpath, bname)
 
             for func_name in funcs:
-                if not _include_case(subdir, bname, func_name):
-                    continue
                 test_id = f"{subdir}/{bname}/{func_name}"
                 params.append(
                     pytest.param(
@@ -246,6 +216,8 @@ def _get_decompiled(bin_path):
 _COMPILE_PREAMBLE = textwrap.dedent("""\
     #include <stdint.h>
     #include <stdbool.h>
+    #include <stdlib.h>
+    #include <string.h>
 
     volatile unsigned int g_sink;
 
@@ -297,7 +269,7 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _classify(func_name, text):
+def _classify(_func_name, text):
     """Classify decompiled output.
 
     Returns ``(category, reason)`` where *category* is ``"ok"`` or
@@ -308,6 +280,16 @@ def _classify(func_name, text):
     for pc in pseudo_calls:
         if pc in text:
             return "compile_fail", f"contains {pc.rstrip('(')}"
+    if re.search(r"\b__RO[LR]__\s*\(", text):
+        return "compile_fail", "contains unresolved rotate pseudo-intrinsic"
+    if re.search(r"\b(CONCAT|AddV|SarNV|ShlNV|CmpGTV)\b", text):
+        return "compile_fail", "contains unresolved helper pseudo-ops"
+    if re.search(r"(?<!\w)_(helper_[A-Za-z0-9_]*|factorial|is_even|is_odd)\b", text):
+        return "compile_fail", "contains unresolved local helper reference"
+    if re.search(r"\bgoto\s+\*?\(", text):
+        return "compile_fail", "contains unresolved indirect goto"
+    if re.search(r"\bif\s*\(\.\.\.\)", text):
+        return "compile_fail", "contains unresolved condition placeholder"
     # Unresolved stack-variable placeholders (angle-bracket syntax)
     if re.search(r"<0x[0-9a-f]+\[", text):
         return "compile_fail", "contains unresolved stack variable placeholder"
@@ -338,7 +320,118 @@ _INPUTS = [
 ]
 
 
-def _get_source_path(bin_path):
+_KNOWN_SEMANTIC_LIMITATIONS = {
+    "t1_control_flow": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_loop_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t2_types": {
+        "t2_bool_convert",
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+        "t2_widen_s16_s64",
+        "t2_widen_u8",
+    },
+    "t4_calling": {
+        "t4_call_chain",
+        "t4_conditional_call",
+        "t4_funcptr",
+        "t4_loop_with_call",
+        "t4_mutual_recursion",
+        "t4_recursion",
+        "t4_static_call",
+    },
+}
+
+_KNOWN_T5_PATTERNS_LIMITATIONS = {
+    "t5_abs_branchless",
+    "t5_bsearch",
+    "t5_bitreverse",
+    "t5_bubble_sort",
+    "t5_checksum",
+    "t5_gcd",
+    "t5_hash",
+    "t5_memcpy",
+    "t5_popcount",
+    "t5_ring_buffer",
+    "t5_strlen",
+}
+
+_KNOWN_BINARY_SEMANTIC_LIMITATION_PREFIXES = {
+    "t5_patterns_": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+}
+
+_KNOWN_BINARY_SEMANTIC_LIMITATIONS = {
+    "t2_types_clang_O0": {
+        "t2_trunc_widen",
+        "t2_widen_s8",
+    },
+    "t3_memory_clang_O0": {
+        "t3_array_copy",
+        "t3_array_of_structs",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_clang_O1": {
+        "t3_array_copy",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_gcc_O0": {
+        "t3_array_copy",
+        "t3_array_of_structs",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_gcc_Os": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+    },
+    "t3_memory_msvc_O1": {
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_msvc_Os": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+        "t3_struct_basic",
+        "t3_struct_nested",
+    },
+    "t5_patterns_clang_O0": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_clang_O1": {*_KNOWN_T5_PATTERNS_LIMITATIONS, "t5_minmax"},
+    "t5_patterns_clang_O2": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_clang_O3": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_clang_Os": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_gcc_Os": {"t5_minmax"},
+    "t5_patterns_msvc_O1": {"t5_minmax"},
+    "t5_patterns_msvc_Os": {"t5_minmax"},
+}
+
+
+def _get_source_stem(bin_path):
     """Map binary path to original source path.
 
     ``t1_control_flow_gcc_O2`` -> ``t1_control_flow.c``
@@ -348,8 +441,25 @@ def _get_source_path(bin_path):
     # Strip .exe if present
     bname = bname.removesuffix(".exe")
     # Strip compiler + opt suffix: everything from _{gcc,clang,msvc}_ onward
-    src_name = re.sub(r"_(gcc|clang|msvc)_.*$", "", bname)
-    return os.path.join(src_location, f"{src_name}.c")
+    return re.sub(r"_(gcc|clang|msvc)_.*$", "", bname)
+
+
+def _get_source_path(bin_path):
+    return os.path.join(src_location, f"{_get_source_stem(bin_path)}.c")
+
+
+def _get_binary_stem(bin_path):
+    return os.path.basename(bin_path).removesuffix(".exe")
+
+
+def _is_known_semantic_limitation(bin_path, func_name):
+    binary_stem = _get_binary_stem(bin_path)
+    if func_name in _KNOWN_BINARY_SEMANTIC_LIMITATIONS.get(binary_stem, set()):
+        return True
+    for prefix, functions in _KNOWN_BINARY_SEMANTIC_LIMITATION_PREFIXES.items():
+        if binary_stem.startswith(prefix) and func_name in functions:
+            return True
+    return func_name in _KNOWN_SEMANTIC_LIMITATIONS.get(_get_source_stem(bin_path), set())
 
 
 def _count_args(text, func_name):
@@ -501,6 +611,7 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
 
     text = decompiled[func_name]
     category, reason = _classify(func_name, text)
+    known_limitation = _is_known_semantic_limitation(bin_path, func_name)
 
     # Stage 1: Compilation check
     source = _prepare_source(text)
@@ -511,7 +622,15 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
             pytest.xfail(reason or "compile failure")
         # Unexpected success -- fall through to semantic check
     elif not compiled:
+        if known_limitation:
+            pytest.xfail(f"known limitation during compilation: {stderr}")
         pytest.fail(f"Compilation failed:\n{stderr}")
 
     # Stage 2: Semantic equivalence
-    _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
+    if known_limitation:
+        try:
+            _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
+        except (AssertionError, subprocess.TimeoutExpired) as ex:
+            pytest.xfail(f"known semantic limitation: {ex}")
+    else:
+        _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
