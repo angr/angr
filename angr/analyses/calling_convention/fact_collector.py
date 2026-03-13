@@ -713,8 +713,9 @@ class FactCollector(Analysis):
                     if pred not in traversed and depth + 1 <= self._max_depth and edge_type == "transition":
                         queue.append((depth + 1, pred))
 
-        # remove offsets of registers that may store return values from callee_restored_regs
-        ret_reg_offsets = set()
+        # remove offsets of registers that are caller-saved (including return value registers and argument registers)
+        # from callee_restored_regs, since these registers are not callee-saved per the ABI
+        caller_saved_offsets = set()
         cc_cls = default_cc(
             self.project.arch.name, platform=self.project.simos.name if self.project.simos is not None else None
         )
@@ -722,19 +723,22 @@ class FactCollector(Analysis):
             cc = cc_cls(self.project.arch)
             if isinstance(cc.RETURN_VAL, SimRegArg):
                 retreg_offset = cc.RETURN_VAL.check_offset(self.project.arch)
-                ret_reg_offsets.add(retreg_offset)
+                caller_saved_offsets.add(retreg_offset)
             if isinstance(cc.OVERFLOW_RETURN_VAL, SimRegArg):
                 retreg_offset = cc.OVERFLOW_RETURN_VAL.check_offset(self.project.arch)
-                ret_reg_offsets.add(retreg_offset)
+                caller_saved_offsets.add(retreg_offset)
             if isinstance(cc.FP_RETURN_VAL, SimRegArg):
                 try:
                     retreg_offset = cc.FP_RETURN_VAL.check_offset(self.project.arch)
-                    ret_reg_offsets.add(retreg_offset)
+                    caller_saved_offsets.add(retreg_offset)
                 except KeyError:
                     # register name does not exist
                     pass
+            for reg_name in cc.CALLER_SAVED_REGS:
+                if reg_name in self.project.arch.registers:
+                    caller_saved_offsets.add(self.project.arch.registers[reg_name][0])
 
-        return callee_restored_regs.difference(ret_reg_offsets)
+        return callee_restored_regs.difference(caller_saved_offsets)
 
     def _determine_input_args(self, end_states: list[FactCollectorState], callee_restored_regs: set[int]) -> None:
         self.input_args = []

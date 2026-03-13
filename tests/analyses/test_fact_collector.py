@@ -59,6 +59,36 @@ class TestFactCollector(unittest.TestCase):
             ],
         )
 
+    def _check_caller_saved_excluded(self, arch_dir):
+        """Helper: no caller-saved register offset may appear in callee_restored_regs."""
+        from angr.calling_conventions import default_cc  # pylint:disable=import-outside-toplevel
+
+        binary_path = os.path.join(test_location, arch_dir, "fauxware")
+        proj = angr.Project(binary_path, auto_load_libs=False)
+        cfg = proj.analyses.CFG()
+
+        cc_cls = default_cc(proj.arch.name, platform=proj.simos.name if proj.simos is not None else None)
+        assert cc_cls is not None
+        cc = cc_cls(proj.arch)
+
+        caller_saved_offsets = set()
+        for reg_name in cc.CALLER_SAVED_REGS:
+            if reg_name in proj.arch.registers:
+                caller_saved_offsets.add(proj.arch.registers[reg_name][0])
+        assert caller_saved_offsets, "expected at least one caller-saved register"
+
+        for func in cfg.functions.values():
+            ffc = proj.analyses.FunctionFactCollector(func)
+            callee_restored = ffc._analyze_endpoints_for_restored_regs()
+            overlap = callee_restored & caller_saved_offsets
+            assert not overlap, (
+                f"{func.name} @ {hex(func.addr)}: caller-saved offsets {overlap} leaked into callee_restored_regs"
+            )
+
+    def test_caller_saved_regs_excluded_from_callee_restored_armel(self):
+        """ARM: caller-saved regs (r0-r3, r12) must not appear in callee_restored_regs."""
+        self._check_caller_saved_excluded("armel")
+
 
 if __name__ == "__main__":
     unittest.main()
