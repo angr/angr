@@ -273,6 +273,42 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
         assert False
 
 
+def cast_stack_frame_reference_for_pointer_context(
+    expr: "CExpression", target_type: SimType | None, codegen: "StructuredCodeGenerator"
+) -> "CExpression":
+    target_type = unpack_typeref(target_type)
+    if not isinstance(target_type, SimTypePointer):
+        return expr
+    if not isinstance(expr, CUnaryOp) or expr.op != "Reference":
+        return expr
+
+    cast_expr = expr
+    if isinstance(expr.operand, CVariable) and isinstance(expr.operand.variable, SimStackVariable):
+        if not codegen.use_stack_frame or codegen.stack_var_ref_name(expr.operand.variable) is None:
+            return expr
+        pts_to = unpack_typeref(target_type.pts_to)
+        alignment = pts_to.alignment if pts_to is not None else NotImplemented
+        if alignment is NotImplemented or alignment <= 1:
+            cast_expr = expr.operand
+        else:
+            cast_expr = CFakeVariable(
+                f"__builtin_assume_aligned({expr.operand.name}, {alignment})",
+                SimTypePointer(SimTypeChar()).with_arch(codegen.project.arch),
+                codegen=codegen,
+            )
+    elif (
+        isinstance(expr.operand, CIndexedVariable)
+        and isinstance(expr.operand.variable, CVariable)
+        and isinstance(expr.operand.variable.variable, SimStackVariable)
+    ):
+        if not codegen.use_stack_frame or codegen.stack_var_ref_name(expr.operand.variable.variable) is None:
+            return expr
+    else:
+        return expr
+
+    return CTypeCast(expr.type, target_type, cast_expr, codegen=codegen)
+
+
 #
 #   C Representation Classes
 #
@@ -1369,6 +1405,7 @@ class CAssignment(CStatement):
             lhs = self._scalarize_array_operand(lhs, rhs_type)
 
         lhs = self._wrap_ptr_to_array_lvalue(lhs)
+        rhs = cast_stack_frame_reference_for_pointer_context(rhs, lhs_type, self.codegen)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(lhs)
@@ -2249,6 +2286,9 @@ class CBinaryOp(CExpression):
         rhs = self._scalarize_array_operand(self.rhs)
         lhs = self._decay_stack_frame_array_reference(lhs, rhs)
         rhs = self._decay_stack_frame_array_reference(rhs, lhs)
+        if self.op.startswith("Cmp"):
+            lhs = cast_stack_frame_reference_for_pointer_context(lhs, rhs.type, self.codegen)
+            rhs = cast_stack_frame_reference_for_pointer_context(rhs, lhs.type, self.codegen)
         skip_op_and_rhs = False
         force_lhs_parens = False
         narrow_cast_str = None
