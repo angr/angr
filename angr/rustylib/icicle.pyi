@@ -198,3 +198,18 @@ class Icicle:
 
     def clear_path_tracer(self) -> None:
         """Clear the path tracer's recorded execution trace."""
+
+    @property
+    def modified_pages(self) -> list[int]:
+        """Page-aligned virtual addresses modified since the last tracking reset."""
+
+    def reset_page_modification_tracking(self, page_addresses: list[int]) -> None:
+        """Reset page modification tracking.
+
+        Clears per-page modified flags for the given addresses, then flushes
+        the global modified set and TLB write cache so only subsequent writes
+        are recorded.
+
+        :arg page_addresses: Page-aligned virtual addresses whose per-page
+            modified flags should be cleared.
+        """

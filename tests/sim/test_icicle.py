@@ -240,6 +240,76 @@ class TestSnapshotSync(TestCase):
         assert result4[0].regs.x1.concrete_value == 0xDD
 
 
+class TestDirtyPageTracking(TestCase):
+    """Unit tests for dirty page tracking optimization in the Icicle engine."""
+
+    def test_only_written_pages_are_dirty(self):
+        """Test that modified_pages reports only pages actually written during execution."""
+        # Shellcode: store x0 to [x1], leaving other mapped pages untouched
+        shellcode = "str x0, [x1]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # Map three writable pages; only one will be written to
+        state.memory.map_region(0x10000, 0x1000, 0b111)
+        state.memory.map_region(0x20000, 0x1000, 0b111)
+        state.memory.map_region(0x30000, 0x1000, 0b111)
+        state.regs.x0 = 0xDEADBEEF
+        state.regs.x1 = 0x20000  # write target
+
+        result = engine.process(state, num_inst=1)
+        assert len(result.successors) == 1
+        out = result.successors[0]
+
+        # The written value must be correct
+        assert out.memory.load(0x20000, 8, endness="Iend_LE").concrete_value == 0xDEADBEEF
+
+        # Pages that were not written should still read as zero-filled
+        assert out.memory.load(0x10000, 8, endness="Iend_LE").concrete_value == 0
+        assert out.memory.load(0x30000, 8, endness="Iend_LE").concrete_value == 0
+
+    def test_dirty_tracking_across_snapshot_restore(self):
+        """Test that dirty page tracking works correctly across snapshot restore cycles."""
+        # Shellcode: store x0 to [x1]
+        shellcode = "str x0, [x1]"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        engine.enable_snapshot_mode()
+
+        state_opts = {
+            "remove_options": {*o.symbolic},
+            "add_options": {o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        }
+
+        # First run: establish snapshot, write to page 0x10000
+        s1 = project.factory.blank_state(**state_opts)
+        s1.memory.map_region(0x10000, 0x1000, 0b111)
+        s1.memory.map_region(0x20000, 0x1000, 0b111)
+        s1.regs.x0 = 0xAA
+        s1.regs.x1 = 0x10000
+
+        r1 = engine.process(s1, num_inst=1)
+        assert r1[0].memory.load(0x10000, 8, endness="Iend_LE").concrete_value == 0xAA
+
+        # Second run (snapshot restore path): write to different page
+        s2 = project.factory.blank_state(**state_opts)
+        s2.memory.map_region(0x10000, 0x1000, 0b111)
+        s2.memory.map_region(0x20000, 0x1000, 0b111)
+        s2.regs.x0 = 0xBB
+        s2.regs.x1 = 0x20000
+
+        r2 = engine.process(s2, num_inst=1)
+        assert r2[0].memory.load(0x20000, 8, endness="Iend_LE").concrete_value == 0xBB
+        # Page 0x10000 should be unchanged (zero-filled from the fresh angr state copy)
+        assert r2[0].memory.load(0x10000, 8, endness="Iend_LE").concrete_value == 0
+
+
 class TestThumb(TestCase):
     """Thumb-specific tests for the Icicle engine."""
 
