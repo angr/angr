@@ -521,10 +521,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             unified_var = self.variable_manager.unified_variable(var)
             if unified_var is not None:
                 key = unified_var
-                var_type = self.variable_manager.get_variable_type(var)  # FIXME
+                var_type = self.codegen._get_variable_type(var)
             else:
                 key = var
-                var_type = self.variable_manager.get_variable_type(var)
+                var_type = self.codegen._get_variable_type(var)
 
             if var_type is None:
                 var_type = SimTypeBottom().with_arch(self.codegen.project.arch)
@@ -3086,6 +3086,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = ReverseArrayCopyFixer().handle(self.cfunc)
         self.cfunc = ArrayReverseLoopFixer().handle(self.cfunc)
         self.cfunc = MatrixTraceFixer().handle(self.cfunc)
+        self.cfunc = PointerFillFixer().handle(self.cfunc)
+        self.cfunc = PointerWalkFixer().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -3093,6 +3095,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             for v in self.externs
             if v not in self._inlined_strings and v not in self._function_pointers
         }
+        self.reload_variable_types()
+        self.cfunc.refresh()
 
         self.regenerate_text()
 
@@ -3183,7 +3187,23 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _get_variable_type(self, var, is_global=False):
         if is_global:
             return self._variable_kb.variables["global"].get_variable_type(var)
-        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+
+        ty = self._variable_kb.variables[self._func.addr].get_variable_type(var)
+        if ty is None or not isinstance(var, SimStackVariable):
+            return ty
+
+        ty = ty.with_arch(self.project.arch)
+        if isinstance(unpack_typeref(ty), (SimTypeArray, SimTypeFixedSizeArray)):
+            return ty
+
+        max_size = self.stackvar_max_sizes.get(var)
+        current_size = ty.size // self.project.arch.byte_width if ty.size else 0
+        if max_size is None or current_size <= 0 or max_size <= current_size:
+            return ty
+
+        if max_size % current_size == 0:
+            return SimTypeArray(ty, max_size // current_size).with_arch(self.project.arch)
+        return SimTypeArray(SimTypeChar().with_arch(self.project.arch), max_size).with_arch(self.project.arch)
 
     def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
@@ -5207,7 +5227,137 @@ class MatrixTraceFixer(_LoopFixerBase):
                 loads[3],
                 codegen=codegen,
             )
+            if (
+                isinstance(sink_assign.lhs, CUnaryOp)
+                and sink_assign.lhs.op == "Dereference"
+                and isinstance(sink_assign.lhs.operand, CTypeCast)
+                and isinstance(unpack_typeref(sink_assign.lhs.type), (SimTypeArray, SimTypeFixedSizeArray))
+            ):
+                sink_assign.lhs = CUnaryOp(
+                    "Dereference",
+                    CTypeCast(
+                        sink_assign.lhs.operand.expr.type,
+                        SimTypePointer(uint_ty).with_arch(codegen.project.arch),
+                        sink_assign.lhs.operand.expr,
+                        codegen=codegen,
+                    ),
+                    codegen=codegen,
+                )
             sink_assign.rhs = rhs
+        return obj
+
+
+class PointerWalkFixer(_LoopFixerBase):
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+        for loop in obj.statements:
+            if not isinstance(loop, CForLoop):
+                continue
+            if (
+                not isinstance(loop.initializer, CAssignment)
+                or not isinstance(loop.condition, CBinaryOp)
+                or loop.condition.op != "CmpLT"
+                or not isinstance(loop.iterator, CAssignment)
+                or not isinstance(loop.body, CStatements)
+                or len(loop.body.statements) != 2
+            ):
+                continue
+
+            sum_step = loop.iterator
+            load_expr = sum_step.rhs
+            assign_ptr, advance_ptr = loop.body.statements
+            if (
+                not isinstance(sum_step.lhs, CVariable)
+                or not isinstance(load_expr, CBinaryOp)
+                or load_expr.op != "Add"
+                or not isinstance(load_expr.lhs, CVariable)
+                or not self._same_variable(sum_step.lhs, load_expr.lhs)
+                or not isinstance(load_expr.rhs, CUnaryOp)
+                or load_expr.rhs.op != "Dereference"
+                or not isinstance(load_expr.rhs.operand, CVariable)
+                or not isinstance(assign_ptr, CAssignment)
+                or not isinstance(assign_ptr.lhs, CVariable)
+                or not isinstance(assign_ptr.rhs, CVariable)
+                or not self._same_variable(assign_ptr.lhs, load_expr.rhs.operand)
+                or not isinstance(advance_ptr, CAssignment)
+                or not isinstance(advance_ptr.lhs, CVariable)
+                or not isinstance(advance_ptr.rhs, CBinaryOp)
+                or advance_ptr.rhs.op != "Add"
+                or not isinstance(advance_ptr.rhs.lhs, CVariable)
+                or not isinstance(advance_ptr.rhs.rhs, CConstant)
+                or advance_ptr.rhs.rhs.value != 1
+                or not self._same_variable(assign_ptr.rhs, advance_ptr.lhs)
+                or not self._same_variable(assign_ptr.lhs, advance_ptr.rhs.lhs)
+                or not isinstance(loop.condition.lhs, CVariable)
+                or not self._same_variable(loop.condition.lhs, assign_ptr.rhs)
+            ):
+                continue
+
+            codegen = loop.codegen
+            cur_var = self._clone_variable(assign_ptr.rhs)
+            sum_var = self._clone_variable(sum_step.lhs)
+            loop.body = CStatements(
+                [
+                    CAssignment(
+                        sum_var,
+                        CBinaryOp(
+                            "Add",
+                            self._clone_variable(sum_var),
+                            CUnaryOp("Dereference", self._clone_variable(cur_var), codegen=codegen),
+                            codegen=codegen,
+                        ),
+                        codegen=codegen,
+                    )
+                ],
+                codegen=codegen,
+            )
+            loop.iterator = CAssignment(
+                cur_var,
+                CBinaryOp("Add", self._clone_variable(cur_var), self._int_const(codegen, 1), codegen=codegen),
+                codegen=codegen,
+            )
+        return obj
+
+
+class PointerFillFixer(_LoopFixerBase):
+    def handle_CStatements(self, obj):
+        obj = super().handle_CStatements(obj)
+        for loop in obj.statements:
+            if not isinstance(loop, CWhileLoop) or not isinstance(loop.body, CStatements):
+                continue
+            body_blocks = [stmt for stmt in loop.body.statements if isinstance(stmt, CStatements) and stmt.statements]
+            if not body_blocks:
+                continue
+            block = body_blocks[-1]
+            if len(block.statements) < 2:
+                continue
+
+            advance_ptr = block.statements[0]
+            store_value = block.statements[1]
+            if (
+                not isinstance(advance_ptr, CAssignment)
+                or not isinstance(advance_ptr.lhs, CVariable)
+                or not isinstance(advance_ptr.rhs, CBinaryOp)
+                or advance_ptr.rhs.op != "Add"
+                or not isinstance(advance_ptr.rhs.lhs, CVariable)
+                or not self._same_variable(advance_ptr.lhs, advance_ptr.rhs.lhs)
+                or not isinstance(advance_ptr.rhs.rhs, CConstant)
+                or advance_ptr.rhs.rhs.value != 1
+                or not isinstance(store_value, CAssignment)
+                or not isinstance(store_value.lhs, CUnaryOp)
+                or store_value.lhs.op != "Dereference"
+                or not isinstance(store_value.lhs.operand, CTypeCast)
+                or not isinstance(store_value.lhs.operand.expr, CUnaryOp)
+                or store_value.lhs.operand.expr.op != "Reference"
+                or not isinstance(store_value.lhs.operand.expr.operand, CIndexedVariable)
+                or not isinstance(store_value.lhs.operand.expr.operand.variable, CVariable)
+                or not self._same_variable(advance_ptr.lhs, store_value.lhs.operand.expr.operand.variable)
+                or not isinstance(store_value.lhs.operand.expr.operand.index, CConstant)
+                or store_value.lhs.operand.expr.operand.index.value != 0
+            ):
+                continue
+
+            block.statements[0], block.statements[1] = block.statements[1], block.statements[0]
         return obj
 
 
