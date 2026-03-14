@@ -123,6 +123,7 @@ def test_array_pointer_codegen_is_warning_free(bin_path, func_name, decl_pattern
 
     if decl_pattern is not None:
         assert re.search(decl_pattern, text) is not None, text
+    assert re.search(r"(?:=|!=|==)\s*&stack_frame\.v\d+\b", text) is None, text
 
     compiled, stderr = _try_compile(_prepare_source(text), str(tmp_path), func_name)
     assert compiled, stderr
