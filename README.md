@@ -38,6 +38,9 @@ Modern C decompilers (Hex-Rays, Ghidra, Binary Ninja, angr) produce verbose and 
 
 6. **Rust Pseudocode Generation** — Outputs structured, human-readable Rust pseudocode.
 
+## Evaluation
+Evaluation pipeline and scripts are available at [oxidizer-eval](https://github.com/sefcom/oxidizer-eval).
+
 ## Quick Start
 ### Docker
 1. Build the Docker image:
