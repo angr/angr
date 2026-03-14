@@ -20,16 +20,17 @@ class RustSymbolRecovery(Analysis):
 
     OPT_LEVELS = ["0", "1", "2", "3"]
 
-    def __init__(self, inline=False, sig_dir=None):
+    def __init__(self, sig_dirs=None):
         super().__init__()
 
-        self.sig_dir = sig_dir or Path(__file__).parent / ("flirt_sigs_no_inline" if not inline else "flirt_sigs")
+        base = Path(__file__).parent
+        self.sig_dirs = sig_dirs or [base / "flirt_sigs", base / "flirt_sigs_no_inline"]
         self._cache = {}
         self.matched_count = 0
         self.rust_symbols = {}
 
         if self.project.rustc_version is None:
-            l.info("Auto-detecting rustc version (sig_dir=%s)", self.sig_dir)
+            l.info("Auto-detecting rustc version (sig_dirs=%s)", self.sig_dirs)
             start_time = time.time()
             self._identify_rustc_version()
             elapsed = time.time() - start_time
@@ -87,12 +88,17 @@ class RustSymbolRecovery(Analysis):
             return 0, 0.0
 
     def _cached_score(self, sig_file):
-        """Return the match score (match_count / nfuncs) for comparison between versions."""
+        """Return the best match score across all sig dirs for comparison between versions."""
         if sig_file not in self._cache:
-            sig_path = os.path.join(self.sig_dir, sig_file)
-            count, score = self._match_signature(sig_path)
-            self._cache[sig_file] = (count, score)
-            l.info("[%d] Testing %s: %d matches (score=%.4f)", len(self._cache), sig_file, count, score)
+            best_count, best_score = 0, 0.0
+            for sig_dir in self.sig_dirs:
+                sig_path = os.path.join(sig_dir, sig_file)
+                if os.path.exists(sig_path):
+                    count, score = self._match_signature(sig_path)
+                    if score > best_score:
+                        best_count, best_score = count, score
+            self._cache[sig_file] = (best_count, best_score)
+            l.info("[%d] Testing %s: %d matches (score=%.4f)", len(self._cache), sig_file, best_count, best_score)
         return self._cache[sig_file][1]
 
     def _identify_rustc_version(self):
@@ -100,8 +106,12 @@ class RustSymbolRecovery(Analysis):
         if self.project.kb.cfgs.get_most_accurate() is None:
             self.project.analyses.CFGFast(normalize=True)
 
-        # Get all sig files and group by opt level
-        sig_files = [f for f in os.listdir(self.sig_dir) if f.endswith(".sig")]
+        # Get all sig files (deduplicated) and group by opt level
+        sig_files_set = set()
+        for sig_dir in self.sig_dirs:
+            if os.path.isdir(sig_dir):
+                sig_files_set.update(f for f in os.listdir(sig_dir) if f.endswith(".sig"))
+        sig_files = list(sig_files_set)
         sigs_by_opt = {opt: [] for opt in self.OPT_LEVELS}
         for f in sig_files:
             _, opt = self._parse_version(f)
@@ -148,11 +158,27 @@ class RustSymbolRecovery(Analysis):
             len(sig_files),
         )
 
+        # Phase 3: Compare sig dirs and select the best one
+        best_sig_dir = self.sig_dirs[0]
+        best_dir_score = 0.0
+        best_sig_file = probe_sigs[best_idx]
+        for sig_dir in self.sig_dirs:
+            sig_path = os.path.join(sig_dir, best_sig_file)
+            if os.path.exists(sig_path):
+                _, score = self._match_signature(sig_path)
+                l.info("Phase 3: %s score=%.4f for %s", sig_dir, score, best_sig_file)
+                if score > best_dir_score:
+                    best_dir_score = score
+                    best_sig_dir = sig_dir
+        self.best_sig_dir = best_sig_dir
+        l.info("Selected sig dir: %s", self.best_sig_dir)
+
     def _analyze(self):
         version = self.project.rustc_version
+        sig_dir = getattr(self, "best_sig_dir", self.sig_dirs[0])
         applied = 0
         for opt in self.OPT_LEVELS:
-            sig_path = Path(self.sig_dir) / f"{version}-O{opt}.sig"
+            sig_path = Path(sig_dir) / f"{version}-O{opt}.sig"
             if sig_path.exists():
                 l.info("Applying signatures from %s", sig_path)
                 self.project.analyses.Flirt(str(sig_path))
