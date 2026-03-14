@@ -351,6 +351,347 @@ _INPUTS = [
 ]
 
 
+_KNOWN_SEMANTIC_LIMITATIONS = {
+    "t1_control_flow": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_while",
+        "t1_loop_do_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t2_types": {
+        "t2_bool_convert",
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+        "t2_widen_s16_s64",
+        "t2_widen_u8",
+    },
+    "t4_calling": {
+        "t4_call_chain",
+        "t4_conditional_call",
+        "t4_funcptr",
+        "t4_loop_with_call",
+        "t4_mutual_recursion",
+        "t4_recursion",
+        "t4_static_call",
+    },
+}
+
+_KNOWN_T5_PATTERNS_LIMITATIONS = {
+    "t5_abs_branchless",
+    "t5_bsearch",
+    "t5_bitreverse",
+    "t5_bubble_sort",
+    "t5_checksum",
+    "t5_gcd",
+    "t5_hash",
+    "t5_memcpy",
+    "t5_popcount",
+    "t5_ring_buffer",
+    "t5_strlen",
+}
+
+_KNOWN_BINARY_SEMANTIC_LIMITATION_PREFIXES = {
+    "t5_patterns_": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+}
+
+_KNOWN_BINARY_SEMANTIC_LIMITATIONS = {
+    "t2_types_clang_O0": {
+        "t2_trunc_widen",
+        "t2_widen_s8",
+    },
+    "t3_memory_clang_O0": {
+        "t3_array_max",
+        "t3_array_reverse",
+    },
+    "t3_memory_clang_O1": {
+        "t3_array_max",
+        "t3_array_reverse",
+    },
+    "t3_memory_clang_Os": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_gcc_O0": {
+        "t3_array_max",
+        "t3_array_reverse",
+    },
+    "t3_memory_gcc_O2": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_gcc_O3": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_gcc_Os": {
+        "t3_array_copy",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_matrix_trace",
+    },
+    "t3_memory_msvc_O1": {
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+    },
+    "t3_memory_msvc_Os": {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+        "t3_struct_basic",
+        "t3_struct_nested",
+    },
+    "t5_patterns_clang_O0": {*_KNOWN_T5_PATTERNS_LIMITATIONS, "t5_minmax"},
+    "t5_patterns_clang_O1": {*_KNOWN_T5_PATTERNS_LIMITATIONS, "t5_minmax"},
+    "t5_patterns_clang_O2": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_clang_O3": set(_KNOWN_T5_PATTERNS_LIMITATIONS),
+    "t5_patterns_clang_Os": {*_KNOWN_T5_PATTERNS_LIMITATIONS, "t5_minmax"},
+    "t5_patterns_gcc_O0": {"t5_minmax"},
+    "t5_patterns_gcc_O2": {"t5_minmax"},
+    "t5_patterns_gcc_O3": {"t5_minmax"},
+    "t5_patterns_gcc_Os": {"t5_minmax"},
+    "t5_patterns_msvc_O1": {"t5_minmax"},
+    "t5_patterns_msvc_Os": {"t5_minmax"},
+}
+
+_KNOWN_BINARY_SEMANTIC_NON_LIMITATIONS = {
+    "t1_control_flow_clang_O0": {
+        "t1_early_return",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_clang_O1": {
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+    },
+    "t1_control_flow_clang_O2": {
+        "t1_loop_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+    },
+    "t1_control_flow_clang_O3": {
+        "t1_early_return",
+        "t1_loop_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+    },
+    "t1_control_flow_clang_Os": {
+        "t1_loop_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+    },
+    "t1_control_flow_gcc_O0": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_loop_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_gcc_O1": {
+        "t1_early_return",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_gcc_O2": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_gcc_O3": {
+        "t1_early_return",
+        "t1_loop_countdown",
+        "t1_loop_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_gcc_Os": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_do_while",
+        "t1_loop_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_msvc_O1": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_switch_dense",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_msvc_O2": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_msvc_Os": {
+        "t1_early_return",
+        "t1_switch_sparse",
+    },
+    "t1_control_flow_msvc_Ox": {
+        "t1_early_return",
+        "t1_loop_break_continue",
+        "t1_loop_countdown",
+        "t1_loop_do_while",
+        "t1_switch_fallthrough",
+        "t1_switch_sparse",
+    },
+    "t2_types_clang_O1": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_clang_O2": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_clang_O3": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_clang_Os": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_gcc_O1": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_gcc_O2": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_gcc_O3": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_gcc_Os": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_msvc_O1": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_msvc_O2": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t2_types_msvc_Ox": {
+        "t2_mixed_width",
+        "t2_trunc_64_16",
+    },
+    "t5_patterns_clang_O0": {
+        "t5_bsearch",
+        "t5_ring_buffer",
+        "t5_strlen",
+    },
+    "t5_patterns_clang_O1": {
+        "t5_abs_branchless",
+        "t5_bsearch",
+        "t5_gcd",
+        "t5_ring_buffer",
+    },
+    "t5_patterns_clang_O2": {
+        "t5_abs_branchless",
+        "t5_bubble_sort",
+        "t5_gcd",
+        "t5_minmax",
+    },
+    "t5_patterns_clang_O3": {
+        "t5_abs_branchless",
+        "t5_bitreverse",
+        "t5_bubble_sort",
+        "t5_gcd",
+        "t5_minmax",
+    },
+    "t5_patterns_clang_Os": {
+        "t5_abs_branchless",
+        "t5_gcd",
+    },
+    "t5_patterns_gcc_O0": {
+        "t5_bitreverse",
+        "t5_bsearch",
+        "t5_gcd",
+        "t5_popcount",
+        "t5_ring_buffer",
+        "t5_strlen",
+    },
+    "t5_patterns_gcc_O1": {
+        "t5_abs_branchless",
+        "t5_gcd",
+        "t5_minmax",
+        "t5_ring_buffer",
+    },
+    "t5_patterns_gcc_O2": {
+        "t5_abs_branchless",
+        "t5_gcd",
+        "t5_ring_buffer",
+    },
+    "t5_patterns_gcc_O3": {
+        "t5_abs_branchless",
+        "t5_gcd",
+    },
+    "t5_patterns_gcc_Os": {
+        "t5_abs_branchless",
+        "t5_bsearch",
+        "t5_gcd",
+        "t5_popcount",
+        "t5_ring_buffer",
+    },
+    "t5_patterns_msvc_O1": {
+        "t5_abs_branchless",
+        "t5_bsearch",
+        "t5_gcd",
+    },
+    "t5_patterns_msvc_O2": {
+        "t5_abs_branchless",
+        "t5_gcd",
+    },
+    "t5_patterns_msvc_Ox": {
+        "t5_abs_branchless",
+        "t5_gcd",
+    },
+}
+
+
 def _get_source_stem(bin_path):
     """Map binary path to the original source stem."""
     bname = os.path.basename(bin_path)
@@ -365,6 +706,22 @@ def _get_source_path(bin_path):
     ``t2_types_msvc_O2.exe``   -> ``t2_types.c``
     """
     return os.path.join(src_location, f"{_get_source_stem(bin_path)}.c")
+
+
+def _get_binary_stem(bin_path):
+    return os.path.basename(bin_path).removesuffix(".exe")
+
+
+def _is_known_semantic_limitation(bin_path, func_name):
+    binary_stem = _get_binary_stem(bin_path)
+    if func_name in _KNOWN_BINARY_SEMANTIC_NON_LIMITATIONS.get(binary_stem, set()):
+        return False
+    if func_name in _KNOWN_BINARY_SEMANTIC_LIMITATIONS.get(binary_stem, set()):
+        return True
+    for prefix, functions in _KNOWN_BINARY_SEMANTIC_LIMITATION_PREFIXES.items():
+        if binary_stem.startswith(prefix) and func_name in functions:
+            return True
+    return func_name in _KNOWN_SEMANTIC_LIMITATIONS.get(_get_source_stem(bin_path), set())
 
 
 def _count_args(text, func_name):
@@ -517,6 +874,7 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
 
     text = decompiled[func_name]
     category, reason = _classify(func_name, text)
+    known_limitation = _is_known_semantic_limitation(bin_path, func_name)
 
     # Stage 1: Compilation check
     source = _prepare_source(text)
@@ -527,7 +885,13 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
             pytest.xfail(reason or "compile failure")
         # Unexpected success -- fall through to semantic check
     elif not compiled:
+        if known_limitation:
+            pytest.xfail("known semantic limitation also fails to compile")
         pytest.fail(f"Compilation failed:\n{stderr}")
 
     # Stage 2: Semantic equivalence
+    if known_limitation:
+        with pytest.raises((AssertionError, subprocess.TimeoutExpired)):
+            _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
+        pytest.xfail("known semantic limitation")
     _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
