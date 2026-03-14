@@ -12,6 +12,16 @@ It is brought to you by [SEFCOM at Arizona State University](https://sefcom.asu.
 Yibo Liu, Zion Leonahenahe Basque, Arvind S. Raj, Chavin Udomwongsa, Chang Zhu, Jie Hu, Changyu Zhao, Fangzhou Dong, Adam Doupé, Tiffany Bao, Yan Shoshitaishvili, Ruoyu Wang
 *IEEE Symposium on Security and Privacy (S&P), 2026*. (To appear)
 
+```bibtex
+@inproceedings{liu2026oxidizer,
+  title={Oxidizer: Toward Concise and High-fidelity Rust Decompilation},
+  author={Liu, Yibo and Basque, Zion Leonahenahe and Raj, Arvind S. and Udomwongsa, Chavin and Zhu, Chang and Hu, Jie and Zhao, Changyu and Dong, Fangzhou and Doup{\'e}, Adam and Bao, Tiffany and Shoshitaishvili, Yan and Wang, Ruoyu},
+  booktitle={2026 IEEE Symposium on Security and Privacy (SP)},
+  year={2026},
+  organization={IEEE}
+}
+```
+
 ## Overview
 
 Modern C decompilers (Hex-Rays, Ghidra, Binary Ninja, angr) produce verbose and inaccurate output when decompiling Rust binaries, because they fail to recover high-level Rust abstractions from low-level implementations. Oxidizer addresses this by implementing a Rust-specific decompilation pipeline:
