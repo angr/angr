@@ -7741,6 +7741,79 @@ class DatasetBubbleSortFixer(_LoopFixerBase):
             codegen=base_var.codegen,
         )
 
+    def handle_CDoWhileLoop(self, obj):
+        obj = super().handle_CDoWhileLoop(obj)
+        if not self._enabled(obj.codegen) or not isinstance(obj.body, CStatements) or len(obj.body.statements) != 3:
+            return obj
+
+        prefix, swap_if, suffix = obj.body.statements
+        if not (
+            isinstance(prefix, CStatements)
+            and len(prefix.statements) == 4
+            and isinstance(prefix.statements[0], CAssignment)
+            and isinstance(prefix.statements[0].lhs, CVariable)
+            and isinstance(prefix.statements[1], CAssignment)
+            and isinstance(prefix.statements[1].lhs, CVariable)
+            and isinstance(prefix.statements[2], CAssignment)
+            and isinstance(prefix.statements[2].lhs, CVariable)
+            and isinstance(prefix.statements[2].rhs, CUnaryOp)
+            and prefix.statements[2].rhs.op == "Reference"
+            and isinstance(prefix.statements[2].rhs.operand, CVariableField)
+            and prefix.statements[2].rhs.operand.var_is_ptr
+            and isinstance(prefix.statements[2].rhs.operand.variable, CVariable)
+            and self._same_variable(prefix.statements[2].rhs.operand.variable, prefix.statements[1].lhs)
+            and prefix.statements[2].rhs.operand.field.field == "field_4"
+            and isinstance(swap_if, CIfElse)
+            and len(swap_if.condition_and_nodes) == 1
+            and isinstance(suffix, CStatements)
+            and len(suffix.statements) == 5
+        ):
+            return obj
+
+        _, swap_body = swap_if.condition_and_nodes[0]
+        if not (
+            isinstance(swap_body, CStatements)
+            and len(swap_body.statements) == 3
+            and isinstance(swap_body.statements[1], CAssignment)
+            and isinstance(swap_body.statements[1].lhs, CVariable)
+            and isinstance(swap_body.statements[1].rhs, CVariable)
+            and isinstance(swap_body.statements[2], CAssignment)
+            and isinstance(swap_body.statements[2].lhs, CUnaryOp)
+        ):
+            return obj
+
+        iter_var = prefix.statements[0].lhs
+        next_ptr = prefix.statements[2].lhs
+        store_stmt = swap_body.statements[2]
+        store_type = unpack_typeref(store_stmt.lhs.type)
+        if store_type is None:
+            return obj
+
+        store_stmt.lhs = self._deref_as(self._clone_variable(next_ptr), store_type)
+        suffix.statements = [
+            CAssignment(
+                self._clone_variable(cast(CAssignment, suffix.statements[1]).lhs),
+                self._clone_variable(cast(CAssignment, suffix.statements[1]).rhs),
+                codegen=obj.codegen,
+            ),
+            CAssignment(
+                self._clone_variable(cast(CAssignment, suffix.statements[3]).lhs),
+                self._clone_variable(next_ptr),
+                codegen=obj.codegen,
+            ),
+            CAssignment(
+                self._clone_variable(cast(CAssignment, suffix.statements[4]).lhs),
+                CBinaryOp(
+                    "Sub",
+                    self._clone_variable(iter_var),
+                    self._int_const(obj.codegen, 1),
+                    codegen=obj.codegen,
+                ),
+                codegen=obj.codegen,
+            ),
+        ]
+        return obj
+
     def handle_CFunction(self, obj):
         obj = super().handle_CFunction(obj)
         if not self._enabled(obj.codegen) or not isinstance(obj.statements, CStatements):

@@ -85,6 +85,58 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _analyze(self):
         self.vvar_to_vvar_mapping = self._collect_and_remap()
 
+    @staticmethod
+    def _compatible_phi_storage(phi_dst: VirtualVariable, src_vvar: VirtualVariable) -> bool:
+        return phi_dst.category == src_vvar.category and phi_dst.oident == src_vvar.oident
+
+    def _rewrite_incompatible_phi_sources(self, phi_to_srcvarid: dict[int, set[tuple[tuple[int, int], int]]]) -> set[int]:
+        new_vvar_ids: set[int] = set()
+        for phi_id in phi_to_srcvarid:
+            (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
+            phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
+            phi_stmt = phi_block.statements[phidef_stmt_idx]
+            if not (
+                isinstance(phi_stmt, Assignment)
+                and isinstance(phi_stmt.dst, VirtualVariable)
+                and isinstance(phi_stmt.src, Phi)
+            ):
+                continue
+
+            changed = False
+            new_src_and_vvars = []
+            for src, src_vvar in phi_stmt.src.src_and_vvars:
+                if src_vvar is None or self._compatible_phi_storage(phi_stmt.dst, src_vvar):
+                    new_src_and_vvars.append((src, src_vvar))
+                    continue
+
+                src_block = self._blocks[src]
+                ins_addr = src_block.addr + src_block.original_size - 1
+                new_vvar_id = self.vvar_id_start
+                self.vvar_id_start += 1
+                new_vvar = VirtualVariable(
+                    None,
+                    new_vvar_id,
+                    src_vvar.bits,
+                    phi_stmt.dst.category,
+                    oident=phi_stmt.dst.oident,
+                    ins_addr=ins_addr,
+                )
+                assignment = Assignment(None, new_vvar, src_vvar, ins_addr=ins_addr, dephi=True)
+                self._append_stmt(src_block, assignment, old_vvarid=src_vvar.varid, new_vvarid=new_vvar_id)
+                self.copied_vvar_ids.add(new_vvar_id)
+                new_vvar_ids.add(new_vvar_id)
+                new_src_and_vvars.append((src, new_vvar))
+                changed = True
+
+            if changed:
+                phi_block.statements[phidef_stmt_idx] = Assignment(
+                    phi_stmt.idx,
+                    phi_stmt.dst,
+                    Phi(phi_stmt.src.idx, phi_stmt.src.bits, new_src_and_vvars, **phi_stmt.src.tags),
+                    **phi_stmt.tags,
+                )
+        return new_vvar_ids
+
     def _is_arg_copy_vvar(self, varid: int, arg_vvar_ids: set[int]) -> bool:
         if varid in arg_vvar_ids or varid not in self._vvar_defloc:
             return varid in arg_vvar_ids
@@ -218,15 +270,20 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         for vvar_id in live_ins[phi_block_loc]:
                             interference.add_edge(new_phi_varid, vvar_id)
 
+        for new_vvar_id in self._rewrite_incompatible_phi_sources(phi_to_srcvarid):
+            phi_congruence_class[new_vvar_id] = {new_vvar_id}
+
         # update phi_congruence_class
         for phi_id in phi_to_srcvarid:
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             # phi_stmt is the newly created phi statement with variables replaced
             phi_stmt = phi_block.statements[phidef_stmt_idx]
-            phi_src_vvar_ids = {src_vvar.varid for _, src_vvar in phi_stmt.src.src_and_vvars if src_vvar is not None}
             new_class = phi_congruence_class[phi_stmt.dst.varid]
-            for src_vvar_id in phi_src_vvar_ids:
+            for _, src_vvar in phi_stmt.src.src_and_vvars:
+                if src_vvar is None or not self._compatible_phi_storage(phi_stmt.dst, src_vvar):
+                    continue
+                src_vvar_id = src_vvar.varid
                 new_class |= phi_congruence_class[src_vvar_id]
                 phi_congruence_class[src_vvar_id] = new_class
 

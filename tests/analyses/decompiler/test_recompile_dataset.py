@@ -599,12 +599,6 @@ _FUNCTIONS = _discover_functions()
 def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_path):
     """Decompile, recompile, and check semantic equivalence."""
     _ = is_pe
-    if is_pe and func_name == "t5_ring_buffer":
-        pytest.xfail("unsupported PE ring buffer recovery")
-    if is_pe and func_name == "t5_memcpy":
-        pytest.xfail("unsupported PE memcpy loop recovery")
-    if is_pe and func_name == "t5_bubble_sort":
-        pytest.xfail("unsupported PE bubble-sort loop recovery")
     decompiled = _get_decompiled(bin_path)
     if func_name not in decompiled:
         pytest.skip("no decompilation output")
