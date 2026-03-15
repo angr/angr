@@ -258,16 +258,20 @@ _ROTATE_HELPERS = textwrap.dedent("""\
 """)
 
 
-_COMPILE_PREAMBLE = textwrap.dedent("""\
+_COMPILE_PREAMBLE = (
+    textwrap.dedent("""\
     #include <stdint.h>
     #include <stdbool.h>
     #include <stdlib.h>
     #include <string.h>
 
-""") + _ROTATE_HELPERS + textwrap.dedent("""\
+""")
+    + _ROTATE_HELPERS
+    + textwrap.dedent("""\
     volatile unsigned int g_sink;
 
 """)
+)
 
 
 def _strip_extern_gsink(text):

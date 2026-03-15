@@ -687,22 +687,30 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             yield indent_str, None
 
-            prefers_scalar_decl = isinstance(variable, SimStackVariable) and variable in self.codegen._promoted_stack_scalars
+            prefers_scalar_decl = (
+                isinstance(variable, SimStackVariable) and variable in self.codegen._promoted_stack_scalars
+            )
             if (
                 prefers_scalar_decl
                 and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
-                and any((count or 0) > 1 for count in (_simtype_array_count(ty, self.codegen.project.arch) for ty in vartypes))
+                and any(
+                    (count or 0) > 1
+                    for count in (_simtype_array_count(ty, self.codegen.project.arch) for ty in vartypes)
+                )
             ):
                 prefers_scalar_decl = False
             if not prefers_scalar_decl:
                 prefers_scalar_decl = any(
-                    isinstance(cvar.variable, SimStackVariable) and cvar.variable in self.codegen._promoted_stack_scalars
+                    isinstance(cvar.variable, SimStackVariable)
+                    and cvar.variable in self.codegen._promoted_stack_scalars
                     for cvar, _ in cvar_and_vartypes
                 )
                 if (
                     prefers_scalar_decl
                     and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
-                    and any((_simtype_array_count(var_type, self.codegen.project.arch) or 0) > 1 for var_type in vartypes)
+                    and any(
+                        (_simtype_array_count(var_type, self.codegen.project.arch) or 0) > 1 for var_type in vartypes
+                    )
                 ):
                     prefers_scalar_decl = False
 
@@ -3547,13 +3555,18 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 var_type = self._get_variable_type_from_kb(candidate)
             if var_type is None:
                 return None
-        elif var not in self.stackvar_max_sizes and (candidate := self._get_stack_var_same_offset_peer(var)) is not None:
+        elif (
+            var not in self.stackvar_max_sizes and (candidate := self._get_stack_var_same_offset_peer(var)) is not None
+        ):
             decl_var = candidate
 
         var_type = unpack_typeref(var_type)
         variable_manager = self._variable_kb.variables[self._func.addr]
         if (
-            (var in variable_manager.variables_with_manual_types or decl_var in variable_manager.variables_with_manual_types)
+            (
+                var in variable_manager.variables_with_manual_types
+                or decl_var in variable_manager.variables_with_manual_types
+            )
             and var_type is not None
             and not isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray))
         ):
@@ -3639,7 +3652,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             for related_var in related_vars:
                 current_type = self._get_variable_type(
                     related_var,
-                    is_global=isinstance(related_var, SimMemoryVariable) and not isinstance(related_var, SimStackVariable),
+                    is_global=isinstance(related_var, SimMemoryVariable)
+                    and not isinstance(related_var, SimStackVariable),
                 )
                 current_type = unpack_typeref(current_type)
                 if (
@@ -3844,9 +3858,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 continue
             candidate_type = unpack_typeref(self._get_variable_type(candidate))
             candidate_peer = self._get_stack_var_same_offset_peer(candidate)
-            peer_type = (
-                unpack_typeref(self._get_variable_type(candidate_peer)) if candidate_peer is not None else None
-            )
+            peer_type = unpack_typeref(self._get_variable_type(candidate_peer)) if candidate_peer is not None else None
             is_container = (
                 (candidate_max_size > candidate.size and not isinstance(candidate_type, SimTypePointer))
                 or isinstance(candidate_type, (SimTypeArray, SimTypeFixedSizeArray))
@@ -3884,9 +3896,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 continue
             candidate_type = unpack_typeref(self._get_variable_type(candidate))
             candidate_peer = self._get_stack_var_same_offset_peer(candidate)
-            peer_type = (
-                unpack_typeref(self._get_variable_type(candidate_peer)) if candidate_peer is not None else None
-            )
+            peer_type = unpack_typeref(self._get_variable_type(candidate_peer)) if candidate_peer is not None else None
             is_container = (
                 (candidate_max_size > candidate.size and not isinstance(candidate_type, SimTypePointer))
                 or isinstance(candidate_type, (SimTypeArray, SimTypeFixedSizeArray))
@@ -5013,7 +5023,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 continue
 
             operand_ty = unpack_typeref(operand.type)
-            if not isinstance(operand_ty, (SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLongLong, SimTypeNum, SimTypeReg)):
+            if not isinstance(
+                operand_ty, (SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLongLong, SimTypeNum, SimTypeReg)
+            ):
                 continue
             if isinstance(operand_ty, SimTypePointer) or operand_ty.size is None or operand_ty.size <= 0:
                 continue
@@ -6009,7 +6021,11 @@ class ArrayReverseLoopFixer(_LoopFixerBase):
                 ),
                 None,
             )
-            if isinstance(sink_stmt, CAssignment) and isinstance(sink_stmt.rhs, CBinaryOp) and sink_stmt.rhs.op == "Add":
+            if (
+                isinstance(sink_stmt, CAssignment)
+                and isinstance(sink_stmt.rhs, CBinaryOp)
+                and sink_stmt.rhs.op == "Add"
+            ):
                 sink_stmt.rhs = CBinaryOp(
                     "Add",
                     self._buffer_element_load(base_buf, 7, uint_ty),
@@ -6392,9 +6408,8 @@ class PreAdvanceStoreFixer(_LoopFixerBase):
 
             for store_idx in range(idx + 1, len(obj.body.statements)):
                 store_stmt = obj.body.statements[store_idx]
-                if (
-                    isinstance(store_stmt, CAssignment)
-                    and self._lhs_matches_offset_store(store_stmt.lhs, ptr_var, step_bytes)
+                if isinstance(store_stmt, CAssignment) and self._lhs_matches_offset_store(
+                    store_stmt.lhs, ptr_var, step_bytes
                 ):
                     if self._expr_uses_variable(store_stmt.rhs, ptr_var):
                         break
@@ -6514,7 +6529,9 @@ class PreIncrementStoreFixer(_LoopFixerBase):
         dst_var = self._match_pointer_step(dst_step)
         if src_var is None or dst_var is None or not isinstance(store_stmt, CAssignment):
             return obj
-        if not self._expr_uses_variable(store_stmt.lhs, dst_var) or not self._expr_uses_variable(store_stmt.rhs, src_var):
+        if not self._expr_uses_variable(store_stmt.lhs, dst_var) or not self._expr_uses_variable(
+            store_stmt.rhs, src_var
+        ):
             return obj
         cond = obj.condition
         if isinstance(cond, CUnaryOp) and cond.op == "Dereference" and self._expr_uses_variable(cond.operand, dst_var):
@@ -6687,7 +6704,9 @@ class DoWhileConditionFixer(_LoopFixerBase):
             return step_match
         return None
 
-    def _adjust_condition_for_iterator(self, condition: CExpression, target: CVariable, step: int) -> CExpression | None:
+    def _adjust_condition_for_iterator(
+        self, condition: CExpression, target: CVariable, step: int
+    ) -> CExpression | None:
         if not isinstance(condition, CBinaryOp):
             return None
         if condition.op in {"Add", "Sub"}:
@@ -6749,10 +6768,7 @@ class ArrayReferenceByteIndexFixer(CStructuredCodeWalker):
         base_type = unpack_typeref(base_var.type)
         if not isinstance(base_type, (SimTypeArray, SimTypeFixedSizeArray)):
             return obj
-        if (
-            isinstance(base_var.variable, SimStackVariable)
-            and base_var.variable in obj.codegen._promoted_stack_arrays
-        ):
+        if isinstance(base_var.variable, SimStackVariable) and base_var.variable in obj.codegen._promoted_stack_arrays:
             canonical = obj.codegen._variables_in_use.get(base_var.variable, base_var)
             obj.variable = canonical
             return obj
@@ -6860,7 +6876,9 @@ class StridedStackByteArrayFixer(CStructuredCodeWalker):
         if cvar.variable in cvar.codegen._variables_in_use:
             cvar.codegen._variables_in_use[cvar.variable].variable_type = new_type
         variable_manager.set_variable_type(cvar.variable, new_type, all_unified=True)
-        cvar.codegen.stackvar_max_sizes[cvar.variable] = max(cvar.codegen.stackvar_max_sizes.get(cvar.variable, 0), required_size)
+        cvar.codegen.stackvar_max_sizes[cvar.variable] = max(
+            cvar.codegen.stackvar_max_sizes.get(cvar.variable, 0), required_size
+        )
         if promoted_from_scalar and isinstance(cvar.variable, SimStackVariable):
             related_vars = {
                 var
@@ -6875,7 +6893,9 @@ class StridedStackByteArrayFixer(CStructuredCodeWalker):
 
     def _ensure_indexable_array(self, cvar: CVariable) -> None:
         var_type = unpack_typeref(cvar.type)
-        if isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)) or not isinstance(cvar.variable, SimStackVariable):
+        if isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)) or not isinstance(
+            cvar.variable, SimStackVariable
+        ):
             return
         if not isinstance(var_type, (SimTypeChar, SimTypeInt, SimTypeShort, SimTypeLongLong, SimTypeNum, SimTypeReg)):
             return
@@ -6965,15 +6985,11 @@ class StridedStackByteArrayFixer(CStructuredCodeWalker):
             return obj
         self._ensure_indexable_array(base_cvar)
         if (overlap_size := self._overlapping_byte_requirement(base_cvar)) is not None:
-            self.required_sizes[base_cvar.variable] = max(
-                self.required_sizes.get(base_cvar.variable, 0), overlap_size
-            )
+            self.required_sizes[base_cvar.variable] = max(self.required_sizes.get(base_cvar.variable, 0), overlap_size)
             self._resize_type(base_cvar, overlap_size)
         if (required_size := self._stride_requirement(obj.index, scale=scale)) is None:
             return obj
-        self.required_sizes[base_cvar.variable] = max(
-            self.required_sizes.get(base_cvar.variable, 0), required_size
-        )
+        self.required_sizes[base_cvar.variable] = max(self.required_sizes.get(base_cvar.variable, 0), required_size)
         self._resize_type(base_cvar, required_size)
         return obj
 
@@ -6997,7 +7013,9 @@ class DatasetByteBufferFixer(CStructuredCodeWalker):
         cvar.codegen._variable_kb.variables[cvar.codegen._func.addr].set_variable_type(
             cvar.variable, new_type, all_unified=True
         )
-        cvar.codegen.stackvar_max_sizes[cvar.variable] = max(cvar.codegen.stackvar_max_sizes.get(cvar.variable, 0), required_size)
+        cvar.codegen.stackvar_max_sizes[cvar.variable] = max(
+            cvar.codegen.stackvar_max_sizes.get(cvar.variable, 0), required_size
+        )
 
     def _byte_buffer_access(self, obj: CUnaryOp) -> tuple[CVariable, CExpression] | None:
         if (
@@ -7016,10 +7034,7 @@ class DatasetByteBufferFixer(CStructuredCodeWalker):
             return None
 
         cast_type = unpack_typeref(obj.operand.lhs.dst_type)
-        if not (
-            isinstance(cast_type, SimTypePointer)
-            and isinstance(unpack_typeref(cast_type.pts_to), SimTypeChar)
-        ):
+        if not (isinstance(cast_type, SimTypePointer) and isinstance(unpack_typeref(cast_type.pts_to), SimTypeChar)):
             return None
 
         required_size = base_var.codegen.stackvar_max_sizes.get(base_var.variable, 0)
@@ -7249,8 +7264,16 @@ class DatasetPopcountLoopFixer(_LoopFixerBase):
             return False
         if isinstance(expr, CBinaryOp):
             if expr.op == "And" and (
-                (isinstance(expr.lhs, CVariable) and self._same_variable(expr.lhs, target) and self._is_const(expr.rhs, 1))
-                or (isinstance(expr.rhs, CVariable) and self._same_variable(expr.rhs, target) and self._is_const(expr.lhs, 1))
+                (
+                    isinstance(expr.lhs, CVariable)
+                    and self._same_variable(expr.lhs, target)
+                    and self._is_const(expr.rhs, 1)
+                )
+                or (
+                    isinstance(expr.rhs, CVariable)
+                    and self._same_variable(expr.rhs, target)
+                    and self._is_const(expr.lhs, 1)
+                )
             ):
                 return True
             return self._uses_lsb(expr.lhs, target) or self._uses_lsb(expr.rhs, target)
@@ -7414,11 +7437,7 @@ class DatasetStrlenLoopFixer(_LoopFixerBase):
         return False
 
     def _replacement_length_expr(self, target: CVariable, expr: CExpression) -> CExpression | None:
-        if not (
-            isinstance(expr, CBinaryOp)
-            and expr.op == "Sub"
-            and self._is_const(expr.rhs, 1)
-        ):
+        if not (isinstance(expr, CBinaryOp) and expr.op == "Sub" and self._is_const(expr.rhs, 1)):
             return None
         if isinstance(expr.lhs, CTypeCast):
             return CTypeCast(expr.lhs.src_type, expr.lhs.dst_type, self._clone_variable(target), codegen=expr.codegen)
@@ -7478,7 +7497,10 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
 
     def _uses_scalar_decl(self, canonical: CVariable) -> bool:
         if not _allow_dataset_multielement_stack_array_regrouping(canonical.codegen.project):
-            return isinstance(canonical.variable, SimStackVariable) and canonical.variable in canonical.codegen._promoted_stack_scalars
+            return (
+                isinstance(canonical.variable, SimStackVariable)
+                and canonical.variable in canonical.codegen._promoted_stack_scalars
+            )
         return (
             isinstance(canonical.variable, SimStackVariable)
             and canonical.variable in canonical.codegen._promoted_stack_scalars
@@ -7555,9 +7577,8 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
         if not _allow_dataset_multielement_stack_array_regrouping(canonical.codegen.project):
             return canonical
         canonical_type = unpack_typeref(canonical.type)
-        if (
-            not isinstance(canonical.variable, SimStackVariable)
-            or not isinstance(canonical_type, (SimTypeArray, SimTypeFixedSizeArray))
+        if not isinstance(canonical.variable, SimStackVariable) or not isinstance(
+            canonical_type, (SimTypeArray, SimTypeFixedSizeArray)
         ):
             return canonical
 
@@ -7630,7 +7651,10 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
             canonical, index = containing
             canonical = self._expand_contiguous_stack_array(canonical)
             canonical_type = unpack_typeref(canonical.type)
-            if isinstance(canonical_type, (SimTypeArray, SimTypeFixedSizeArray)) and (self._array_count(canonical) or 0) > 1:
+            if (
+                isinstance(canonical_type, (SimTypeArray, SimTypeFixedSizeArray))
+                and (self._array_count(canonical) or 0) > 1
+            ):
                 self._changed = True
                 return CIndexedVariable(
                     canonical,
@@ -7808,7 +7832,9 @@ class InnerStackBufferAliasFixer(CStructuredCodeWalker):
                         candidate_type = unpack_typeref(candidate_cvar.type)
                         if isinstance(candidate_type, (SimTypeArray, SimTypeFixedSizeArray)):
                             elem_type = unpack_typeref(candidate_type.elem_type)
-                            elem_size = elem_type.size // obj.codegen.project.arch.byte_width if elem_type.size else None
+                            elem_size = (
+                                elem_type.size // obj.codegen.project.arch.byte_width if elem_type.size else None
+                            )
                             if elem_size and delta % elem_size == 0:
                                 if delta == 0:
                                     return CUnaryOp("Reference", candidate_cvar, codegen=obj.codegen)
@@ -7885,7 +7911,9 @@ class ArrayMaxLoopFixer(_LoopFixerBase):
             elem_ty = SimTypeInt(signed=True).with_arch(obj.codegen.project.arch)
             end_ptr = CUnaryOp(
                 "Reference",
-                CIndexedVariable(base_var, self._int_const(obj.codegen, 32), variable_type=SimTypeChar(), codegen=obj.codegen),
+                CIndexedVariable(
+                    base_var, self._int_const(obj.codegen, 32), variable_type=SimTypeChar(), codegen=obj.codegen
+                ),
                 codegen=obj.codegen,
             )
 
@@ -7909,7 +7937,9 @@ class ArrayMaxLoopFixer(_LoopFixerBase):
                     ),
                     CAssignment(
                         self._clone_variable(ptr_var),
-                        CBinaryOp("Add", self._clone_variable(ptr_var), self._int_const(obj.codegen, 4), codegen=obj.codegen),
+                        CBinaryOp(
+                            "Add", self._clone_variable(ptr_var), self._int_const(obj.codegen, 4), codegen=obj.codegen
+                        ),
                         codegen=obj.codegen,
                     ),
                 ],
@@ -7928,7 +7958,8 @@ class EqualityComparisonConstantFixer(CStructuredCodeWalker):
 
         operand_ty = operand.codegen._get_variable_type_from_kb(
             operand.variable,
-            is_global=isinstance(operand.variable, SimMemoryVariable) and not isinstance(operand.variable, SimStackVariable),
+            is_global=isinstance(operand.variable, SimMemoryVariable)
+            and not isinstance(operand.variable, SimStackVariable),
         )
         operand_ty = unpack_typeref(operand_ty)
         if not isinstance(operand_ty, (SimTypeChar, SimTypeShort, SimTypeInt, SimTypeLongLong, SimTypeNum, SimTypeReg)):
@@ -8055,9 +8086,7 @@ class AdjacentCopyPropagator(CStructuredCodeWalker):
 
         for idx, stmt in enumerate(obj.statements):
             if not (
-                isinstance(stmt, CAssignment)
-                and isinstance(stmt.rhs, CVariable)
-                and isinstance(stmt.lhs, CVariable)
+                isinstance(stmt, CAssignment) and isinstance(stmt.rhs, CVariable) and isinstance(stmt.lhs, CVariable)
             ):
                 continue
 
@@ -8081,7 +8110,9 @@ class AdjacentCopyPropagator(CStructuredCodeWalker):
                     break
                 if prev_lhs_var in expr_vars:
                     break
-                if any(isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable) for var in expr_vars):
+                if any(
+                    isinstance(var, SimMemoryVariable) and not isinstance(var, SimStackVariable) for var in expr_vars
+                ):
                     break
 
                 if any(

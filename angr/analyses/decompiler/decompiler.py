@@ -512,7 +512,7 @@ class Decompiler(Analysis):
     def _options_with_structurer(self, structurer_cls: type) -> list[tuple[DecompilationOption, Any]]:
         structurer_option = PARAM_TO_OPTION["structurer_cls"]
         return [
-            *( (opt, value) for opt, value in self._options if opt.param != "structurer_cls" ),
+            *((opt, value) for opt, value in self._options if opt.param != "structurer_cls"),
             (structurer_option, structurer_cls.NAME),
         ]
 
@@ -551,7 +551,9 @@ class Decompiler(Analysis):
         collector.walk(seq_node)
         return collector.counts
 
-    def _lowered_switch_case_counts_mismatch(self, graph: networkx.DiGraph | None, seq_node: SequenceNode | None) -> bool:
+    def _lowered_switch_case_counts_mismatch(
+        self, graph: networkx.DiGraph | None, seq_node: SequenceNode | None
+    ) -> bool:
         if (
             not self._allow_structurer_fallback
             or self._recursive_structurer_params["structurer_cls"] is not SAILRStructurer

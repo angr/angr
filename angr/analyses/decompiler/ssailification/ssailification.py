@@ -154,7 +154,9 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         if self._function.calling_convention is not None:
             valid_reg_offsets: set[int] = set()
             valid_stack_offsets: set[int] = set()
-            cc_proto = SimTypeFunction([SimTypeInt() for _ in range(max(len(self._func_args) + 4, 8))], SimTypeInt()).with_arch(self.project.arch)
+            cc_proto = SimTypeFunction(
+                [SimTypeInt() for _ in range(max(len(self._func_args) + 4, 8))], SimTypeInt()
+            ).with_arch(self.project.arch)
             for arg_loc in self._function.calling_convention.arg_locs(cc_proto):
                 if isinstance(arg_loc, SimRegArg):
                     valid_reg_offsets.add(self.project.arch.registers[arg_loc.reg_name][0])

@@ -1895,7 +1895,9 @@ class Clinic(Analysis):
         }
         reg_arg_sizes: dict[int, int] = {}
         if self.function.calling_convention is not None:
-            proto = SimTypeFunction([SimTypeInt() for _ in range(max(len(self.arg_vvars) + len(additional_func_args), 8))], SimTypeInt()).with_arch(self.project.arch)
+            proto = SimTypeFunction(
+                [SimTypeInt() for _ in range(max(len(self.arg_vvars) + len(additional_func_args), 8))], SimTypeInt()
+            ).with_arch(self.project.arch)
             for arg_loc in self.function.calling_convention.arg_locs(proto):
                 if isinstance(arg_loc, SimRegArg):
                     reg_arg_sizes[self.project.arch.registers[arg_loc.reg_name][0]] = arg_loc.size
@@ -1907,7 +1909,12 @@ class Clinic(Analysis):
                 vvar.parameter_reg_offset if vvar.parameter_reg_offset is not None else vvar.parameter_stack_offset,
             ),
         ):
-            key = arg_vvar.parameter_category, arg_vvar.parameter_reg_offset, arg_vvar.parameter_stack_offset, arg_vvar.size
+            key = (
+                arg_vvar.parameter_category,
+                arg_vvar.parameter_reg_offset,
+                arg_vvar.parameter_stack_offset,
+                arg_vvar.size,
+            )
             if key in existing_locs:
                 continue
 
