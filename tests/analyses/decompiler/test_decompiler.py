@@ -2981,7 +2981,9 @@ class TestDecompiler(unittest.TestCase):
         if sign_branch is not None:
             dst = re.escape(sign_branch.group("dst"))
             iter_name = re.escape(sign_branch.group("iter"))
-            fallback_ok = re.search(rf"{iter_name}(?: = &{iter_name}\[1\]| \+= 1);\s+{dst} = {iter_name};", text) is not None
+            fallback_ok = (
+                re.search(rf"{iter_name}(?: = &{iter_name}\[1\]| \+= 1);\s+{dst} = {iter_name};", text) is not None
+            )
         assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None or fallback_ok
 
     @for_all_structuring_algos

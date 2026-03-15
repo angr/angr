@@ -231,7 +231,9 @@ def _byte_pointer_type_for(obj: Any, arch) -> SimTypePointer:
 
 def _is_pointer_to_array_type(ty: SimType | None) -> bool:
     ty = unpack_typeref(ty)
-    return isinstance(ty, SimTypePointer) and isinstance(unpack_typeref(ty.pts_to), (SimTypeArray, SimTypeFixedSizeArray))
+    return isinstance(ty, SimTypePointer) and isinstance(
+        unpack_typeref(ty.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+    )
 
 
 def _decay_pointer_to_array_type(ty: SimType, arch) -> SimType:
@@ -8523,10 +8525,7 @@ class PointerArrayDecayFixer(CStructuredCodeWalker):
             self._type_updates[variable] = _decay_pointer_to_array_type(cvar.type, arch)
 
         for arg in obj.arg_list:
-            if (
-                arg.variable in variable_manager.variables_with_manual_types
-                or not _is_pointer_to_array_type(arg.type)
-            ):
+            if arg.variable in variable_manager.variables_with_manual_types or not _is_pointer_to_array_type(arg.type):
                 continue
             self._type_updates[arg.variable] = _decay_pointer_to_array_type(arg.type, arch)
 
