@@ -689,27 +689,27 @@ class SimEngineSSARewriting(
             # in case of emergency, raise keyerror
             if isinstance(expr, StackBaseOffset):
                 assert isinstance(expr.offset, int)
-                if self._fail_fast or expr.offset in self.state.stackvars:
+                if expr.offset in self.state.stackvars:
                     return self.state.stackvars[expr.offset]
             elif isinstance(expr, Register):
-                if self._fail_fast or expr.reg_offset in self.state.registers:
+                if expr.reg_offset in self.state.registers:
                     return self.state.registers[expr.reg_offset]
             else:
                 raise TypeError(expr)
 
             # we got here because expr refers to a non-existent stack offset or register offset.
             # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
-            if self._fail_fast:
+            if self._fail_fast and not self._allow_missing_call_arg(expr):
                 raise KeyError(expr)
             # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
             offset = expr.offset if isinstance(expr, StackBaseOffset) else expr.reg_offset
             if kind == "stack":
                 next_off = min((o for o in self.state.stackvars if o >= offset), default=offset + 4)
+                size = next_off - offset
             else:
                 # kind == "reg"
-                next_off = min((o for o in self.state.registers if o >= offset), default=offset + 4)
-            size = next_off - offset
+                size = expr.size
         else:
             # unpack udef
             kind, offset, size = udef
@@ -741,6 +741,19 @@ class SimEngineSSARewriting(
                 for suboff in range(offset, offset + size):
                     self.state.registers[suboff] = vvar
         return vvar
+
+    def _allow_missing_call_arg(self, expr: Def) -> bool:
+        if not isinstance(expr, Register) or self.block is None or self.stmt_idx >= len(self.block.statements):
+            return False
+
+        stmt = self.block.statements[self.stmt_idx]
+        call_expr = None
+        if isinstance(stmt, SideEffectStatement):
+            call_expr = stmt.expr
+        elif isinstance(stmt, (Assignment, WeakAssignment)) and isinstance(stmt.src, Call):
+            call_expr = stmt.src
+
+        return call_expr is not None and call_expr.args is not None and any(arg is expr for arg in call_expr.args)
 
     def _vvar_extract(
         self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject

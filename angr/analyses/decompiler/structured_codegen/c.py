@@ -260,9 +260,12 @@ def _stack_array_is_scalar_promotion(variable: SimVariable, ty: SimType | None, 
     if not isinstance(variable, SimStackVariable):
         return False
     ty = unpack_typeref(ty)
-    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)) or ty.size is None:
+    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
         return False
-    return ty.size // arch.byte_width == variable.size
+    elem_type = unpack_typeref(ty.elem_type)
+    if elem_type.size is None:
+        return False
+    return elem_type.size // arch.byte_width == variable.size
 
 
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
