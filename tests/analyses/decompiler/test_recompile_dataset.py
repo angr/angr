@@ -544,6 +544,7 @@ def _generate_harness(func_name, decomp_body, decomp_nargs):
         }}
     """)
 
+
 def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
     """Build and run a semantic equivalence test."""
     src_path = _get_source_path(bin_path)
