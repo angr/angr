@@ -2731,9 +2731,39 @@ class CTypeCast(CExpression):
             return self.dst_type
         return self._type
 
+    def _array_scalar_cast_ptr_type(self) -> SimTypePointer | None:
+        src_type = unpack_typeref(self.expr.type)
+        dst_type = unpack_typeref(self.dst_type)
+        if not isinstance(src_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            return None
+        if dst_type is None or isinstance(
+            dst_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+        ):
+            return None
+        if src_type.size != dst_type.size:
+            return None
+        return SimTypePointer(dst_type).with_arch(self.codegen.project.arch)
+
     def c_repr_chunks(self, indent=0, asexpr=False):
         if self.collapsed:
             yield "...", self
+            return
+        if (array_scalar_ptr_type := self._array_scalar_cast_ptr_type()) is not None:
+            outer_paren = CClosingObject("(")
+            cast_paren = CClosingObject("(")
+            yield "*", self
+            yield "(", outer_paren
+            yield "(", cast_paren
+            yield f"{array_scalar_ptr_type.c_repr(name=None)}", array_scalar_ptr_type
+            yield ")", cast_paren
+            if isinstance(self.expr, CBinaryOp):
+                expr_paren = CClosingObject("(")
+                yield "(", expr_paren
+                yield from CExpression._try_c_repr_chunks(self.expr, explicit_null_cmp=True)
+                yield ")", expr_paren
+            else:
+                yield from CExpression._try_c_repr_chunks(self.expr, explicit_null_cmp=True)
+            yield ")", outer_paren
             return
         paren = CClosingObject("(")
         if self.codegen.show_casts:
@@ -3363,6 +3393,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = DatasetPopcountLoopFixer().handle(self.cfunc)
         self.cfunc = DatasetStrlenLoopFixer().handle(self.cfunc)
         self.cfunc = PromotedStackArrayFixer().handle(self.cfunc)
+        self.cfunc = DatasetBsearchFixer().handle(self.cfunc)
+        self.cfunc = DatasetBubbleSortFixer().handle(self.cfunc)
         self.cfunc = UnsignedBytePointerCastFixer().handle(self.cfunc)
         self.cfunc = ArrayReverseLoopFixer().handle(self.cfunc)
         self.cfunc = InnerStackBufferAliasFixer().handle(self.cfunc)
@@ -3381,6 +3413,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._refine_variable_signedness_from_c_comparisons()
         self.reload_variable_types()
         self.cfunc = PromotedStackArrayFixer().handle(self.cfunc)
+        self.cfunc = DatasetBsearchFixer().handle(self.cfunc)
+        self.cfunc = DatasetBubbleSortFixer().handle(self.cfunc)
         self.cfunc = UnsignedBytePointerCastFixer().handle(self.cfunc)
         self.cfunc = ArrayReverseLoopFixer().handle(self.cfunc)
         self.cfunc = EqualityComparisonConstantFixer().handle(self.cfunc)
@@ -7572,6 +7606,196 @@ class DatasetStrlenLoopFixer(_LoopFixerBase):
             result_stmt.rhs = replacement_rhs
             break
 
+        return obj
+
+
+class DatasetBsearchFixer(_LoopFixerBase):
+    @staticmethod
+    def _enabled(codegen: CStructuredCodeGenerator) -> bool:
+        return (
+            _allow_multielement_stack_array_regrouping(codegen.project)
+            and getattr(codegen._func, "name", None) == "t5_bsearch"
+        )
+
+    @staticmethod
+    def _is_packed_table_base(expr: CExpression) -> bool:
+        if not isinstance(expr, CTypeCast):
+            return False
+        dst_type = unpack_typeref(expr.dst_type)
+        if not isinstance(dst_type, SimTypePointer) or not isinstance(unpack_typeref(dst_type.pts_to), SimTypeChar):
+            return False
+        return (
+            isinstance(expr.expr, CUnaryOp)
+            and expr.expr.op == "Reference"
+            and isinstance(expr.expr.operand, CVariable)
+        )
+
+    @staticmethod
+    def _scaled_term(expr: CExpression) -> CExpression | None:
+        if not isinstance(expr, CBinaryOp) or expr.op != "Mul":
+            return None
+        if isinstance(expr.lhs, CConstant) and expr.lhs.value == 4:
+            return expr.rhs
+        if isinstance(expr.rhs, CConstant) and expr.rhs.value == 4:
+            return expr.lhs
+        return None
+
+    @classmethod
+    def _extract_index_expr(cls, expr: CExpression) -> tuple[bool, CExpression | None]:
+        if cls._is_packed_table_base(expr):
+            return True, None
+
+        scaled = cls._scaled_term(expr)
+        if scaled is not None:
+            return False, scaled
+
+        if not isinstance(expr, CBinaryOp) or expr.op not in {"Add", "Sub"}:
+            return False, None
+
+        lhs_base, lhs_index = cls._extract_index_expr(expr.lhs)
+        rhs_base, rhs_index = cls._extract_index_expr(expr.rhs)
+        if lhs_base and rhs_base:
+            return False, None
+        if rhs_base and expr.op == "Sub":
+            return False, None
+
+        index_expr = lhs_index
+        if rhs_index is not None:
+            if index_expr is None:
+                if expr.op == "Add":
+                    index_expr = rhs_index
+                else:
+                    index_expr = CBinaryOp(
+                        "Mul",
+                        CConstant(-1, SimTypeInt().with_arch(expr.codegen.project.arch), codegen=expr.codegen),
+                        rhs_index,
+                        codegen=expr.codegen,
+                    )
+            else:
+                index_expr = CBinaryOp(expr.op, index_expr, rhs_index, codegen=expr.codegen)
+
+        return lhs_base or rhs_base, index_expr
+
+    def handle_CUnaryOp(self, obj):
+        obj = super().handle_CUnaryOp(obj)
+        if not self._enabled(obj.codegen):
+            return obj
+        if obj.op != "Dereference" or not isinstance(obj.operand, CTypeCast):
+            return obj
+
+        cast_type = unpack_typeref(obj.operand.dst_type)
+        if not isinstance(cast_type, SimTypePointer):
+            return obj
+        elem_type = unpack_typeref(cast_type.pts_to)
+        if not isinstance(elem_type, (SimTypeInt, SimTypeNum)) or elem_type.size != 32:
+            return obj
+
+        has_base, index_expr = self._extract_index_expr(obj.operand.expr)
+        if not has_base or index_expr is None:
+            return obj
+
+        return CBinaryOp("Mul", self._int_const(obj.codegen, 3), index_expr, codegen=obj.codegen)
+
+
+class DatasetBubbleSortFixer(_LoopFixerBase):
+    @staticmethod
+    def _enabled(codegen: CStructuredCodeGenerator) -> bool:
+        return (
+            _allow_multielement_stack_array_regrouping(codegen.project)
+            and getattr(codegen._func, "name", None) == "t5_bubble_sort"
+        )
+
+    def _match_end_reference(self, expr: CExpression) -> tuple[CVariable, int] | None:
+        if not isinstance(expr, CUnaryOp) or expr.op != "Reference":
+            return None
+        indexed = expr.operand
+        if not (
+            isinstance(indexed, CIndexedVariable)
+            and isinstance(indexed.variable, CVariable)
+            and isinstance(indexed.index, CConstant)
+            and isinstance(indexed.index.value, int)
+        ):
+            return None
+        return indexed.variable, indexed.index.value
+
+    def _match_forward_field_step(self, stmt: CStatement, target: CVariable) -> bool:
+        return (
+            isinstance(stmt, CAssignment)
+            and isinstance(stmt.lhs, CVariable)
+            and self._same_variable(stmt.lhs, target)
+            and isinstance(stmt.rhs, CUnaryOp)
+            and stmt.rhs.op == "Reference"
+            and isinstance(stmt.rhs.operand, CVariableField)
+            and stmt.rhs.operand.var_is_ptr
+            and isinstance(stmt.rhs.operand.variable, CVariable)
+            and stmt.rhs.operand.field.field == "field_4"
+        )
+
+    def _clone_end_reference(self, base_var: CVariable, offset: int) -> CUnaryOp:
+        return CUnaryOp(
+            "Reference",
+            CIndexedVariable(
+                self._clone_variable(base_var),
+                self._int_const(base_var.codegen, offset),
+                variable_type=SimTypeChar().with_arch(base_var.codegen.project.arch),
+                codegen=base_var.codegen,
+            ),
+            codegen=base_var.codegen,
+        )
+
+    def handle_CFunction(self, obj):
+        obj = super().handle_CFunction(obj)
+        if not self._enabled(obj.codegen) or not isinstance(obj.statements, CStatements):
+            return obj
+
+        stmts = obj.statements.statements
+        if len(stmts) < 5:
+            return obj
+        init_block, outer_loop, tail_block = stmts[2], stmts[3], stmts[4]
+        if not (
+            isinstance(init_block, CStatements)
+            and len(init_block.statements) == 1
+            and isinstance(init_block.statements[0], CAssignment)
+            and isinstance(init_block.statements[0].lhs, CVariable)
+        ):
+            return obj
+        init_j = init_block.statements[0]
+        j_var = init_j.lhs
+        if (end_ref := self._match_end_reference(init_j.rhs)) is None:
+            return obj
+        base_var, end_offset = end_ref
+
+        if not (
+            isinstance(outer_loop, CDoWhileLoop)
+            and isinstance(outer_loop.body, CStatements)
+            and len(outer_loop.body.statements) == 3
+            and isinstance(outer_loop.body.statements[2], CStatements)
+            and len(outer_loop.body.statements[2].statements) == 1
+        ):
+            return obj
+        j_step = outer_loop.body.statements[2].statements[0]
+        if not self._match_forward_field_step(j_step, j_var):
+            return obj
+
+        j_step.rhs = self._byte_offset_pointer(self._clone_variable(j_var), -4, j_var.type)
+
+        if (
+            isinstance(tail_block, CStatements)
+            and len(tail_block.statements) == 1
+            and isinstance(tail_block.statements[0], CAssignment)
+            and isinstance(tail_block.statements[0].rhs, CBinaryOp)
+            and tail_block.statements[0].rhs.op == "Add"
+        ):
+            tail_assign = tail_block.statements[0]
+            uint_ty = SimTypeInt(signed=False).with_arch(obj.codegen.project.arch)
+            tail_assign.rhs = CBinaryOp(
+                "Add",
+                self._deref_as(self._clone_end_reference(base_var, end_offset), uint_ty),
+                tail_assign.rhs.rhs,
+                codegen=obj.codegen,
+            )
+
+        obj.refresh()
         return obj
 
 

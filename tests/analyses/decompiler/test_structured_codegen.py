@@ -8,6 +8,10 @@ import unittest
 import archinfo
 
 from angr.analyses.decompiler.structured_codegen.c import (
+    CFakeVariable,
+    CStructField,
+    CTypeCast,
+    CVariableField,
     CStructuredCodeGenerator,
     CVariable,
     PromotedStackArrayFixer,
@@ -15,7 +19,7 @@ from angr.analyses.decompiler.structured_codegen.c import (
     _stack_array_is_scalar_promotion,
     _stack_array_spans_multiple_slots,
 )
-from angr.sim_type import SimTypeArray, SimTypeChar, SimTypeInt, SimTypePointer
+from angr.sim_type import SimStruct, SimTypeArray, SimTypeChar, SimTypeInt, SimTypePointer
 from angr.sim_variable import SimStackVariable
 
 
@@ -113,6 +117,33 @@ class TestStructuredCodegen(unittest.TestCase):
 
         self.assertIs(pointer_expr, cvar)
         self.assertNotIn(stack_var, codegen._promoted_stack_scalars)
+
+    def test_c_type_cast_scalarizes_array_field_reads(self):
+        codegen = object.__new__(CStructuredCodeGenerator)
+        codegen_any = cast(Any, codegen)
+        codegen_any.project = SimpleNamespace(
+            arch=archinfo.ArchAMD64(), loader=SimpleNamespace(main_object=SimpleNamespace(binary="unit-test"))
+        )
+        codegen_any.show_casts = True
+        codegen_any.display_vvar_ids = False
+        codegen_any.stack_var_ref_name = lambda var: None
+        codegen_any.idx_counters = {}
+        codegen_any.stmt_comments = {}
+
+        arch = codegen.project.arch
+        struct_ty = SimStruct(
+            {
+                "field_0": SimTypeArray(SimTypeChar(signed=False).with_arch(arch), 4).with_arch(arch),
+                "field_4": SimTypeInt(signed=False).with_arch(arch),
+            },
+            name="struct_0",
+        ).with_arch(arch)
+        cur = CFakeVariable("cur", SimTypePointer(struct_ty).with_arch(arch), codegen=codegen)
+        field = CVariableField(cur, CStructField(struct_ty, 0, "field_0", codegen=codegen), var_is_ptr=True, codegen=codegen)
+
+        expr = CTypeCast(field.type, SimTypeInt(signed=False).with_arch(arch), field, codegen=codegen)
+
+        self.assertEqual("".join(chunk for chunk, _ in expr.c_repr_chunks()), "*((unsigned int *)cur->field_0)")
 
 
 if __name__ == "__main__":

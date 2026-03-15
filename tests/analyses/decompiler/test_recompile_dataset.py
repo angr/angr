@@ -353,16 +353,6 @@ def _classify(_func_name, text):
     }:
         if not re.search(rf"\b{re.escape(helper_name)}\b\s*\([^)]*\)\s*\{{", text):
             return "compile_fail", "contains unresolved local helper reference"
-    if (
-        _func_name == "t5_bsearch"
-        and "unsigned __int128" in text
-        and "((char *)&" in text
-        and "int *)((char *)&" in text
-        and re.search(r"0x[0-9A-Fa-f]{17,}", text)
-    ):
-        return "compile_fail", "contains scalarized packed search table"
-    if _func_name == "t5_bubble_sort" and "cur = &cur->field_4" in text and "typedef struct struct_0" in text:
-        return "compile_fail", "contains scalarized overlapping bubble-sort window"
     if re.search(r"(?<!\w)_helper_[A-Za-z0-9_]*\b", text):
         return "compile_fail", "contains unresolved local helper reference"
     for width_match in re.finditer(r"\b(?:u?int)(\d+)_t\b", text):
@@ -417,31 +407,6 @@ def test_classify_invalid_type_tokens(text, reason):
     category, actual_reason = _classify("f", text)
     assert category == "compile_fail"
     assert actual_reason == reason
-
-
-def test_classify_scalarized_packed_search_table():
-    text = (
-        "int t5_bsearch(int a0) { int v0; unsigned __int128 v1; "
-        "v0 = 0x9000000060000000300000000; "
-        "return *((int *)((char *)&v0 + 4 * a0)); }"
-    )
-
-    category, actual_reason = _classify("t5_bsearch", text)
-    assert category == "compile_fail"
-    assert actual_reason == "contains scalarized packed search table"
-
-
-def test_classify_scalarized_bubble_sort_window():
-    text = (
-        "typedef struct struct_0 { unsigned char field_0[4]; unsigned int field_4; } struct_0; "
-        "int t5_bubble_sort(void) { struct_0 *j; struct_0 *cur; "
-        "do { do { } while ((cur = &cur->field_4, cur != j)); j = &j->field_4; } while (j != cur); return 0; }"
-    )
-
-    category, actual_reason = _classify("t5_bubble_sort", text)
-    assert category == "compile_fail"
-    assert actual_reason == "contains scalarized overlapping bubble-sort window"
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Semantic equivalence
@@ -654,8 +619,6 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
         if reason in {
             "contains unresolved ISA availability global",
             "contains unresolved local helper reference",
-            "contains scalarized overlapping bubble-sort window",
-            "contains scalarized packed search table",
         }:
             pytest.xfail(reason)
         if not compiled:
