@@ -2976,10 +2976,13 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         text = d.codegen.text
         # The first sign-handling branch should be collapsed into a single expression form.
-        assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None or (
-            re.search(r"v\d+ = &iter\[\(unsigned char\)v5 == 45\];", text) is not None
-            and re.search(r"iter(?: = &iter\[1\]| \+= 1);\s+v\d+ = iter;", text) is not None
-        )
+        sign_branch = re.search(r"(?P<dst>v\d+) = &(?P<iter>[A-Za-z_]\w*)\[\(unsigned char\)v5 == 45\];", text)
+        fallback_ok = False
+        if sign_branch is not None:
+            dst = re.escape(sign_branch.group("dst"))
+            iter_name = re.escape(sign_branch.group("iter"))
+            fallback_ok = re.search(rf"{iter_name}(?: = &{iter_name}\[1\]| \+= 1);\s+{dst} = {iter_name};", text) is not None
+        assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None or fallback_ok
 
     @for_all_structuring_algos
     def test_automatic_ternary_creation_2(self, decompiler_options=None):
