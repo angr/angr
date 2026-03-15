@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
+from collections import Counter
 from typing import Any, TYPE_CHECKING
 
 import networkx
@@ -18,7 +19,7 @@ from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
-from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
+from .structuring import RecursiveStructurer, PhoenixStructurer, DreamStructurer, SAILRStructurer, DEFAULT_STRUCTURER
 from .region_identifier import RegionIdentifier
 from .optimization_passes.optimization_pass import OptimizationPassStage
 from .ailgraph_walker import AILGraphWalker
@@ -27,7 +28,7 @@ from .decompilation_options import DecompilationOption, PARAM_TO_OPTION
 from .decompilation_cache import DecompilationCache
 from .utils import remove_edges_in_ailgraph
 from .sequence_walker import SequenceWalker
-from .structuring.structurer_nodes import SequenceNode
+from .structuring.structurer_nodes import SequenceNode, SwitchCaseNode, IncompleteSwitchCaseHeadStatement
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
 
@@ -84,6 +85,7 @@ class Decompiler(Analysis):
         clinic_skip_stages=(),
         static_vvars: dict | None = None,
         static_buffers: dict | None = None,
+        allow_structurer_fallback: bool = True,
     ):
         if not isinstance(func, Function):
             func = self.kb.functions[func]
@@ -132,6 +134,7 @@ class Decompiler(Analysis):
         self._desired_variables = frozenset(desired_variables) if desired_variables else set()
         self._static_vvars = static_vvars if static_vvars is not None else {}
         self._static_buffers = static_buffers if static_buffers is not None else {}
+        self._allow_structurer_fallback = allow_structurer_fallback
         self._cache_parameters = (
             {
                 "cfg": self._cfg,
@@ -394,6 +397,17 @@ class Decompiler(Analysis):
                 func=self.func,
                 **self._recursive_structurer_params,
             )
+            if rs.result_incomplete:
+                fallback = self._retry_decompilation_without_lowered_switch_simplifier()
+                if fallback is None:
+                    fallback = self._retry_decompilation_with_fallback_structurer()
+                if fallback is not None:
+                    self._adopt_fallback_decompilation(fallback)
+                    self._update_progress(95.0, text="Finishing up")
+                    if self.update_cache:
+                        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
+                    self._finish_progress()
+                    return
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it
@@ -418,6 +432,18 @@ class Decompiler(Analysis):
             # rewrite the sequence node to remove phi expressions
             seq_node = self.transform_seqnode_from_ssa(seq_node)
 
+            if self._lowered_switch_case_counts_mismatch(clinic.cc_graph, seq_node):
+                fallback = self._retry_decompilation_without_lowered_switch_simplifier()
+                if fallback is None:
+                    fallback = self._retry_decompilation_with_fallback_structurer()
+                if fallback is not None:
+                    self._adopt_fallback_decompilation(fallback)
+                    self._update_progress(95.0, text="Finishing up")
+                    if self.update_cache:
+                        self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
+                    self._finish_progress()
+                    return
+
             # update memory data
             if self._cfg is not None and self._update_memory_data:
                 self.find_data_references_and_update_memory_data(seq_node)
@@ -438,6 +464,7 @@ class Decompiler(Analysis):
                     stmt_comments=old_codegen.stmt_comments if old_codegen is not None else None,
                     const_formats=old_codegen.const_formats if old_codegen is not None else None,
                     externs=clinic.externs,
+                    stackvar_max_sizes=cache.stackvar_max_sizes,
                     binop_depth_cutoff=self.expr_collapse_depth,
                     notes=self.notes,
                     **self.options_to_params(self.options_by_class["codegen"]),
@@ -464,6 +491,183 @@ class Decompiler(Analysis):
         if self.update_cache:
             self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
+
+    def _fallback_structurer_classes(self) -> tuple[type, ...]:
+        if not self._allow_structurer_fallback:
+            return ()
+
+        structurer_cls = self._recursive_structurer_params["structurer_cls"]
+        if structurer_cls is SAILRStructurer:
+            return (PhoenixStructurer, DreamStructurer)
+        if structurer_cls is PhoenixStructurer:
+            return (DreamStructurer,)
+        return ()
+
+    def _has_optimization_pass(self, pass_name: str) -> bool:
+        return any(pass_.__name__ == pass_name for pass_ in self._optimization_passes)
+
+    def _optimization_passes_without(self, pass_name: str):
+        return [pass_ for pass_ in self._optimization_passes if pass_.__name__ != pass_name]
+
+    def _options_with_structurer(self, structurer_cls: type) -> list[tuple[DecompilationOption, Any]]:
+        structurer_option = PARAM_TO_OPTION["structurer_cls"]
+        return [
+            *((opt, value) for opt, value in self._options if opt.param != "structurer_cls"),
+            (structurer_option, structurer_cls.NAME),
+        ]
+
+    @staticmethod
+    def _lowered_switch_case_counts(graph: networkx.DiGraph | None) -> list[int]:
+        if graph is None:
+            return []
+
+        counts = []
+        for node in graph.nodes:
+            if not isinstance(node, ailment.Block):
+                continue
+            for stmt in node.statements:
+                if isinstance(stmt, IncompleteSwitchCaseHeadStatement):
+                    counts.append(len({case_value for _, case_value, *_ in stmt.case_addrs}))
+        return counts
+
+    @staticmethod
+    def _structured_switch_case_counts(seq_node: SequenceNode | None) -> list[int]:
+        if seq_node is None:
+            return []
+
+        class _SwitchCollector(SequenceWalker):
+            def __init__(self):
+                self.counts: list[int] = []
+                super().__init__(handlers={SwitchCaseNode: self._handle_switch}, update_seqnode_in_place=False)
+
+            def _handle_switch(self, node: SwitchCaseNode, **kwargs):
+                count = sum(len(case_idx) if isinstance(case_idx, tuple) else 1 for case_idx in node.cases)
+                if node.default_node is not None:
+                    count += 1
+                self.counts.append(count)
+                return super()._handle_SwitchCase(node, **kwargs)
+
+        collector = _SwitchCollector()
+        collector.walk(seq_node)
+        return collector.counts
+
+    def _lowered_switch_case_counts_mismatch(
+        self, graph: networkx.DiGraph | None, seq_node: SequenceNode | None
+    ) -> bool:
+        if (
+            not self._allow_structurer_fallback
+            or self._recursive_structurer_params["structurer_cls"] is not SAILRStructurer
+            or not self._has_optimization_pass("LoweredSwitchSimplifier")
+        ):
+            return False
+
+        expected = Counter(self._lowered_switch_case_counts(graph))
+        if not expected:
+            return False
+        actual = Counter(self._structured_switch_case_counts(seq_node))
+        return any(actual[count] < occurrences for count, occurrences in expected.items())
+
+    def _retry_decompilation_without_lowered_switch_simplifier(self) -> Decompiler | None:
+        if (
+            not self._allow_structurer_fallback
+            or self._recursive_structurer_params["structurer_cls"] is not SAILRStructurer
+            or not self._has_optimization_pass("LoweredSwitchSimplifier")
+        ):
+            return None
+
+        l.info("Retrying decompilation of %s without LoweredSwitchSimplifier.", self.func)
+        decomp = self.project.analyses[Decompiler].prep(kb=self.kb, fail_fast=self._fail_fast)(
+            self.func,
+            cfg=self._cfg,
+            options=self._options,
+            optimization_passes=self._optimization_passes_without("LoweredSwitchSimplifier"),
+            sp_tracker_track_memory=self._sp_tracker_track_memory,
+            variable_kb=self._variable_kb,
+            peephole_optimizations=self._peephole_optimizations,
+            vars_must_struct=self._vars_must_struct,
+            flavor=self._flavor,
+            expr_comments=self._expr_comments,
+            stmt_comments=self._stmt_comments,
+            ite_exprs=self._ite_exprs,
+            binop_operators=self._binop_operators,
+            regen_clinic=self._regen_clinic,
+            inline_functions=self._inline_functions,
+            desired_variables=self._desired_variables,
+            update_memory_data=self._update_memory_data,
+            want_full_graph=self._want_full_graph,
+            generate_code=self._generate_code,
+            use_cache=False,
+            update_cache=False,
+            expr_collapse_depth=self.expr_collapse_depth,
+            clinic_start_stage=self._clinic_start_stage,
+            clinic_end_stage=self._clinic_end_stage,
+            clinic_skip_stages=self._clinic_skip_stages,
+            static_vvars=self._static_vvars,
+            static_buffers=self._static_buffers,
+            allow_structurer_fallback=False,
+        )
+        if decomp.codegen is not None and decomp.seq_node is not None and not decomp.errors:
+            return decomp
+        return None
+
+    def _retry_decompilation_with_fallback_structurer(self) -> Decompiler | None:
+        for structurer_cls in self._fallback_structurer_classes():
+            l.info(
+                "Retrying decompilation of %s with %s after incomplete %s result.",
+                self.func,
+                structurer_cls.NAME,
+                self._recursive_structurer_params["structurer_cls"].NAME,
+            )
+            decomp = self.project.analyses[Decompiler].prep(kb=self.kb, fail_fast=self._fail_fast)(
+                self.func,
+                cfg=self._cfg,
+                options=self._options_with_structurer(structurer_cls),
+                optimization_passes=self._optimization_passes,
+                sp_tracker_track_memory=self._sp_tracker_track_memory,
+                variable_kb=self._variable_kb,
+                peephole_optimizations=self._peephole_optimizations,
+                vars_must_struct=self._vars_must_struct,
+                flavor=self._flavor,
+                expr_comments=self._expr_comments,
+                stmt_comments=self._stmt_comments,
+                ite_exprs=self._ite_exprs,
+                binop_operators=self._binop_operators,
+                regen_clinic=self._regen_clinic,
+                inline_functions=self._inline_functions,
+                desired_variables=self._desired_variables,
+                update_memory_data=self._update_memory_data,
+                want_full_graph=self._want_full_graph,
+                generate_code=self._generate_code,
+                use_cache=False,
+                update_cache=False,
+                expr_collapse_depth=self.expr_collapse_depth,
+                clinic_start_stage=self._clinic_start_stage,
+                clinic_end_stage=self._clinic_end_stage,
+                clinic_skip_stages=self._clinic_skip_stages,
+                static_vvars=self._static_vvars,
+                static_buffers=self._static_buffers,
+                allow_structurer_fallback=False,
+            )
+            if decomp.codegen is not None and decomp.seq_node is not None and not decomp.errors:
+                return decomp
+        return None
+
+    def _adopt_fallback_decompilation(self, decomp: Decompiler) -> None:
+        self._options = decomp._options
+        self._cache_parameters = decomp._cache_parameters
+        self._recursive_structurer_params = decomp._recursive_structurer_params
+        self.options_by_class = decomp.options_by_class
+        self.clinic = decomp.clinic
+        self.codegen = decomp.codegen
+        self.cache = decomp.cache
+        self.seq_node = decomp.seq_node
+        self.unoptimized_ail_graph = decomp.unoptimized_ail_graph
+        self.ail_graph = decomp.ail_graph
+        self.vvar_id_start = decomp.vvar_id_start
+        self._copied_var_ids = decomp._copied_var_ids
+        self._optimization_scratch = decomp._optimization_scratch
+        self.notes = decomp.notes
+        self.region_identifier = decomp.region_identifier
 
     def _recover_regions(self, graph: networkx.DiGraph, condition_processor, update_graph: bool = True):
         return self.project.analyses[RegionIdentifier].prep(kb=self.kb, fail_fast=self._fail_fast)(
@@ -855,19 +1059,17 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        # collect unified variables
-        varman = self._variable_kb.variables[self.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-
-        # also collect argument variables
-        arg_vars = []
-        if self.codegen and self.codegen.cfunc and self.codegen.cfunc.arg_list:
-            for cvar in self.codegen.cfunc.arg_list:
-                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                if v not in unified_vars:
-                    arg_vars.append(v)
-
-        all_vars = unified_vars + arg_vars
+        # collect variables that actually appear in the generated code
+        all_vars = []
+        if self.codegen and self.codegen.cfunc:
+            # local variables from the cfunc tree (only those visible in output)
+            all_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            # argument variables
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in all_vars:
+                        all_vars.append(v)
         if not all_vars:
             return False
 
@@ -975,7 +1177,16 @@ class Decompiler(Analysis):
             return False
 
         varman = self._variable_kb.variables[self.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
+
+        # collect variables that actually appear in the generated code
+        unified_vars = []
+        if self.codegen and self.codegen.cfunc:
+            unified_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            if self.codegen.cfunc.arg_list:
+                for cvar in self.codegen.cfunc.arg_list:
+                    v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                    if v not in unified_vars:
+                        unified_vars.append(v)
 
         if not unified_vars:
             return False

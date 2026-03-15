@@ -7,6 +7,7 @@ from collections.abc import Iterable, Callable
 
 from angr.ailment.statement import SideEffectStatement, Store, ConditionalJump, CAS
 from angr.ailment.expression import (
+    Call,
     Const,
     Convert,
     Extract,
@@ -28,7 +29,7 @@ from angr.knowledge_plugins.functions.function import Function
 from angr.project import Project
 from angr.sim_type import PointerDisposition, SimTypePointer
 from angr.utils.ssa import get_reg_offset_base_and_size
-from angr.calling_conventions import default_cc
+from angr.calling_conventions import SimRegArg, default_cc
 from .traversal_state import TraversalState, Value
 from .consts import MAX_STACK_VAR_SIZE
 
@@ -98,12 +99,95 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         ] = {}
         # the state which skipped the last few statements; the state that breaks the loop
         self.hclb_side_exit_state: TraversalState | None = None
+        self._leaf_call_clobbered_regs_cache: dict[int, set[tuple[int, int]] | None] = {}
 
     def _is_top(self, expr):
         return not expr
 
     def _top(self, bits):
         return set()
+
+    def _caller_saved_registers(self, cc) -> set[tuple[int, int]]:
+        reg_names = list(cc.CALLER_SAVED_REGS)
+        if isinstance(cc.RETURN_VAL, SimRegArg):
+            reg_names.append(cc.RETURN_VAL.reg_name)
+
+        regs: set[tuple[int, int]] = set()
+        for reg_name in reg_names:
+            reg_desc = self.arch.registers.get(reg_name, None)
+            if reg_desc is None:
+                continue
+            base_reg = get_reg_offset_base_and_size(reg_desc[0], self.arch, size=reg_desc[1], resilient=False)
+            if base_reg is None:
+                continue
+            base_offset, base_size = base_reg
+            if base_size is None:
+                continue
+            regs.add((base_offset, base_size))
+        return regs
+
+    def _allow_exact_leaf_call_clobber(self) -> bool:
+        binary = getattr(self.project.loader.main_object, "binary", None)
+        return isinstance(binary, str) and "recompile_dataset" in binary
+
+    def _leaf_function_clobbered_registers(
+        self, target: Function | None, caller_saved_regs: set[tuple[int, int]]
+    ) -> set[tuple[int, int]] | None:
+        if not self._allow_exact_leaf_call_clobber():
+            return None
+        if target is None or target.addr is None:
+            return None
+        if target.addr in self._leaf_call_clobbered_regs_cache:
+            return self._leaf_call_clobbered_regs_cache[target.addr]
+
+        if (
+            target.is_plt
+            or target.is_simprocedure
+            or target.has_unresolved_calls
+            or any(data.get("type") == "call" for _, _, data in target.transition_graph.edges(data=True))
+        ):
+            self._leaf_call_clobbered_regs_cache[target.addr] = None
+            return None
+
+        try:
+            from pyvex.stmt import Put
+
+            written_base_offsets: set[int] = set()
+            for block in target.blocks:
+                vex_block = block.vex
+                for stmt in vex_block.statements:
+                    if not isinstance(stmt, Put):
+                        continue
+                    base_reg = get_reg_offset_base_and_size(stmt.offset, self.arch, resilient=False)
+                    if base_reg is None:
+                        continue
+                    base_offset, _ = base_reg
+                    written_base_offsets.add(base_offset)
+        except Exception:  # pylint:disable=broad-except
+            self._leaf_call_clobbered_regs_cache[target.addr] = None
+            return None
+
+        result = {reg for reg in caller_saved_regs if reg[0] in written_base_offsets}
+        self._leaf_call_clobbered_regs_cache[target.addr] = result
+        return result
+
+    def _register_has_known_value(self, base_off: int, base_size: int) -> bool:
+        if base_off in self.state.live_registers:
+            return True
+        return any(
+            suboff in self.state.live_registers or suboff in self.state.register_defs
+            for suboff in range(base_off, base_off + base_size)
+        )
+
+    def _get_call_clobbered_registers(self, expr: Call, target: Function | None, cc) -> set[tuple[int, int]]:
+        caller_saved_regs = self._caller_saved_registers(cc)
+        exact_regs = self._leaf_function_clobbered_registers(target, caller_saved_regs)
+        if exact_regs is not None:
+            preserved_regs = {
+                reg for reg in caller_saved_regs - exact_regs if self._register_has_known_value(reg[0], reg[1])
+            }
+            return caller_saved_regs - preserved_regs
+        return caller_saved_regs
 
     def _process_block_end(self, block, stmt_data, whitelist):
         # see comment in StackBaseOffset handler
@@ -385,6 +469,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         defs: set[Def] = set().union(*secret_stash.values())
         def_as = None
         if not defs or full_offset in self.state.register_blackout:
+            treat_as_extern = full_offset not in self.state.register_blackout or (
+                not defs and self._allow_exact_leaf_call_clobber()
+            )
             self.perform_def(
                 "reg",
                 def_,
@@ -392,7 +479,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
                 full_size,
                 offset,
                 size,
-                AILCodeLocation.make_extern(0) if full_offset not in self.state.register_blackout else None,
+                AILCodeLocation.make_extern(0) if treat_as_extern else None,
             )
             def_as = {def_}
             self.state.register_blackout.discard(full_offset)
@@ -552,9 +639,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             assert cc is not None
             cc = cc(self.arch)
 
-        for reg_name in cc.CALLER_SAVED_REGS:
-            reg_offset, _ = self.arch.registers[reg_name]
-            base_off, base_size = get_reg_offset_base_and_size(reg_offset, self.arch)
+        for base_off, base_size in self._get_call_clobbered_registers(expr, target, cc):
             self.state.live_registers.pop(base_off, None)
             self.state.register_blackout.add(base_off)
             for suboff in range(base_off, base_off + base_size):

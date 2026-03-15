@@ -16,6 +16,8 @@ from angr.ailment.expression import (
 from angr.analyses.dominance_frontier import DominanceFrontier, calculate_iterated_dominace_frontier_set
 from angr.knowledge_plugins.functions import Function
 from angr.analyses import Analysis, register_analysis
+from angr.calling_conventions import SimRegArg, SimStackArg
+from angr.sim_type import SimTypeFunction, SimTypeInt
 from .traversal import TraversalAnalysis
 from .rewriting import RewritingAnalysis
 
@@ -97,6 +99,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         blockkey_to_block = {(block.addr, block.idx): block for block in ail_graph}
         def_to_udef: dict[Def, UDef] = {}
         extern_defs: set[UDef] = set()
+        local_defs: set[UDef] = set()
         incomplete_defs: set[Def] = set()
         for def_, definfo in traversal.def_info.items():
             if definfo.store_size != definfo.variable_size:
@@ -107,6 +110,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 extern_defs.add(udef)
                 udef_to_blockkeys[udef].add((-1, None))
             else:
+                local_defs.add(udef)
                 blockkey = (definfo.loc.addr, definfo.loc.block_idx)
                 def_to_udef[def_] = udef
                 udef_to_blockkeys[udef].add(blockkey)
@@ -148,6 +152,27 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
                 block_to_phiids[block].append(phi_id)
 
         # insert phi variables and rewrite uses
+        func_arg_extern_defs = extern_defs - local_defs
+        if self._function.calling_convention is not None:
+            valid_reg_offsets: set[int] = set()
+            valid_stack_offsets: set[int] = set()
+            cc_proto = SimTypeFunction(
+                [SimTypeInt() for _ in range(max(len(self._func_args) + 4, 8))], SimTypeInt()
+            ).with_arch(self.project.arch)
+            for arg_loc in self._function.calling_convention.arg_locs(cc_proto):
+                if isinstance(arg_loc, SimRegArg):
+                    valid_reg_offsets.add(self.project.arch.registers[arg_loc.reg_name][0])
+                elif isinstance(arg_loc, SimStackArg):
+                    valid_stack_offsets.add(arg_loc.stack_offset)
+            func_arg_extern_defs = {
+                udef
+                for udef in func_arg_extern_defs
+                if (udef[0] == "reg" and udef[1] in valid_reg_offsets)
+                or (udef[0] == "stack" and udef[1] in valid_stack_offsets)
+            }
+        if len(self._func_args) != 1 or len(func_arg_extern_defs) != 1:
+            func_arg_extern_defs = set()
+
         rewriter = RewritingAnalysis(
             self.project,
             self._function,
@@ -159,6 +184,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
             self._func_args,
             def_to_udef,
             extern_defs,
+            func_arg_extern_defs,
             incomplete_defs=incomplete_defs,
             vvar_id_start=next(phi_id_ctr),
             stackvars=self._ssa_stackvars,
@@ -167,6 +193,7 @@ class Ssailification(Analysis):  # pylint:disable=abstract-method
         self.out_graph = rewriter.out_graph
         self.max_vvar_id: int = rewriter.max_vvar_id if rewriter.max_vvar_id is not None else 0
         self.resized_func_args = rewriter.resized_func_args
+        self.additional_func_args = list(rewriter.additional_func_args.values())
 
 
 register_analysis(Ssailification, "Ssailification")

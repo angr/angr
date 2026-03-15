@@ -661,9 +661,15 @@ class SimTypeFixedSizeInt(SimTypeInt):
 
 
 class SimTypeInt128(SimTypeFixedSizeInt):
-    _base_name = "int128_t"
+    _base_name = "__int128"
     _ident = "int128"
     _fixed_size = 128
+
+    def c_repr(self, name=None, full=0, memo=None, indent=None, name_parens=True):
+        out = "unsigned __int128" if not self.signed else "__int128"
+        if name is None:
+            return out
+        return f"{out} {name}"
 
 
 class SimTypeInt256(SimTypeFixedSizeInt):
@@ -698,6 +704,14 @@ class SimTypeChar(SimTypeReg):
 
     def __repr__(self) -> str:
         return "char"
+
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint:disable=unused-argument
+        out = "char" if self.signed else "unsigned char"
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
+        if name is None:
+            return out
+        return f"{out} {name}"
 
     def store(self, state, addr, value: StoreType):
         # FIXME: This is a hack.
@@ -947,14 +961,16 @@ class SimTypePointer(SimTypeReg):
             if name is None:
                 return out
             return f"{out} {name}"
-        # if it points to an array, we do not need to add a *
-
-        deref_chr = "*" if not isinstance(self.pts_to, SimTypeArray) else ""
         quals = f"{' '.join(self.qualifier)}" if self.qualifier else ""
-        if quals:
-            name_with_deref = f"{deref_chr}{quals} {name}" if name else f"{deref_chr}{quals}"
+        if isinstance(self.pts_to, SimTypeArray):
+            if quals:
+                name_with_deref = f"(*{quals} {name})" if name else f"(*{quals})"
+            else:
+                name_with_deref = f"(*{name})" if name else "(*)"
+        elif quals:
+            name_with_deref = f"*{quals} {name}" if name else f"*{quals}"
         else:
-            name_with_deref = f"{deref_chr}{name}" if name else deref_chr
+            name_with_deref = f"*{name}" if name else "*"
         return self.pts_to.c_repr(name_with_deref, full, memo, indent)
 
     def make(self, pts_to):
