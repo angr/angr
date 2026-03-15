@@ -232,6 +232,43 @@ def _byte_pointer_type_for(obj: Any, arch) -> SimTypePointer:
     return _byte_pointer_type(getattr(obj, "type", obj), arch)
 
 
+def _normalize_value_type(ty: SimType, codegen: StructuredCodeGenerator, reference_type: SimType | None = None) -> SimType:
+    ty = unpack_typeref(ty)
+    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        return ty
+
+    size = ty.size
+    elem_type = unpack_typeref(ty.elem_type)
+    if size is None:
+        return elem_type
+
+    signed = getattr(unpack_typeref(reference_type), "signed", None) if reference_type is not None else None
+    if signed is None:
+        signed = getattr(elem_type, "signed", False)
+    return codegen.default_simtype_from_bits(size, signed=bool(signed))
+
+
+def _stack_array_spans_multiple_slots(variable: SimVariable, ty: SimType | None, arch: archinfo.Arch) -> bool:
+    if not isinstance(variable, SimStackVariable):
+        return False
+    ty = unpack_typeref(ty)
+    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)) or ty.size is None:
+        return False
+    return ty.size // arch.byte_width > variable.size
+
+
+def _stack_array_is_scalar_promotion(variable: SimVariable, ty: SimType | None, arch: archinfo.Arch) -> bool:
+    if not isinstance(variable, SimStackVariable):
+        return False
+    ty = unpack_typeref(ty)
+    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+        return False
+    elem_type = unpack_typeref(ty.elem_type)
+    if elem_type.size is None:
+        return False
+    return elem_type.size // arch.byte_width == variable.size
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -694,8 +731,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 prefers_scalar_decl
                 and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
                 and any(
-                    (count or 0) > 1
-                    for count in (_simtype_array_count(ty, self.codegen.project.arch) for ty in vartypes)
+                    _stack_array_spans_multiple_slots(variable, ty, self.codegen.project.arch)
+                    and not _stack_array_is_scalar_promotion(variable, ty, self.codegen.project.arch)
+                    for ty in vartypes
                 )
             ):
                 prefers_scalar_decl = False
@@ -709,14 +747,19 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     prefers_scalar_decl
                     and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
                     and any(
-                        (_simtype_array_count(var_type, self.codegen.project.arch) or 0) > 1 for var_type in vartypes
+                        _stack_array_spans_multiple_slots(variable, var_type, self.codegen.project.arch)
+                        and not _stack_array_is_scalar_promotion(variable, var_type, self.codegen.project.arch)
+                        for var_type in vartypes
                     )
                 ):
                     prefers_scalar_decl = False
 
             for i, var_type in enumerate(vartypes):
+                promoted_scalar_type = self.codegen._promoted_stack_scalar_types.get(variable)
                 render_type = (
-                    unpack_typeref(var_type.elem_type)
+                    promoted_scalar_type
+                    if prefers_scalar_decl and promoted_scalar_type is not None
+                    else unpack_typeref(var_type.elem_type)
                     if prefers_scalar_decl and isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray))
                     else var_type
                 )
@@ -2741,7 +2784,8 @@ class CTypeCast(CExpression):
         super().__init__(**kwargs)
 
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
-        self.dst_type = dst_type.with_arch(self.codegen.project.arch)
+        normalized_dst_type = _normalize_value_type(dst_type, self.codegen, self.src_type)
+        self.dst_type = normalized_dst_type.with_arch(self.codegen.project.arch)
         self.expr = expr
 
     @property
@@ -3306,6 +3350,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.stackvar_max_sizes = stackvar_max_sizes or {}
         self._promoted_stack_arrays: set[SimStackVariable] = set()
         self._promoted_stack_scalars: set[SimStackVariable] = set()
+        self._promoted_stack_scalar_types: dict[SimStackVariable, SimType] = {}
 
         self._analyze()
 
@@ -7504,14 +7549,29 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
         return (
             isinstance(canonical.variable, SimStackVariable)
             and canonical.variable in canonical.codegen._promoted_stack_scalars
-            and (self._array_count(canonical) or 0) <= 1
+            and (
+                not _stack_array_spans_multiple_slots(canonical.variable, canonical.type, canonical.codegen.project.arch)
+                or _stack_array_is_scalar_promotion(canonical.variable, canonical.type, canonical.codegen.project.arch)
+            )
         )
 
     @staticmethod
-    def _scalar_type(cvar: CVariable) -> SimType | None:
+    def _scalar_type(cvar: CVariable, reference_type: SimType | None = None) -> SimType | None:
         var_type = unpack_typeref(cvar.type)
         if isinstance(var_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            return unpack_typeref(var_type.elem_type)
+            elem_type = unpack_typeref(var_type.elem_type)
+            if elem_type.size is None:
+                return elem_type
+
+            reference_type = unpack_typeref(reference_type)
+            ref_signed = getattr(reference_type, "signed", None) if reference_type is not None else None
+            if ref_signed is None:
+                return elem_type
+
+            variable_bits = cvar.variable.size * cvar.codegen.project.arch.byte_width
+            if variable_bits <= 0 or elem_type.size != variable_bits:
+                return elem_type
+            return cvar.codegen.default_simtype_from_bits(variable_bits, signed=ref_signed)
         return None
 
     @staticmethod
@@ -7526,8 +7586,8 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
             and getattr(candidate_type, "signed", None) == getattr(elem_type, "signed", None)
         )
 
-    def _scalar_cvar(self, cvar: CVariable) -> CVariable:
-        scalar_type = self._scalar_type(cvar)
+    def _scalar_cvar(self, cvar: CVariable, reference_type: SimType | None = None) -> CVariable:
+        scalar_type = self._scalar_type(cvar, reference_type)
         if scalar_type is None:
             return cvar
         return CVariable(
@@ -7644,8 +7704,14 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                 best = (canonical, delta // elem_size)
         return best
 
-    def _scalarized_stack_array(self, expr: CExpression) -> CExpression:
+    def _scalarized_stack_array(self, expr: CExpression, reference_type: SimType | None = None) -> CExpression:
         if not isinstance(expr, CVariable) or not isinstance(expr.variable, SimStackVariable):
+            return expr
+        reference_type = unpack_typeref(reference_type)
+        if isinstance(
+            reference_type,
+            (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray, SimStruct, SimTypeFunction),
+        ):
             return expr
         if (containing := self._containing_promoted_stack_array(expr)) is not None:
             canonical, index = containing
@@ -7660,9 +7726,25 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                     canonical,
                     CConstant(index, SimTypeInt().with_arch(expr.codegen.project.arch), codegen=expr.codegen),
                     variable_type=unpack_typeref(canonical_type.elem_type),
-                    codegen=expr.codegen,
-                )
+                codegen=expr.codegen,
+            )
         if expr.variable not in expr.codegen._promoted_stack_arrays:
+            if _stack_array_is_scalar_promotion(expr.variable, expr.type, expr.codegen.project.arch) or not _stack_array_spans_multiple_slots(
+                expr.variable, expr.type, expr.codegen.project.arch
+            ):
+                scalar_type = self._scalar_type(expr)
+                if scalar_type is not None:
+                    canonical = self._canonical_stack_array(expr)
+                    scalar_type = self._scalar_type(canonical, reference_type)
+                    expr.codegen._promoted_stack_scalars.add(expr.variable)
+                    if scalar_type is not None:
+                        expr.codegen._promoted_stack_scalar_types[expr.variable] = scalar_type
+                    if isinstance(canonical.variable, SimStackVariable):
+                        expr.codegen._promoted_stack_scalars.add(canonical.variable)
+                        if scalar_type is not None:
+                            expr.codegen._promoted_stack_scalar_types[canonical.variable] = scalar_type
+                    self._changed = True
+                    return self._scalar_cvar(canonical, reference_type)
             return expr
         canonical = self._expand_contiguous_stack_array(self._canonical_stack_array(expr))
         canonical_type = unpack_typeref(canonical.type)
@@ -7677,10 +7759,15 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                 codegen=expr.codegen,
             )
         expr.codegen._promoted_stack_scalars.add(expr.variable)
+        scalar_type = self._scalar_type(canonical, reference_type)
+        if scalar_type is not None:
+            expr.codegen._promoted_stack_scalar_types[expr.variable] = scalar_type
         if isinstance(canonical.variable, SimStackVariable):
             expr.codegen._promoted_stack_scalars.add(canonical.variable)
+            if scalar_type is not None:
+                expr.codegen._promoted_stack_scalar_types[canonical.variable] = scalar_type
         self._changed = True
-        return self._scalar_cvar(canonical)
+        return self._scalar_cvar(canonical, reference_type)
 
     def handle_CFunction(self, obj):
         obj = super().handle_CFunction(obj)
@@ -7731,14 +7818,20 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
 
     def handle_CAssignment(self, obj):
         obj = super().handle_CAssignment(obj)
-        obj.lhs = self._scalarized_stack_array(obj.lhs)
-        obj.rhs = self._scalarized_stack_array(obj.rhs)
+        obj.lhs = self._scalarized_stack_array(obj.lhs, obj.rhs.type)
+        obj.rhs = self._scalarized_stack_array(obj.rhs, obj.lhs.type)
         return obj
 
     def handle_CBinaryOp(self, obj):
         obj = super().handle_CBinaryOp(obj)
-        obj.lhs = self._scalarized_stack_array(obj.lhs)
-        obj.rhs = self._scalarized_stack_array(obj.rhs)
+        obj.lhs = self._scalarized_stack_array(obj.lhs, obj.rhs.type)
+        obj.rhs = self._scalarized_stack_array(obj.rhs, obj.lhs.type)
+        return obj
+
+    def handle_CTypeCast(self, obj):
+        obj = super().handle_CTypeCast(obj)
+        if not isinstance(unpack_typeref(obj.dst_type), (SimTypeArray, SimTypeFixedSizeArray)):
+            obj.expr = self._scalarized_stack_array(obj.expr, obj.dst_type)
         return obj
 
 
