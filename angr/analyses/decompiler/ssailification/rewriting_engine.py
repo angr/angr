@@ -129,15 +129,9 @@ class SimEngineSSARewriting(
             regs.add((base_offset, base_size))
         return regs
 
-    def _allow_exact_leaf_call_clobber(self) -> bool:
-        binary = getattr(self.project.loader.main_object, "binary", None)
-        return isinstance(binary, str) and "recompile_dataset" in binary
-
     def _leaf_function_clobbered_registers(
         self, target_addr: int, caller_saved_regs: set[tuple[int, int]]
     ) -> set[tuple[int, int]] | None:
-        if not self._allow_exact_leaf_call_clobber():
-            return None
         if target_addr in self._leaf_call_clobbered_regs_cache:
             return self._leaf_call_clobbered_regs_cache[target_addr]
 

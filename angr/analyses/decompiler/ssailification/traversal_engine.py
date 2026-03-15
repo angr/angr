@@ -125,15 +125,9 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             regs.add((base_offset, base_size))
         return regs
 
-    def _allow_exact_leaf_call_clobber(self) -> bool:
-        binary = getattr(self.project.loader.main_object, "binary", None)
-        return isinstance(binary, str) and "recompile_dataset" in binary
-
     def _leaf_function_clobbered_registers(
         self, target: Function | None, caller_saved_regs: set[tuple[int, int]]
     ) -> set[tuple[int, int]] | None:
-        if not self._allow_exact_leaf_call_clobber():
-            return None
         if target is None or target.addr is None:
             return None
         if target.addr in self._leaf_call_clobbered_regs_cache:
@@ -466,9 +460,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         defs: set[Def] = set().union(*secret_stash.values())
         def_as = None
         if not defs or full_offset in self.state.register_blackout:
-            treat_as_extern = full_offset not in self.state.register_blackout or (
-                not defs and self._allow_exact_leaf_call_clobber()
-            )
+            treat_as_extern = full_offset not in self.state.register_blackout or not defs
             self.perform_def(
                 "reg",
                 def_,

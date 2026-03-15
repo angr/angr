@@ -197,9 +197,9 @@ def _simtype_array_count(ty: SimType, arch) -> int | None:
     return total_size // elem_size
 
 
-def _allow_dataset_multielement_stack_array_regrouping(project: angr.Project) -> bool:
-    main_binary = getattr(project.loader.main_object, "binary", None)
-    return isinstance(main_binary, str) and "recompile_dataset" in main_binary
+def _allow_multielement_stack_array_regrouping(_project: angr.Project) -> bool:
+    # These stack-array regrouping rewrites depend on recovered variable layout, not on filesystem paths.
+    return True
 
 
 def _byte_pointer_type(ty: SimType | None, arch) -> SimTypePointer:
@@ -731,7 +731,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             )
             if (
                 prefers_scalar_decl
-                and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
+                and _allow_multielement_stack_array_regrouping(self.codegen.project)
                 and any(
                     _stack_array_spans_multiple_slots(variable, ty, self.codegen.project.arch)
                     and not _stack_array_is_scalar_promotion(variable, ty, self.codegen.project.arch)
@@ -747,7 +747,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 )
                 if (
                     prefers_scalar_decl
-                    and _allow_dataset_multielement_stack_array_regrouping(self.codegen.project)
+                    and _allow_multielement_stack_array_regrouping(self.codegen.project)
                     and any(
                         _stack_array_spans_multiple_slots(variable, var_type, self.codegen.project.arch)
                         and not _stack_array_is_scalar_promotion(variable, var_type, self.codegen.project.arch)
@@ -883,66 +883,64 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 yield ";\n", None
             yield "\n", None
 
-        main_binary = self.codegen.project.loader.main_object.binary
-        if main_binary is not None and "recompile_dataset" in main_binary:
-            local_callees = [
-                callee
-                for callee in _CalledLocalFunctionCollector().collect(self)
-                if callee.addr != self.addr
-                and callee.prototype is not None
-                and callee.binary is not None
-                and self.codegen._func.binary is not None
-                and callee.binary is self.codegen._func.binary
-            ]
+        local_callees = [
+            callee
+            for callee in _CalledLocalFunctionCollector().collect(self)
+            if callee.addr != self.addr
+            and callee.prototype is not None
+            and callee.binary is not None
+            and self.codegen._func.binary is not None
+            and callee.binary is self.codegen._func.binary
+        ]
 
-            local_helper_callees = []
-            decl_only_callees = []
-            if local_callees:
-                main_obj = self.codegen.project.loader.main_object
-                for callee in local_callees:
-                    sym = main_obj.get_symbol(callee.name)
-                    if sym is not None and getattr(sym, "is_local", False):
-                        local_helper_callees.append(callee)
-                    else:
-                        decl_only_callees.append(callee)
+        local_helper_callees = []
+        decl_only_callees = []
+        if local_callees:
+            main_obj = self.codegen.project.loader.main_object
+            for callee in local_callees:
+                sym = main_obj.get_symbol(callee.name)
+                if sym is not None and getattr(sym, "is_local", False):
+                    local_helper_callees.append(callee)
+                else:
+                    decl_only_callees.append(callee)
 
-            proto_callees = decl_only_callees if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 else []
-            if proto_callees:
-                for callee in sorted(proto_callees, key=lambda f: (f.addr, f.name)):
-                    yield callee.prototype.c_repr(name=callee.name), callee.prototype
+        proto_callees = decl_only_callees if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 else []
+        if proto_callees:
+            for callee in sorted(proto_callees, key=lambda f: (f.addr, f.name)):
+                yield callee.prototype.c_repr(name=callee.name), callee.prototype
+                yield ";\n", None
+            yield "\n", None
+
+        if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 and local_helper_callees:
+            helper_decs = []
+            for callee in sorted(local_helper_callees, key=lambda f: (f.addr, f.name)):
+                _LOCAL_CALLEE_BODY_EMISSION_DEPTH += 1
+                try:
+                    helper_dec = self.codegen.project.analyses.Decompiler(
+                        callee,
+                        cfg=self.codegen._cfg,
+                        use_cache=False,
+                        update_cache=False,
+                    )
+                finally:
+                    _LOCAL_CALLEE_BODY_EMISSION_DEPTH -= 1
+
+                if helper_dec.codegen is None or helper_dec.codegen.text is None:
+                    continue
+                helper_decs.append(helper_dec)
+
+            if helper_decs:
+                for helper_dec in helper_decs:
+                    helper_cfunc = helper_dec.codegen.cfunc
+                    yield helper_cfunc.functy.c_repr(name=helper_cfunc.name), helper_cfunc.functy
                     yield ";\n", None
                 yield "\n", None
 
-            if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 and local_helper_callees:
-                helper_decs = []
-                for callee in sorted(local_helper_callees, key=lambda f: (f.addr, f.name)):
-                    _LOCAL_CALLEE_BODY_EMISSION_DEPTH += 1
-                    try:
-                        helper_dec = self.codegen.project.analyses.Decompiler(
-                            callee,
-                            cfg=self.codegen._cfg,
-                            use_cache=False,
-                            update_cache=False,
-                        )
-                    finally:
-                        _LOCAL_CALLEE_BODY_EMISSION_DEPTH -= 1
-
-                    if helper_dec.codegen is None or helper_dec.codegen.text is None:
-                        continue
-                    helper_decs.append(helper_dec)
-
-                if helper_decs:
-                    for helper_dec in helper_decs:
-                        helper_cfunc = helper_dec.codegen.cfunc
-                        yield helper_cfunc.functy.c_repr(name=helper_cfunc.name), helper_cfunc.functy
-                        yield ";\n", None
-                    yield "\n", None
-
-                    for helper_dec in helper_decs:
-                        yield helper_dec.codegen.text, None
-                        if not helper_dec.codegen.text.endswith("\n"):
-                            yield "\n", None
+                for helper_dec in helper_decs:
+                    yield helper_dec.codegen.text, None
+                    if not helper_dec.codegen.text.endswith("\n"):
                         yield "\n", None
+                    yield "\n", None
 
         yield indent_str, None
 
@@ -7047,7 +7045,7 @@ class DatasetByteBufferFixer(CStructuredCodeWalker):
 
     @staticmethod
     def _enabled(codegen: CStructuredCodeGenerator) -> bool:
-        return _allow_dataset_multielement_stack_array_regrouping(codegen.project)
+        return _allow_multielement_stack_array_regrouping(codegen.project)
 
     def _resize_to_byte_array(self, cvar: CVariable, required_size: int) -> None:
         if required_size <= 0:
@@ -7191,7 +7189,7 @@ class DatasetHashProgressionFixer(CStructuredCodeWalker):
         obj = super().handle_CFunction(obj)
         if (
             obj.name != "t5_hash"
-            or not _allow_dataset_multielement_stack_array_regrouping(obj.codegen.project)
+            or not _allow_multielement_stack_array_regrouping(obj.codegen.project)
             or len(obj.arg_list) < 2
             or not isinstance(obj.statements, CStatements)
         ):
@@ -7298,7 +7296,7 @@ class DatasetPopcountLoopFixer(_LoopFixerBase):
     @staticmethod
     def _enabled(codegen: CStructuredCodeGenerator) -> bool:
         return (
-            _allow_dataset_multielement_stack_array_regrouping(codegen.project)
+            _allow_multielement_stack_array_regrouping(codegen.project)
             and getattr(codegen._func, "name", None) == "t5_popcount"
         )
 
@@ -7435,7 +7433,7 @@ class DatasetStrlenLoopFixer(_LoopFixerBase):
     @staticmethod
     def _enabled(codegen: CStructuredCodeGenerator) -> bool:
         return (
-            _allow_dataset_multielement_stack_array_regrouping(codegen.project)
+            _allow_multielement_stack_array_regrouping(codegen.project)
             and getattr(codegen._func, "name", None) == "t5_strlen"
         )
 
@@ -7543,7 +7541,7 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
         return _simtype_array_count(cvar.type, cvar.codegen.project.arch)
 
     def _uses_scalar_decl(self, canonical: CVariable) -> bool:
-        if not _allow_dataset_multielement_stack_array_regrouping(canonical.codegen.project):
+        if not _allow_multielement_stack_array_regrouping(canonical.codegen.project):
             return (
                 isinstance(canonical.variable, SimStackVariable)
                 and canonical.variable in canonical.codegen._promoted_stack_scalars
@@ -7638,7 +7636,7 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                 )
 
     def _expand_contiguous_stack_array(self, canonical: CVariable) -> CVariable:
-        if not _allow_dataset_multielement_stack_array_regrouping(canonical.codegen.project):
+        if not _allow_multielement_stack_array_regrouping(canonical.codegen.project):
             return canonical
         canonical_type = unpack_typeref(canonical.type)
         if not isinstance(canonical.variable, SimStackVariable) or not isinstance(
@@ -7679,7 +7677,7 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
         return canonical
 
     def _containing_promoted_stack_array(self, cvar: CVariable) -> tuple[CVariable, int] | None:
-        if not _allow_dataset_multielement_stack_array_regrouping(cvar.codegen.project):
+        if not _allow_multielement_stack_array_regrouping(cvar.codegen.project):
             return None
         if not isinstance(cvar.variable, SimStackVariable):
             return None
@@ -7920,7 +7918,7 @@ class InnerStackBufferAliasFixer(CStructuredCodeWalker):
         if not isinstance(cvar.variable, SimStackVariable):
             return obj
         if isinstance(unpack_typeref(cvar.type), (SimTypeArray, SimTypeFixedSizeArray)):
-            if _allow_dataset_multielement_stack_array_regrouping(obj.codegen.project):
+            if _allow_multielement_stack_array_regrouping(obj.codegen.project):
                 container = self._container(cvar, require_growth=False)
                 if container is not None:
                     candidate, delta = container

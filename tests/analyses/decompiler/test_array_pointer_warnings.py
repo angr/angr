@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import subprocess
 import textwrap
 
@@ -51,9 +52,13 @@ _COMPILE_PREAMBLE = textwrap.dedent("""\
 _decompiled_cache: dict[str, dict[str, str]] = {}
 
 
-def _get_decompiled(bin_path):
+def _decompile_functions(bin_path: str, func_names: set[str]) -> dict[str, str]:
+    assert func_names
+
     if bin_path in _decompiled_cache:
-        return _decompiled_cache[bin_path]
+        cached = _decompiled_cache[bin_path]
+        if func_names <= cached.keys():
+            return {func_name: cached[func_name] for func_name in func_names}
 
     proj = angr.Project(bin_path, auto_load_libs=False)
     cfg = proj.analyses.CFGFast(normalize=True, data_references=True)
@@ -64,7 +69,10 @@ def _get_decompiled(bin_path):
     )
 
     results = {}
-    for func_name in _TARGET_FUNCTIONS[bin_path]:
+    results = _decompiled_cache.setdefault(bin_path, {})
+    for func_name in func_names:
+        if func_name in results:
+            continue
         func = cfg.kb.functions.function(name=func_name)
         assert func is not None, f"Function {func_name} not found in {bin_path}"
 
@@ -72,8 +80,11 @@ def _get_decompiled(bin_path):
         assert dec.codegen is not None and dec.codegen.text is not None
         results[func_name] = dec.codegen.text
 
-    _decompiled_cache[bin_path] = results
-    return results
+    return {func_name: results[func_name] for func_name in func_names}
+
+
+def _get_decompiled(bin_path):
+    return _decompile_functions(bin_path, _TARGET_FUNCTIONS[bin_path])
 
 
 def _prepare_source(text):
@@ -127,3 +138,18 @@ def test_array_pointer_codegen_is_warning_free(bin_path, func_name, decl_pattern
 
     compiled, stderr = _try_compile(_prepare_source(text), str(tmp_path), func_name)
     assert compiled, stderr
+
+
+def test_stack_array_regrouping_is_path_independent(tmp_path):
+    bin_path = os.path.join(test_location, "t5_patterns_gcc_O1")
+    if not os.path.isfile(bin_path):
+        pytest.skip(f"Missing test binary: {bin_path}")
+
+    copied_path = tmp_path / "t5_patterns_gcc_O1_copy"
+    shutil.copy2(bin_path, copied_path)
+
+    func_names = {"t5_bsearch", "t5_memcpy"}
+    original = _decompile_functions(bin_path, func_names)
+    copied = _decompile_functions(str(copied_path), func_names)
+
+    assert original == copied
