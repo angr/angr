@@ -13,6 +13,8 @@ from angr.sim_variable import SimStackVariable
 
 
 class TestStructuredCodegen(unittest.TestCase):
+    """Regression tests for structured-codegen helpers."""
+
     def test_iter_stack_frame_fields_includes_terminal_stack_slot(self):
         codegen = object.__new__(CStructuredCodeGenerator)
         codegen_any = cast(Any, codegen)

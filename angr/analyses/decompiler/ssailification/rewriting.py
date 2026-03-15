@@ -48,6 +48,7 @@ class RewritingAnalysis:
         func_args: set[VirtualVariable],
         def_to_udef: MutableMapping[Def, UDef],
         extern_defs: set[UDef],
+        func_arg_extern_defs: set[UDef],
         incomplete_defs: set[Def],
         vvar_id_start: int = 0,
         stackvars: bool = False,
@@ -64,6 +65,7 @@ class RewritingAnalysis:
         self._ail_manager = ail_manager
         self._func_args = func_args
         self._extern_defs = extern_defs
+        self._func_arg_extern_defs = func_arg_extern_defs
         self._engine_ail = SimEngineSSARewriting(
             self.project,
             rewrite_tmps=self._rewrite_tmps,
@@ -79,6 +81,7 @@ class RewritingAnalysis:
         self.out_blocks = {}
         self.out_states = {}
         self.resized_func_args: dict[VirtualVariable, VirtualVariable] = {}
+        self.additional_func_args: dict[tuple[VirtualVariableCategory, int, int], VirtualVariable] = {}
         # loop_states stores states at the beginning of a loop block *after a loop iteration*, where the block is the
         # following:
         #    0x4036df | t4 = (rcx<8> == 0x0<64>)
@@ -270,6 +273,7 @@ class RewritingAnalysis:
         )
         more_args: list[VirtualVariable] = []
         for kind, offset, size in sorted(self._extern_defs):
+            udef = kind, offset, size
             category = VirtualVariableCategory.REGISTER if kind == "reg" else VirtualVariableCategory.STACK
             if (arg_vvar := func_args_map.get((category, offset))) is not None:
                 unused_func_args.discard(arg_vvar)
@@ -289,9 +293,26 @@ class RewritingAnalysis:
                     )
                     self.resized_func_args[arg_vvar] = vvar
             else:
-                varid = self._engine_ail._current_vvar_id
-                self._engine_ail._current_vvar_id += 1
-                vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
+                key = category, offset, size
+                if udef in self._func_arg_extern_defs and key in self.additional_func_args:
+                    vvar = self.additional_func_args[key]
+                elif udef in self._func_arg_extern_defs:
+                    varid = self._engine_ail._current_vvar_id
+                    self._engine_ail._current_vvar_id += 1
+                    vvar = VirtualVariable(
+                        self._engine_ail.ail_manager.next_atom(),
+                        varid,
+                        size * 8,
+                        VirtualVariableCategory.PARAMETER,
+                        (category, offset),
+                        ins_addr=self._function.addr,
+                        vex_block_addr=self._function.addr,
+                    )
+                    self.additional_func_args[key] = vvar
+                else:
+                    varid = self._engine_ail._current_vvar_id
+                    self._engine_ail._current_vvar_id += 1
+                    vvar = VirtualVariable(self._engine_ail.ail_manager.next_atom(), varid, size * 8, category, offset)
             more_args.append(vvar)
 
         # update state with function arguments

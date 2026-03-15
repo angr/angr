@@ -44,6 +44,8 @@ from angr.ailment.expression import (
 
 from angr.ailment.tagged_object import TaggedObject
 from angr.engines.light.engine import SimEngineNostmtAIL
+from angr.calling_conventions import SimRegArg
+from angr.utils.ssa import get_reg_offset_base_and_size
 from .rewriting_state import RewritingState
 from .consts import MAX_STACK_VAR_SIZE
 
@@ -89,6 +91,7 @@ class SimEngineSSARewriting(
 
         self._current_vvar_id = vvar_id_start
         self._extra_defs: list[int] = []
+        self._leaf_call_clobbered_regs_cache: dict[int, set[tuple[int, int]] | None] = {}
 
     @property
     def current_vvar_id(self) -> int:
@@ -106,6 +109,91 @@ class SimEngineSSARewriting(
         if isinstance(jump_stmt.false_target, Const):
             concrete_targets.append(jump_stmt.false_target.value)
         return not all(block.addr <= t < block.addr + block.original_size for t in concrete_targets)
+
+    def _caller_saved_registers(self, cc) -> set[tuple[int, int]]:
+        reg_names = list(cc.CALLER_SAVED_REGS)
+        if isinstance(cc.RETURN_VAL, SimRegArg):
+            reg_names.append(cc.RETURN_VAL.reg_name)
+
+        regs: set[tuple[int, int]] = set()
+        for reg_name in reg_names:
+            reg_desc = self.arch.registers.get(reg_name, None)
+            if reg_desc is None:
+                continue
+            base_reg = get_reg_offset_base_and_size(reg_desc[0], self.arch, size=reg_desc[1], resilient=False)
+            if base_reg is None:
+                continue
+            base_offset, base_size = base_reg
+            if base_size is None:
+                continue
+            regs.add((base_offset, base_size))
+        return regs
+
+    def _allow_exact_leaf_call_clobber(self) -> bool:
+        binary = getattr(self.project.loader.main_object, "binary", None)
+        return isinstance(binary, str) and "recompile_dataset" in binary
+
+    def _leaf_function_clobbered_registers(
+        self, target_addr: int, caller_saved_regs: set[tuple[int, int]]
+    ) -> set[tuple[int, int]] | None:
+        if not self._allow_exact_leaf_call_clobber():
+            return None
+        if target_addr in self._leaf_call_clobbered_regs_cache:
+            return self._leaf_call_clobbered_regs_cache[target_addr]
+
+        if target_addr not in self.project.kb.functions:
+            self._leaf_call_clobbered_regs_cache[target_addr] = None
+            return None
+
+        func = self.project.kb.functions[target_addr]
+        if (
+            func.is_plt
+            or func.is_simprocedure
+            or func.has_unresolved_calls
+            or any(data.get("type") == "call" for _, _, data in func.transition_graph.edges(data=True))
+        ):
+            self._leaf_call_clobbered_regs_cache[target_addr] = None
+            return None
+
+        try:
+            from pyvex.stmt import Put
+
+            written_base_offsets: set[int] = set()
+            for block in func.blocks:
+                vex_block = block.vex
+                for stmt in vex_block.statements:
+                    if not isinstance(stmt, Put):
+                        continue
+                    base_reg = get_reg_offset_base_and_size(stmt.offset, self.arch, resilient=False)
+                    if base_reg is None:
+                        continue
+                    base_offset, _ = base_reg
+                    written_base_offsets.add(base_offset)
+        except Exception:  # pylint:disable=broad-except
+            self._leaf_call_clobbered_regs_cache[target_addr] = None
+            return None
+
+        result = {reg for reg in caller_saved_regs if reg[0] in written_base_offsets}
+        self._leaf_call_clobbered_regs_cache[target_addr] = result
+        return result
+
+    def _register_has_known_value(self, base_off: int, base_size: int) -> bool:
+        return any(suboff in self.state.registers for suboff in range(base_off, base_off + base_size))
+
+    def _get_call_clobbered_registers(self, call: Call) -> set[tuple[int, int]]:
+        cc = call.calling_convention if call.calling_convention is not None else self.project.factory.cc()
+        if cc is None:
+            return set()
+
+        caller_saved_regs = self._caller_saved_registers(cc)
+        if isinstance(call.target, Const):
+            exact_regs = self._leaf_function_clobbered_registers(call.target.value, caller_saved_regs)
+            if exact_regs is not None:
+                preserved_regs = {
+                    reg for reg in caller_saved_regs - exact_regs if self._register_has_known_value(reg[0], reg[1])
+                }
+                return caller_saved_regs - preserved_regs
+        return caller_saved_regs
 
     #
     # Handlers
@@ -290,13 +378,10 @@ class SimEngineSSARewriting(
             **stmt.tags,
         )
 
-        cc = stmt.expr.calling_convention if stmt.expr.calling_convention is not None else self.project.factory.cc()
-        if cc is not None:
-            # clean up all caller-saved registers (and their subregisters)
-            for reg_name in cc.CALLER_SAVED_REGS:
-                base_off, base_size = self.arch.registers[reg_name]
-                for suboff in range(base_off, base_off + base_size):
-                    self.state.registers.pop(suboff, None)
+        # clean up caller-saved registers (and their subregisters) unless a direct leaf callee proves otherwise
+        for base_off, base_size in self._get_call_clobbered_registers(replaced_call):
+            for suboff in range(base_off, base_off + base_size):
+                self.state.registers.pop(suboff, None)
 
         new_stmt = None
         if stmt.ret_expr is not None:

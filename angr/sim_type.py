@@ -705,6 +705,14 @@ class SimTypeChar(SimTypeReg):
     def __repr__(self) -> str:
         return "char"
 
+    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint:disable=unused-argument
+        out = "char" if self.signed else "unsigned char"
+        if self.qualifier:
+            out = f"{' '.join(self.qualifier)} {out}"
+        if name is None:
+            return out
+        return f"{out} {name}"
+
     def store(self, state, addr, value: StoreType):
         # FIXME: This is a hack.
         self._size = state.arch.byte_width

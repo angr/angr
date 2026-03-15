@@ -226,6 +226,15 @@ class TestTypes(unittest.TestCase):
         assert qualified_array_ptr.c_repr(name="cur") == "char (*const cur)[4]"
         assert qualified_array_ptr.c_repr() == "char (*const)[4]"
 
+    def test_c_repr_unsigned_char(self):
+        signed_char = SimTypeChar(signed=True)
+        unsigned_char = SimTypeChar(signed=False)
+
+        assert signed_char.c_repr(name="value") == "char value"
+        assert signed_char.c_repr() == "char"
+        assert unsigned_char.c_repr(name="value") == "unsigned char value"
+        assert unsigned_char.c_repr() == "unsigned char"
+
     def test_c_repr_int128(self):
         signed_int128 = SimTypeInt128(signed=True)
         unsigned_int128 = SimTypeInt128(signed=False)

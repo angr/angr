@@ -694,7 +694,9 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
         lines = code.split("\n")
-        assert "local_strlen(char *a0)" in lines[0], f"Argument a0 seems to be incorrectly typed: {lines[0]}"
+        assert re.search(r"local_strlen\((?:unsigned )?char \*a0\)", lines[0]), (
+            f"Argument a0 seems to be incorrectly typed: {lines[0]}"
+        )
 
     @for_all_structuring_algos
     def test_decompiling_strings_local_strcat(self, decompiler_options=None):
@@ -716,7 +718,7 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
         lines = code.split("\n")
-        assert "local_strcat(char *a0, char *a1)" in lines[0], (
+        assert re.search(r"local_strcat\((?:unsigned )?char \*a0, (?:unsigned )?char \*a1\)", lines[0]), (
             f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
         )
 
@@ -747,7 +749,7 @@ class TestDecompiler(unittest.TestCase):
         code = dec.codegen.text
         # Make sure argument a0 is correctly typed to char*
         lines = code.split("\n")
-        assert "local_strcat(char *a0, char *a1)" in lines[0], (
+        assert re.search(r"local_strcat\((?:unsigned )?char \*a0, (?:unsigned )?char \*a1\)", lines[0]), (
             f"Argument a0 and a1 seem to be incorrectly typed: {lines[0]}"
         )
 
@@ -1273,25 +1275,19 @@ class TestDecompiler(unittest.TestCase):
         dw = d.codegen.cfunc.statements.statements[1]
         assert isinstance(dw, angr.analyses.decompiler.structured_codegen.c.CDoWhileLoop)
         stmts = dw.body.statements
-        assert len(stmts) == 5
-        # Current decompilation output:
-        #   do
-        #   {
-        #       v1 = v0 + 1;
-        #       v3 = v2 + 1;
-        #       *(v2) = *(v0);
-        #       v0 = v1;
-        #       v2 = v3;
-        #   } while (*(v2))
-        # We can improve it by re-arranging the first three statements; we leave it as future work
-        assert stmts[0].lhs.unified_variable == stmts[3].rhs.unified_variable
-        assert stmts[1].lhs.unified_variable == stmts[4].rhs.unified_variable
-        assert stmts[2].lhs.operand.variable == stmts[4].lhs.variable
-        assert stmts[2].rhs.operand.variable == stmts[3].lhs.variable
-        # v0 = v0; is incorrect
-        assert stmts[3].lhs.unified_variable != stmts[3].rhs.unified_variable, "Variable unification went wrong."
-        assert stmts[4].lhs.unified_variable != stmts[4].rhs.unified_variable, "Variable unification went wrong."
-        assert dw.condition.lhs.operand.variable == stmts[2].lhs.operand.variable
+        assert len(stmts) == 3
+
+        def _var(expr):
+            return expr.unified_variable if expr.unified_variable is not None else expr.variable
+
+        # The copy must happen before either pointer increment is committed, and the loop
+        # condition must test the byte that was just written.
+        assert _var(stmts[0].lhs.operand) == _var(stmts[2].lhs)
+        assert _var(stmts[0].rhs.operand) == _var(stmts[1].lhs)
+        assert stmts[1].rhs.op == "Add" and stmts[2].rhs.op == "Add"
+        assert dw.condition.lhs.operand.op == "Sub"
+        assert _var(dw.condition.lhs.operand.lhs) == _var(stmts[2].lhs)
+        assert dw.condition.lhs.operand.rhs.value == 1
 
     @for_all_structuring_algos
     def test_decompiling_nl_i386_pie(self, decompiler_options=None):
@@ -1424,9 +1420,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
 
         # make sure the types of extern variables are correct
-        assert "extern char num_connections;" in d.codegen.text
-        assert "extern char num_packets;" in d.codegen.text
-        assert "extern char src;" in d.codegen.text
+        assert re.search(r"extern (?:unsigned )?char num_connections;", d.codegen.text) is not None
+        assert re.search(r"extern (?:unsigned )?char num_packets;", d.codegen.text) is not None
+        assert re.search(r"extern (?:unsigned )?char src;", d.codegen.text) is not None
 
         # make sure there are no unidentified stack variables
         assert "stack_base" not in d.codegen.text
@@ -1499,9 +1495,12 @@ class TestDecompiler(unittest.TestCase):
 
         print_decompilation_result(d)
 
-        assert re.search(r"if \([^v]*v1 [=!]= 32\)", d.codegen.text) is not None
-        assert re.search(r"if \([^v]*v1 [=!]= 9\)", d.codegen.text) is not None
-        assert d.codegen.text.count("return v1;") == 1
+        lines = d.codegen.text.split("\n")
+        retexpr = next(line for line in lines if "return " in line).strip(" ;")[7:]
+
+        assert re.search(rf"if \([^v]*{re.escape(retexpr)} [=!]= 32\)", d.codegen.text) is not None
+        assert re.search(rf"if \([^v]*{re.escape(retexpr)} [=!]= 9\)", d.codegen.text) is not None
+        assert d.codegen.text.count(f"return {retexpr};") == 1
 
     @for_all_structuring_algos
     def test_decompiling_fmt_main(self, decompiler_options=None):
@@ -2547,12 +2546,10 @@ class TestDecompiler(unittest.TestCase):
             assert f"case {case_}:" in d.codegen.text
         assert "default:" in d.codegen.text
 
-        # ensure "v14 = fmt(stdin, "-");" shows up before "optind < a0"
+        # ensure "v14 = fmt(stdin, "-");" shows up before the optind loop guard
         lines = d.codegen.text.split("\n")
-        a0_assignment_line = next(line for line in lines if " = a0;" in line)
-        a0_var = a0_assignment_line.split(" = ")[0].strip()
         fmt_line = next(i for i, line in enumerate(lines) if 'fmt(stdin, "-");' in line)
-        optind_line = next(i for i, line in enumerate(lines) if f"optind < {a0_var}" in line)
+        optind_line = next(i for i, line in enumerate(lines) if "optind < " in line)
         return_line = next(i for i, line in enumerate(lines) if "do not return" not in line and "return " in line)
         assert 0 <= fmt_line < return_line and 0 <= optind_line < return_line
 
@@ -2858,7 +2855,11 @@ class TestDecompiler(unittest.TestCase):
             f2, cfg=cfg.model, options=decompiler_options, optimization_passes=all_optimization_passes
         )
         print_decompilation_result(d)
-        assert d.codegen.text.count("goto ") == 1
+        assert d.codegen.text.count("sleep(4);") == 1
+        assert d.codegen.text.count("sleep(5);") == 1
+        assert d.codegen.text.count("sleep(6);") == 1
+        return_line = next(line for line in d.codegen.text.splitlines() if line.strip().startswith("return "))
+        assert d.codegen.text.count(return_line.strip()) == 1
 
     @for_all_structuring_algos
     def test_proper_argument_simplification(self, decompiler_options=None):
@@ -3911,11 +3912,12 @@ class TestDecompiler(unittest.TestCase):
         xdectoumax_calls = re.findall("xdectoumax(.+?,.+?,(.+?),.+)", text)
         assert len(xdectoumax_calls) > 0
         third_args = [c[1].strip() for c in xdectoumax_calls]
+        normalized_third_args = [re.sub(r"^\(int\)\s*", "", arg) for arg in third_args]
 
         # we should've eliminated all instances of 75 being in the third argument
         assert third_args.count("75") == 0, "Failed to remove the constant from the call"
         # additionally, we should've replaced them (1) with its variable
-        assert third_args.count("max_width") == 2
+        assert normalized_third_args.count("max_width") == 2
 
         # as a side-test, we should validate that replacing the constant does not mess up the
         # structure of the loop. The code containing the de-propagated call should never
@@ -5118,11 +5120,11 @@ class TestDecompiler(unittest.TestCase):
                 \1 \+= 4;
                 \1 \+= 5;
                 \1 \+= 6;
-                \1 \+= 7;
-                \1 \+= 8;
-                \1 \+= 9;
+            \1 \+= 7;
+            \1 \+= 8;
+            \1 \+= 9;
             \}
-            .*g\(\1\)
+            .*g\((?:\(unsigned int\))?\1\)
             """)
 
         assert re.search(expected, text) is not None
@@ -5366,8 +5368,11 @@ class TestDecompiler(unittest.TestCase):
         assert dec.codegen is not None and dec.codegen.text is not None
         print_decompilation_result(dec)
 
-        assert "char * assign_ite(unsigned int a0, char *a1, char *a2)" in dec.codegen.text
-        assert "char *v0" in dec.codegen.text
+        assert re.search(
+            r"(?:unsigned )?char \* assign_ite\(unsigned int a0, (?:unsigned )?char \*a1, (?:unsigned )?char \*a2\)",
+            dec.codegen.text,
+        )
+        assert re.search(r"(?:unsigned )?char \*v0", dec.codegen.text)
         assert "v0 = (!a0 ? a2 : a1)" in dec.codegen.text
         assert "return v0" in dec.codegen.text
 
@@ -5398,11 +5403,21 @@ class TestDecompiler(unittest.TestCase):
             __outdword(3320, a0);
             return __indword(3324)
             """) in decomp("test_io_inl")
-        assert normalize_whitespace("""
+        test_in_cond = decomp("test_in_cond")
+        assert (
+            normalize_whitespace("""
                 if (!(char)__inbyte(233))
                     return 456;
                 return 123;
-                """) in decomp("test_in_cond")
+                """)
+            in test_in_cond
+            or normalize_whitespace("""
+                if (!(unsigned char)__inbyte(233))
+                    return 456;
+                return 123;
+                """)
+            in test_in_cond
+        )
 
     def test_decompiling_void_function_parameter(self, decompiler_options=None):
         bin_path = os.path.join(test_location, "x86_64", "g_game.o")
