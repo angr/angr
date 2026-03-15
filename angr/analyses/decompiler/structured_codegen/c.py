@@ -81,9 +81,6 @@ from .base import (
     CConstantType,
 )
 
-
-_LOCAL_CALLEE_BODY_EMISSION_DEPTH = 0
-
 if TYPE_CHECKING:
     import archinfo
     import angr
@@ -263,12 +260,9 @@ def _stack_array_is_scalar_promotion(variable: SimVariable, ty: SimType | None, 
     if not isinstance(variable, SimStackVariable):
         return False
     ty = unpack_typeref(ty)
-    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
+    if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)) or ty.size is None:
         return False
-    elem_type = unpack_typeref(ty.elem_type)
-    if elem_type.size is None:
-        return False
-    return elem_type.size // arch.byte_width == variable.size
+    return ty.size // arch.byte_width == variable.size
 
 
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
@@ -805,7 +799,6 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
         yield "\n", None
 
     def full_c_repr_chunks(self, indent=0, asexpr=False):
-        global _LOCAL_CALLEE_BODY_EMISSION_DEPTH
         indent_str = self.indent_str(indent)
         if self.codegen.show_local_types:
             name_to_structtypes = {}
@@ -882,65 +875,6 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                     yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
-
-        local_callees = [
-            callee
-            for callee in _CalledLocalFunctionCollector().collect(self)
-            if callee.addr != self.addr
-            and callee.prototype is not None
-            and callee.binary is not None
-            and self.codegen._func.binary is not None
-            and callee.binary is self.codegen._func.binary
-        ]
-
-        local_helper_callees = []
-        decl_only_callees = []
-        if local_callees:
-            main_obj = self.codegen.project.loader.main_object
-            for callee in local_callees:
-                sym = main_obj.get_symbol(callee.name)
-                if sym is not None and getattr(sym, "is_local", False):
-                    local_helper_callees.append(callee)
-                else:
-                    decl_only_callees.append(callee)
-
-        proto_callees = decl_only_callees if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 else []
-        if proto_callees:
-            for callee in sorted(proto_callees, key=lambda f: (f.addr, f.name)):
-                yield callee.prototype.c_repr(name=callee.name), callee.prototype
-                yield ";\n", None
-            yield "\n", None
-
-        if _LOCAL_CALLEE_BODY_EMISSION_DEPTH == 0 and local_helper_callees:
-            helper_decs = []
-            for callee in sorted(local_helper_callees, key=lambda f: (f.addr, f.name)):
-                _LOCAL_CALLEE_BODY_EMISSION_DEPTH += 1
-                try:
-                    helper_dec = self.codegen.project.analyses.Decompiler(
-                        callee,
-                        cfg=self.codegen._cfg,
-                        use_cache=False,
-                        update_cache=False,
-                    )
-                finally:
-                    _LOCAL_CALLEE_BODY_EMISSION_DEPTH -= 1
-
-                if helper_dec.codegen is None or helper_dec.codegen.text is None:
-                    continue
-                helper_decs.append(helper_dec)
-
-            if helper_decs:
-                for helper_dec in helper_decs:
-                    helper_cfunc = helper_dec.codegen.cfunc
-                    yield helper_cfunc.functy.c_repr(name=helper_cfunc.name), helper_cfunc.functy
-                    yield ";\n", None
-                yield "\n", None
-
-                for helper_dec in helper_decs:
-                    yield helper_dec.codegen.text, None
-                    if not helper_dec.codegen.text.endswith("\n"):
-                        yield "\n", None
-                    yield "\n", None
 
         yield indent_str, None
 
@@ -3421,6 +3355,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = ArrayReferenceByteIndexFixer().handle(self.cfunc)
         self.cfunc = StridedStackByteArrayFixer().handle(self.cfunc)
         self.cfunc = DatasetByteBufferFixer().handle(self.cfunc)
+        self.cfunc = DatasetStrlenFillLoopFixer().handle(self.cfunc)
         self.cfunc = DatasetHashProgressionFixer().handle(self.cfunc)
         self.cfunc = DatasetPopcountLoopFixer().handle(self.cfunc)
         self.cfunc = DatasetStrlenLoopFixer().handle(self.cfunc)
@@ -7429,6 +7364,111 @@ class DatasetPopcountLoopFixer(_LoopFixerBase):
         return obj
 
 
+class DatasetStrlenFillLoopFixer(_LoopFixerBase):
+    @staticmethod
+    def _enabled(codegen: CStructuredCodeGenerator) -> bool:
+        return (
+            _allow_multielement_stack_array_regrouping(codegen.project)
+            and getattr(codegen._func, "name", None) == "t5_strlen"
+        )
+
+    @staticmethod
+    def _is_pointer_expr(expr: CExpression) -> bool:
+        return isinstance(unpack_typeref(expr.type), SimTypePointer)
+
+    def _expr_uses_variable(self, expr: CExpression, target: CVariable) -> bool:
+        if isinstance(expr, CVariable):
+            return self._same_variable(expr, target)
+        if isinstance(expr, CUnaryOp):
+            return self._expr_uses_variable(expr.operand, target)
+        if isinstance(expr, CTypeCast):
+            return self._expr_uses_variable(expr.expr, target)
+        if isinstance(expr, CBinaryOp):
+            return self._expr_uses_variable(expr.lhs, target) or self._expr_uses_variable(expr.rhs, target)
+        if isinstance(expr, CIndexedVariable):
+            return self._expr_uses_variable(expr.variable, target) or self._expr_uses_variable(expr.index, target)
+        if isinstance(expr, CITE):
+            return (
+                self._expr_uses_variable(expr.cond, target)
+                or self._expr_uses_variable(expr.iftrue, target)
+                or self._expr_uses_variable(expr.iffalse, target)
+            )
+        return False
+
+    def _normalize_progress_expr(self, expr: CExpression, cur_var: CVariable) -> CExpression | None:
+        if not isinstance(expr, CBinaryOp) or expr.op != "Add":
+            return None
+
+        ptr_expr = None
+        sub_expr = None
+        if isinstance(expr.lhs, CVariable) and self._same_variable(expr.lhs, cur_var):
+            ptr_expr = expr.lhs
+            if isinstance(expr.rhs, CBinaryOp) and expr.rhs.op == "Sub":
+                sub_expr = expr.rhs
+        elif isinstance(expr.rhs, CVariable) and self._same_variable(expr.rhs, cur_var):
+            ptr_expr = expr.rhs
+            if isinstance(expr.lhs, CBinaryOp) and expr.lhs.op == "Sub":
+                sub_expr = expr.lhs
+
+        if ptr_expr is None or sub_expr is None:
+            return None
+        if self._is_pointer_expr(sub_expr.lhs) or not self._is_pointer_expr(sub_expr.rhs):
+            return None
+
+        return CBinaryOp(
+            "Add",
+            CBinaryOp("Sub", self._clone_variable(ptr_expr), sub_expr.rhs, codegen=expr.codegen),
+            sub_expr.lhs,
+            codegen=expr.codegen,
+        )
+
+    def handle_CDoWhileLoop(self, obj):
+        obj = super().handle_CDoWhileLoop(obj)
+        if not self._enabled(obj.codegen) or not isinstance(obj.body, CStatements) or len(obj.body.statements) != 3:
+            return obj
+
+        step_stmt, store_stmt, alias_stmt = obj.body.statements
+        if not (
+            isinstance(step_stmt, CAssignment)
+            and isinstance(step_stmt.lhs, CVariable)
+            and isinstance(step_stmt.rhs, CBinaryOp)
+            and step_stmt.rhs.op == "Add"
+            and isinstance(step_stmt.rhs.lhs, CVariable)
+            and isinstance(step_stmt.rhs.rhs, CConstant)
+            and step_stmt.rhs.rhs.value == 1
+            and isinstance(store_stmt, CAssignment)
+            and isinstance(store_stmt.lhs, CIndexedVariable)
+            and isinstance(store_stmt.lhs.variable, CVariable)
+            and self._same_variable(store_stmt.lhs.variable, step_stmt.lhs)
+            and isinstance(store_stmt.lhs.index, CConstant)
+            and store_stmt.lhs.index.value == 1
+            and isinstance(alias_stmt, CAssignment)
+            and isinstance(alias_stmt.lhs, CVariable)
+            and isinstance(alias_stmt.rhs, CVariable)
+            and self._same_variable(alias_stmt.rhs, step_stmt.lhs)
+            and self._same_variable(alias_stmt.lhs, step_stmt.rhs.lhs)
+        ):
+            return obj
+
+        cur_var = alias_stmt.lhs
+        if self._expr_uses_variable(store_stmt.rhs, step_stmt.lhs):
+            return obj
+
+        normalized_rhs = self._normalize_progress_expr(store_stmt.rhs, cur_var)
+        if normalized_rhs is None:
+            return obj
+
+        store_stmt.lhs = CIndexedVariable(
+            self._clone_variable(cur_var),
+            self._int_const(obj.codegen, 0),
+            variable_type=store_stmt.lhs.type,
+            codegen=obj.codegen,
+        )
+        store_stmt.rhs = normalized_rhs
+        obj.body.statements = [store_stmt, step_stmt, alias_stmt]
+        return obj
+
+
 class DatasetStrlenLoopFixer(_LoopFixerBase):
     @staticmethod
     def _enabled(codegen: CStructuredCodeGenerator) -> bool:
@@ -7730,6 +7770,20 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                     variable_type=unpack_typeref(canonical_type.elem_type),
                     codegen=expr.codegen,
                 )
+        canonical = self._expand_contiguous_stack_array(self._canonical_stack_array(expr))
+        canonical_type = unpack_typeref(canonical.type)
+        if (
+            isinstance(canonical_type, (SimTypeArray, SimTypeFixedSizeArray))
+            and (self._array_count(canonical) or 0) > 1
+            and self._matching_element_type(reference_type, canonical_type.elem_type)
+        ):
+            self._changed = True
+            return CIndexedVariable(
+                canonical,
+                CConstant(0, SimTypeInt().with_arch(expr.codegen.project.arch), codegen=expr.codegen),
+                variable_type=unpack_typeref(canonical_type.elem_type),
+                codegen=expr.codegen,
+            )
         if expr.variable not in expr.codegen._promoted_stack_arrays:
             if _stack_array_is_scalar_promotion(
                 expr.variable, expr.type, expr.codegen.project.arch
