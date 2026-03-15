@@ -139,7 +139,9 @@ class TestStructuredCodegen(unittest.TestCase):
             name="struct_0",
         ).with_arch(arch)
         cur = CFakeVariable("cur", SimTypePointer(struct_ty).with_arch(arch), codegen=codegen)
-        field = CVariableField(cur, CStructField(struct_ty, 0, "field_0", codegen=codegen), var_is_ptr=True, codegen=codegen)
+        field = CVariableField(
+            cur, CStructField(struct_ty, 0, "field_0", codegen=codegen), var_is_ptr=True, codegen=codegen
+        )
 
         expr = CTypeCast(field.type, SimTypeInt(signed=False).with_arch(arch), field, codegen=codegen)
 

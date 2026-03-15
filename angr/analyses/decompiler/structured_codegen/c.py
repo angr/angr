@@ -7625,9 +7625,7 @@ class DatasetBsearchFixer(_LoopFixerBase):
         if not isinstance(dst_type, SimTypePointer) or not isinstance(unpack_typeref(dst_type.pts_to), SimTypeChar):
             return False
         return (
-            isinstance(expr.expr, CUnaryOp)
-            and expr.expr.op == "Reference"
-            and isinstance(expr.expr.operand, CVariable)
+            isinstance(expr.expr, CUnaryOp) and expr.expr.op == "Reference" and isinstance(expr.expr.operand, CVariable)
         )
 
     @staticmethod

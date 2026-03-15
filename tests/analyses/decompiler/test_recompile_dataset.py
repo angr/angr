@@ -408,6 +408,7 @@ def test_classify_invalid_type_tokens(text, reason):
     assert category == "compile_fail"
     assert actual_reason == reason
 
+
 # ──────────────────────────────────────────────────────────────────────
 # Semantic equivalence
 # ──────────────────────────────────────────────────────────────────────
