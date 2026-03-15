@@ -232,7 +232,9 @@ def _byte_pointer_type_for(obj: Any, arch) -> SimTypePointer:
     return _byte_pointer_type(getattr(obj, "type", obj), arch)
 
 
-def _normalize_value_type(ty: SimType, codegen: StructuredCodeGenerator, reference_type: SimType | None = None) -> SimType:
+def _normalize_value_type(
+    ty: SimType, codegen: StructuredCodeGenerator, reference_type: SimType | None = None
+) -> SimType:
     ty = unpack_typeref(ty)
     if not isinstance(ty, (SimTypeArray, SimTypeFixedSizeArray)):
         return ty
@@ -7550,7 +7552,9 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
             isinstance(canonical.variable, SimStackVariable)
             and canonical.variable in canonical.codegen._promoted_stack_scalars
             and (
-                not _stack_array_spans_multiple_slots(canonical.variable, canonical.type, canonical.codegen.project.arch)
+                not _stack_array_spans_multiple_slots(
+                    canonical.variable, canonical.type, canonical.codegen.project.arch
+                )
                 or _stack_array_is_scalar_promotion(canonical.variable, canonical.type, canonical.codegen.project.arch)
             )
         )
@@ -7726,12 +7730,12 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
                     canonical,
                     CConstant(index, SimTypeInt().with_arch(expr.codegen.project.arch), codegen=expr.codegen),
                     variable_type=unpack_typeref(canonical_type.elem_type),
-                codegen=expr.codegen,
-            )
+                    codegen=expr.codegen,
+                )
         if expr.variable not in expr.codegen._promoted_stack_arrays:
-            if _stack_array_is_scalar_promotion(expr.variable, expr.type, expr.codegen.project.arch) or not _stack_array_spans_multiple_slots(
+            if _stack_array_is_scalar_promotion(
                 expr.variable, expr.type, expr.codegen.project.arch
-            ):
+            ) or not _stack_array_spans_multiple_slots(expr.variable, expr.type, expr.codegen.project.arch):
                 scalar_type = self._scalar_type(expr)
                 if scalar_type is not None:
                     canonical = self._canonical_stack_array(expr)
