@@ -2976,12 +2976,9 @@ class TestDecompiler(unittest.TestCase):
         print_decompilation_result(d)
         text = d.codegen.text
         # The first sign-handling branch should be collapsed into a single expression form.
-        assert (
-            re.search(r".+ = \(.+\?.+:.+\);", text) is not None
-            or (
-                re.search(r"v\d+ = &iter\[\(unsigned char\)v5 == 45\];", text) is not None
-                and re.search(r"iter(?: = &iter\[1\]| \+= 1);\s+v\d+ = iter;", text) is not None
-            )
+        assert re.search(r".+ = \(.+\?.+:.+\);", text) is not None or (
+            re.search(r"v\d+ = &iter\[\(unsigned char\)v5 == 45\];", text) is not None
+            and re.search(r"iter(?: = &iter\[1\]| \+= 1);\s+v\d+ = iter;", text) is not None
         )
 
     @for_all_structuring_algos
