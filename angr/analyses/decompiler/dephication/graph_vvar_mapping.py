@@ -89,7 +89,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _compatible_phi_storage(phi_dst: VirtualVariable, src_vvar: VirtualVariable) -> bool:
         return phi_dst.category == src_vvar.category and phi_dst.oident == src_vvar.oident
 
-    def _rewrite_incompatible_phi_sources(self, phi_to_srcvarid: dict[int, set[tuple[tuple[int, int], int]]]) -> set[int]:
+    def _rewrite_incompatible_phi_sources(
+        self, phi_to_srcvarid: dict[int, set[tuple[tuple[int, int], int]]]
+    ) -> set[int]:
         new_vvar_ids: set[int] = set()
         for phi_id in phi_to_srcvarid:
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
