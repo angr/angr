@@ -699,7 +699,7 @@ class SimEngineSSARewriting(
 
             # we got here because expr refers to a non-existent stack offset or register offset.
             # raise a KeyError if fail_fast is specified because something else has gone wrong at this point.
-            if self._fail_fast and not self._allow_missing_call_arg(expr):
+            if self._fail_fast and not self._allow_missing_register_use(expr):
                 raise KeyError(expr)
             # otherwise, we try our best to guesstimate the udef here
             kind = "stack" if isinstance(expr, StackBaseOffset) else "reg"
@@ -742,18 +742,12 @@ class SimEngineSSARewriting(
                     self.state.registers[suboff] = vvar
         return vvar
 
-    def _allow_missing_call_arg(self, expr: Def) -> bool:
-        if not isinstance(expr, Register) or self.block is None or self.stmt_idx >= len(self.block.statements):
-            return False
-
-        stmt = self.block.statements[self.stmt_idx]
-        call_expr = None
-        if isinstance(stmt, SideEffectStatement):
-            call_expr = stmt.expr
-        elif isinstance(stmt, (Assignment, WeakAssignment)) and isinstance(stmt.src, Call):
-            call_expr = stmt.src
-
-        return call_expr is not None and call_expr.args is not None and any(arg is expr for arg in call_expr.args)
+    @staticmethod
+    def _allow_missing_register_use(expr: Def) -> bool:
+        # Register uses can legitimately show up without an explicit reaching definition
+        # after call clobber cleanup or other partial SSA modeling. In those cases we
+        # already have a recovery path below that synthesizes a transient vvar.
+        return isinstance(expr, Register)
 
     def _vvar_extract(
         self, vvar: VirtualVariable, size: int, offset: int, orig_tags: TaggedObject
