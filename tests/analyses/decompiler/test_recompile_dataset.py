@@ -43,9 +43,7 @@ def _probe_targets():
         targets.append(("armhf/recompile_dataset", False, ["arm-linux-gnueabihf-gcc", "-static"], ["qemu-arm"]))
 
     if shutil.which("x86_64-w64-mingw32-gcc") and shutil.which("wine"):
-        targets.append(
-            ("x86_64/recompile_dataset_pe", True, ["x86_64-w64-mingw32-gcc", "-static"], ["wine"])
-        )
+        targets.append(("x86_64/recompile_dataset_pe", True, ["x86_64-w64-mingw32-gcc", "-static"], ["wine"]))
 
     if shutil.which("i686-w64-mingw32-gcc") and shutil.which("wine"):
         targets.append(("i386/recompile_dataset_pe", True, ["i686-w64-mingw32-gcc", "-static"], ["wine"]))
@@ -225,9 +223,18 @@ _INPUTS = [
 ]
 
 _KNOWN_SEMANTIC_LIMITATIONS = {
-    ("t3_memory_gcc_O1", "t3_array_copy"): "decompiler still mis-recovers the copy loop direction for the stack-backed array walk",
-    ("t3_memory_gcc_O1", "t3_array_reverse"): "decompiler still mis-recovers the reverse walk through the stack-backed array window",
-    ("t5_patterns_gcc_O1", "t5_minmax"): "decompiler still loses the intended signed min/max semantics across the scalarized stack array",
+    (
+        "t3_memory_gcc_O1",
+        "t3_array_copy",
+    ): "decompiler still mis-recovers the copy loop direction for the stack-backed array walk",
+    (
+        "t3_memory_gcc_O1",
+        "t3_array_reverse",
+    ): "decompiler still mis-recovers the reverse walk through the stack-backed array window",
+    (
+        "t5_patterns_gcc_O1",
+        "t5_minmax",
+    ): "decompiler still loses the intended signed min/max semantics across the scalarized stack array",
 }
 
 
