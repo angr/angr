@@ -2965,6 +2965,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
+        self.cfunc = StackMemoryRegionMaterializer(self).handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
         self.cexterns = {
@@ -3177,14 +3178,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         renegotiate_type: Callable[[SimType, SimType], SimType] = lambda old, proposed: old,
     ) -> CExpression:
         def _force_type_cast(src_type_: SimType, dst_type_: SimType, expr_: CExpression) -> CUnaryOp:
-            src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
+            expr_type = unpack_typeref(expr_.type)
+            if isinstance(expr_type, SimTypePointer):
+                src_type_ptr = expr_.type
+                ptr_expr = expr_
+            else:
+                src_type_ptr = SimTypePointer(src_type_).with_arch(self.project.arch)
+                ptr_expr = CUnaryOp("Reference", expr_, codegen=self)
             dst_type_ptr = SimTypePointer(dst_type_).with_arch(self.project.arch)
             return CUnaryOp(
                 "Dereference",
                 CTypeCast(
                     src_type_ptr,
                     dst_type_ptr,
-                    CUnaryOp("Reference", expr_, codegen=self),
+                    ptr_expr,
                     codegen=self,
                 ),
                 codegen=self,
@@ -3371,8 +3378,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # step 1 is split expr into a sum of terms, each of which is a product of a constant stride and an index
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
-        if constant < 0:
-            constant = -constant  # TODO: This may not be correct. investigate later
 
         i = 0
         kernel = None
@@ -4600,6 +4605,468 @@ class MakeTypecastsImplicit(CStructuredCodeWalker):
         if obj.src_type == obj.dst_type or qualifies_for_implicit_cast(obj.src_type, obj.dst_type):
             return obj.expr
         return obj
+
+
+class _StackMemoryRegion:
+    __slots__ = ("alias_types", "base_var", "buffer_type", "end", "pointer_vars", "start", "vars")
+
+    def __init__(self, start: int, end: int):
+        self.start = start
+        self.end = end
+        self.pointer_vars: set[SimVariable] = set()
+        self.vars: set[SimStackVariable] = set()
+        self.alias_types: dict[SimStackVariable, SimType] = {}
+        self.base_var: SimStackVariable | None = None
+        self.buffer_type: SimTypeArray | None = None
+
+
+class StackMemoryRegionMaterializer:
+    """
+    Rebuild contiguous backing storage for stack memory that is traversed through pointers.
+    """
+
+    def __init__(self, codegen: CStructuredCodeGenerator):
+        self.codegen = codegen
+        self._regions: list[_StackMemoryRegion] = []
+        self._region_by_var: dict[SimStackVariable, _StackMemoryRegion] = {}
+        self._buffer_cvars: dict[_StackMemoryRegion, CVariable] = {}
+
+    def handle(self, obj: CFunction):
+        self._discover_regions(obj)
+        if not self._regions:
+            return obj
+
+        self._materialize_regions(obj)
+        obj.statements = self._rewrite_stmt(obj.statements)
+        obj.refresh()
+        return obj
+
+    @staticmethod
+    def _same_variable(cvar_0: CVariable, cvar_1: CVariable) -> bool:
+        key_0 = cvar_0.unified_variable or cvar_0.variable
+        key_1 = cvar_1.unified_variable or cvar_1.variable
+        return key_0 == key_1
+
+    @staticmethod
+    def _stack_ref_var(expr: CExpression | None) -> SimStackVariable | None:
+        if (
+            isinstance(expr, CUnaryOp)
+            and expr.op == "Reference"
+            and isinstance(expr.operand, CVariable)
+            and isinstance(expr.operand.variable, SimStackVariable)
+            and expr.operand.variable.offset < 0
+        ):
+            return expr.operand.variable
+        return None
+
+    @staticmethod
+    def _pointer_cvar(expr: CExpression | None) -> CVariable | None:
+        if isinstance(expr, CVariable):
+            ty = unpack_typeref(expr.type)
+            if isinstance(ty, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+                return expr
+        return None
+
+    @classmethod
+    def _pointer_and_stack_from_condition(
+        cls, condition: CExpression | None
+    ) -> tuple[CVariable | None, SimStackVariable | None]:
+        if isinstance(condition, CMultiStatementExpression):
+            return cls._pointer_and_stack_from_condition(condition.expr)
+        if not isinstance(condition, CBinaryOp) or not condition.op.startswith("Cmp"):
+            return None, None
+
+        lhs_ptr = cls._pointer_cvar(condition.lhs)
+        rhs_ptr = cls._pointer_cvar(condition.rhs)
+        lhs_stack = cls._stack_ref_var(condition.lhs)
+        rhs_stack = cls._stack_ref_var(condition.rhs)
+        if lhs_ptr is not None and rhs_stack is not None:
+            return lhs_ptr, rhs_stack
+        if rhs_ptr is not None and lhs_stack is not None:
+            return rhs_ptr, lhs_stack
+        return None, None
+
+    def _find_last_assignment(self, statements: list[CStatement], idx: int, target: CVariable) -> CAssignment | None:
+        def _last_assignment_in_stmt(stmt: CStatement) -> CAssignment | None:
+            if isinstance(stmt, CAssignment) and isinstance(stmt.lhs, CVariable) and self._same_variable(stmt.lhs, target):
+                return stmt
+            if isinstance(stmt, CStatements):
+                for child in reversed(stmt.statements):
+                    found = _last_assignment_in_stmt(child)
+                    if found is not None:
+                        return found
+            return None
+
+        for stmt in reversed(statements[:idx]):
+            found = _last_assignment_in_stmt(stmt)
+            if found is not None:
+                return found
+        return None
+
+    def _add_region(self, start: int, end: int, pointer_var: SimVariable | None) -> None:
+        if end <= start:
+            return
+        for region in self._regions:
+            if not (end < region.start or region.end < start):
+                region.start = min(region.start, start)
+                region.end = max(region.end, end)
+                if pointer_var is not None:
+                    region.pointer_vars.add(pointer_var)
+                return
+        region = _StackMemoryRegion(start, end)
+        if pointer_var is not None:
+            region.pointer_vars.add(pointer_var)
+        self._regions.append(region)
+
+    def _merge_regions(self) -> None:
+        if len(self._regions) < 2:
+            return
+
+        self._regions.sort(key=lambda r: (r.start, r.end))
+        merged: list[_StackMemoryRegion] = []
+        for region in self._regions:
+            if merged and region.start <= merged[-1].end:
+                prev = merged[-1]
+                prev.end = max(prev.end, region.end)
+                prev.pointer_vars |= region.pointer_vars
+            else:
+                merged.append(region)
+        self._regions = merged
+
+    def _discover_regions_from_stmt_list(self, stmts: CStatements | None) -> None:
+        if stmts is None:
+            return
+        for idx, stmt in enumerate(stmts.statements):
+            if isinstance(stmt, (CDoWhileLoop, CWhileLoop, CForLoop)):
+                ptr_cvar, stack_var = self._pointer_and_stack_from_condition(stmt.condition)
+                if ptr_cvar is not None and stack_var is not None:
+                    last_assignment = self._find_last_assignment(stmts.statements, idx, ptr_cvar)
+                    start_var = self._stack_ref_var(last_assignment.rhs) if last_assignment is not None else None
+                    if start_var is not None:
+                        self._add_region(
+                            min(start_var.offset, stack_var.offset),
+                            max(start_var.offset, stack_var.offset),
+                            ptr_cvar.unified_variable or ptr_cvar.variable,
+                        )
+                    elif last_assignment is not None:
+                        start_base, start_offset = self._stack_ref_plus_const(last_assignment.rhs)
+                        if start_base is not None:
+                            start = start_base.offset + start_offset
+                            self._add_region(
+                                min(start, stack_var.offset),
+                                max(start, stack_var.offset),
+                                ptr_cvar.unified_variable or ptr_cvar.variable,
+                            )
+                self._discover_regions_from_stmt_list(stmt.body if isinstance(stmt.body, CStatements) else None)
+            elif isinstance(stmt, CIfElse):
+                for _, node in stmt.condition_and_nodes:
+                    self._discover_regions_from_stmt_list(node if isinstance(node, CStatements) else None)
+                self._discover_regions_from_stmt_list(stmt.else_node if isinstance(stmt.else_node, CStatements) else None)
+            elif isinstance(stmt, CStatements):
+                self._discover_regions_from_stmt_list(stmt)
+
+    @staticmethod
+    def _pointer_var_plus_const(expr: CExpression | None) -> tuple[SimVariable | None, int]:
+        if not isinstance(expr, CBinaryOp) or expr.op not in {"Add", "Sub"}:
+            return None, 0
+
+        if isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CConstant) and isinstance(expr.rhs.value, int):
+            key = expr.lhs.unified_variable or expr.lhs.variable
+            return key, expr.rhs.value if expr.op == "Add" else -expr.rhs.value
+        if expr.op == "Add" and isinstance(expr.rhs, CVariable) and isinstance(expr.lhs, CConstant) and isinstance(
+            expr.lhs.value, int
+        ):
+            key = expr.rhs.unified_variable or expr.rhs.variable
+            return key, expr.lhs.value
+        return None, 0
+
+    @staticmethod
+    def _stack_ref_plus_const(expr: CExpression | None) -> tuple[SimStackVariable | None, int]:
+        if not isinstance(expr, CBinaryOp) or expr.op not in {"Add", "Sub"}:
+            return None, 0
+
+        stack_var = StackMemoryRegionMaterializer._stack_ref_var(expr.lhs)
+        if stack_var is not None and isinstance(expr.rhs, CConstant) and isinstance(expr.rhs.value, int):
+            return stack_var, expr.rhs.value if expr.op == "Add" else -expr.rhs.value
+
+        if expr.op == "Add":
+            stack_var = StackMemoryRegionMaterializer._stack_ref_var(expr.rhs)
+            if stack_var is not None and isinstance(expr.lhs, CConstant) and isinstance(expr.lhs.value, int):
+                return stack_var, expr.lhs.value
+
+        return None, 0
+
+    def _propagate_regions_in_stmt(self, stmt: CStatement) -> bool:
+        changed = False
+
+        if isinstance(stmt, CStatements):
+            for child in stmt.statements:
+                changed |= self._propagate_regions_in_stmt(child)
+            return changed
+
+        if isinstance(stmt, (CDoWhileLoop, CWhileLoop, CForLoop)):
+            ptr_cvar, stack_var = self._pointer_and_stack_from_condition(stmt.condition)
+            if ptr_cvar is not None and stack_var is not None:
+                ptr_key = ptr_cvar.unified_variable or ptr_cvar.variable
+                for region in self._regions:
+                    if ptr_key in region.pointer_vars:
+                        old = (region.start, region.end)
+                        region.start = min(region.start, stack_var.offset)
+                        region.end = max(region.end, stack_var.offset)
+                        changed |= old != (region.start, region.end)
+                    elif region.start <= stack_var.offset <= region.end:
+                        region.pointer_vars.add(ptr_key)
+                        changed = True
+            if stmt.body is not None:
+                changed |= self._propagate_regions_in_stmt(stmt.body)
+            return changed
+
+        if isinstance(stmt, CIfElse):
+            for _, node in stmt.condition_and_nodes:
+                if node is not None:
+                    changed |= self._propagate_regions_in_stmt(node)
+            if stmt.else_node is not None:
+                changed |= self._propagate_regions_in_stmt(stmt.else_node)
+            return changed
+
+        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
+            return False
+
+        lhs_key = stmt.lhs.unified_variable or stmt.lhs.variable
+        stack_var = self._stack_ref_var(stmt.rhs)
+        ptr_key, offset = self._pointer_var_plus_const(stmt.rhs)
+        ptr_rhs = self._pointer_cvar(stmt.rhs)
+        stack_base, stack_offset = self._stack_ref_plus_const(stmt.rhs)
+
+        for region in self._regions:
+            if stack_var is not None:
+                if region.start <= stack_var.offset <= region.end:
+                    if lhs_key not in region.pointer_vars:
+                        region.pointer_vars.add(lhs_key)
+                        changed = True
+                elif lhs_key in region.pointer_vars:
+                    old = (region.start, region.end)
+                    region.start = min(region.start, stack_var.offset)
+                    region.end = max(region.end, stack_var.offset)
+                    changed |= old != (region.start, region.end)
+
+            if ptr_rhs is not None:
+                rhs_key = ptr_rhs.unified_variable or ptr_rhs.variable
+                if rhs_key in region.pointer_vars and lhs_key not in region.pointer_vars:
+                    region.pointer_vars.add(lhs_key)
+                    changed = True
+
+            if ptr_key is not None and ptr_key in region.pointer_vars:
+                if lhs_key not in region.pointer_vars:
+                    region.pointer_vars.add(lhs_key)
+                    old = (region.start, region.end)
+                    if offset < 0:
+                        region.start += offset
+                    elif offset > 0:
+                        region.end += offset
+                    changed = True
+                    changed |= old != (region.start, region.end)
+
+            if stack_base is not None and region.start <= stack_base.offset <= region.end:
+                target_offset = stack_base.offset + stack_offset
+                if lhs_key not in region.pointer_vars:
+                    region.pointer_vars.add(lhs_key)
+                    changed = True
+                old = (region.start, region.end)
+                region.start = min(region.start, target_offset)
+                region.end = max(region.end, target_offset)
+                changed |= old != (region.start, region.end)
+
+        return changed
+
+    def _discover_regions(self, obj: CFunction) -> None:
+        if not isinstance(obj.statements, CStatements):
+            return
+
+        self._discover_regions_from_stmt_list(obj.statements)
+        self._merge_regions()
+        if not self._regions:
+            return
+
+        changed = True
+        while changed:
+            changed = self._propagate_regions_in_stmt(obj.statements)
+            if changed:
+                self._merge_regions()
+
+    def _materialize_regions(self, obj: CFunction) -> None:
+        stack_vars = [var for var in obj.variables_in_use if isinstance(var, SimStackVariable) and var.offset < 0]
+        if not stack_vars:
+            self._regions = []
+            return
+
+        char_ty = SimTypeChar().with_arch(self.codegen.project.arch)
+        for region in self._regions:
+            region.vars = {var for var in stack_vars if region.start <= var.offset <= region.end}
+            if not region.vars:
+                continue
+
+            region.base_var = min(region.vars, key=lambda var: var.offset)
+            region.alias_types = {
+                var: self.codegen._get_variable_type(var)
+                or self.codegen.default_simtype_from_bits(var.size * self.codegen.project.arch.byte_width, signed=False)
+                for var in region.vars
+            }
+            size = region.end - region.start
+            if size <= 0:
+                continue
+            region.buffer_type = SimTypeArray(char_ty, size).with_arch(self.codegen.project.arch)
+            obj.variable_manager.set_variable_type(region.base_var, region.buffer_type)
+            self.codegen._variables_in_use[region.base_var].variable_type = region.buffer_type
+            for var in region.vars:
+                self._region_by_var[var] = region
+                if var is not region.base_var:
+                    obj.variables_in_use.pop(var, None)
+
+    def _buffer_cvar(self, region: _StackMemoryRegion, tags=None) -> CVariable:
+        cvar = self._buffer_cvars.get(region)
+        if cvar is None:
+            assert region.base_var is not None and region.buffer_type is not None
+            cvar = self.codegen._variable(region.base_var, None, mark_used=False)
+            cvar.variable_type = region.buffer_type
+            self._buffer_cvars[region] = cvar
+        if tags:
+            cvar.tags = dict(tags)
+        return cvar
+
+    def _rewrite_stack_var(self, cvar: CVariable, *, lvalue: bool) -> CExpression:
+        region = self._region_by_var.get(cvar.variable)
+        if region is None or region.buffer_type is None:
+            return cvar
+
+        base = self._buffer_cvar(region, tags=cvar.tags)
+        alias_type = region.alias_types.get(cvar.variable, cvar.type)
+        offset = cvar.variable.offset - region.start
+        return self.codegen._access_constant_offset(
+            self.codegen._get_variable_reference(base),
+            offset,
+            alias_type,
+            lvalue,
+        )
+
+    def _rewrite_stack_reference(self, cvar: CVariable, tags=None) -> CExpression:
+        region = self._region_by_var.get(cvar.variable)
+        if region is None:
+            return CUnaryOp("Reference", cvar, tags=tags, codegen=self.codegen)
+
+        base = self._buffer_cvar(region, tags=tags or cvar.tags)
+        offset = cvar.variable.offset - region.start
+        if offset == 0:
+            return base
+
+        indexed = CIndexedVariable(
+            base,
+            CConstant(offset, SimTypeInt().with_arch(self.codegen.project.arch), codegen=self.codegen),
+            variable_type=SimTypeChar().with_arch(self.codegen.project.arch),
+            tags=tags,
+            codegen=self.codegen,
+        )
+        return CUnaryOp("Reference", indexed, tags=tags, codegen=self.codegen)
+
+    def _rewrite_expr(self, expr: CExpression | None, lvalue: bool = False) -> CExpression | None:
+        if expr is None:
+            return None
+
+        if isinstance(expr, CVariable) and isinstance(expr.variable, SimStackVariable) and expr.variable.offset < 0:
+            return self._rewrite_stack_var(expr, lvalue=lvalue)
+
+        if isinstance(expr, CUnaryOp):
+            if (
+                expr.op == "Reference"
+                and isinstance(expr.operand, CVariable)
+                and isinstance(expr.operand.variable, SimStackVariable)
+                and expr.operand.variable.offset < 0
+            ):
+                return self._rewrite_stack_reference(expr.operand, tags=expr.tags)
+            expr.operand = self._rewrite_expr(expr.operand, lvalue=expr.op == "Reference")
+            return expr
+
+        if isinstance(expr, CBinaryOp):
+            expr.lhs = self._rewrite_expr(expr.lhs, lvalue=False)
+            expr.rhs = self._rewrite_expr(expr.rhs, lvalue=False)
+            return expr
+
+        if isinstance(expr, CTypeCast):
+            expr.expr = self._rewrite_expr(expr.expr, lvalue=False)
+            return expr
+
+        if isinstance(expr, CIndexedVariable):
+            expr.variable = self._rewrite_expr(expr.variable, lvalue=False)
+            expr.index = self._rewrite_expr(expr.index, lvalue=False)
+            return expr
+
+        if isinstance(expr, CVariableField):
+            expr.variable = self._rewrite_expr(expr.variable, lvalue=False)
+            return expr
+
+        if isinstance(expr, CFunctionCall):
+            expr.callee_target = self._rewrite_expr(expr.callee_target, lvalue=False)
+            expr.args = [self._rewrite_expr(arg, lvalue=False) for arg in expr.args]
+            return expr
+
+        if isinstance(expr, CITE):
+            expr.cond = self._rewrite_expr(expr.cond, lvalue=False)
+            expr.iftrue = self._rewrite_expr(expr.iftrue, lvalue=False)
+            expr.iffalse = self._rewrite_expr(expr.iffalse, lvalue=False)
+            return expr
+
+        if isinstance(expr, CMultiStatementExpression):
+            expr.stmts = self._rewrite_stmt(expr.stmts)
+            expr.expr = self._rewrite_expr(expr.expr, lvalue=False)
+            return expr
+
+        return expr
+
+    def _rewrite_stmt(self, stmt: CStatement | None) -> CStatement | None:
+        if stmt is None:
+            return None
+
+        if isinstance(stmt, CStatements):
+            stmt.statements = [self._rewrite_stmt(child) for child in stmt.statements]
+            return stmt
+
+        if isinstance(stmt, CAssignment):
+            stmt.lhs = self._rewrite_expr(stmt.lhs, lvalue=True)
+            stmt.rhs = self._rewrite_expr(stmt.rhs, lvalue=False)
+            return stmt
+
+        if isinstance(stmt, CExpressionStatement):
+            stmt.expr = self._rewrite_expr(stmt.expr, lvalue=False)
+            return stmt
+
+        if isinstance(stmt, (CWhileLoop, CDoWhileLoop)):
+            stmt.condition = self._rewrite_expr(stmt.condition, lvalue=False)
+            stmt.body = self._rewrite_stmt(stmt.body)
+            return stmt
+
+        if isinstance(stmt, CForLoop):
+            stmt.initializer = self._rewrite_stmt(stmt.initializer)
+            stmt.condition = self._rewrite_expr(stmt.condition, lvalue=False)
+            stmt.iterator = self._rewrite_stmt(stmt.iterator)
+            stmt.body = self._rewrite_stmt(stmt.body)
+            return stmt
+
+        if isinstance(stmt, CIfElse):
+            stmt.condition_and_nodes = [
+                (self._rewrite_expr(cond, lvalue=False), self._rewrite_stmt(node)) for cond, node in stmt.condition_and_nodes
+            ]
+            stmt.else_node = self._rewrite_stmt(stmt.else_node)
+            return stmt
+
+        if isinstance(stmt, CReturn):
+            stmt.retval = self._rewrite_expr(stmt.retval, lvalue=False)
+            return stmt
+
+        if isinstance(stmt, CGoto):
+            stmt.target = self._rewrite_expr(stmt.target, lvalue=False)
+            return stmt
+
+        return stmt
 
 
 class FieldReferenceCleanup(CStructuredCodeWalker):
