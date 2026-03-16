@@ -1291,6 +1291,7 @@ class CAssignment(CStatement):
             return operand
         if operand_type.size != target_type.size:
             return operand
+        # Some recovered stack cells stay typed as arrays even when later expressions treat them as scalars.
         return CUnaryOp(
             "Dereference",
             CTypeCast(
@@ -1800,10 +1801,12 @@ class CIndexedVariable(CExpression):
         if isinstance(variable_type, SimTypePointer) and isinstance(
             unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
         ):
+            # `iter[i]` on a pointer-to-array means indexing the pointed-to array, not the pointer object itself.
             variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
         elif isinstance(variable_type, SimTypePointer) and isinstance(
             unpack_typeref(variable_type.pts_to), SimTypeBottom
         ):
+            # Raw void* indexing is a byte-addressed operation in the emitted C.
             variable = CTypeCast(
                 variable.type,
                 SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
@@ -2312,6 +2315,7 @@ class CTypeCast(CExpression):
 
         byte_ptr_type = SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch)
         typed_ptr_type = SimTypePointer(dst_type).with_arch(self.codegen.project.arch)
+        # Recover typed loads from byte-wise void* walks without reintroducing invalid void* indexing.
         byte_base = CTypeCast(self.expr.variable.type, byte_ptr_type, self.expr.variable, codegen=self.codegen)
         offset = self.expr.index
         addr = (
