@@ -320,7 +320,7 @@ class SimEngineDephiRewriting(SimEngineNostmtAIL[None, Expression | None, Statem
                 new_r = self._expr(r)
                 if new_r is not None:
                     updated = True
-                new_ret_exprs.append(new_r if new_r is not None else None)
+                new_ret_exprs.append(new_r if new_r is not None else r)
             if not updated:
                 new_ret_exprs = None
 
