@@ -550,9 +550,9 @@ def pc_actions_ROR(state, nbits, res, _, cc_ndep, platform=None):
 
 
 def pc_actions_UMUL(state, nbits, cc_dep1, cc_dep2, cc_ndep, platform=None):
-    lo = (cc_dep1 * cc_dep2)[nbits - 1 : 0]
-    rr = lo
-    hi = (rr >> nbits)[nbits - 1 : 0]
+    rr = cc_dep1.zero_extend(nbits) * cc_dep2.zero_extend(nbits)
+    lo = rr[nbits - 1 : 0]
+    hi = rr[2 * nbits - 1 : nbits]
     cf = claripy.If(hi != 0, claripy.BVV(1, 1), claripy.BVV(0, 1))
     zf = calc_zerobit(lo)
     pf = calc_paritybit(lo)

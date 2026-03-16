@@ -159,6 +159,16 @@ class TestVex(unittest.TestCase):
         assert s.solver.is_true(sf == 0)
         assert s.solver.is_true(of == 1)
 
+        l.debug("Testing pc_actions_UMUL")
+        l.debug("(8-bit) 0x10 * 0x10...")
+        arg_l = claripy.BVV(0x10, 8)
+        arg_r = claripy.BVV(0x10, 8)
+        cf, pf, af, zf, sf, of = s_ccall.pc_actions_UMUL(s, 8, arg_l, arg_r, 0, platform="AMD64")
+        assert s.solver.is_true(cf == 1)
+        assert s.solver.is_true(of == 1)
+        assert s.solver.is_true(zf == 1)
+        assert s.solver.is_true(sf == 0)
+
         l.debug("Testing amd64_actions_ADCX")
 
         l.debug("(ADCX, 32-bit) 0xffffffff + 1...")

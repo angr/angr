@@ -119,9 +119,65 @@ def _is_array_type(ty: SimType | None) -> bool:
     return isinstance(unpack_typeref(ty), (SimTypeArray, SimTypeFixedSizeArray))
 
 
-def _is_pointer_to_array_type(ty: SimType | None) -> bool:
-    ty = unpack_typeref(ty)
-    return isinstance(ty, SimTypePointer) and _is_array_type(ty.pts_to)
+def _get_cvariable_backing(expr: CExpression) -> SimVariable | None:
+    if not isinstance(expr, CVariable):
+        return None
+    return expr.unified_variable if expr.unified_variable is not None else expr.variable
+
+
+def _iter_cconstructs(node: CConstruct, seen: set[int] | None = None):
+    if seen is None:
+        seen = set()
+    if id(node) in seen:
+        return
+    seen.add(id(node))
+    yield node
+
+    for slot in getattr(type(node), "__slots__", ()):
+        if slot == "codegen":
+            continue
+        try:
+            value = getattr(node, slot)
+        except AttributeError:
+            continue
+        if isinstance(value, CConstruct):
+            yield from _iter_cconstructs(value, seen)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                if isinstance(item, CConstruct):
+                    yield from _iter_cconstructs(item, seen)
+
+
+def _strip_typecasts(expr: CExpression) -> CExpression:
+    while isinstance(expr, CTypeCast):
+        expr = expr.expr
+    return expr
+
+
+def _is_stack_address_expr(expr: CExpression) -> bool:
+    expr = _strip_typecasts(expr)
+    if not isinstance(expr, CUnaryOp) or expr.op != "Reference":
+        return False
+    target = _get_cvariable_backing(expr.operand)
+    return isinstance(target, SimStackVariable)
+
+
+def _display_variable_type(codegen: CStructuredCodeGenerator, variable: SimVariable, var_type: SimType) -> SimType:
+    var_type = unpack_typeref(var_type)
+    if (
+        isinstance(variable, SimRegisterVariable)
+        and isinstance(var_type, SimTypePointer)
+        and _is_array_type(var_type.pts_to)
+        and variable not in codegen.stack_backed_aliases
+    ):
+        return SimTypePointer(
+            var_type.pts_to.elem_type,
+            label=var_type.label,
+            offset=var_type.offset,
+            qualifier=var_type.qualifier,
+            disposition=var_type.disposition,
+        ).with_arch(codegen.project.arch)
+    return var_type
 
 
 def _scalarize_array_operand(
@@ -555,8 +611,9 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             )
 
             for i, var_type in enumerate(vartypes):
+                display_type = _display_variable_type(self.codegen, variable, var_type)
                 if i == 0:
-                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
+                    yield from type_to_c_repr_chunks(display_type, name=name, name_type=cvariable)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -565,10 +622,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                         yield ", Other Possible Types: ", None
                     else:
                         yield ", ", None
-                    if isinstance(var_type, SimType):
-                        yield var_type.c_repr(), var_type
+                    if isinstance(display_type, SimType):
+                        yield display_type.c_repr(), display_type
                     else:
-                        yield str(var_type), var_type
+                        yield str(display_type), display_type
             yield "\n", None
 
         if self.unified_local_vars:
@@ -1813,10 +1870,16 @@ class CIndexedVariable(CExpression):
 
         variable = self.variable
         variable_type = unpack_typeref(variable.type)
-        if _is_pointer_to_array_type(variable_type):
+        if (
+            isinstance(variable_type, SimTypePointer)
+            and _is_array_type(variable_type.pts_to)
+            and _get_cvariable_backing(variable) in self.codegen.stack_backed_aliases
+        ):
             variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
-        elif isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), SimTypeBottom
+        elif (
+            isinstance(variable_type, SimTypePointer)
+            and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom)
+            and _get_cvariable_backing(variable) in self.codegen.stack_backed_aliases
         ):
             variable = CTypeCast(
                 variable.type,
@@ -2796,6 +2859,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.binop_depth_cutoff = binop_depth_cutoff
 
         self._variables_in_use: dict | None = None
+        self._stack_backed_aliases: set[SimVariable] | None = None
         self._inlined_strings: set[SimMemoryVariable] = set()
         self._function_pointers: set[SimMemoryVariable] = set()
         self.ailexpr2cnode: dict[tuple[Expr.Expression, bool], CExpression] | None = None
@@ -2860,6 +2924,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _analyze(self):
         self._variables_in_use = {}
+        self._stack_backed_aliases = None
 
         # memo
         self.ailexpr2cnode = {}
@@ -3017,6 +3082,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             )
             if vartype is not None:
                 cvar.variable_type = vartype.with_arch(self.project.arch)
+
+    @property
+    def stack_backed_aliases(self) -> set[SimVariable]:
+        if self._stack_backed_aliases is None:
+            aliases: set[SimVariable] = set()
+            if self.cfunc is not None:
+                for node in _iter_cconstructs(self.cfunc):
+                    if not isinstance(node, CAssignment):
+                        continue
+                    lhs = _get_cvariable_backing(node.lhs)
+                    if isinstance(lhs, SimRegisterVariable) and _is_stack_address_expr(node.rhs):
+                        aliases.add(lhs)
+            self._stack_backed_aliases = aliases
+        return self._stack_backed_aliases
 
     #
     # Util methods
