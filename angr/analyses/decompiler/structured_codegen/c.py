@@ -176,6 +176,30 @@ def _scalarize_array_operand(
     return operand
 
 
+def _rewrite_pointer_array_lvalue(codegen: BaseStructuredCodeGenerator, expr: CExpression) -> CExpression:
+    if not isinstance(expr, CIndexedVariable) or not isinstance(expr.variable, CVariable):
+        return expr
+
+    variable_type = unpack_typeref(expr.variable.type)
+    if not isinstance(variable_type, SimTypePointer):
+        return expr
+
+    pts_to = unpack_typeref(variable_type.pts_to)
+    if not isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+        return expr
+
+    base_var = expr.variable.unified_variable or expr.variable.variable
+    if not isinstance(base_var, (SimRegisterVariable, SimTemporaryVariable)):
+        return expr
+
+    return CIndexedVariable(
+        CUnaryOp("Dereference", expr.variable, codegen=codegen),
+        expr.index,
+        variable_type=expr.type,
+        codegen=codegen,
+    )
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -1341,7 +1365,7 @@ class CAssignment(CStatement):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
-        lhs = self.lhs
+        lhs = _rewrite_pointer_array_lvalue(self.codegen, self.lhs)
         rhs = self.rhs
         lhs_type = unpack_typeref(lhs.type)
         rhs_type = unpack_typeref(rhs.type)
@@ -1831,18 +1855,16 @@ class CIndexedVariable(CExpression):
             return
 
         variable = self.variable
+        index = self.index
         variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer):
-            pts_to = unpack_typeref(variable_type.pts_to)
-            if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
-                variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
-            elif isinstance(pts_to, SimTypeBottom):
-                variable = CTypeCast(
-                    variable.type,
-                    SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
-                    variable,
-                    codegen=self.codegen,
-                )
+        if (
+            isinstance(variable_type, SimTypePointer)
+            and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom)
+            and isinstance(index, CConstant)
+            and isinstance(index.value, int)
+            and index.value < 0
+        ):
+            index = CConstant(-index.value, index.type, codegen=self.codegen)
 
         bracket = CClosingObject("[")
         if not isinstance(variable, (CVariable, CVariableField)):
@@ -1851,7 +1873,7 @@ class CIndexedVariable(CExpression):
         if not isinstance(variable, (CVariable, CVariableField)):
             yield ")", None
         yield "[", bracket
-        yield from CExpression._try_c_repr_chunks(self.index)
+        yield from CExpression._try_c_repr_chunks(index)
         yield "]", bracket
 
 
@@ -3456,9 +3478,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # nothing has the ability to escape the kernel
             # go in deeper
             if isinstance(kernel_type, SimStruct):
-                field_name, field_offset = max(
-                    ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
-                )
+                field_offsets = [(x, y) for x, y in kernel_type.offsets.items() if y <= constant]
+                if not field_offsets:
+                    return bail_out()
+                field_name, field_offset = max(field_offsets, key=lambda x: x[1])
                 field_type = kernel_type.fields[field_name]
                 kernel = CUnaryOp(
                     "Reference",
