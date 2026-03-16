@@ -1393,7 +1393,9 @@ class CAssignment(CStatement):
             # a = a + x  =>  a += x
             # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from CExpression._try_c_repr_chunks(_scalarize_array_operand(self.codegen, compound_expr_rhs, lhs.type))
+            yield from CExpression._try_c_repr_chunks(
+                _scalarize_array_operand(self.codegen, compound_expr_rhs, lhs.type)
+            )
         else:
             yield " = ", self
             yield from CExpression._try_c_repr_chunks(rhs)
