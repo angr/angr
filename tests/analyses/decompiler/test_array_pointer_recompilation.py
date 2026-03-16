@@ -100,7 +100,7 @@ def _prepare_source(text: str) -> str:
     return _COMPILE_PREAMBLE + "\n".join(lines) + "\n"
 
 
-def _try_compile(source: str, tmp_dir: str, func_name: str) -> tuple[bool, str]:
+def _try_compile(source: str, tmp_dir: str, func_name: str, extra_cflags: tuple[str, ...] = ()) -> tuple[bool, str]:
     c_path = os.path.join(tmp_dir, f"{func_name}.c")
     with open(c_path, "w", encoding="utf-8") as f:
         f.write(source)
@@ -110,6 +110,7 @@ def _try_compile(source: str, tmp_dir: str, func_name: str) -> tuple[bool, str]:
             "gcc",
             "-c",
             *_GCC_FLAGS,
+            *extra_cflags,
             "-o",
             os.path.join(tmp_dir, f"{func_name}.o"),
             c_path,
@@ -133,4 +134,19 @@ def test_array_pointer_codegen_recompiles(bin_path, func_name, decl_pattern, tmp
         assert re.search(decl_pattern, text) is not None, text
 
     compiled, stderr = _try_compile(_prepare_source(text), str(tmp_path), func_name)
+    assert compiled, stderr
+
+
+@pytest.mark.parametrize("bin_path,func_name,decl_pattern", _TARGETS)
+def test_array_pointer_codegen_warning_clean(bin_path, func_name, decl_pattern, tmp_path):
+    if not os.path.isfile(bin_path):
+        pytest.skip(f"Missing test binary: {bin_path}")
+
+    text = _get_decompiled(bin_path)[func_name]
+    compiled, stderr = _try_compile(
+        _prepare_source(text),
+        str(tmp_path),
+        func_name,
+        extra_cflags=("-Wall", "-Wextra", "-Werror"),
+    )
     assert compiled, stderr
