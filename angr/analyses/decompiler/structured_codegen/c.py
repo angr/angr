@@ -303,30 +303,6 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
     return t0 == t1
 
 
-def _use_named_pointer_array_decl(ty: SimType, name_type) -> bool:
-    if not isinstance(ty, SimTypePointer):
-        return False
-
-    pts_to = unpack_typeref(ty.pts_to)
-    if not isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
-        return False
-
-    if "CVariable" in globals() and isinstance(name_type, CVariable):
-        return isinstance(name_type.variable, (SimRegisterVariable, SimTemporaryVariable))
-
-    return False
-
-
-def _named_pointer_array_c_repr(ty: SimTypePointer, name: str) -> str:
-    pts_to = unpack_typeref(ty.pts_to)
-    quals = f"{' '.join(ty.qualifier)}" if ty.qualifier else ""
-    if quals:
-        name_with_deref = f"(*{quals} {name})"
-    else:
-        name_with_deref = f"(*{name})"
-    return pts_to.c_repr(name_with_deref)
-
-
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -368,10 +344,7 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
     elif isinstance(ty, SimType):
         assert name
         assert name_type
-        if _use_named_pointer_array_decl(ty, name_type):
-            raw_type_str = _named_pointer_array_c_repr(ty, name)
-        else:
-            raw_type_str = ty.c_repr(name=name)
+        raw_type_str = ty.c_repr(name=name)
         assert name in raw_type_str
 
         type_pre, type_post = raw_type_str.rsplit(name, 1)
@@ -3067,7 +3040,6 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             omit_header=self.omit_func_header,
         )
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
-        self.cfunc = PostDecrementLoopConditionFixer().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         self.cfunc = StackMemoryRegionMaterializer(self).handle(self.cfunc)
@@ -5192,75 +5164,6 @@ class FieldReferenceCleanup(CStructuredCodeWalker):
             if not isinstance(new_obj, CTypeCast):
                 return self.handle(new_obj)
         return super().handle_CTypeCast(obj)
-
-
-class PostDecrementLoopConditionFixer(CStructuredCodeWalker):
-    @staticmethod
-    def _same_variable(var0: CVariable, var1: CVariable) -> bool:
-        return (var0.unified_variable or var0.variable) == (var1.unified_variable or var1.variable)
-
-    @classmethod
-    def _extract_decrement(cls, stmt: CStatement) -> tuple[CVariable, int] | None:
-        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
-            return None
-        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op != "Sub":
-            return None
-        if not isinstance(stmt.rhs.lhs, CVariable) or not cls._same_variable(stmt.lhs, stmt.rhs.lhs):
-            return None
-        if not isinstance(stmt.rhs.rhs, CConstant) or not isinstance(stmt.rhs.rhs.value, int):
-            return None
-        return stmt.lhs, stmt.rhs.rhs.value
-
-    @classmethod
-    def _signed_constant_value(cls, const: CConstant) -> int | None:
-        if not isinstance(const.value, int):
-            return None
-        size = getattr(const.type, "size", None)
-        if size is None:
-            return const.value
-        value = const.value & ((1 << size) - 1)
-        sign_bit = 1 << (size - 1)
-        return value - (1 << size) if value & sign_bit else value
-
-    @classmethod
-    def _rewrite_condition(
-        cls, condition: CExpression | None, dec_info: tuple[CVariable, int] | None
-    ) -> CExpression | None:
-        if dec_info is None or not isinstance(condition, CBinaryOp) or condition.op not in {"CmpNE", "CmpEQ"}:
-            return condition
-
-        dec_var, dec_value = dec_info
-
-        lhs = condition.lhs
-        rhs = condition.rhs
-        if isinstance(lhs, CConstant) and isinstance(rhs, CVariable):
-            lhs, rhs = rhs, lhs
-        if not isinstance(lhs, CVariable) or not isinstance(rhs, CConstant):
-            lhs = condition.lhs
-            rhs = condition.rhs
-        else:
-            if rhs.value == dec_value and cls._same_variable(lhs, dec_var):
-                rhs.value = 0
-                return condition
-
-        if isinstance(rhs, CConstant) and rhs.value == 0 and isinstance(lhs, CBinaryOp):
-            inner_lhs = lhs.lhs
-            inner_rhs = lhs.rhs
-            signed_rhs = cls._signed_constant_value(inner_rhs) if isinstance(inner_rhs, CConstant) else None
-            if isinstance(inner_lhs, CVariable) and cls._same_variable(inner_lhs, dec_var):
-                if (lhs.op == "Sub" and signed_rhs == dec_value) or (lhs.op == "Add" and signed_rhs == -dec_value):
-                    condition.lhs = dec_var
-                    return condition
-
-        return condition
-
-    def handle_CDoWhileLoop(self, obj):
-        obj = super().handle_CDoWhileLoop(obj)
-        dec_info = None
-        if isinstance(obj.body, CStatements) and obj.body.statements:
-            dec_info = self._extract_decrement(obj.body.statements[-1])
-        obj.condition = self._rewrite_condition(obj.condition, dec_info)
-        return obj
 
 
 class PointerArithmeticFixer(CStructuredCodeWalker):

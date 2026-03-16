@@ -12,14 +12,34 @@ from tests.common import bin_location
 test_location = os.path.join(bin_location, "tests", "x86_64", "recompile_dataset")
 
 _TARGET_CASES = (
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_copy", r"\bchar \(\*\w+\)\[4\];"),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_max", r"\bchar \(\*\w+\)\[4\];"),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_of_structs", r"\bunsigned int \(\*\w+\)\[2\];"),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_reverse", r"\bchar \(\*\w+\)\[4\];"),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_sum", r"\bchar \(\*\w+\)\[4\];"),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_matrix_trace", None),
-    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_ptr_walk", None),
-    (os.path.join(test_location, "t5_patterns_gcc_O1"), "t5_minmax", r"\bchar \(\*\w+\)\[4\];"),
+    (
+        os.path.join(test_location, "t3_memory_gcc_O1"),
+        "t3_array_copy",
+        r"\bchar \(\*\w+\)\[4\];",
+        (r"\bchar v0\[64\];", r"cur = \(char \(\*\)\[4\]\)v0;"),
+    ),
+    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_max", r"\bchar \(\*\w+\)\[4\];", ()),
+    (
+        os.path.join(test_location, "t3_memory_gcc_O1"),
+        "t3_array_of_structs",
+        r"\bunsigned int \(\*\w+\)\[2\];",
+        (r"\bchar v0\[32\];", r"iter = \(unsigned int \(\*\)\[2\]\)v0;"),
+    ),
+    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_reverse", r"\bchar \(\*\w+\)\[4\];", ()),
+    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_array_sum", r"\bchar \(\*\w+\)\[4\];", ()),
+    (os.path.join(test_location, "t3_memory_gcc_O1"), "t3_matrix_trace", None, ()),
+    (
+        os.path.join(test_location, "t3_memory_gcc_O1"),
+        "t3_ptr_walk",
+        None,
+        (r"\bchar v0\[32\];", r"\(\(char \*\)cur\)\[4\]", r"\(\(char \*\)iter\)\[4\]"),
+    ),
+    (
+        os.path.join(test_location, "t5_patterns_gcc_O1"),
+        "t5_minmax",
+        r"\bchar \(\*\w+\)\[4\];",
+        (r"\bchar v1\[36\];", r"cur = \(char \(\*\)\[4\]\)&v1\[4\];"),
+    ),
 )
 
 _TARGETS = tuple(
@@ -27,14 +47,15 @@ _TARGETS = tuple(
         bin_path,
         func_name,
         decl_pattern,
+        extra_patterns,
         id=f"x86_64/recompile_dataset/{os.path.basename(bin_path)}/{func_name}",
     )
-    for bin_path, func_name, decl_pattern in _TARGET_CASES
+    for bin_path, func_name, decl_pattern, extra_patterns in _TARGET_CASES
 )
 
 _TARGET_FUNCTIONS = {
-    bin_path: {func_name for target_bin_path, func_name, _ in _TARGET_CASES if target_bin_path == bin_path}
-    for bin_path, _, _ in _TARGET_CASES
+    bin_path: {func_name for target_bin_path, func_name, _, _ in _TARGET_CASES if target_bin_path == bin_path}
+    for bin_path, _, _, _ in _TARGET_CASES
 }
 
 _COMPILE_PREAMBLE = """\
@@ -123,8 +144,8 @@ def _try_compile(source: str, tmp_dir: str, func_name: str, extra_cflags: tuple[
     return result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("bin_path,func_name,decl_pattern", _TARGETS)
-def test_array_pointer_codegen_recompiles(bin_path, func_name, decl_pattern, tmp_path):
+@pytest.mark.parametrize("bin_path,func_name,decl_pattern,extra_patterns", _TARGETS)
+def test_array_pointer_codegen_recompiles(bin_path, func_name, decl_pattern, extra_patterns, tmp_path):
     if not os.path.isfile(bin_path):
         pytest.skip(f"Missing test binary: {bin_path}")
 
@@ -132,13 +153,15 @@ def test_array_pointer_codegen_recompiles(bin_path, func_name, decl_pattern, tmp
 
     if decl_pattern is not None:
         assert re.search(decl_pattern, text) is not None, text
+    for extra_pattern in extra_patterns:
+        assert re.search(extra_pattern, text) is not None, text
 
     compiled, stderr = _try_compile(_prepare_source(text), str(tmp_path), func_name)
     assert compiled, stderr
 
 
-@pytest.mark.parametrize("bin_path,func_name,decl_pattern", _TARGETS)
-def test_array_pointer_codegen_warning_clean(bin_path, func_name, decl_pattern, tmp_path):
+@pytest.mark.parametrize("bin_path,func_name,decl_pattern,extra_patterns", _TARGETS)
+def test_array_pointer_codegen_warning_clean(bin_path, func_name, decl_pattern, extra_patterns, tmp_path):
     if not os.path.isfile(bin_path):
         pytest.skip(f"Missing test binary: {bin_path}")
 
