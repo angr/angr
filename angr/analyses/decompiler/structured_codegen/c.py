@@ -1,6 +1,7 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument,no-self-use
 from __future__ import annotations
-from typing import cast, Any, TYPE_CHECKING, Iterator
+from typing import cast, Any, TYPE_CHECKING
+from collections.abc import Iterator
 
 from collections.abc import Iterable
 from collections.abc import Callable
@@ -205,8 +206,8 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
 
 
 def coerce_pointer_expression_for_type_context(
-    expr: "CExpression", target_type: SimType | None, codegen: "StructuredCodeGenerator"
-) -> "CExpression":
+    expr: CExpression, target_type: SimType | None, codegen: StructuredCodeGenerator
+) -> CExpression:
     target_type = unpack_typeref(target_type)
     expr_type = unpack_typeref(expr.type)
     if not isinstance(target_type, SimTypePointer):
@@ -225,8 +226,8 @@ def coerce_pointer_expression_for_type_context(
 
 
 def cast_stack_frame_reference_for_pointer_context(
-    expr: "CExpression", target_type: SimType | None, codegen: "StructuredCodeGenerator"
-) -> "CExpression":
+    expr: CExpression, target_type: SimType | None, codegen: StructuredCodeGenerator
+) -> CExpression:
     target_type = unpack_typeref(target_type)
     if not isinstance(target_type, SimTypePointer):
         return expr
