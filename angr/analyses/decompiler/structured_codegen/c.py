@@ -162,24 +162,6 @@ def _is_stack_address_expr(expr: CExpression) -> bool:
     return isinstance(target, SimStackVariable)
 
 
-def _display_variable_type(codegen: CStructuredCodeGenerator, variable: SimVariable, var_type: SimType) -> SimType:
-    var_type = unpack_typeref(var_type)
-    if (
-        isinstance(variable, SimRegisterVariable)
-        and isinstance(var_type, SimTypePointer)
-        and _is_array_type(var_type.pts_to)
-        and variable not in codegen.stack_backed_aliases
-    ):
-        return SimTypePointer(
-            var_type.pts_to.elem_type,
-            label=var_type.label,
-            offset=var_type.offset,
-            qualifier=var_type.qualifier,
-            disposition=var_type.disposition,
-        ).with_arch(codegen.project.arch)
-    return var_type
-
-
 def _scalarize_array_operand(
     codegen: BaseStructuredCodeGenerator,
     operand: CExpression,
@@ -611,9 +593,8 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             )
 
             for i, var_type in enumerate(vartypes):
-                display_type = _display_variable_type(self.codegen, variable, var_type)
                 if i == 0:
-                    yield from type_to_c_repr_chunks(display_type, name=name, name_type=cvariable)
+                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -622,10 +603,10 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                         yield ", Other Possible Types: ", None
                     else:
                         yield ", ", None
-                    if isinstance(display_type, SimType):
-                        yield display_type.c_repr(), display_type
+                    if isinstance(var_type, SimType):
+                        yield var_type.c_repr(), var_type
                     else:
-                        yield str(display_type), display_type
+                        yield str(var_type), var_type
             yield "\n", None
 
         if self.unified_local_vars:
