@@ -610,9 +610,7 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             padding_ctr = 0
             for _, field_name, field_type, padding_after in frame_layout:
                 yield field_indent, None
-                yield from type_to_c_repr_chunks(
-                    field_type, name=field_name, name_type=CStructFieldNameDef(field_name)
-                )
+                yield from type_to_c_repr_chunks(field_type, name=field_name, name_type=CStructFieldNameDef(field_name))
                 yield ";\n", None
                 if padding_after > 0:
                     yield field_indent, None
@@ -3297,7 +3295,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     typed = unpack_typeref(var_type)
                     typed_size = (
                         typed.size // self.project.arch.byte_width
-                        if typed is not None and typed.size is not None and typed.size % self.project.arch.byte_width == 0
+                        if typed is not None
+                        and typed.size is not None
+                        and typed.size % self.project.arch.byte_width == 0
                         else 0
                     )
                     var_size = typed_size or var.size or 1
@@ -4939,7 +4939,9 @@ class StackAliasFixer(CStructuredCodeWalker):
         return None
 
     @staticmethod
-    def _match_stack_ref_offset(expr: CExpression) -> tuple[CExpression, SimStackVariable, int] | tuple[None, None, None]:
+    def _match_stack_ref_offset(
+        expr: CExpression,
+    ) -> tuple[CExpression, SimStackVariable, int] | tuple[None, None, None]:
         ref_expr, stack_var = _match_stack_reference(expr)
         if stack_var is not None:
             return ref_expr, stack_var, 0
@@ -4968,8 +4970,10 @@ class StackAliasFixer(CStructuredCodeWalker):
         const_expr = None
         if _get_cvariable_backing(_strip_typecasts(rhs.lhs)) == variable and isinstance(rhs.rhs, CConstant):
             const_expr = rhs.rhs
-        elif rhs.op == "Add" and _get_cvariable_backing(_strip_typecasts(rhs.rhs)) == variable and isinstance(
-            rhs.lhs, CConstant
+        elif (
+            rhs.op == "Add"
+            and _get_cvariable_backing(_strip_typecasts(rhs.rhs)) == variable
+            and isinstance(rhs.lhs, CConstant)
         ):
             const_expr = rhs.lhs
 
@@ -5005,11 +5009,7 @@ class StackAliasFixer(CStructuredCodeWalker):
         if init_assign is None:
             return
         base_ref, base_var, init_offset = self._match_stack_ref_offset(init_assign.rhs)
-        if (
-            base_var is None
-            or base_var not in loop.codegen.stack_alias_targets
-            or init_offset != -step_bytes
-        ):
+        if base_var is None or base_var not in loop.codegen.stack_alias_targets or init_offset != -step_bytes:
             return
 
         init_assign.rhs = base_ref
@@ -5022,7 +5022,11 @@ class StackAliasFixer(CStructuredCodeWalker):
         loop.condition = loop.condition.expr
 
     def _fix_reverse_scan_condition(self, loop: CDoWhileLoop) -> None:
-        if not isinstance(loop.condition, CBinaryOp) or not isinstance(loop.body, CStatements) or not loop.body.statements:
+        if (
+            not isinstance(loop.condition, CBinaryOp)
+            or not isinstance(loop.body, CStatements)
+            or not loop.body.statements
+        ):
             return
 
         match = self._match_cmp_var_and_stack_ref(loop.condition)
