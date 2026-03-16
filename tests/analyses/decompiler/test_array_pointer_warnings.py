@@ -49,6 +49,14 @@ volatile unsigned int g_sink;
 """
 
 _decompiled_cache: dict[str, dict[str, str]] = {}
+_STRICT_GCC_FLAGS = (
+    "-std=gnu11",
+    "-Wall",
+    "-Wextra",
+    "-Werror",
+    "-Wno-unused-variable",
+    "-Wno-unused-but-set-variable",
+)
 
 
 def _decompile_functions(bin_path: str, func_names: set[str]) -> dict[str, str]:
@@ -104,11 +112,7 @@ def _try_compile(source: str, tmp_dir: str, func_name: str) -> tuple[bool, str]:
         [
             "gcc",
             "-c",
-            "-std=gnu11",
-            "-Wall",
-            "-Wextra",
-            "-Wno-unused-variable",
-            "-Wno-unused-but-set-variable",
+            *_STRICT_GCC_FLAGS,
             "-o",
             os.path.join(tmp_dir, f"{func_name}.o"),
             c_path,
@@ -132,10 +136,8 @@ def _compile_shared(source: str, tmp_dir: str, func_name: str) -> tuple[bool, st
             "gcc",
             "-shared",
             "-fPIC",
-            "-std=gnu11",
             "-O0",
-            "-Wno-unused-variable",
-            "-Wno-unused-but-set-variable",
+            *_STRICT_GCC_FLAGS,
             "-o",
             so_path,
             c_path,

@@ -115,6 +115,28 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
+def coerce_expr_to_type(expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator) -> CExpression:
+    target_type = unpack_typeref(target_type)
+    expr_type = unpack_typeref(expr.type)
+
+    if target_type is None or expr_type is None or type_equals(expr_type, target_type):
+        return expr
+    if isinstance(expr, CTypeCast) and type_equals(unpack_typeref(expr.dst_type), target_type):
+        return expr
+    return CTypeCast(expr.type, target_type.with_arch(codegen.project.arch), expr, codegen=codegen)
+
+
+def coerce_pointer_expr(expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator) -> CExpression:
+    target_type = unpack_typeref(target_type)
+    expr_type = unpack_typeref(expr.type)
+
+    if not isinstance(target_type, SimTypePointer):
+        return expr
+    if not isinstance(expr_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray)):
+        return expr
+    return coerce_expr_to_type(expr, target_type, codegen)
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -1332,6 +1354,8 @@ class CAssignment(CStatement):
             rhs = self._scalarize_array_operand(rhs, lhs_type)
         elif not isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray)):
             lhs = self._scalarize_array_operand(lhs, rhs_type)
+        if self.codegen.uses_stack_backing:
+            rhs = coerce_pointer_expr(rhs, lhs.type, self.codegen)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(lhs)
@@ -1812,6 +1836,16 @@ class CIndexedVariable(CExpression):
             unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
         ):
             variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
+        elif (
+            self.codegen.uses_stack_backing
+            and isinstance(variable_type, SimTypePointer)
+            and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom)
+        ):
+            variable = coerce_expr_to_type(
+                variable,
+                SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
+                self.codegen,
+            )
 
         bracket = CClosingObject("[")
         if not isinstance(variable, (CVariable, CVariableField)):
@@ -2151,6 +2185,11 @@ class CBinaryOp(CExpression):
                 ),
                 codegen=self.codegen,
             )
+        if self.codegen.uses_stack_backing and self.op.startswith("Cmp"):
+            if isinstance(lhs_type, SimTypePointer):
+                rhs = coerce_pointer_expr(rhs, lhs.type, self.codegen)
+            elif isinstance(rhs_type, SimTypePointer):
+                lhs = coerce_pointer_expr(lhs, rhs.type, self.codegen)
         skip_op_and_rhs = False
         if self._cstyle_null_cmp and self._has_const_null_rhs():
             if self.op == "CmpEQ":
@@ -3163,6 +3202,20 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             var.size == 1 for var in addressed_stack_vars
         ):
             return False
+        register_pointer_vars = 0
+        has_special_register_pointer = False
+        for var, cvar in self._variables_in_use.items():
+            if not isinstance(var, SimRegisterVariable):
+                continue
+            var_type = unpack_typeref(cvar.type)
+            if not isinstance(var_type, SimTypePointer):
+                continue
+            register_pointer_vars += 1
+            pts_to = unpack_typeref(var_type.pts_to)
+            if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray, SimTypeBottom)):
+                has_special_register_pointer = True
+        if register_pointer_vars < 2 or not has_special_register_pointer:
+            return False
 
         stack_vars = [
             var
@@ -3197,6 +3250,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             variable_type = self.default_simtype_from_bits(
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
+        unpacked_type = unpack_typeref(variable_type)
+        if isinstance(variable, (SimStackVariable, SimMemoryVariable)) and not isinstance(variable, SimRegisterVariable):
+            if isinstance(unpacked_type, SimTypePointer) and isinstance(
+                unpack_typeref(unpacked_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+            ):
+                variable_type = unpacked_type.pts_to.with_arch(self.project.arch)
         cvar = CVariable(variable, unified_variable=unified, variable_type=variable_type, codegen=self, vvar_id=vvar_id)
         if mark_used:
             self._variables_in_use[variable] = cvar
@@ -3448,6 +3507,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # step 1 is split expr into a sum of terms, each of which is a product of a constant stride and an index
         # also identify the "kernel", the root of the expression
         constant, terms = o_constant, list(o_terms)
+        if constant < 0 and not self._use_stack_backing:
+            constant = -constant  # TODO: This may not be correct. investigate later
 
         i = 0
         kernel = None
@@ -3526,9 +3587,10 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # nothing has the ability to escape the kernel
             # go in deeper
             if isinstance(kernel_type, SimStruct):
-                field_name, field_offset = max(
-                    ((x, y) for x, y in kernel_type.offsets.items() if y <= constant), key=lambda x: x[1]
-                )
+                candidate_fields = [(x, y) for x, y in kernel_type.offsets.items() if y <= constant]
+                if not candidate_fields:
+                    return bail_out()
+                field_name, field_offset = max(candidate_fields, key=lambda x: x[1])
                 field_type = kernel_type.fields[field_name]
                 kernel = CUnaryOp(
                     "Reference",
@@ -4041,7 +4103,8 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             cvar_type = unpack_typeref(cvar.type)
             base = (
                 cvar
-                if isinstance(cvar_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray))
+                if isinstance(expr.variable, (SimRegisterVariable, SimStackVariable))
+                and isinstance(cvar_type, (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray))
                 else CUnaryOp("Reference", cvar, codegen=self)
             )
             return self._access_constant_offset(base, offset, ty, False, negotiate)
@@ -4783,7 +4846,7 @@ class DoWhilePointerAdjustmentFixer(CStructuredCodeWalker):
     def _fix_reverse_do_while(self, init_block: CStatements, loop: CDoWhileLoop) -> None:
         if not isinstance(loop.condition, CBinaryOp) or loop.condition.op != "CmpNE":
             return
-        if loop.body is None or not loop.body.statements or not init_block.statements:
+        if not isinstance(loop.body, CStatements) or not loop.body.statements or not init_block.statements:
             return
 
         step_stmt = loop.body.statements[-1]
