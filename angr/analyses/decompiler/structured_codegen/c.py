@@ -1283,7 +1283,11 @@ class CAssignment(CStatement):
             return operand
         if not isinstance(operand.variable, CVariable):
             return operand
-        backing_var = operand.variable.unified_variable if operand.variable.unified_variable is not None else operand.variable.variable
+        backing_var = (
+            operand.variable.unified_variable
+            if operand.variable.unified_variable is not None
+            else operand.variable.variable
+        )
         if not isinstance(backing_var, SimRegisterVariable):
             return operand
         variable_type = unpack_typeref(operand.variable.type)
