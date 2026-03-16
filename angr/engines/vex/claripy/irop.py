@@ -933,16 +933,16 @@ class SimIROp:
 
     def _op_fp_to_int(self, args):
         if self.name.endswith("_RZ"):
-            rm = claripy.fp.RM_TowardsZero
+            rm = claripy.fp.RM.RM_TowardsZero
             arg = args[0]
         elif self.name.endswith("_RN"):
-            rm = claripy.fp.RM_NearestTiesEven
+            rm = claripy.fp.RM.RM_NearestTiesEven
             arg = args[0]
         elif self.name.endswith("_RM"):
-            rm = claripy.fp.RM_TowardsNegativeInf
+            rm = claripy.fp.RM.RM_TowardsNegativeInf
             arg = args[0]
         elif self.name.endswith("_RP"):
-            rm = claripy.fp.RM_TowardsPositiveInf
+            rm = claripy.fp.RM.RM_TowardsPositiveInf
             arg = args[0]
         else:
             rm = self._translate_rm(args[0])
