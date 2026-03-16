@@ -665,7 +665,7 @@ class SimTypeInt128(SimTypeFixedSizeInt):
     _ident = "int128"
     _fixed_size = 128
 
-    def c_repr(self, name=None, full=0, memo=None, indent=0, name_parens: bool = True):  # pylint: disable=unused-argument
+    def c_repr(self, name=None, full=0, memo=None, indent=None, name_parens=True):
         out = "unsigned __int128" if not self.signed else "__int128"
         if name is None:
             return out

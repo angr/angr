@@ -1,53 +1,53 @@
 from __future__ import annotations
 
 from angr.ailment import Expr
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    ConditionNode,
+    CascadingConditionNode,
+)
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import CascadingConditionNode, ConditionNode
-
-from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
+from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 
 def _replace_cfadd(expr):
     """
-    Recursively replace ``__CFADD__(a, b)`` with ``(a + b) <u a``.
-    """
+    Recursively replace ``__CFADD__(a, b)`` with ``(a + b) <u a``
+    (unsigned less-than — the standard C carry-detection idiom).
 
+    Returns the original expression unchanged if no replacement was made.
+    """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target == "__CFADD__":
         if not expr.args or len(expr.args) < 2:
             return expr
-
         a, b = expr.args[0], expr.args[1]
         tags = expr.tags or {}
         add_expr = Expr.BinaryOp(None, "Add", [a, b], False, bits=a.bits, **tags)
         return Expr.BinaryOp(expr.idx, "CmpLT", [add_expr, a], False, bits=expr.bits, **tags)
 
+    # Convert is a subclass of UnaryOp — check it first
     if isinstance(expr, Expr.Convert):
-        new_operand = _replace_cfadd(expr.operand)
-        if new_operand is not expr.operand:
-            return Expr.Convert(
-                expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **(expr.tags or {})
-            )
+        new_op = _replace_cfadd(expr.operand)
+        if new_op is not expr.operand:
+            return Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_op, **(expr.tags or {}))
         return expr
 
     if isinstance(expr, Expr.UnaryOp):
-        new_operand = _replace_cfadd(expr.operand)
-        if new_operand is not expr.operand:
-            return Expr.UnaryOp(expr.idx, expr.op, new_operand, bits=expr.bits, **(expr.tags or {}))
+        new_op = _replace_cfadd(expr.operand)
+        if new_op is not expr.operand:
+            return Expr.UnaryOp(expr.idx, expr.op, new_op, bits=expr.bits, **(expr.tags or {}))
         return expr
 
     if isinstance(expr, Expr.BinaryOp):
-        new_operands = [_replace_cfadd(operand) for operand in expr.operands]
-        if any(new is not old for new, old in zip(new_operands, expr.operands)):
-            return Expr.BinaryOp(expr.idx, expr.op, new_operands, expr.signed, bits=expr.bits, **(expr.tags or {}))
+        new_ops = [_replace_cfadd(op) for op in expr.operands]
+        if any(n is not o for n, o in zip(new_ops, expr.operands)):
+            return Expr.BinaryOp(expr.idx, expr.op, new_ops, expr.signed, bits=expr.bits, **(expr.tags or {}))
         return expr
 
     return expr
 
 
 class CarryFlagWalker(SequenceWalker):
-    """
-    Walk the structured AST replacing ``__CFADD__(a, b)`` with ``(a + b) <u a``.
-    """
+    """Walk the structured AST replacing ``__CFADD__(a, b)`` with ``(a + b) <u a``."""
 
     def __init__(self):
         super().__init__(force_forward_scan=True, update_seqnode_in_place=False)
@@ -105,13 +105,21 @@ class CarryFlagWalker(SequenceWalker):
                 new_cond_and_nodes if conds_changed else node.condition_and_nodes,
                 else_node=new_else if new_else is not None else node.else_node,
             )
-
         return None
 
 
 class CarryFlagSimplifier(SequenceOptimizationPass):
     """
-    Rewrites ``__CFADD__(a, b)`` into the equivalent C expression ``(a + b) < a``.
+    Rewrites ``__CFADD__(a, b)`` into the equivalent C expression
+    ``(a + b) < a`` (unsigned comparison).
+
+    This is the standard C idiom for detecting unsigned addition carry,
+    and matches the original source pattern that the compiler turned into
+    an ``add; jb`` sequence.
+
+    .. note::
+        Disabling this pass will leave IDA-style ``__CFADD__`` macros
+        in the decompiled output.
     """
 
     ARCHES = None

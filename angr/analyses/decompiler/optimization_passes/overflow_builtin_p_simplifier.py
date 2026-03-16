@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from angr.ailment import Expr
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    ConditionNode,
+    CascadingConditionNode,
+)
 from angr.analyses.decompiler.sequence_walker import SequenceWalker
-from angr.analyses.decompiler.structuring.structurer_nodes import CascadingConditionNode, ConditionNode
-
-from .optimization_pass import OptimizationPassStage, SequenceOptimizationPass
+from .optimization_pass import SequenceOptimizationPass, OptimizationPassStage
 
 
+# Maps standalone overflow macros to their predicate-only builtin equivalents.
+# __CFADD__ is intentionally excluded — carry flag has no _p builtin.
 _OF_P_MAP = {
     "__OFADD__": "__builtin_add_overflow_p",
     "__OFMUL__": "__builtin_mul_overflow_p",
@@ -15,46 +19,54 @@ _OF_P_MAP = {
 
 def _replace_of_p(expr):
     """
-    Recursively replace overflow macro predicates with ``__builtin_*_overflow_p``.
-    """
+    Recursively replace ``__OFADD__``/``__OFMUL__`` Call nodes with
+    ``__builtin_add_overflow_p``/``__builtin_mul_overflow_p``.
 
+    The third argument is a zero constant with the same bit-width as the first operand,
+    conveying the type for the overflow check (``(typeof(a))0``).
+
+    Returns the original expression unchanged if no replacement was made.
+    """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target in _OF_P_MAP:
         if not expr.args or len(expr.args) < 2:
             return expr
-
         builtin = _OF_P_MAP[expr.target]
         a = expr.args[0]
         tags = expr.tags or {}
-        zero = Expr.Const(None, None, 0, a.bits, **tags)
+        # The third argument conveys the type for the overflow check.
+        # Signedness comes from the overflow_signed tag set by the ccall rewriter
+        # (signed for ADD/SMUL overflow, unsigned for UMUL overflow).
+        # Tag the Const so the C codegen can emit the correct cast even after
+        # EvaluateConstConversions folds any wrapping Convert away.
+        is_signed = tags.get("overflow_signed", False)
+        zero_tags = {**tags, "overflow_p_signed": is_signed}
+        zero = Expr.Const(None, None, 0, a.bits, **zero_tags)
         return Expr.Call(expr.idx, builtin, args=[expr.args[0], expr.args[1], zero], bits=expr.bits, **tags)
 
+    # Convert is a subclass of UnaryOp — check it first
     if isinstance(expr, Expr.Convert):
-        new_operand = _replace_of_p(expr.operand)
-        if new_operand is not expr.operand:
-            return Expr.Convert(
-                expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **(expr.tags or {})
-            )
+        new_op = _replace_of_p(expr.operand)
+        if new_op is not expr.operand:
+            return Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_op, **(expr.tags or {}))
         return expr
 
     if isinstance(expr, Expr.UnaryOp):
-        new_operand = _replace_of_p(expr.operand)
-        if new_operand is not expr.operand:
-            return Expr.UnaryOp(expr.idx, expr.op, new_operand, bits=expr.bits, **(expr.tags or {}))
+        new_op = _replace_of_p(expr.operand)
+        if new_op is not expr.operand:
+            return Expr.UnaryOp(expr.idx, expr.op, new_op, bits=expr.bits, **(expr.tags or {}))
         return expr
 
     if isinstance(expr, Expr.BinaryOp):
-        new_operands = [_replace_of_p(operand) for operand in expr.operands]
-        if any(new is not old for new, old in zip(new_operands, expr.operands)):
-            return Expr.BinaryOp(expr.idx, expr.op, new_operands, expr.signed, bits=expr.bits, **(expr.tags or {}))
+        new_ops = [_replace_of_p(op) for op in expr.operands]
+        if any(n is not o for n, o in zip(new_ops, expr.operands)):
+            return Expr.BinaryOp(expr.idx, expr.op, new_ops, expr.signed, bits=expr.bits, **(expr.tags or {}))
         return expr
 
     return expr
 
 
 class OverflowBuiltinPredicateWalker(SequenceWalker):
-    """
-    Walk the structured AST replacing ``__OFADD__``/``__OFMUL__`` with builtin predicates.
-    """
+    """Walk the structured AST replacing ``__OFADD__``/``__OFMUL__`` with ``__builtin_*_overflow_p``."""
 
     def __init__(self):
         super().__init__(force_forward_scan=True, update_seqnode_in_place=False)
@@ -112,13 +124,20 @@ class OverflowBuiltinPredicateWalker(SequenceWalker):
                 new_cond_and_nodes if conds_changed else node.condition_and_nodes,
                 else_node=new_else if new_else is not None else node.else_node,
             )
-
         return None
 
 
 class OverflowBuiltinPredicateSimplifier(SequenceOptimizationPass):
     """
-    Rewrites standalone overflow macro predicates into builtin predicate calls.
+    Rewrites standalone ``__OFADD__``/``__OFMUL__`` calls into
+    ``__builtin_add_overflow_p``/``__builtin_mul_overflow_p`` builtins.
+
+    Runs after :class:`OverflowBuiltinSimplifier` to catch leftover overflow
+    macro calls that have no paired arithmetic expression nearby.
+
+    .. note::
+        Disabling this pass will leave IDA-style ``__OFADD__``/``__OFMUL__``
+        macros in the decompiled output when no paired arithmetic is found.
     """
 
     ARCHES = None

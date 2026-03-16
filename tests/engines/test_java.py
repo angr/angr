@@ -23,10 +23,8 @@ from angr.engines.soot.method_dispatcher import resolve_method
 
 try:
     import pysoot
-    import jpype
 except ModuleNotFoundError:
     pysoot = None
-    jpype = None
 
 from tests.common import bin_location
 
@@ -633,13 +631,6 @@ class TestJava(unittest.TestCase):
 
     @unittest.skipUnless(pysoot, "pysoot not available")
     def create_project(self, binary_dir, load_native_libs=True):
-        # pysoot registers a shutdown-at-fork hook for JPype. In long pytest runs a fork can trip that hook,
-        # leaving JPype in a "cannot be restarted" state even though the JVM is no longer running.
-        if jpype is not None and not jpype.isJVMStarted():
-            core = getattr(jpype, "_core", None)
-            if core is not None and getattr(core, "_JVM_started", False):
-                core._JVM_started = False
-
         jar_path = os.path.join(self.test_location, binary_dir, "mixedjava.jar")
         if load_native_libs:
             jni_options = {"jni_libs": ["libmixedjava.so"]}
