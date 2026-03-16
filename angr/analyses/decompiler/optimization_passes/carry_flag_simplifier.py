@@ -24,7 +24,9 @@ def _replace_cfadd(expr):
     if isinstance(expr, Expr.Convert):
         new_operand = _replace_cfadd(expr.operand)
         if new_operand is not expr.operand:
-            return Expr.Convert(expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **(expr.tags or {}))
+            return Expr.Convert(
+                expr.idx, expr.from_bits, expr.to_bits, expr.is_signed, new_operand, **(expr.tags or {})
+            )
         return expr
 
     if isinstance(expr, Expr.UnaryOp):
