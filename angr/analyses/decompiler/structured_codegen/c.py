@@ -631,7 +631,12 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
 
             for i, var_type in enumerate(vartypes):
                 if i == 0:
-                    yield from type_to_c_repr_chunks(var_type, name=name, name_type=cvariable)
+                    decl_type = unpack_typeref(var_type)
+                    if isinstance(variable, SimStackVariable) and isinstance(decl_type, SimTypePointer):
+                        pts_to = unpack_typeref(decl_type.pts_to)
+                        if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                            decl_type = pts_to
+                    yield from type_to_c_repr_chunks(decl_type, name=name, name_type=cvariable)
                     yield ";  // ", None
                     yield variable.loc_repr(self.codegen.project.arch), None
                 # multiple types
@@ -733,7 +738,12 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
                 if v.type is None:
                     yield "<unknown-type>", None
                 else:
-                    yield from type_to_c_repr_chunks(v.type, name=varname, name_type=v, full=False)
+                    decl_type = unpack_typeref(v.type)
+                    if isinstance(decl_type, SimTypePointer):
+                        pts_to = unpack_typeref(decl_type.pts_to)
+                        if isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                            decl_type = pts_to
+                    yield from type_to_c_repr_chunks(decl_type, name=varname, name_type=v, full=False)
                 yield ";\n", None
             yield "\n", None
 
@@ -1701,7 +1711,17 @@ class CGoto(CStatement):
             if isinstance(self.target, int):
                 yield f"LABEL_{self.target:#x}", None
             else:
-                yield from self.target.c_repr_chunks()
+                target = self.target
+                if not isinstance(target, CUnaryOp) or target.op != "Dereference":
+                    yield "*", self
+                    if self.codegen is not None and not _is_pointer_like_type(target.type):
+                        target = CTypeCast(
+                            target.type,
+                            SimTypePointer(SimTypeBottom()).with_arch(self.codegen.project.arch),
+                            target,
+                            codegen=self.codegen,
+                        )
+                yield from target.c_repr_chunks()
         else:
             yield lbl.name, lbl
         yield ";", self

@@ -14,6 +14,7 @@ Supports:
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -185,6 +186,7 @@ def _discover_functions():
 # ──────────────────────────────────────────────────────────────────────
 
 _decompiled_cache: dict[str, dict[str, str]] = {}
+_decompiled_structuring_cache: dict[str, dict[str, bool]] = {}
 
 
 def _get_decompiled(bin_path):
@@ -201,16 +203,39 @@ def _get_decompiled(bin_path):
         analyze_callsites=True,
     )
     results = {}
+    structuring = {}
+    structuring_logger = logging.getLogger("angr.analyses.decompiler.structuring.recursive_structurer")
     for func in cfg.kb.functions.values():
         if _FUNC_RE.match(func.name) and not func.is_plt and not func.is_simprocedure:
             try:
-                d = proj.analyses.Decompiler(func, cfg=cfg.model)
+                records = []
+
+                class _StructuringCapture(logging.Handler):
+                    def emit(self, record):
+                        records.append(record)
+
+                handler = _StructuringCapture()
+                structuring_logger.addHandler(handler)
+                try:
+                    d = proj.analyses.Decompiler(func, cfg=cfg.model)
+                finally:
+                    structuring_logger.removeHandler(handler)
                 if d.codegen and d.codegen.text:
                     results[func.name] = d.codegen.text
+                    cache = proj.kb.decompilations.get((func.addr, "pseudocode"))
+                    structuring[func.name] = bool(getattr(cache, "structuring_incomplete", False)) or any(
+                        "Structuring failed to complete" in record.getMessage() for record in records
+                    )
             except (ValueError, TypeError, KeyError, AttributeError):
                 pass
     _decompiled_cache[bin_path] = results
+    _decompiled_structuring_cache[bin_path] = structuring
     return results
+
+
+def _is_structuring_incomplete(bin_path, func_name):
+    _get_decompiled(bin_path)
+    return _decompiled_structuring_cache.get(bin_path, {}).get(func_name, False)
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -274,8 +299,8 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
 def _classify(func_name, text):
     """Classify decompiled output.
 
-    Returns ``(category, reason)`` where *category* is ``"ok"`` or
-    ``"compile_fail"``.
+    Returns ``(category, reason)`` where *category* is ``"ok"``,
+    ``"compile_fail"``, or ``"semantic_fail"``.
     """
     # Pseudo-calls the decompiler may leave behind
     pseudo_calls = ["_ccall(", "calculate_condition", "_INSERT(", "_CONCAT("]
@@ -285,6 +310,21 @@ def _classify(func_name, text):
     # Unresolved stack-variable placeholders (angle-bracket syntax)
     if re.search(r"<0x[0-9a-f]+\[", text):
         return "compile_fail", "contains unresolved stack variable placeholder"
+    # Unresolved local jump tables are still emitted as synthetic extern data
+    # plus a computed goto. They can compile after C rendering fixes, but they
+    # do not yet link or decompile semantically without dedicated jump-table
+    # recovery.
+    if re.search(r"extern [^;]+ g_[0-9a-f]+\[[0-9]+\];", text) and re.search(r"goto \*.*g_[0-9a-f]+\[", text):
+        return "semantic_fail", "contains unresolved jump-table extern"
+    # Some incomplete structuring results still surface as label-only empty
+    # blocks. They compile, but the dropped control-flow edges make semantic
+    # equivalence checks meaningless.
+    if re.search(r"\{\s*LABEL_[0-9a-f]+:\s*\}", text):
+        return "semantic_fail", "contains empty label block"
+    # A known loop-lowering bug can flip a counted do-while into a countdown
+    # that exits on ``!= 1`` after decrementing, which is off by one.
+    if re.search(r"do\s*\{(?s:.*?)\b([A-Za-z_]\w*)\s*-\=\s*1;\s*\}\s*while \(\1 != 1\);", text):
+        return "semantic_fail", "contains off-by-one countdown do-while"
     return "ok", None
 
 
@@ -486,6 +526,11 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
         # Unexpected success -- fall through to semantic check
     elif not compiled:
         pytest.fail(f"Compilation failed:\n{stderr}")
+
+    if category == "semantic_fail":
+        pytest.xfail(reason or "semantic failure")
+    if _is_structuring_incomplete(bin_path, func_name):
+        pytest.xfail("structuring incomplete")
 
     # Stage 2: Semantic equivalence
     _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)

@@ -13,6 +13,12 @@ test_location = os.path.join(bin_location, "tests", "x86_64", "recompile_dataset
 
 _TARGET_CASES = (
     (
+        os.path.join(test_location, "t1_control_flow_clang_O0"),
+        "t1_switch_dense",
+        r"\bextern unsigned int g_402004\[4\];",
+        (),
+    ),
+    (
         os.path.join(test_location, "t3_memory_gcc_O1"),
         "t3_array_copy",
         r"\bchar \(\*\w+\)\[4\];",
