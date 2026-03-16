@@ -257,16 +257,17 @@ class Decompiler(Analysis):
 
         variable_kb = self._input_variable_kb
         variable_kb_changed = False
-        if cache is not None:
-            if variable_kb is not None:
-                variable_kb_changed = self._fingerprint_variable_kb(variable_kb) != cache.variable_kb_fingerprint
-        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
-            if (
-                cache is not None
-                and self._fingerprint_variable_kb(old_codegen._variable_kb) != cache.variable_kb_fingerprint
-            ):
-                variable_kb = old_codegen._variable_kb
-                variable_kb_changed = True
+        if cache is not None and variable_kb is not None:
+            variable_kb_changed = self._fingerprint_variable_kb(variable_kb) != cache.variable_kb_fingerprint
+        if (
+            variable_kb is None
+            and old_codegen is not None
+            and isinstance(old_codegen, CStructuredCodeGenerator)
+            and cache is not None
+            and self._fingerprint_variable_kb(old_codegen._variable_kb) != cache.variable_kb_fingerprint
+        ):
+            variable_kb = old_codegen._variable_kb
+            variable_kb_changed = True
 
         if cache is not None and self._can_reuse_cached_decompilation(cache, variable_kb_changed):
             self._adopt_cached_decompilation(cache)

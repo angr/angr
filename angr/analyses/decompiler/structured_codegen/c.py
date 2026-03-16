@@ -6410,9 +6410,7 @@ class PreAdvanceStoreFixer(_LoopFixerBase):
             return False
         if not isinstance(expr.lhs, CVariable) or not self._same_variable(expr.lhs, target):
             return False
-        if not isinstance(expr.rhs, CConstant) or expr.rhs.value != offset:
-            return False
-        return True
+        return isinstance(expr.rhs, CConstant) and expr.rhs.value == offset
 
     def _statement_mentions_variable(self, stmt: CStatement, target: CVariable) -> bool:
         if isinstance(stmt, CAssignment):
