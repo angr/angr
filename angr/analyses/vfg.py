@@ -1430,20 +1430,20 @@ class VFG(ForwardAnalysis[SimState, VFGNode, VFGJob, BlockID, SimState], Analysi
             l.error("SimIRSBError occurred(%s). Creating a PathTerminator.", ex)
             error_occurred = True
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
-            sim_successors = ProcedureEngine().process(state, procedure=inst)
+            sim_successors = ProcedureEngine(self.project).process(state, procedure=inst)
         except claripy.ClaripyError:
             l.error("ClaripyError: ", exc_info=True)
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
-            sim_successors = ProcedureEngine().process(state, procedure=inst)
+            sim_successors = ProcedureEngine(self.project).process(state, procedure=inst)
         except SimError:
             l.error("SimError: ", exc_info=True)
 
             error_occurred = True
             # Generate a PathTerminator to terminate the current path
             inst = SIM_PROCEDURES["stubs"]["PathTerminator"](state)
-            sim_successors = ProcedureEngine().process(state, procedure=inst)
+            sim_successors = ProcedureEngine(self.project).process(state, procedure=inst)
         except AngrError as ex:
             # segment = self.project.loader.main_object.in_which_segment(addr)
             l.error("AngrError %s when generating SimSuccessors at %#x", ex, addr, exc_info=True)
