@@ -3159,7 +3159,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             for var in self._stack_addressed_variables
             if isinstance(var, SimStackVariable) and var.offset is not None and var.offset < 0
         ]
-        if len({var.offset for var in addressed_stack_vars}) < 2 or not any(var.size == 1 for var in addressed_stack_vars):
+        if len({var.offset for var in addressed_stack_vars}) < 2 or not any(
+            var.size == 1 for var in addressed_stack_vars
+        ):
             return False
 
         stack_vars = [
@@ -4410,7 +4412,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
     def _handle_Expr_StackBaseOffset(self, expr: StackBaseOffset, **kwargs):
         if expr.variable is not None:
-            if isinstance(expr.variable, SimStackVariable) and expr.variable.offset is not None and expr.variable.offset < 0:
+            if (
+                isinstance(expr.variable, SimStackVariable)
+                and expr.variable.offset is not None
+                and expr.variable.offset < 0
+            ):
                 self._stack_addressed_variables.add(expr.variable)
                 if self._use_stack_backing:
                     return self._access_constant_offset_reference(
@@ -4689,7 +4695,9 @@ class DoWhilePointerAdjustmentFixer(CStructuredCodeWalker):
         match expr:
             case CFakeVariable(name="stack_base"):
                 return 0
-            case CUnaryOp(op="Reference", operand=CIndexedVariable(variable=CFakeVariable(name="stack_base"), index=index)):
+            case CUnaryOp(
+                op="Reference", operand=CIndexedVariable(variable=CFakeVariable(name="stack_base"), index=index)
+            ):
                 if isinstance(index, CConstant) and isinstance(index.value, int):
                     return index.value
         return None
@@ -4752,7 +4760,9 @@ class DoWhilePointerAdjustmentFixer(CStructuredCodeWalker):
             (
                 stmt
                 for stmt in reversed(init_block.statements)
-                if isinstance(stmt, CAssignment) and isinstance(stmt.lhs, CVariable) and self._same_var(stmt.lhs, ptr_var)
+                if isinstance(stmt, CAssignment)
+                and isinstance(stmt.lhs, CVariable)
+                and self._same_var(stmt.lhs, ptr_var)
             ),
             None,
         )
@@ -4789,7 +4799,9 @@ class DoWhilePointerAdjustmentFixer(CStructuredCodeWalker):
             (
                 stmt
                 for stmt in reversed(init_block.statements)
-                if isinstance(stmt, CAssignment) and isinstance(stmt.lhs, CVariable) and self._same_var(stmt.lhs, ptr_var)
+                if isinstance(stmt, CAssignment)
+                and isinstance(stmt.lhs, CVariable)
+                and self._same_var(stmt.lhs, ptr_var)
             ),
             None,
         )
