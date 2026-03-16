@@ -185,6 +185,7 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
             return True
     return t0 == t1
 
+
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -2112,7 +2113,9 @@ class CBinaryOp(CExpression):
         if (
             isinstance(lhs_type, (SimTypeArray, SimTypeFixedSizeArray))
             and rhs_type is not None
-            and not isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and lhs_type.size == rhs_type.size
         ):
             lhs = CUnaryOp(
@@ -2128,7 +2131,9 @@ class CBinaryOp(CExpression):
         if (
             isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray))
             and lhs_type is not None
-            and not isinstance(lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and rhs_type.size == lhs_type.size
         ):
             rhs = CUnaryOp(
