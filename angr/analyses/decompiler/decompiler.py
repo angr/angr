@@ -394,6 +394,7 @@ class Decompiler(Analysis):
                 func=self.func,
                 **self._recursive_structurer_params,
             )
+            cache.structuring_incomplete = rs.result_incomplete
             self._update_progress(80.0, text="Simplifying regions")
 
             # simplify it

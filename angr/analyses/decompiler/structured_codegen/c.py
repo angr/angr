@@ -200,6 +200,36 @@ def _rewrite_pointer_array_lvalue(codegen: BaseStructuredCodeGenerator, expr: CE
     )
 
 
+def _is_pointer_like_type(ty: SimType | None) -> bool:
+    return isinstance(unpack_typeref(ty), (SimTypePointer, SimTypeArray, SimTypeFixedSizeArray))
+
+
+def _coerce_pointer_expr(
+    codegen: BaseStructuredCodeGenerator, expr: CExpression, dst_type: SimType | None
+) -> CExpression:
+    src_type = unpack_typeref(expr.type)
+    dst_type = unpack_typeref(dst_type)
+    if not isinstance(dst_type, SimTypePointer) or not _is_pointer_like_type(src_type):
+        return expr
+    if type_equals(src_type, dst_type):
+        return expr
+    return CTypeCast(expr.type, dst_type.with_arch(codegen.project.arch), expr, codegen=codegen)
+
+
+def _coerce_pointer_cmp_operands(
+    codegen: BaseStructuredCodeGenerator, lhs: CExpression, rhs: CExpression
+) -> tuple[CExpression, CExpression]:
+    lhs_type = unpack_typeref(lhs.type)
+    rhs_type = unpack_typeref(rhs.type)
+
+    if isinstance(lhs_type, SimTypePointer) and _is_pointer_like_type(rhs_type) and not type_equals(lhs_type, rhs_type):
+        rhs = _coerce_pointer_expr(codegen, rhs, lhs_type)
+    elif isinstance(rhs_type, SimTypePointer) and _is_pointer_like_type(lhs_type) and not type_equals(lhs_type, rhs_type):
+        lhs = _coerce_pointer_expr(codegen, lhs, rhs_type)
+
+    return lhs, rhs
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -271,6 +301,30 @@ def type_equals(t0: SimType, t1: SimType) -> bool:
     return t0 == t1
 
 
+def _use_named_pointer_array_decl(ty: SimType, name_type) -> bool:
+    if not isinstance(ty, SimTypePointer):
+        return False
+
+    pts_to = unpack_typeref(ty.pts_to)
+    if not isinstance(pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+        return False
+
+    if "CVariable" in globals() and isinstance(name_type, CVariable):
+        return isinstance(name_type.variable, (SimRegisterVariable, SimTemporaryVariable))
+
+    return False
+
+
+def _named_pointer_array_c_repr(ty: SimTypePointer, name: str) -> str:
+    pts_to = unpack_typeref(ty.pts_to)
+    quals = f"{' '.join(ty.qualifier)}" if ty.qualifier else ""
+    if quals:
+        name_with_deref = f"(*{quals} {name})"
+    else:
+        name_with_deref = f"(*{name})"
+    return pts_to.c_repr(name_with_deref)
+
+
 def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, indent_str=""):
     """
     Helper generator function to turn a SimType into generated tuples of (C-string, AST node).
@@ -312,7 +366,10 @@ def type_to_c_repr_chunks(ty: SimType, name=None, name_type=None, full=False, in
     elif isinstance(ty, SimType):
         assert name
         assert name_type
-        raw_type_str = ty.c_repr(name=name)
+        if _use_named_pointer_array_decl(ty, name_type):
+            raw_type_str = _named_pointer_array_c_repr(ty, name)
+        else:
+            raw_type_str = ty.c_repr(name=name)
         assert name in raw_type_str
 
         type_pre, type_post = raw_type_str.rsplit(name, 1)
@@ -1378,6 +1435,8 @@ class CAssignment(CStatement):
             rhs = _scalarize_array_operand(self.codegen, rhs, lhs_type, skip_binary_op=True)
         elif not _is_array_type(rhs_type):
             lhs = _scalarize_array_operand(self.codegen, lhs, rhs_type, skip_binary_op=True)
+        if isinstance(lhs_type, SimTypePointer):
+            rhs = _coerce_pointer_expr(self.codegen, rhs, lhs_type)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(lhs)
@@ -1865,6 +1924,13 @@ class CIndexedVariable(CExpression):
             and index.value < 0
         ):
             index = CConstant(-index.value, index.type, codegen=self.codegen)
+        if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+            variable = CTypeCast(
+                variable.type,
+                SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
+                variable,
+                codegen=self.codegen,
+            )
 
         bracket = CClosingObject("[")
         if not isinstance(variable, (CVariable, CVariableField)):
@@ -2180,7 +2246,7 @@ class CBinaryOp(CExpression):
             return None
         return f"({new_repr})"
 
-    def _c_repr_chunks(self, op):
+    def _c_repr_chunks(self, op, lhs_cast_str: str | None = None):
         lhs = self.lhs
         rhs = self.rhs
         lhs_type = unpack_typeref(lhs.type)
@@ -2202,6 +2268,8 @@ class CBinaryOp(CExpression):
             )
         ):
             rhs = _scalarize_array_operand(self.codegen, rhs, lhs_type)
+        if self.op.startswith("Cmp"):
+            lhs, rhs = _coerce_pointer_cmp_operands(self.codegen, lhs, rhs)
 
         skip_op_and_rhs = False
         force_lhs_parens = False
@@ -2239,7 +2307,11 @@ class CBinaryOp(CExpression):
             yield narrow_cast_str, None
         elif lhs_sign_cast is not None:
             yield lhs_sign_cast, None
+        elif lhs_cast_str is not None:
+            yield lhs_cast_str, None
         if lhs_sign_cast is not None and not force_lhs_parens:
+            force_lhs_parens = isinstance(lhs, CBinaryOp)
+        elif lhs_cast_str is not None and not force_lhs_parens:
             force_lhs_parens = isinstance(lhs, CBinaryOp)
         if isinstance(lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > lhs.op_precedence):
             paren = CClosingObject("(")
@@ -2311,7 +2383,15 @@ class CBinaryOp(CExpression):
         yield from self._c_repr_chunks(" << ")
 
     def _c_repr_chunks_sar(self):
-        yield from self._c_repr_chunks(" >> ")
+        lhs_cast_str = None
+        lhs_type = unpack_typeref(self.lhs.type)
+        if isinstance(lhs_type, (SimTypeInt, SimTypeChar, SimTypeNum)):
+            lhs_size = getattr(lhs_type, "size", None)
+            lhs_signed = getattr(lhs_type, "signed", None)
+            if lhs_size is not None and lhs_signed is False:
+                signed_ty = self.codegen.default_simtype_from_bits(lhs_size, signed=True)
+                lhs_cast_str = f"({signed_ty.c_repr(name=None)})"
+        yield from self._c_repr_chunks(" >> ", lhs_cast_str=lhs_cast_str)
 
     def _c_repr_chunks_logicaland(self):
         yield from self._c_repr_chunks(" && ")
@@ -2985,6 +3065,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             omit_header=self.omit_func_header,
         )
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
+        self.cfunc = PostDecrementLoopConditionFixer().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
         self.cfunc = StackMemoryRegionMaterializer(self).handle(self.cfunc)
@@ -5109,6 +5190,73 @@ class FieldReferenceCleanup(CStructuredCodeWalker):
             if not isinstance(new_obj, CTypeCast):
                 return self.handle(new_obj)
         return super().handle_CTypeCast(obj)
+
+
+class PostDecrementLoopConditionFixer(CStructuredCodeWalker):
+    @staticmethod
+    def _same_variable(var0: CVariable, var1: CVariable) -> bool:
+        return (var0.unified_variable or var0.variable) == (var1.unified_variable or var1.variable)
+
+    @classmethod
+    def _extract_decrement(cls, stmt: CStatement) -> tuple[CVariable, int] | None:
+        if not isinstance(stmt, CAssignment) or not isinstance(stmt.lhs, CVariable):
+            return None
+        if not isinstance(stmt.rhs, CBinaryOp) or stmt.rhs.op != "Sub":
+            return None
+        if not isinstance(stmt.rhs.lhs, CVariable) or not cls._same_variable(stmt.lhs, stmt.rhs.lhs):
+            return None
+        if not isinstance(stmt.rhs.rhs, CConstant) or not isinstance(stmt.rhs.rhs.value, int):
+            return None
+        return stmt.lhs, stmt.rhs.rhs.value
+
+    @classmethod
+    def _signed_constant_value(cls, const: CConstant) -> int | None:
+        if not isinstance(const.value, int):
+            return
+        size = getattr(const.type, "size", None)
+        if size is None:
+            return const.value
+        value = const.value & ((1 << size) - 1)
+        sign_bit = 1 << (size - 1)
+        return value - (1 << size) if value & sign_bit else value
+
+    @classmethod
+    def _rewrite_condition(cls, condition: CExpression | None, dec_info: tuple[CVariable, int] | None) -> CExpression | None:
+        if dec_info is None or not isinstance(condition, CBinaryOp) or condition.op not in {"CmpNE", "CmpEQ"}:
+            return condition
+
+        dec_var, dec_value = dec_info
+
+        lhs = condition.lhs
+        rhs = condition.rhs
+        if isinstance(lhs, CConstant) and isinstance(rhs, CVariable):
+            lhs, rhs = rhs, lhs
+        if not isinstance(lhs, CVariable) or not isinstance(rhs, CConstant):
+            lhs = condition.lhs
+            rhs = condition.rhs
+        else:
+            if rhs.value == dec_value and cls._same_variable(lhs, dec_var):
+                rhs.value = 0
+                return condition
+
+        if isinstance(rhs, CConstant) and rhs.value == 0 and isinstance(lhs, CBinaryOp):
+            inner_lhs = lhs.lhs
+            inner_rhs = lhs.rhs
+            signed_rhs = cls._signed_constant_value(inner_rhs) if isinstance(inner_rhs, CConstant) else None
+            if isinstance(inner_lhs, CVariable) and cls._same_variable(inner_lhs, dec_var):
+                if (lhs.op == "Sub" and signed_rhs == dec_value) or (lhs.op == "Add" and signed_rhs == -dec_value):
+                    condition.lhs = dec_var
+                    return condition
+
+        return condition
+
+    def handle_CDoWhileLoop(self, obj):
+        obj = super().handle_CDoWhileLoop(obj)
+        dec_info = None
+        if isinstance(obj.body, CStatements) and obj.body.statements:
+            dec_info = self._extract_decrement(obj.body.statements[-1])
+        obj.condition = self._rewrite_condition(obj.condition, dec_info)
+        return obj
 
 
 class PointerArithmeticFixer(CStructuredCodeWalker):

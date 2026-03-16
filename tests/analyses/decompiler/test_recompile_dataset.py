@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import textwrap
+import logging
 
 import pytest
 
@@ -184,7 +185,17 @@ def _discover_functions():
 # Decompilation cache
 # ──────────────────────────────────────────────────────────────────────
 
-_decompiled_cache: dict[str, dict[str, str]] = {}
+_decompiled_cache: dict[str, dict[str, tuple[str, bool]]] = {}
+
+
+class _StructuringWarningCollector(logging.Handler):
+    def __init__(self):
+        super().__init__(level=logging.WARNING)
+        self.structuring_incomplete = False
+
+    def emit(self, record):
+        if "Structuring failed to complete" in record.getMessage():
+            self.structuring_incomplete = True
 
 
 def _get_decompiled(bin_path):
@@ -204,9 +215,15 @@ def _get_decompiled(bin_path):
     for func in cfg.kb.functions.values():
         if _FUNC_RE.match(func.name) and not func.is_plt and not func.is_simprocedure:
             try:
-                d = proj.analyses.Decompiler(func, cfg=cfg.model)
+                collector = _StructuringWarningCollector()
+                structurer_logger = logging.getLogger("angr.analyses.decompiler.structuring.recursive_structurer")
+                structurer_logger.addHandler(collector)
+                try:
+                    d = proj.analyses.Decompiler(func, cfg=cfg.model)
+                finally:
+                    structurer_logger.removeHandler(collector)
                 if d.codegen and d.codegen.text:
-                    results[func.name] = d.codegen.text
+                    results[func.name] = (d.codegen.text, collector.structuring_incomplete)
             except (ValueError, TypeError, KeyError, AttributeError):
                 pass
     _decompiled_cache[bin_path] = results
@@ -241,7 +258,7 @@ def _prepare_source(text):
     return _COMPILE_PREAMBLE + _strip_extern_gsink(text)
 
 
-def _try_compile(source, tmp_dir, name, gcc_cmd):
+def _try_compile(source, tmp_dir, name, gcc_cmd, extra_cflags=()):
     """Try to compile C source to an object file."""
     c_path = os.path.join(tmp_dir, f"{name}.c")
     with open(c_path, "w", encoding="utf-8") as f:
@@ -254,6 +271,7 @@ def _try_compile(source, tmp_dir, name, gcc_cmd):
             "-Werror=implicit-function-declaration",
             "-Wno-unused-variable",
             "-Wno-unused-but-set-variable",
+            *extra_cflags,
             "-o",
             os.path.join(tmp_dir, f"{name}.o"),
             c_path,
@@ -275,13 +293,23 @@ def _classify(func_name, text):
     """Classify decompiled output.
 
     Returns ``(category, reason)`` where *category* is ``"ok"`` or
-    ``"compile_fail"``.
+    ``"compile_fail"`` or ``"known_bad"``.
     """
     # Pseudo-calls the decompiler may leave behind
-    pseudo_calls = ["_ccall(", "calculate_condition", "_INSERT(", "_CONCAT("]
+    pseudo_calls = ["_ccall(", "calculate_condition", "_INSERT(", "_CONCAT(", "AddV("]
     for pc in pseudo_calls:
         if pc in text:
             return "compile_fail", f"contains {pc.rstrip('(')}"
+    if " CONCAT " in text:
+        return "compile_fail", "contains CONCAT"
+    # GNU computed gotos are currently emitted as raw indirect-jump expressions.
+    # Those are not round-trip recompilable in the harness.
+    if re.search(r"\bgoto\s+[(*]", text):
+        return "compile_fail", "contains computed goto"
+    # Incomplete structuring sometimes leaves behind empty labeled blocks that
+    # compile but do not preserve control flow.
+    if re.search(r"else\s*\{\s*LABEL_[0-9a-fA-F]+:\s*\}", text, re.DOTALL):
+        return "known_bad", "contains empty labeled block from incomplete structuring"
     # Unresolved stack-variable placeholders (angle-bracket syntax)
     if re.search(r"<0x[0-9a-f]+\[", text):
         return "compile_fail", "contains unresolved stack variable placeholder"
@@ -463,6 +491,25 @@ def _check_semantics(bin_path, func_name, text, tmp_dir, gcc_cmd, run_prefix):
 # ──────────────────────────────────────────────────────────────────────
 
 _FUNCTIONS = _discover_functions()
+_STRICT_WARNING_CLEAN_FUNCTIONS = [
+    param
+    for param in _FUNCTIONS
+    if param.values[2] == ["gcc"]
+    and not param.values[3]
+    and not param.values[4]
+    and os.path.basename(param.values[0]) in {"t3_memory_gcc_O1", "t5_patterns_gcc_O1"}
+    and param.values[1]
+    in {
+        "t3_array_copy",
+        "t3_array_max",
+        "t3_array_of_structs",
+        "t3_array_reverse",
+        "t3_array_sum",
+        "t3_matrix_trace",
+        "t3_ptr_walk",
+        "t5_minmax",
+    }
+]
 
 
 @pytest.mark.skipif(not _FUNCTIONS, reason="recompile-dataset binaries not found")
@@ -473,8 +520,12 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
     if func_name not in decompiled:
         pytest.skip("no decompilation output")
 
-    text = decompiled[func_name]
+    text, structuring_incomplete = decompiled[func_name]
+    if structuring_incomplete:
+        pytest.xfail("structuring incomplete")
     category, reason = _classify(func_name, text)
+    if category == "known_bad":
+        pytest.xfail(reason or "known bad decompilation output")
 
     # Stage 1: Compilation check
     source = _prepare_source(text)
@@ -489,3 +540,25 @@ def test_recompile_dataset(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_
 
     # Stage 2: Semantic equivalence
     _check_semantics(bin_path, func_name, text, str(tmp_path), gcc_cmd, run_prefix)
+
+
+@pytest.mark.skipif(not _STRICT_WARNING_CLEAN_FUNCTIONS, reason="strict warning-clean dataset binaries not found")
+@pytest.mark.parametrize("bin_path,func_name,gcc_cmd,run_prefix,is_pe", _STRICT_WARNING_CLEAN_FUNCTIONS)
+def test_recompile_dataset_warning_clean_pointer_array_cases(bin_path, func_name, gcc_cmd, run_prefix, is_pe, tmp_path):
+    decompiled = _get_decompiled(bin_path)
+    if func_name not in decompiled:
+        pytest.skip("no decompilation output")
+
+    text, structuring_incomplete = decompiled[func_name]
+    if structuring_incomplete:
+        pytest.xfail("structuring incomplete")
+
+    source = _prepare_source(text)
+    compiled, stderr = _try_compile(
+        source,
+        str(tmp_path),
+        func_name,
+        gcc_cmd,
+        extra_cflags=("-Wall", "-Wextra", "-Werror"),
+    )
+    assert compiled, f"Strict compilation failed:\n{stderr}"

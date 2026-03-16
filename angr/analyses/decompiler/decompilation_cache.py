@@ -28,6 +28,7 @@ class DecompilationCache:
         "parameters",
         "stack_offset_typevars",
         "stackvar_max_sizes",
+        "structuring_incomplete",
         "type_constraints",
         "var_to_typevar",
     )
@@ -48,6 +49,7 @@ class DecompilationCache:
         self.errors: list[str] = []
         self.function_summary: str | None = None
         self.notes: dict[str, str] = {}
+        self.structuring_incomplete: bool = False
 
     @property
     def local_types(self):
