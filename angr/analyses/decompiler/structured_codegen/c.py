@@ -115,6 +115,48 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
+def _is_array_type(ty: SimType | None) -> bool:
+    return isinstance(unpack_typeref(ty), (SimTypeArray, SimTypeFixedSizeArray))
+
+
+def _is_pointer_to_array_type(ty: SimType | None) -> bool:
+    ty = unpack_typeref(ty)
+    return isinstance(ty, SimTypePointer) and _is_array_type(ty.pts_to)
+
+
+def _scalarize_array_operand(
+    codegen: BaseStructuredCodeGenerator,
+    operand: CExpression,
+    target_type: SimType | None,
+    *,
+    skip_binary_op: bool = False,
+) -> CExpression:
+    if skip_binary_op and isinstance(operand, CBinaryOp):
+        return operand
+
+    operand_type = unpack_typeref(operand.type)
+    target_type = unpack_typeref(target_type)
+    if not isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
+        return operand
+    if target_type is None or isinstance(
+        target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+    ):
+        return operand
+    if operand_type.size != target_type.size:
+        return operand
+
+    return CUnaryOp(
+        "Dereference",
+        CTypeCast(
+            operand.type,
+            SimTypePointer(target_type).with_arch(codegen.project.arch),
+            operand,
+            codegen=codegen,
+        ),
+        codegen=codegen,
+    )
+
+
 def extract_terms(expr: CExpression) -> tuple[int, list[tuple[int, CExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, CTypeCast):
@@ -1278,73 +1320,21 @@ class CAssignment(CStatement):
         self.lhs = lhs
         self.rhs = rhs
 
-    def _normalize_indexed_pointer_to_array(self, operand: CExpression) -> CExpression:
-        if not isinstance(operand, CIndexedVariable):
-            return operand
-        if not isinstance(operand.variable, CVariable):
-            return operand
-        backing_var = (
-            operand.variable.unified_variable
-            if operand.variable.unified_variable is not None
-            else operand.variable.variable
-        )
-        if not isinstance(backing_var, SimRegisterVariable):
-            return operand
-        variable_type = unpack_typeref(operand.variable.type)
-        if not isinstance(variable_type, SimTypePointer) or not isinstance(
-            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
-        ):
-            return operand
-        return CIndexedVariable(
-            CUnaryOp("Dereference", operand.variable, codegen=self.codegen),
-            operand.index,
-            variable_type=operand.type,
-            codegen=self.codegen,
-        )
-
-    def _scalarize_array_operand(self, operand: CExpression, target_type: SimType | None) -> CExpression:
-        if isinstance(operand, CBinaryOp):
-            return operand
-        operand_type = unpack_typeref(operand.type)
-        target_type = unpack_typeref(target_type)
-        if not isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            return operand
-        if target_type is None or isinstance(
-            target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
-        ):
-            return operand
-        if operand_type.size != target_type.size:
-            return operand
-        return CUnaryOp(
-            "Dereference",
-            CTypeCast(
-                operand.type,
-                SimTypePointer(target_type).with_arch(self.codegen.project.arch),
-                operand,
-                codegen=self.codegen,
-            ),
-            codegen=self.codegen,
-        )
-
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
-        lhs = self._normalize_indexed_pointer_to_array(self.lhs)
+        lhs = self.lhs
         rhs = self.rhs
         lhs_type = unpack_typeref(lhs.type)
         rhs_type = unpack_typeref(rhs.type)
 
-        if (
-            isinstance(lhs_type, (SimTypeArray, SimTypeFixedSizeArray))
-            and isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray))
-            and lhs_type.size == rhs_type.size
-        ):
+        if _is_array_type(lhs_type) and _is_array_type(rhs_type) and lhs_type.size == rhs_type.size:
             scalar_type = self.codegen.default_simtype_from_bits(lhs_type.size, signed=False)
-            lhs = self._scalarize_array_operand(lhs, scalar_type)
-            rhs = self._scalarize_array_operand(rhs, scalar_type)
-        elif not isinstance(lhs_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            rhs = self._scalarize_array_operand(rhs, lhs_type)
-        elif not isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            lhs = self._scalarize_array_operand(lhs, rhs_type)
+            lhs = _scalarize_array_operand(self.codegen, lhs, scalar_type, skip_binary_op=True)
+            rhs = _scalarize_array_operand(self.codegen, rhs, scalar_type, skip_binary_op=True)
+        elif not _is_array_type(lhs_type):
+            rhs = _scalarize_array_operand(self.codegen, rhs, lhs_type, skip_binary_op=True)
+        elif not _is_array_type(rhs_type):
+            lhs = _scalarize_array_operand(self.codegen, lhs, rhs_type, skip_binary_op=True)
 
         yield indent_str, None
         yield from CExpression._try_c_repr_chunks(lhs)
@@ -1384,7 +1374,7 @@ class CAssignment(CStatement):
             # a = a + x  =>  a += x
             # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from CExpression._try_c_repr_chunks(self._scalarize_array_operand(compound_expr_rhs, lhs.type))
+            yield from CExpression._try_c_repr_chunks(_scalarize_array_operand(self.codegen, compound_expr_rhs, lhs.type))
         else:
             yield " = ", self
             yield from CExpression._try_c_repr_chunks(rhs)
@@ -1819,12 +1809,24 @@ class CIndexedVariable(CExpression):
             yield "...", self
             return
 
+        if _is_pointer_to_array_type(self.variable.type):
+            paren = CClosingObject("(")
+            yield "(", paren
+            yield "*", self
+            if not isinstance(self.variable, (CVariable, CVariableField)):
+                yield "(", None
+            yield from self.variable.c_repr_chunks()
+            if not isinstance(self.variable, (CVariable, CVariableField)):
+                yield ")", None
+            yield ")", paren
+        else:
+            if not isinstance(self.variable, (CVariable, CVariableField)):
+                yield "(", None
+            yield from self.variable.c_repr_chunks()
+            if not isinstance(self.variable, (CVariable, CVariableField)):
+                yield ")", None
+
         bracket = CClosingObject("[")
-        if not isinstance(self.variable, (CVariable, CVariableField)):
-            yield "(", None
-        yield from self.variable.c_repr_chunks()
-        if not isinstance(self.variable, (CVariable, CVariableField)):
-            yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
         yield "]", bracket
@@ -2106,52 +2108,20 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
-    def _scalarize_array_operand(self, operand: CExpression, target_type: SimType | None) -> CExpression:
-        operand_type = unpack_typeref(operand.type)
-        target_type = unpack_typeref(target_type)
-        if not isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
-            return operand
-        if target_type is None or isinstance(
-            target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
-        ):
-            return operand
-        if operand_type.size != target_type.size:
-            return operand
-        return CUnaryOp(
-            "Dereference",
-            CTypeCast(
-                operand.type,
-                SimTypePointer(target_type).with_arch(self.codegen.project.arch),
-                operand,
-                codegen=self.codegen,
-            ),
-            codegen=self.codegen,
-        )
-
     def _c_repr_chunks(self, op):
         lhs = self.lhs
         rhs = self.rhs
         lhs_type = unpack_typeref(lhs.type)
         rhs_type = unpack_typeref(rhs.type)
 
-        if (
-            isinstance(lhs_type, (SimTypeArray, SimTypeFixedSizeArray))
-            and rhs_type is not None
-            and not isinstance(
-                rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
-            )
-            and lhs_type.size == rhs_type.size
+        if _is_array_type(lhs_type) and rhs_type is not None and not isinstance(
+            rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
         ):
-            lhs = self._scalarize_array_operand(lhs, rhs_type)
-        if (
-            isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray))
-            and lhs_type is not None
-            and not isinstance(
-                lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
-            )
-            and rhs_type.size == lhs_type.size
+            lhs = _scalarize_array_operand(self.codegen, lhs, rhs_type)
+        if _is_array_type(rhs_type) and lhs_type is not None and not isinstance(
+            lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
         ):
-            rhs = self._scalarize_array_operand(rhs, lhs_type)
+            rhs = _scalarize_array_operand(self.codegen, rhs, lhs_type)
 
         skip_op_and_rhs = False
         if self._cstyle_null_cmp and self._has_const_null_rhs():
