@@ -22,7 +22,6 @@ class DecompilationCache:
         "codegen",
         "errors",
         "func_typevar",
-        "function_fingerprint",
         "function_summary",
         "ite_exprs",
         "notes",
@@ -31,7 +30,6 @@ class DecompilationCache:
         "stackvar_max_sizes",
         "type_constraints",
         "var_to_typevar",
-        "variable_kb_fingerprint",
     )
 
     def __init__(self, addr):
@@ -48,10 +46,8 @@ class DecompilationCache:
         self.ite_exprs: set[tuple[int, Any]] | None = None
         self.binop_operators: dict[OpDescriptor, str] | None = None
         self.errors: list[str] = []
-        self.function_fingerprint: str | None = None
         self.function_summary: str | None = None
         self.notes: dict[str, str] = {}
-        self.variable_kb_fingerprint: str | None = None
 
     @property
     def local_types(self):

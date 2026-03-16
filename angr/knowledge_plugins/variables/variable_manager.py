@@ -1129,14 +1129,6 @@ class VariableManagerInternal(Serializable):
                     return True
         return False
 
-    @staticmethod
-    def _same_storage_identity(v0: SimVariable, v1: SimVariable) -> bool:
-        if isinstance(v0, SimRegisterVariable) and isinstance(v1, SimRegisterVariable):
-            return v0.reg == v1.reg and v0.size == v1.size
-        if isinstance(v0, SimStackVariable) and isinstance(v1, SimStackVariable):
-            return v0.offset == v1.offset and v0.size == v1.size
-        return False
-
     def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
@@ -1171,8 +1163,6 @@ class VariableManagerInternal(Serializable):
                 if not isinstance(v, (SimRegisterVariable, SimStackVariable)):
                     continue
                 for subv in subvs:
-                    if not self._same_storage_identity(subv, v):
-                        continue
                     unify(subv, v)
 
             # unify stack variables at the same offsets only if their corresponding vvars do not interfere

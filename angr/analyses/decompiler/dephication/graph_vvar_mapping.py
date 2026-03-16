@@ -6,7 +6,6 @@ from angr.ailment import AILBlockRewriter
 from angr.ailment.block import Block
 from angr.ailment.expression import Phi, VirtualVariable
 from angr.ailment.statement import Assignment, Jump, ConditionalJump, Label
-from angr.ailment.block_walker import AILBlockWalker
 
 from angr.analyses import Analysis
 from angr.analyses.s_reaching_definitions import SRDAModel
@@ -15,25 +14,6 @@ from angr.analyses import register_analysis
 from angr.utils.ssa import is_phi_assignment
 
 l = logging.getLogger(name=__name__)
-
-
-class _VirtualVariableUseCollector(AILBlockWalker[None, None, set[int]]):
-    def __init__(self):
-        super().__init__()
-        self.used_vvar_ids: set[int] = set()
-
-    def _handle_block_end(self, stmt_results, block):
-        return self.used_vvar_ids
-
-    def _top(self, expr_idx, expr, stmt_idx, stmt, block):
-        return None
-
-    def _stmt_top(self, stmt_idx, stmt, block):
-        return None
-
-    def _handle_VirtualVariable(self, expr_idx, expr, stmt_idx, stmt, block):
-        self.used_vvar_ids.add(expr.varid)
-        return None
 
 
 class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
@@ -85,79 +65,9 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
     def _analyze(self):
         self.vvar_to_vvar_mapping = self._collect_and_remap()
 
-    @staticmethod
-    def _compatible_phi_storage(phi_dst: VirtualVariable, src_vvar: VirtualVariable) -> bool:
-        return phi_dst.category == src_vvar.category and phi_dst.oident == src_vvar.oident
-
-    def _rewrite_incompatible_phi_sources(
-        self, phi_to_srcvarid: dict[int, set[tuple[tuple[int, int], int]]]
-    ) -> set[int]:
-        new_vvar_ids: set[int] = set()
-        for phi_id in phi_to_srcvarid:
-            (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
-            phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
-            phi_stmt = phi_block.statements[phidef_stmt_idx]
-            if not (
-                isinstance(phi_stmt, Assignment)
-                and isinstance(phi_stmt.dst, VirtualVariable)
-                and isinstance(phi_stmt.src, Phi)
-            ):
-                continue
-
-            changed = False
-            new_src_and_vvars = []
-            for src, src_vvar in phi_stmt.src.src_and_vvars:
-                if src_vvar is None or self._compatible_phi_storage(phi_stmt.dst, src_vvar):
-                    new_src_and_vvars.append((src, src_vvar))
-                    continue
-
-                src_block = self._blocks[src]
-                ins_addr = src_block.addr + src_block.original_size - 1
-                new_vvar_id = self.vvar_id_start
-                self.vvar_id_start += 1
-                new_vvar = VirtualVariable(
-                    None,
-                    new_vvar_id,
-                    src_vvar.bits,
-                    phi_stmt.dst.category,
-                    oident=phi_stmt.dst.oident,
-                    ins_addr=ins_addr,
-                )
-                assignment = Assignment(None, new_vvar, src_vvar, ins_addr=ins_addr, dephi=True)
-                self._append_stmt(src_block, assignment, old_vvarid=src_vvar.varid, new_vvarid=new_vvar_id)
-                self.copied_vvar_ids.add(new_vvar_id)
-                new_vvar_ids.add(new_vvar_id)
-                new_src_and_vvars.append((src, new_vvar))
-                changed = True
-
-            if changed:
-                phi_block.statements[phidef_stmt_idx] = Assignment(
-                    phi_stmt.idx,
-                    phi_stmt.dst,
-                    Phi(phi_stmt.src.idx, phi_stmt.src.bits, new_src_and_vvars, **phi_stmt.src.tags),
-                    **phi_stmt.tags,
-                )
-        return new_vvar_ids
-
-    def _is_arg_copy_vvar(self, varid: int, arg_vvar_ids: set[int]) -> bool:
-        if varid in arg_vvar_ids or varid not in self._vvar_defloc:
-            return varid in arg_vvar_ids
-
-        (block_addr, block_idx), stmt_idx = self._vvar_defloc[varid]
-        block = self._blocks[(block_addr, block_idx)]
-        stmt = block.statements[stmt_idx]
-        if not isinstance(stmt, Assignment) or not isinstance(stmt.dst, VirtualVariable) or stmt.dst.varid != varid:
-            return False
-
-        collector = _VirtualVariableUseCollector()
-        collector.walk_expression(stmt.src)
-        used_vvar_ids = collector.used_vvar_ids
-        return len(used_vvar_ids) == 1 and next(iter(used_vvar_ids)) in arg_vvar_ids
-
     def _collect_and_remap(self) -> dict[int, int]:
         # collect phi assignments
         phi_to_srcvarid = self._collect_phi_assignments()
-        arg_vvar_ids = {vvar.varid for vvar in self._arg_vvars}
 
         # initialize phi_congruence_class
         phi_congruence_class: dict[int, set[int]] = {}
@@ -214,11 +124,6 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                             unresolved_neighbor_map[var1].add(var2)
                             unresolved_neighbor_map[var2].add(var1)
 
-            if len({varid for _, varid in src_and_varids}) > 1:
-                for _, varid in src_and_varids:
-                    if self._is_arg_copy_vvar(varid, arg_vvar_ids):
-                        candidate_vvar_set.add(varid)
-
             # process unresolved_neighbor_map in a decreasing order of the number of neighbors
             while unresolved_neighbor_map:
                 varid, neighbors = max(unresolved_neighbor_map.items(), key=lambda x: len(x[1]))
@@ -272,20 +177,15 @@ class GraphDephicationVVarMapping(Analysis):  # pylint:disable=abstract-method
                         for vvar_id in live_ins[phi_block_loc]:
                             interference.add_edge(new_phi_varid, vvar_id)
 
-        for new_vvar_id in self._rewrite_incompatible_phi_sources(phi_to_srcvarid):
-            phi_congruence_class[new_vvar_id] = {new_vvar_id}
-
         # update phi_congruence_class
         for phi_id in phi_to_srcvarid:
             (phidef_block_addr, phidef_block_idx), phidef_stmt_idx = self._vvar_defloc[phi_id]
             phi_block = self._blocks[(phidef_block_addr, phidef_block_idx)]
             # phi_stmt is the newly created phi statement with variables replaced
             phi_stmt = phi_block.statements[phidef_stmt_idx]
+            phi_src_vvar_ids = {src_vvar.varid for _, src_vvar in phi_stmt.src.src_and_vvars if src_vvar is not None}
             new_class = phi_congruence_class[phi_stmt.dst.varid]
-            for _, src_vvar in phi_stmt.src.src_and_vvars:
-                if src_vvar is None or not self._compatible_phi_storage(phi_stmt.dst, src_vvar):
-                    continue
-                src_vvar_id = src_vvar.varid
+            for src_vvar_id in phi_src_vvar_ids:
                 new_class |= phi_congruence_class[src_vvar_id]
                 phi_congruence_class[src_vvar_id] = new_class
 

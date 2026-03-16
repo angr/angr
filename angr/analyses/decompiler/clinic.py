@@ -1841,7 +1841,6 @@ class Clinic(Analysis):
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
-        self._add_missing_function_arguments(ssailification.additional_func_args)
         assert ssailification.out_graph is not None
         return ssailification.out_graph
 
@@ -1861,7 +1860,6 @@ class Clinic(Analysis):
         )
         self.vvar_id_start = ssailification.max_vvar_id + 1
         self._resize_function_arguments(ssailification.resized_func_args)
-        self._add_missing_function_arguments(ssailification.additional_func_args)
         return ssailification.out_graph
 
     def _resize_function_arguments(
@@ -1877,82 +1875,6 @@ class Clinic(Analysis):
                         newvar = v2.copy()
                         newvar.size = new.size
                         self.arg_vvars[k] = (new, newvar)
-
-    def _add_missing_function_arguments(self, additional_func_args: list[ailment.Expr.VirtualVariable]) -> None:
-        if not additional_func_args or not self.arg_vvars or len(self.arg_vvars) != 1 or len(additional_func_args) != 1:
-            return
-
-        if self.arg_list is None:
-            self.arg_list = []
-        if self.arg_vvars is None:
-            self.arg_vvars = {}
-        if self.func_args is None:
-            self.func_args = set()
-
-        existing_locs = {
-            (vvar.parameter_category, vvar.parameter_reg_offset, vvar.parameter_stack_offset, vvar.size)
-            for vvar, _ in self.arg_vvars.values()
-        }
-        reg_arg_sizes: dict[int, int] = {}
-        if self.function.calling_convention is not None:
-            proto = SimTypeFunction(
-                [SimTypeInt() for _ in range(max(len(self.arg_vvars) + len(additional_func_args), 8))], SimTypeInt()
-            ).with_arch(self.project.arch)
-            for arg_loc in self.function.calling_convention.arg_locs(proto):
-                if isinstance(arg_loc, SimRegArg):
-                    reg_arg_sizes[self.project.arch.registers[arg_loc.reg_name][0]] = arg_loc.size
-
-        for arg_vvar in sorted(
-            additional_func_args,
-            key=lambda vvar: (
-                0 if vvar.parameter_category == ailment.Expr.VirtualVariableCategory.REGISTER else 1,
-                vvar.parameter_reg_offset if vvar.parameter_reg_offset is not None else vvar.parameter_stack_offset,
-            ),
-        ):
-            key = (
-                arg_vvar.parameter_category,
-                arg_vvar.parameter_reg_offset,
-                arg_vvar.parameter_stack_offset,
-                arg_vvar.size,
-            )
-            if key in existing_locs:
-                continue
-
-            arg_idx = len(self.arg_list)
-            size = arg_vvar.size // self.project.arch.byte_width
-            if arg_vvar.parameter_category == ailment.Expr.VirtualVariableCategory.REGISTER:
-                reg_offset = arg_vvar.parameter_reg_offset
-                assert reg_offset is not None
-                size = reg_arg_sizes.get(reg_offset, size)
-                argvar = SimRegisterVariable(
-                    reg_offset,
-                    size,
-                    ident=f"arg_{arg_idx}",
-                    name=f"a{arg_idx}",
-                    region=self.function.addr,
-                )
-            else:
-                stack_offset = arg_vvar.parameter_stack_offset
-                assert stack_offset is not None
-                argvar = SimStackVariable(
-                    stack_offset,
-                    size,
-                    base="bp",
-                    ident=f"arg_{arg_idx}",
-                    name=f"a{arg_idx}",
-                    region=self.function.addr,
-                )
-
-            self.arg_list.append(argvar)
-            self.arg_vvars[arg_vvar.varid] = (arg_vvar, argvar)
-            self.func_args.add(arg_vvar)
-            existing_locs.add(key)
-
-        if self.function.prototype is not None:
-            arg_names = list(self.function.prototype.arg_names) if self.function.prototype.arg_names else []
-            while len(arg_names) < len(self.arg_vvars):
-                arg_names.append(f"a{len(arg_names)}")
-            self.function.prototype.arg_names = tuple(arg_names)
 
     @timethis
     def _collect_dephi_vvar_mapping_and_rewrite_blocks(
@@ -2129,8 +2051,7 @@ class Clinic(Analysis):
                 returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
-        # This prototype is inferred from the current decompilation pass and should not become ground truth.
-        self.function.is_prototype_guessed = True
+        self.function.is_prototype_guessed = False
 
     @timethis
     def _recover_and_link_variables(

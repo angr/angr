@@ -426,37 +426,12 @@ class WinStackCanarySimplifier(OptimizationPass):
                 if self.kb.functions.contains_addr(const_target):
                     func = self.kb.functions.get_by_addr(const_target)
                     assert func is not None
-                    if self._is_security_check_cookie_function(func):
+                    if func.name == "_security_check_cookie" or is_function_security_check_cookie(
+                        func, self.project, self._security_cookie_addr
+                    ):
                         return idx
 
         return None
-
-    def _is_security_check_cookie_function(self, func) -> bool:
-        assert self._security_cookie_addr is not None
-        if func.name == "_security_check_cookie" or is_function_security_check_cookie(
-            func, self.project, self._security_cookie_addr
-        ):
-            return True
-
-        block_addrs = getattr(func, "block_addrs_set", None)
-        if not block_addrs or len(block_addrs) != 1:
-            return False
-
-        block = self.project.factory.block(func.addr)
-        targets = list(block.vex.constant_jump_targets)
-        if block.vex.jumpkind != "Ijk_Boring" or len(targets) != 1:
-            return False
-
-        target = targets[0]
-        if not self.kb.functions.contains_addr(target):
-            return False
-
-        target_func = self.kb.functions.get_by_addr(target)
-        if target_func is None or target_func.addr == func.addr:
-            return False
-        return target_func.name == "_security_check_cookie" or is_function_security_check_cookie(
-            target_func, self.project, self._security_cookie_addr
-        )
 
     @staticmethod
     def _is_expr_loading_stack_cookie(expr: ailment.Expr.Expression, security_cookie_addr: int) -> bool:

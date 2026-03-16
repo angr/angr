@@ -23,7 +23,6 @@ from angr.sim_type import (
     SimTypeDouble,
     SimTypeLongLong,
     SimTypeLong,
-    SimTypeInt128,
     SimTypeNum,
     SimTypeReference,
     SimTypeBottom,
@@ -225,24 +224,6 @@ class TestTypes(unittest.TestCase):
         qualified_array_ptr = SimTypePointer(SimTypeArray(SimTypeChar(), 4), qualifier=("const",))
         assert qualified_array_ptr.c_repr(name="cur") == "char (*const cur)[4]"
         assert qualified_array_ptr.c_repr() == "char (*const)[4]"
-
-    def test_c_repr_unsigned_char(self):
-        signed_char = SimTypeChar(signed=True)
-        unsigned_char = SimTypeChar(signed=False)
-
-        assert signed_char.c_repr(name="value") == "char value"
-        assert signed_char.c_repr() == "char"
-        assert unsigned_char.c_repr(name="value") == "unsigned char value"
-        assert unsigned_char.c_repr() == "unsigned char"
-
-    def test_c_repr_int128(self):
-        signed_int128 = SimTypeInt128(signed=True)
-        unsigned_int128 = SimTypeInt128(signed=False)
-
-        assert signed_int128.c_repr(name="value") == "__int128 value"
-        assert signed_int128.c_repr() == "__int128"
-        assert unsigned_int128.c_repr(name="value") == "unsigned __int128 value"
-        assert unsigned_int128.c_repr() == "unsigned __int128"
 
     def test_self_referential_struct_or_union(self):
         struct_llist = angr.types.parse_type("struct llist { int data; struct llist *next; }")
