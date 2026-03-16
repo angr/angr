@@ -4688,7 +4688,11 @@ class StackMemoryRegionMaterializer:
 
     def _find_last_assignment(self, statements: list[CStatement], idx: int, target: CVariable) -> CAssignment | None:
         def _last_assignment_in_stmt(stmt: CStatement) -> CAssignment | None:
-            if isinstance(stmt, CAssignment) and isinstance(stmt.lhs, CVariable) and self._same_variable(stmt.lhs, target):
+            if (
+                isinstance(stmt, CAssignment)
+                and isinstance(stmt.lhs, CVariable)
+                and self._same_variable(stmt.lhs, target)
+            ):
                 return stmt
             if isinstance(stmt, CStatements):
                 for child in reversed(stmt.statements):
@@ -4761,7 +4765,9 @@ class StackMemoryRegionMaterializer:
             elif isinstance(stmt, CIfElse):
                 for _, node in stmt.condition_and_nodes:
                     self._discover_regions_from_stmt_list(node if isinstance(node, CStatements) else None)
-                self._discover_regions_from_stmt_list(stmt.else_node if isinstance(stmt.else_node, CStatements) else None)
+                self._discover_regions_from_stmt_list(
+                    stmt.else_node if isinstance(stmt.else_node, CStatements) else None
+                )
             elif isinstance(stmt, CStatements):
                 self._discover_regions_from_stmt_list(stmt)
 
@@ -4773,8 +4779,11 @@ class StackMemoryRegionMaterializer:
         if isinstance(expr.lhs, CVariable) and isinstance(expr.rhs, CConstant) and isinstance(expr.rhs.value, int):
             key = expr.lhs.unified_variable or expr.lhs.variable
             return key, expr.rhs.value if expr.op == "Add" else -expr.rhs.value
-        if expr.op == "Add" and isinstance(expr.rhs, CVariable) and isinstance(expr.lhs, CConstant) and isinstance(
-            expr.lhs.value, int
+        if (
+            expr.op == "Add"
+            and isinstance(expr.rhs, CVariable)
+            and isinstance(expr.lhs, CConstant)
+            and isinstance(expr.lhs.value, int)
         ):
             key = expr.rhs.unified_variable or expr.rhs.variable
             return key, expr.lhs.value
@@ -5053,7 +5062,8 @@ class StackMemoryRegionMaterializer:
 
         if isinstance(stmt, CIfElse):
             stmt.condition_and_nodes = [
-                (self._rewrite_expr(cond, lvalue=False), self._rewrite_stmt(node)) for cond, node in stmt.condition_and_nodes
+                (self._rewrite_expr(cond, lvalue=False), self._rewrite_stmt(node))
+                for cond, node in stmt.condition_and_nodes
             ]
             stmt.else_node = self._rewrite_stmt(stmt.else_node)
             return stmt
