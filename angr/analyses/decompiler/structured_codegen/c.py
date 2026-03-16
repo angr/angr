@@ -1801,7 +1801,9 @@ class CIndexedVariable(CExpression):
             unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
         ):
             variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
-        elif isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+        elif isinstance(variable_type, SimTypePointer) and isinstance(
+            unpack_typeref(variable_type.pts_to), SimTypeBottom
+        ):
             variable = CTypeCast(
                 variable.type,
                 SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
