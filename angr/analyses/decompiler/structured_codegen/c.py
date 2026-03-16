@@ -648,7 +648,11 @@ class CFunction(CConstruct):  # pylint:disable=abstract-method
             #   * the number of occurrences
             #   * the repr of the type itself
             # TODO: The type selection should actually happen during variable unification
-            vartypes = [x[1] for x in cvar_and_vartypes]
+            current_type = self.codegen._get_variable_type(
+                variable,
+                is_global=isinstance(variable, SimMemoryVariable) and not isinstance(variable, SimStackVariable),
+            )
+            vartypes = [current_type if current_type is not None else x[1] for x in cvar_and_vartypes]
             count = Counter(vartypes)
             vartypes = sorted(
                 count.copy(),
@@ -3282,7 +3286,12 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     key=lambda var: var.offset,
                 )
                 for idx, var in enumerate(stack_vars):
-                    var_type = self._get_variable_type(var) or SimTypeBottom().with_arch(self.project.arch)
+                    raw_var_type = self._get_variable_type(var) or SimTypeBottom().with_arch(self.project.arch)
+                    var_type = (
+                        SimTypeChar().with_arch(self.project.arch)
+                        if var in self.stack_alias_targets or var in self.addressed_stack_vars
+                        else raw_var_type.with_arch(self.project.arch)
+                    )
                     field_name = var.name or f"stack_{idx:x}"
                     field_names[var] = field_name
                     typed = unpack_typeref(var_type)
@@ -3296,7 +3305,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     if idx + 1 < len(stack_vars):
                         next_var = stack_vars[idx + 1]
                         padding_after = max(0, next_var.offset - (var.offset + var_size))
-                    layout.append((var, field_name, var_type.with_arch(self.project.arch), padding_after))
+                    layout.append((var, field_name, var_type, padding_after))
             self._stack_frame_layout = layout
             self._stack_frame_field_names = field_names
         return self._stack_frame_layout
@@ -4898,6 +4907,10 @@ class StackAliasFixer(CStructuredCodeWalker):
         if stmt.codegen._variables_in_use is not None and lhs_var in stmt.codegen._variables_in_use:
             stmt.codegen._variables_in_use[lhs_var].variable_type = rhs_type
         stmt.codegen._variable_kb.variables[stmt.codegen._func.addr].set_variable_type(lhs_var, rhs_type)
+        if stmt.codegen.cfunc is not None:
+            for node in _iter_cconstructs(stmt.codegen.cfunc):
+                if isinstance(node, CVariable) and _get_cvariable_backing(node) == lhs_var:
+                    node.variable_type = rhs_type
 
     @staticmethod
     def _match_cmp_var_and_stack_ref(
