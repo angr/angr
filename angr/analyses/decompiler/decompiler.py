@@ -122,6 +122,7 @@ class Decompiler(Analysis):
         self._vars_must_struct = vars_must_struct
         self._flavor = flavor
         self._variable_kb = variable_kb
+        self._input_variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
         self._ite_exprs = ite_exprs
@@ -254,14 +255,25 @@ class Decompiler(Analysis):
             for o, v in self._options:
                 self.options_by_class[o.cls].append((o, v))
 
+        variable_kb = self._input_variable_kb
+        variable_kb_changed = False
+        if cache is not None:
+            if variable_kb is not None:
+                variable_kb_changed = self._fingerprint_variable_kb(variable_kb) != cache.variable_kb_fingerprint
+        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
+            if cache is not None and self._fingerprint_variable_kb(old_codegen._variable_kb) != cache.variable_kb_fingerprint:
+                variable_kb = old_codegen._variable_kb
+                variable_kb_changed = True
+
+        if cache is not None and self._can_reuse_cached_decompilation(cache, variable_kb_changed):
+            self._adopt_cached_decompilation(cache)
+            self._update_progress(95.0, text="Finishing up")
+            self._finish_progress()
+            return
+
         # set global variables
         self._set_global_variables()
         self._update_progress(5.0, text="Converting to AIL")
-
-        variable_kb = self._variable_kb
-        # fall back to old codegen
-        if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
-            variable_kb = old_codegen._variable_kb
 
         if variable_kb is None:
             reset_variable_names = True
@@ -489,8 +501,106 @@ class Decompiler(Analysis):
 
         self._update_progress(95.0, text="Finishing up")
         if self.update_cache:
+            self.cache.function_fingerprint = self._fingerprint_function_context()
+            self.cache.variable_kb_fingerprint = self._fingerprint_variable_kb(self._variable_kb)
             self.kb.decompilations[(self.func.addr, self._flavor)] = self.cache
         self._finish_progress()
+
+    def _fingerprint_function_context(self) -> str:
+        func_addrs = {self.func.addr}
+        if self.func.addr in self.kb.functions.callgraph:
+            func_addrs.update(
+                callee_addr
+                for callee_addr in self.kb.functions.callgraph.successors(self.func.addr)
+                if self.kb.functions.contains_addr(callee_addr)
+            )
+
+        entries = []
+        for func_addr in sorted(func_addrs):
+            try:
+                func = self.kb.functions.get_by_addr(func_addr)
+            except KeyError:
+                continue
+            proto_repr = func.prototype.c_repr(name=func.name, full=1) if func.prototype is not None else None
+            cc_repr = repr(func.calling_convention) if func.calling_convention is not None else None
+            entries.append(
+                (
+                    func.addr,
+                    func.name,
+                    proto_repr,
+                    cc_repr,
+                    func.prototype_libname,
+                    func.is_prototype_guessed,
+                )
+            )
+        return repr(entries)
+
+    def _fingerprint_variable_kb(self, variable_kb: KnowledgeBase | None) -> str | None:
+        if variable_kb is None or self.func.addr not in variable_kb.variables:
+            return None
+
+        variable_manager = variable_kb.variables[self.func.addr]
+
+        type_entries = []
+        for name in sorted(variable_manager.types):
+            ty = variable_manager.types[name]
+            ty_repr = ty.c_repr(full=1) if hasattr(ty, "c_repr") else repr(ty)
+            type_entries.append((name, ty_repr))
+
+        variable_entries = []
+        for variable in sorted(
+            variable_manager.get_variables(),
+            key=lambda v: (
+                type(v).__name__,
+                getattr(v, "offset", None),
+                getattr(v, "reg", None),
+                getattr(v, "addr", None),
+                getattr(v, "size", None),
+                getattr(v, "ident", None),
+                getattr(v, "name", None),
+            ),
+        ):
+            vartype = variable_manager.get_variable_type(variable)
+            vartype_repr = vartype.c_repr(name="").strip() if vartype is not None else None
+            unified = variable_manager.unified_variable(variable)
+            variable_entries.append(
+                (
+                    type(variable).__name__,
+                    getattr(variable, "offset", None),
+                    getattr(variable, "reg", None),
+                    getattr(variable, "addr", None),
+                    getattr(variable, "size", None),
+                    getattr(variable, "ident", None),
+                    getattr(variable, "name", None),
+                    vartype_repr,
+                    getattr(unified, "name", None),
+                )
+            )
+
+        return repr((type_entries, variable_entries))
+
+    def _can_reuse_cached_decompilation(self, cache: DecompilationCache, variable_kb_changed: bool) -> bool:
+        if (
+            variable_kb_changed
+            or cache.codegen is None
+            or cache.clinic is None
+            or not self._regen_clinic
+            or not self._generate_code
+            or self._want_full_graph
+            or self._clinic_graph is not None
+            or self._clinic_arg_vvars is not None
+            or self._clinic_start_stage is not None
+            or self._clinic_end_stage is not None
+            or bool(self._clinic_skip_stages)
+            or getattr(cache.codegen, "binop_depth_cutoff", None) != self.expr_collapse_depth
+        ):
+            return False
+
+        llm_opts = self.options_to_params(self.options_by_class.get("decompiler", []))
+        if llm_opts.get("llm_refine", False):
+            return False
+
+        return self._fingerprint_function_context() == cache.function_fingerprint
 
     def _fallback_structurer_classes(self) -> tuple[type, ...]:
         if not self._allow_structurer_fallback:
@@ -582,7 +692,7 @@ class Decompiler(Analysis):
             options=self._options,
             optimization_passes=self._optimization_passes_without("LoweredSwitchSimplifier"),
             sp_tracker_track_memory=self._sp_tracker_track_memory,
-            variable_kb=self._variable_kb,
+            variable_kb=self._input_variable_kb,
             peephole_optimizations=self._peephole_optimizations,
             vars_must_struct=self._vars_must_struct,
             flavor=self._flavor,
@@ -599,6 +709,8 @@ class Decompiler(Analysis):
             use_cache=False,
             update_cache=False,
             expr_collapse_depth=self.expr_collapse_depth,
+            clinic_graph=self._clinic_graph,
+            clinic_arg_vvars=self._clinic_arg_vvars,
             clinic_start_stage=self._clinic_start_stage,
             clinic_end_stage=self._clinic_end_stage,
             clinic_skip_stages=self._clinic_skip_stages,
@@ -624,7 +736,7 @@ class Decompiler(Analysis):
                 options=self._options_with_structurer(structurer_cls),
                 optimization_passes=self._optimization_passes,
                 sp_tracker_track_memory=self._sp_tracker_track_memory,
-                variable_kb=self._variable_kb,
+                variable_kb=self._input_variable_kb,
                 peephole_optimizations=self._peephole_optimizations,
                 vars_must_struct=self._vars_must_struct,
                 flavor=self._flavor,
@@ -652,6 +764,23 @@ class Decompiler(Analysis):
                 return decomp
         return None
 
+    def _adopt_cached_decompilation(self, cache: DecompilationCache) -> None:
+        self.cache = cache
+        self.clinic = cache.clinic
+        self.codegen = cache.codegen
+        if self.codegen is not None:
+            # Cached codegen objects are mutable. Re-render on reuse so in-place display edits on the
+            # existing AST (for example CConstant formatting) are reflected in the returned text.
+            self.codegen.regenerate_text()
+        self.seq_node = getattr(cache.codegen, "_sequence", None) if cache.codegen is not None else None
+        self._variable_kb = getattr(cache.codegen, "_variable_kb", None) if cache.codegen is not None else None
+        if self._variable_kb is None and self.clinic is not None:
+            self._variable_kb = self.clinic.variable_kb
+        self.unoptimized_ail_graph = None if self.clinic is None else self.clinic.unoptimized_graph
+        self.ail_graph = None if self.clinic is None else self.clinic.cc_graph
+        self.vvar_id_start = None if self.clinic is None else self.clinic.vvar_id_start
+        self._copied_var_ids = set() if self.clinic is None else self.clinic.copied_var_ids
+
     def _adopt_fallback_decompilation(self, decomp: Decompiler) -> None:
         self._options = decomp._options
         self._cache_parameters = decomp._cache_parameters
@@ -661,6 +790,7 @@ class Decompiler(Analysis):
         self.codegen = decomp.codegen
         self.cache = decomp.cache
         self.seq_node = decomp.seq_node
+        self._variable_kb = decomp._variable_kb
         self.unoptimized_ail_graph = decomp.unoptimized_ail_graph
         self.ail_graph = decomp.ail_graph
         self.vvar_id_start = decomp.vvar_id_start
@@ -1056,21 +1186,36 @@ class Decompiler(Analysis):
         if not code_text:
             return False
 
-        # collect variables that actually appear in the generated code
-        all_vars = []
+        # collect variables that actually appear in the generated code for the prompt
+        visible_vars = []
         if self.codegen and self.codegen.cfunc:
             # local variables from the cfunc tree (only those visible in output)
-            all_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            visible_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
             # argument variables
             if self.codegen.cfunc.arg_list:
                 for cvar in self.codegen.cfunc.arg_list:
                     v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                    if v not in all_vars:
-                        all_vars.append(v)
-        if not all_vars:
+                    if v not in visible_vars:
+                        visible_vars.append(v)
+
+        # build the rename lookup from the full unified-variable set. the variable manager order is not stable
+        # across runs, and tests may legitimately pick hidden unified variables that are not emitted in the C text.
+        lookup_vars = list(visible_vars)
+        if self._variable_kb is not None:
+            try:
+                var_manager = self._variable_kb.variables[self.func.addr]
+            except KeyError:
+                var_manager = None
+            if var_manager is not None:
+                for v in var_manager.get_unified_variables(sort=None):
+                    if v not in lookup_vars:
+                        lookup_vars.append(v)
+
+        if not lookup_vars:
             return False
 
-        var_names = [v.name or str(v) for v in all_vars]
+        prompt_vars = visible_vars if visible_vars else lookup_vars
+        var_names = list(dict.fromkeys(v.name or str(v) for v in prompt_vars))
 
         prompt = (
             "You are a reverse engineering assistant. Given the following decompiled C code, suggest better, "
@@ -1085,25 +1230,32 @@ class Decompiler(Analysis):
         if not result or not isinstance(result, dict):
             return False
 
-        # build name-to-variable lookup
-        name_to_var = {}
-        for v in all_vars:
+        # build name-to-variable lookup. duplicate autogenerated names can exist temporarily, so apply the
+        # requested rename to every matching unified variable in the current function.
+        name_to_vars = defaultdict(list)
+        for v in lookup_vars:
             key = v.name or str(v)
-            name_to_var[key] = v
+            name_to_vars[key].append(v)
 
         changed = False
         for old_name, new_name in result.items():
             if not isinstance(new_name, str) or not new_name:
                 continue
-            var = name_to_var.get(old_name)
-            if var is None:
+            vars_ = name_to_vars.get(old_name)
+            if not vars_:
                 continue
             if old_name == new_name:
                 continue
-            var.name = new_name
-            var.renamed = True
-            changed = True
-            l.info("LLM renamed variable %s -> %s", old_name, new_name)
+            renamed = False
+            for var in vars_:
+                if var.name == new_name:
+                    continue
+                var.name = new_name
+                var.renamed = True
+                changed = True
+                renamed = True
+            if renamed:
+                l.info("LLM renamed variable %s -> %s", old_name, new_name)
 
         return changed
 
@@ -1165,22 +1317,28 @@ class Decompiler(Analysis):
 
         varman = self._variable_kb.variables[self.func.addr]
 
-        # collect variables that actually appear in the generated code
-        unified_vars = []
+        # collect variables that actually appear in the generated code for the prompt
+        visible_vars = []
         if self.codegen and self.codegen.cfunc:
-            unified_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
+            visible_vars.extend(self.codegen.cfunc.unified_local_vars.keys())
             if self.codegen.cfunc.arg_list:
                 for cvar in self.codegen.cfunc.arg_list:
                     v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                    if v not in unified_vars:
-                        unified_vars.append(v)
+                    if v not in visible_vars:
+                        visible_vars.append(v)
 
-        if not unified_vars:
+        lookup_vars = list(visible_vars)
+        for v in varman.get_unified_variables(sort=None):
+            if v not in lookup_vars:
+                lookup_vars.append(v)
+
+        if not lookup_vars:
             return False
 
         # build current type info
         var_type_info = {}
-        for v in unified_vars:
+        prompt_vars = visible_vars if visible_vars else lookup_vars
+        for v in prompt_vars:
             name = v.name or str(v)
             current_type = varman.get_variable_type(v)
             var_type_info[name] = str(current_type) if current_type else "unknown"
@@ -1199,18 +1357,19 @@ class Decompiler(Analysis):
         if not result or not isinstance(result, dict):
             return False
 
-        # build name-to-variable lookup
-        name_to_var = {}
-        for v in unified_vars:
+        # build name-to-variable lookup across all unified variables. hidden locals can still be selected
+        # by tests or higher-level tooling even when they are not emitted in the current C text.
+        name_to_vars = defaultdict(list)
+        for v in lookup_vars:
             key = v.name or str(v)
-            name_to_var[key] = v
+            name_to_vars[key].append(v)
 
         changed = False
         for var_name, type_str in result.items():
             if not isinstance(type_str, str) or not type_str:
                 continue
-            var = name_to_var.get(var_name)
-            if var is None:
+            vars_ = name_to_vars.get(var_name)
+            if not vars_:
                 continue
             try:
                 new_type = parse_type(type_str, arch=self.project.arch)
@@ -1218,9 +1377,13 @@ class Decompiler(Analysis):
                 l.debug("LLM suggested unparseable type '%s' for %s", type_str, var_name)
                 continue
 
-            varman.set_variable_type(var, new_type, mark_manual=True, all_unified=True)
-            changed = True
-            l.info("LLM changed type of %s to %s", var_name, type_str)
+            applied = False
+            for var in vars_:
+                varman.set_variable_type(var, new_type, mark_manual=True, all_unified=True)
+                changed = True
+                applied = True
+            if applied:
+                l.info("LLM changed type of %s to %s", var_name, type_str)
 
         if changed and self.codegen:
             self.codegen.reload_variable_types()

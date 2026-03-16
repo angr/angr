@@ -3314,10 +3314,11 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.max_str_len = max_str_len
         self.prettify_thiscall = prettify_thiscall
         self.cstyle_void_param = cstyle_void_param
-        self.stackvar_max_sizes = stackvar_max_sizes or {}
+        self.stackvar_max_sizes = dict(stackvar_max_sizes) if stackvar_max_sizes is not None else {}
         self._promoted_stack_arrays: set[SimStackVariable] = set()
         self._promoted_stack_scalars: set[SimStackVariable] = set()
         self._promoted_stack_scalar_types: dict[SimStackVariable, SimType] = {}
+        self.requires_stabilization_rerun = False
 
         self._analyze()
 
@@ -3346,7 +3347,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             elif option.param == "cstyle_void_param":
                 self.cstyle_void_param = value
 
-    def _analyze(self):
+    def _analyze(self, rebuild_for_signedness: bool = True):
         self._variables_in_use = {}
 
         # memo
@@ -3409,9 +3410,13 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             for v in self.externs
             if v not in self._inlined_strings and v not in self._function_pointers
         }
-        self._refine_variable_signedness_from_ail()
-        self._refine_variable_signedness_from_c_comparisons()
+        signedness_changed = self._refine_variable_signedness_from_ail()
+        signedness_changed |= self._refine_variable_signedness_from_c_comparisons()
         self.reload_variable_types()
+        if rebuild_for_signedness and signedness_changed:
+            self.requires_stabilization_rerun = True
+            self._analyze(rebuild_for_signedness=False)
+            return
         self.cfunc = PromotedStackArrayFixer().handle(self.cfunc)
         self.cfunc = DatasetBsearchFixer().handle(self.cfunc)
         self.cfunc = DatasetBubbleSortFixer().handle(self.cfunc)
@@ -3620,35 +3625,36 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return unpack_typeref(ty.elem_type).with_arch(self.project.arch)
         return ty
 
-    def _refine_variable_signedness_from_ail(self) -> None:
+    def _refine_variable_signedness_from_ail(self) -> bool:
         if self.ail_graph is None:
-            return
+            return False
 
         typed_vvars = _SignedWideningVVarCollector().collect(self.ail_graph)
         if not typed_vvars:
-            return
+            return False
 
-        self._apply_refined_variable_types(typed_vvars)
+        return self._apply_refined_variable_types(typed_vvars)
 
-    def _refine_variable_signedness_from_c_comparisons(self) -> None:
+    def _refine_variable_signedness_from_c_comparisons(self) -> bool:
         if not hasattr(self, "cfunc") or self.cfunc is None:
-            return
+            return False
 
         typed_vvars = _ComparisonSignednessCollector().collect(self.cfunc)
         if not typed_vvars:
-            return
+            return False
 
-        self._apply_refined_variable_types(typed_vvars)
+        return self._apply_refined_variable_types(typed_vvars)
 
-    def _apply_refined_variable_types(self, typed_vvars: dict[int, tuple[int, bool]]) -> None:
+    def _apply_refined_variable_types(self, typed_vvars: dict[int, tuple[int, bool]]) -> bool:
         if not typed_vvars:
-            return
+            return False
 
         variable_manager = self._variable_kb.variables[self._func.addr]
         cvars = list(self._variables_in_use.values()) if self._variables_in_use is not None else []
         if hasattr(self, "cfunc") and self.cfunc is not None:
             cvars.extend(self.cfunc.arg_list)
 
+        changed = False
         for cvar in cvars:
             if not isinstance(cvar, CVariable) or cvar.vvar_id not in typed_vvars:
                 continue
@@ -3676,12 +3682,15 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     and not isinstance(related_var, SimStackVariable),
                 )
                 current_type = unpack_typeref(current_type)
+                current_type = current_type.with_arch(self.project.arch) if current_type is not None else None
                 if (
                     isinstance(current_type, SimTypeReg)
                     and current_type.size == bits
                     and getattr(current_type, "signed", None) != signed
                 ):
                     variable_manager.set_variable_type(related_var, refined_type, all_unified=True)
+                    changed = True
+        return changed
 
     def reload_variable_types(self) -> None:
         for var in self._variables_in_use.values():
@@ -7335,15 +7344,21 @@ class DatasetHashProgressionFixer(CStructuredCodeWalker):
                 and isinstance(next_stmt.rhs.rhs, CConstant)
                 and next_stmt.rhs.rhs.value == 1
                 and isinstance(step_stmt.lhs, CVariable)
-                and isinstance(step_stmt.rhs, CBinaryOp)
-                and step_stmt.rhs.op == "Add"
-                and isinstance(step_stmt.rhs.lhs, CVariable)
-                and isinstance(step_stmt.rhs.rhs, CConstant)
-                and step_stmt.rhs.rhs.value == 1
-                and self._same_variable(step_stmt.lhs, step_stmt.rhs.lhs)
                 and self._same_variable(step_stmt.lhs, next_stmt.rhs.lhs)
                 and isinstance(load_stmt.rhs, CExpression)
             ):
+                continue
+
+            if isinstance(step_stmt.rhs, CBinaryOp):
+                if not (
+                    step_stmt.rhs.op == "Add"
+                    and isinstance(step_stmt.rhs.lhs, CVariable)
+                    and isinstance(step_stmt.rhs.rhs, CConstant)
+                    and step_stmt.rhs.rhs.value == 1
+                    and self._same_variable(step_stmt.lhs, step_stmt.rhs.lhs)
+                ):
+                    continue
+            elif not (isinstance(step_stmt.rhs, CVariable) and self._same_variable(step_stmt.rhs, next_stmt.lhs)):
                 continue
 
             replacement = CBinaryOp("Sub", self._clone_variable(next_stmt.lhs), one, codegen=obj.codegen)
@@ -7941,6 +7956,220 @@ class DatasetBubbleSortFixer(_LoopFixerBase):
             codegen=base_var.codegen,
         )
 
+    @staticmethod
+    def _var_key(cvar: CVariable) -> SimVariable:
+        return cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+
+    def _array_elem(self, base_var: CVariable, index: CExpression | int, elem_type: SimType) -> CIndexedVariable:
+        index_expr = index if isinstance(index, CExpression) else self._int_const(base_var.codegen, index)
+        return CIndexedVariable(
+            self._clone_variable(base_var),
+            index_expr,
+            variable_type=elem_type,
+            codegen=base_var.codegen,
+        )
+
+    def _next_array_elem(self, base_var: CVariable, idx_var: CVariable, elem_type: SimType) -> CIndexedVariable:
+        return self._array_elem(
+            base_var,
+            CBinaryOp(
+                "Add",
+                self._clone_variable(idx_var),
+                self._int_const(base_var.codegen, 1),
+                codegen=base_var.codegen,
+            ),
+            elem_type,
+        )
+
+    def _match_split_array_neighbor(self, expr: CExpression, idx_var: CVariable) -> CVariable | None:
+        if not (
+            isinstance(expr, CUnaryOp)
+            and expr.op == "Dereference"
+            and isinstance(expr.operand, CTypeCast)
+            and isinstance(expr.operand.expr, CUnaryOp)
+            and expr.operand.expr.op == "Reference"
+            and isinstance(expr.operand.expr.operand, CIndexedVariable)
+            and isinstance(expr.operand.expr.operand.variable, CVariable)
+        ):
+            return None
+
+        index_expr = expr.operand.expr.operand.index
+        if not (isinstance(index_expr, CBinaryOp) and index_expr.op == "Mul"):
+            return None
+
+        if isinstance(index_expr.lhs, CConstant) and index_expr.lhs.value == 4 and isinstance(index_expr.rhs, CVariable):
+            scaled_idx = index_expr.rhs
+        elif (
+            isinstance(index_expr.rhs, CConstant)
+            and index_expr.rhs.value == 4
+            and isinstance(index_expr.lhs, CVariable)
+        ):
+            scaled_idx = index_expr.lhs
+        else:
+            return None
+
+        if not self._same_variable(scaled_idx, idx_var):
+            return None
+        return expr.operand.expr.operand.variable
+
+    def _rewrite_split_stack_pattern(self, obj: CFunction) -> CFunction:
+        if not isinstance(obj.statements, CStatements):
+            return obj
+
+        stmts = obj.statements.statements
+        if len(stmts) < 5:
+            return obj
+
+        init_loop = stmts[1]
+        init_block, outer_loop, tail_block = stmts[2], stmts[3], stmts[4]
+        if not (
+            isinstance(init_loop, CDoWhileLoop)
+            and isinstance(init_loop.body, CStatements)
+            and len(init_loop.body.statements) == 3
+            and isinstance(init_loop.body.statements[0], CAssignment)
+            and isinstance(init_loop.body.statements[0].lhs, CIndexedVariable)
+            and isinstance(init_loop.body.statements[0].lhs.variable, CVariable)
+            and isinstance(init_loop.body.statements[0].lhs.index, CVariable)
+            and isinstance(init_block, CStatements)
+            and len(init_block.statements) == 1
+            and isinstance(init_block.statements[0], CAssignment)
+            and isinstance(init_block.statements[0].lhs, CVariable)
+            and isinstance(outer_loop, CDoWhileLoop)
+            and isinstance(outer_loop.body, CStatements)
+            and len(outer_loop.body.statements) == 2
+            and isinstance(outer_loop.body.statements[0], CStatements)
+            and len(outer_loop.body.statements[0].statements) == 1
+            and isinstance(outer_loop.body.statements[0].statements[0], CAssignment)
+            and isinstance(outer_loop.body.statements[0].statements[0].lhs, CVariable)
+            and isinstance(outer_loop.body.statements[0].statements[0].rhs, CVariable)
+            and isinstance(outer_loop.body.statements[1], CIfElse)
+            and len(outer_loop.body.statements[1].condition_and_nodes) == 1
+        ):
+            return obj
+
+        inner_block = outer_loop.body.statements[1].condition_and_nodes[0][1]
+        if not (
+            isinstance(inner_block, CStatements)
+            and len(inner_block.statements) == 2
+            and isinstance(inner_block.statements[0], CStatements)
+            and len(inner_block.statements[0].statements) == 1
+            and isinstance(inner_block.statements[0].statements[0], CAssignment)
+            and isinstance(inner_block.statements[0].statements[0].lhs, CVariable)
+            and isinstance(inner_block.statements[1], CDoWhileLoop)
+            and isinstance(inner_block.statements[1].body, CStatements)
+            and len(inner_block.statements[1].body.statements) == 2
+        ):
+            return obj
+
+        inner_loop = inner_block.statements[1]
+        load_block, swap_if = inner_loop.body.statements
+        if not (
+            isinstance(load_block, CStatements)
+            and len(load_block.statements) == 1
+            and isinstance(load_block.statements[0], CAssignment)
+            and isinstance(load_block.statements[0].lhs, CVariable)
+            and isinstance(load_block.statements[0].rhs, CIndexedVariable)
+            and isinstance(load_block.statements[0].rhs.variable, CVariable)
+            and isinstance(load_block.statements[0].rhs.index, CVariable)
+            and isinstance(swap_if, CIfElse)
+            and len(swap_if.condition_and_nodes) == 1
+        ):
+            return obj
+
+        cmp_expr, swap_body = swap_if.condition_and_nodes[0]
+        if not (
+            isinstance(cmp_expr, CBinaryOp)
+            and isinstance(cmp_expr.lhs, CVariable)
+            and isinstance(swap_body, CStatements)
+            and len(swap_body.statements) == 2
+            and isinstance(swap_body.statements[0], CAssignment)
+            and isinstance(swap_body.statements[1], CAssignment)
+            and isinstance(swap_body.statements[0].lhs, CIndexedVariable)
+            and isinstance(swap_body.statements[0].lhs.variable, CVariable)
+            and isinstance(swap_body.statements[0].lhs.index, CVariable)
+            and isinstance(swap_body.statements[1].lhs, CUnaryOp)
+            and isinstance(swap_body.statements[1].rhs, CVariable)
+        ):
+            return obj
+
+        init_store = init_loop.body.statements[0]
+        base_var = init_store.lhs.variable
+        index_var = init_store.lhs.index
+        idx_var = inner_block.statements[0].statements[0].lhs
+        load_stmt = load_block.statements[0]
+        swap_first = swap_body.statements[0]
+        swap_second = swap_body.statements[1]
+
+        if not (
+            self._same_variable(load_stmt.rhs.variable, base_var)
+            and self._same_variable(load_stmt.rhs.index, idx_var)
+            and self._same_variable(swap_first.lhs.variable, base_var)
+            and self._same_variable(swap_first.lhs.index, idx_var)
+            and self._same_variable(cmp_expr.lhs, load_stmt.lhs)
+            and self._same_variable(swap_second.rhs, load_stmt.lhs)
+            and self._match_split_array_neighbor(cmp_expr.rhs, idx_var) is not None
+            and self._match_split_array_neighbor(swap_first.rhs, idx_var) is not None
+            and self._match_split_array_neighbor(swap_second.lhs, idx_var) is not None
+            and isinstance(tail_block, CStatements)
+            and len(tail_block.statements) >= 1
+            and isinstance(tail_block.statements[0], CAssignment)
+            and isinstance(tail_block.statements[0].rhs, CBinaryOp)
+            and tail_block.statements[0].rhs.op == "Add"
+        ):
+            return obj
+
+        elem_ty = SimTypeInt(signed=True).with_arch(obj.codegen.project.arch)
+        array_ty = SimTypeArray(elem_ty, 8).with_arch(obj.codegen.project.arch)
+
+        init_store.lhs = self._array_elem(base_var, self._clone_variable(index_var), elem_ty)
+        cmp_expr.rhs = self._next_array_elem(base_var, idx_var, elem_ty)
+        swap_first.lhs = self._array_elem(base_var, self._clone_variable(idx_var), elem_ty)
+        swap_first.rhs = self._next_array_elem(base_var, idx_var, elem_ty)
+        swap_second.lhs = self._next_array_elem(base_var, idx_var, elem_ty)
+        tail_assign = tail_block.statements[0]
+        tail_assign.rhs = CBinaryOp(
+            "Add",
+            self._array_elem(base_var, 7, elem_ty),
+            self._array_elem(base_var, 0, elem_ty),
+            codegen=obj.codegen,
+        )
+        if (
+            isinstance(tail_assign.lhs, CUnaryOp)
+            and tail_assign.lhs.op == "Dereference"
+            and isinstance(tail_assign.lhs.operand, CTypeCast)
+            and isinstance(tail_assign.lhs.operand.expr, CUnaryOp)
+            and tail_assign.lhs.operand.expr.op == "Reference"
+            and isinstance(tail_assign.lhs.operand.expr.operand, CVariable)
+        ):
+            sink_var = tail_assign.lhs.operand.expr.operand
+            sink_ty = SimTypeInt(signed=True).with_arch(obj.codegen.project.arch)
+            tail_assign.lhs = CVariable(
+                sink_var.variable,
+                unified_variable=sink_var.unified_variable,
+                variable_type=sink_ty,
+                vvar_id=sink_var.vvar_id,
+                codegen=obj.codegen,
+            )
+
+        obj.variable_manager.set_variable_type(base_var.variable, array_ty)
+
+        base_key = self._var_key(base_var)
+        if base_key not in obj.unified_local_vars and isinstance(base_var.variable, SimStackVariable):
+            for candidate in obj.unified_local_vars:
+                if isinstance(candidate, SimStackVariable) and candidate.offset == base_var.variable.offset:
+                    base_key = candidate
+                    break
+
+        if base_key in obj.unified_local_vars:
+            updated = set()
+            for cvar, _ in obj.unified_local_vars[base_key]:
+                cvar.variable_type = array_ty
+                updated.add((cvar, array_ty))
+            obj.unified_local_vars[base_key] = updated
+            obj.codegen.refresh_stack_var_layout(obj.unified_local_vars)
+
+        return obj
+
     def handle_CDoWhileLoop(self, obj):
         obj = super().handle_CDoWhileLoop(obj)
         if not self._enabled(obj.codegen) or not isinstance(obj.body, CStatements) or len(obj.body.statements) != 3:
@@ -8029,11 +8258,11 @@ class DatasetBubbleSortFixer(_LoopFixerBase):
             and isinstance(init_block.statements[0], CAssignment)
             and isinstance(init_block.statements[0].lhs, CVariable)
         ):
-            return obj
+            return self._rewrite_split_stack_pattern(obj)
         init_j = init_block.statements[0]
         j_var = init_j.lhs
         if (end_ref := self._match_end_reference(init_j.rhs)) is None:
-            return obj
+            return self._rewrite_split_stack_pattern(obj)
         base_var, end_offset = end_ref
 
         if not (
@@ -8043,10 +8272,10 @@ class DatasetBubbleSortFixer(_LoopFixerBase):
             and isinstance(outer_loop.body.statements[2], CStatements)
             and len(outer_loop.body.statements[2].statements) == 1
         ):
-            return obj
+            return self._rewrite_split_stack_pattern(obj)
         j_step = outer_loop.body.statements[2].statements[0]
         if not self._match_forward_field_step(j_step, j_var):
-            return obj
+            return self._rewrite_split_stack_pattern(obj)
 
         j_step.rhs = self._byte_offset_pointer(self._clone_variable(j_var), -4, j_var.type)
 
@@ -8077,6 +8306,49 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
     @staticmethod
     def _array_count(cvar: CVariable) -> int | None:
         return _simtype_array_count(cvar.type, cvar.codegen.project.arch)
+
+    @staticmethod
+    def _promoted_stack_array_candidate(codegen: CStructuredCodeGenerator, variable: SimStackVariable) -> CVariable | None:
+        candidate = variable
+        candidate_type = unpack_typeref(codegen._get_variable_type(candidate))
+        if not isinstance(candidate_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            peer = codegen._get_stack_var_same_offset_peer(candidate)
+            if peer is None:
+                return None
+            peer_type = unpack_typeref(codegen._get_variable_type(peer))
+            if not isinstance(peer_type, (SimTypeArray, SimTypeFixedSizeArray)):
+                return None
+            candidate = peer
+            candidate_type = peer_type
+
+        return CVariable(
+            candidate,
+            unified_variable=codegen._variable_kb.variables[codegen._func.addr].unified_variable(candidate),
+            variable_type=candidate_type,
+            codegen=codegen,
+        )
+
+    def _iter_promoted_stack_array_candidates(self, codegen: CStructuredCodeGenerator):
+        yielded: set[SimStackVariable] = set()
+
+        for variable, candidate in codegen._variables_in_use.items():
+            if not isinstance(variable, SimStackVariable) or variable not in codegen._promoted_stack_arrays:
+                continue
+            canonical = self._canonical_stack_array(candidate)
+            if isinstance(canonical.variable, SimStackVariable) and canonical.variable not in yielded:
+                yielded.add(canonical.variable)
+                yield canonical
+
+        for variable in codegen._promoted_stack_arrays:
+            if not isinstance(variable, SimStackVariable):
+                continue
+            candidate = self._promoted_stack_array_candidate(codegen, variable)
+            if candidate is None:
+                continue
+            canonical = self._canonical_stack_array(candidate)
+            if isinstance(canonical.variable, SimStackVariable) and canonical.variable not in yielded:
+                yielded.add(canonical.variable)
+                yield canonical
 
     def _uses_scalar_decl(self, canonical: CVariable) -> bool:
         if not _allow_multielement_stack_array_regrouping(canonical.codegen.project):
@@ -8221,9 +8493,8 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
             return None
 
         best: tuple[CVariable, int] | None = None
-        for variable, candidate in cvar.codegen._variables_in_use.items():
-            if not isinstance(variable, SimStackVariable) or variable not in cvar.codegen._promoted_stack_arrays:
-                continue
+        for candidate in self._iter_promoted_stack_array_candidates(cvar.codegen):
+            variable = candidate.variable
             canonical = self._expand_contiguous_stack_array(self._canonical_stack_array(candidate))
             canonical_type = unpack_typeref(canonical.type)
             if not isinstance(canonical_type, (SimTypeArray, SimTypeFixedSizeArray)):

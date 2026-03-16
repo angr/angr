@@ -2129,7 +2129,8 @@ class Clinic(Analysis):
                 returnty = SimTypeInt()
 
         self.function.prototype = SimTypeFunction(func_args, returnty).with_arch(self.project.arch)
-        self.function.is_prototype_guessed = False
+        # This prototype is inferred from the current decompilation pass and should not become ground truth.
+        self.function.is_prototype_guessed = True
 
     @timethis
     def _recover_and_link_variables(

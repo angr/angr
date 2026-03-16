@@ -243,6 +243,51 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         assert var_a.name == "alpha"
         assert var_b.name == "beta"
 
+    def test_renames_hidden_and_visible_variables(self):
+        """Should apply suggested renames even when a unified variable is not emitted in the C text."""
+        dec = self._decompile("main")
+        assert dec._variable_kb is not None
+        assert dec.codegen is not None and dec.codegen.text is not None
+
+        varman = dec._variable_kb.variables[dec.func.addr]
+        unified_vars = varman.get_unified_variables(sort=None)
+        visible_vars = set(dec.codegen.cfunc.unified_local_vars.keys())
+        visible_vars.update(
+            cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+            for cvar in dec.codegen.cfunc.arg_list or []
+        )
+
+        hidden_var = None
+        visible_var = None
+        old_hidden_name = None
+        old_visible_name = None
+        for candidate_hidden in unified_vars:
+            if candidate_hidden in visible_vars:
+                continue
+            candidate_hidden_name = candidate_hidden.name or str(candidate_hidden)
+            for candidate_visible in unified_vars:
+                if candidate_visible not in visible_vars:
+                    continue
+                candidate_visible_name = candidate_visible.name or str(candidate_visible)
+                if candidate_hidden_name != candidate_visible_name:
+                    hidden_var = candidate_hidden
+                    visible_var = candidate_visible
+                    old_hidden_name = candidate_hidden_name
+                    old_visible_name = candidate_visible_name
+                    break
+            if hidden_var is not None:
+                break
+
+        if hidden_var is None or visible_var is None or old_hidden_name is None or old_visible_name is None:
+            self.skipTest("Need one hidden and one visible variable with distinct names for this test")
+
+        mock_client = _make_mock_llm_client([{old_hidden_name: "alpha", old_visible_name: "beta"}])
+
+        result = dec.llm_suggest_variable_names(llm_client=mock_client, code_text=dec.codegen.text)
+        assert result is True
+        assert hidden_var.name == "alpha"
+        assert visible_var.name == "beta"
+
 
 class TestDecompilerLLMSuggestFunctionName(TestDecompilerLLMRefineBase):
     """Tests for llm_suggest_function_name."""
