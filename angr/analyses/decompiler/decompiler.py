@@ -261,7 +261,10 @@ class Decompiler(Analysis):
             if variable_kb is not None:
                 variable_kb_changed = self._fingerprint_variable_kb(variable_kb) != cache.variable_kb_fingerprint
         if variable_kb is None and old_codegen is not None and isinstance(old_codegen, CStructuredCodeGenerator):
-            if cache is not None and self._fingerprint_variable_kb(old_codegen._variable_kb) != cache.variable_kb_fingerprint:
+            if (
+                cache is not None
+                and self._fingerprint_variable_kb(old_codegen._variable_kb) != cache.variable_kb_fingerprint
+            ):
                 variable_kb = old_codegen._variable_kb
                 variable_kb_changed = True
 
@@ -1214,7 +1217,7 @@ class Decompiler(Analysis):
         if not lookup_vars:
             return False
 
-        prompt_vars = visible_vars if visible_vars else lookup_vars
+        prompt_vars = visible_vars or lookup_vars
         var_names = list(dict.fromkeys(v.name or str(v) for v in prompt_vars))
 
         prompt = (
@@ -1337,7 +1340,7 @@ class Decompiler(Analysis):
 
         # build current type info
         var_type_info = {}
-        prompt_vars = visible_vars if visible_vars else lookup_vars
+        prompt_vars = visible_vars or lookup_vars
         for v in prompt_vars:
             name = v.name or str(v)
             current_type = varman.get_variable_type(v)

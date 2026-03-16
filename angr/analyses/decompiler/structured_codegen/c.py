@@ -7997,7 +7997,11 @@ class DatasetBubbleSortFixer(_LoopFixerBase):
         if not (isinstance(index_expr, CBinaryOp) and index_expr.op == "Mul"):
             return None
 
-        if isinstance(index_expr.lhs, CConstant) and index_expr.lhs.value == 4 and isinstance(index_expr.rhs, CVariable):
+        if (
+            isinstance(index_expr.lhs, CConstant)
+            and index_expr.lhs.value == 4
+            and isinstance(index_expr.rhs, CVariable)
+        ):
             scaled_idx = index_expr.rhs
         elif (
             isinstance(index_expr.rhs, CConstant)
@@ -8308,7 +8312,9 @@ class PromotedStackArrayFixer(CStructuredCodeWalker):
         return _simtype_array_count(cvar.type, cvar.codegen.project.arch)
 
     @staticmethod
-    def _promoted_stack_array_candidate(codegen: CStructuredCodeGenerator, variable: SimStackVariable) -> CVariable | None:
+    def _promoted_stack_array_candidate(
+        codegen: CStructuredCodeGenerator, variable: SimStackVariable
+    ) -> CVariable | None:
         candidate = variable
         candidate_type = unpack_typeref(codegen._get_variable_type(candidate))
         if not isinstance(candidate_type, (SimTypeArray, SimTypeFixedSizeArray)):
