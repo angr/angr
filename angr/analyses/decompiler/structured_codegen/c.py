@@ -1836,8 +1836,10 @@ class CIndexedVariable(CExpression):
 
         variable = self.variable
         variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+        if (
+            self.codegen.uses_stack_backing
+            and isinstance(variable_type, SimTypePointer)
+            and isinstance(unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray))
         ):
             variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
         elif (
