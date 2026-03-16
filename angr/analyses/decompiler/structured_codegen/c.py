@@ -3088,6 +3088,7 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.cfunc = FieldReferenceCleanup().handle(self.cfunc)
         self.cfunc = PointerArithmeticFixer().handle(self.cfunc)
         self.cfunc = StackAliasFixer().handle(self.cfunc)
+        self.cfunc = NonStackNegativeIndexNormalizer().handle(self.cfunc)
         self.cfunc = MakeTypecastsImplicit().handle(self.cfunc)
 
         # TODO store extern fallback size somewhere lol
@@ -5063,6 +5064,33 @@ class StackAliasFixer(CStructuredCodeWalker):
                 continue
             self._fix_multistmt_do_while(stmt, next_stmt)
             self._fix_reverse_scan_condition(next_stmt)
+        return obj
+
+
+class NonStackNegativeIndexNormalizer(CStructuredCodeWalker):
+    def handle_CIndexedVariable(self, obj: CIndexedVariable):
+        obj = super().handle_CIndexedVariable(obj)
+
+        if not isinstance(obj.index, CConstant) or not isinstance(obj.index.value, int) or obj.index.value >= 0:
+            return obj
+
+        base = _strip_typecasts(obj.variable)
+        base_var = _get_cvariable_backing(base)
+        base_type = unpack_typeref(base.type)
+        pts_to = unpack_typeref(base_type.pts_to) if isinstance(base_type, SimTypePointer) else None
+        if (
+            isinstance(base_type, SimTypePointer)
+            and isinstance(pts_to, (SimTypeBottom, SimTypeChar))
+            and base_var not in obj.codegen.stack_backed_aliases
+            and (not isinstance(base_var, SimStackVariable) or base_var not in obj.codegen.stack_alias_targets)
+        ):
+            obj.index = CConstant(
+                -obj.index.value,
+                obj.index.type,
+                reference_values=obj.index.reference_values,
+                tags=obj.index.tags,
+                codegen=obj.codegen,
+            )
         return obj
 
 
