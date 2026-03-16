@@ -1989,13 +1989,17 @@ class CBinaryOp(CExpression):
 
         if (
             isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                rhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and lhs_ty.size == rhs_ty.size
         ):
             lhs_ty = rhs_ty
         elif (
             isinstance(rhs_ty, (SimTypeArray, SimTypeFixedSizeArray))
-            and not isinstance(lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction))
+            and not isinstance(
+                lhs_ty, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
             and rhs_ty.size == lhs_ty.size
         ):
             rhs_ty = lhs_ty
