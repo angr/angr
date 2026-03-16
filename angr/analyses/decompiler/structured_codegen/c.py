@@ -1278,6 +1278,26 @@ class CAssignment(CStatement):
         self.lhs = lhs
         self.rhs = rhs
 
+    def _normalize_indexed_pointer_to_array(self, operand: CExpression) -> CExpression:
+        if not isinstance(operand, CIndexedVariable):
+            return operand
+        if not isinstance(operand.variable, CVariable):
+            return operand
+        backing_var = operand.variable.unified_variable if operand.variable.unified_variable is not None else operand.variable.variable
+        if not isinstance(backing_var, SimRegisterVariable):
+            return operand
+        variable_type = unpack_typeref(operand.variable.type)
+        if not isinstance(variable_type, SimTypePointer) or not isinstance(
+            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
+        ):
+            return operand
+        return CIndexedVariable(
+            CUnaryOp("Dereference", operand.variable, codegen=self.codegen),
+            operand.index,
+            variable_type=operand.type,
+            codegen=self.codegen,
+        )
+
     def _scalarize_array_operand(self, operand: CExpression, target_type: SimType | None) -> CExpression:
         if isinstance(operand, CBinaryOp):
             return operand
@@ -1291,7 +1311,6 @@ class CAssignment(CStatement):
             return operand
         if operand_type.size != target_type.size:
             return operand
-        # Some recovered stack cells stay typed as arrays even when later expressions treat them as scalars.
         return CUnaryOp(
             "Dereference",
             CTypeCast(
@@ -1305,7 +1324,7 @@ class CAssignment(CStatement):
 
     def c_repr_chunks(self, indent=0, asexpr=False):
         indent_str = self.indent_str(indent=indent)
-        lhs = self.lhs
+        lhs = self._normalize_indexed_pointer_to_array(self.lhs)
         rhs = self.rhs
         lhs_type = unpack_typeref(lhs.type)
         rhs_type = unpack_typeref(rhs.type)
@@ -1796,29 +1815,11 @@ class CIndexedVariable(CExpression):
             yield "...", self
             return
 
-        variable = self.variable
-        variable_type = unpack_typeref(variable.type)
-        if isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
-        ):
-            # `iter[i]` on a pointer-to-array means indexing the pointed-to array, not the pointer object itself.
-            variable = CUnaryOp("Dereference", variable, codegen=self.codegen)
-        elif isinstance(variable_type, SimTypePointer) and isinstance(
-            unpack_typeref(variable_type.pts_to), SimTypeBottom
-        ):
-            # Raw void* indexing is a byte-addressed operation in the emitted C.
-            variable = CTypeCast(
-                variable.type,
-                SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
-                variable,
-                codegen=self.codegen,
-            )
-
         bracket = CClosingObject("[")
-        if not isinstance(variable, (CVariable, CVariableField)):
+        if not isinstance(self.variable, (CVariable, CVariableField)):
             yield "(", None
-        yield from variable.c_repr_chunks()
-        if not isinstance(variable, (CVariable, CVariableField)):
+        yield from self.variable.c_repr_chunks()
+        if not isinstance(self.variable, (CVariable, CVariableField)):
             yield ")", None
         yield "[", bracket
         yield from CExpression._try_c_repr_chunks(self.index)
@@ -1972,24 +1973,15 @@ class CBinaryOp(CExpression):
     @staticmethod
     def compute_common_type(op: str, lhs_ty: SimType, rhs_ty: SimType) -> SimType:
         # C spec https://www.open-std.org/jtc1/sc22/wg14/www/docs/n2596.pdf 6.3.1.8 Usual arithmetic conversions
-        lhs_unpacked = unpack_typeref(lhs_ty)
-        rhs_unpacked = unpack_typeref(rhs_ty)
         rhs_ptr = isinstance(rhs_ty, SimTypePointer)
         lhs_ptr = isinstance(lhs_ty, SimTypePointer)
-        rhs_cls = isinstance(rhs_unpacked, SimCppClass)
-        lhs_cls = isinstance(lhs_unpacked, SimCppClass)
-        lhs_arr = isinstance(lhs_unpacked, (SimTypeArray, SimTypeFixedSizeArray))
-        rhs_arr = isinstance(rhs_unpacked, (SimTypeArray, SimTypeFixedSizeArray))
+        rhs_cls = isinstance(unpack_typeref(rhs_ty), SimCppClass)
+        lhs_cls = isinstance(unpack_typeref(lhs_ty), SimCppClass)
 
         if lhs_cls:
             return lhs_ty
         if rhs_cls:
             return rhs_ty
-
-        if lhs_arr and not rhs_arr and lhs_ty.size == rhs_ty.size:
-            return rhs_ty
-        if rhs_arr and not lhs_arr and lhs_ty.size == rhs_ty.size:
-            return lhs_ty
 
         if op in ("Add", "Sub"):
             if lhs_ptr and rhs_ptr:
@@ -2110,6 +2102,28 @@ class CBinaryOp(CExpression):
     # Handlers
     #
 
+    def _scalarize_array_operand(self, operand: CExpression, target_type: SimType | None) -> CExpression:
+        operand_type = unpack_typeref(operand.type)
+        target_type = unpack_typeref(target_type)
+        if not isinstance(operand_type, (SimTypeArray, SimTypeFixedSizeArray)):
+            return operand
+        if target_type is None or isinstance(
+            target_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+        ):
+            return operand
+        if operand_type.size != target_type.size:
+            return operand
+        return CUnaryOp(
+            "Dereference",
+            CTypeCast(
+                operand.type,
+                SimTypePointer(target_type).with_arch(self.codegen.project.arch),
+                operand,
+                codegen=self.codegen,
+            ),
+            codegen=self.codegen,
+        )
+
     def _c_repr_chunks(self, op):
         lhs = self.lhs
         rhs = self.rhs
@@ -2124,16 +2138,7 @@ class CBinaryOp(CExpression):
             )
             and lhs_type.size == rhs_type.size
         ):
-            lhs = CUnaryOp(
-                "Dereference",
-                CTypeCast(
-                    lhs.type,
-                    SimTypePointer(rhs_type).with_arch(self.codegen.project.arch),
-                    lhs,
-                    codegen=self.codegen,
-                ),
-                codegen=self.codegen,
-            )
+            lhs = self._scalarize_array_operand(lhs, rhs_type)
         if (
             isinstance(rhs_type, (SimTypeArray, SimTypeFixedSizeArray))
             and lhs_type is not None
@@ -2142,16 +2147,7 @@ class CBinaryOp(CExpression):
             )
             and rhs_type.size == lhs_type.size
         ):
-            rhs = CUnaryOp(
-                "Dereference",
-                CTypeCast(
-                    rhs.type,
-                    SimTypePointer(lhs_type).with_arch(self.codegen.project.arch),
-                    rhs,
-                    codegen=self.codegen,
-                ),
-                codegen=self.codegen,
-            )
+            rhs = self._scalarize_array_operand(rhs, lhs_type)
 
         skip_op_and_rhs = False
         if self._cstyle_null_cmp and self._has_const_null_rhs():
@@ -2315,7 +2311,6 @@ class CTypeCast(CExpression):
 
         byte_ptr_type = SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch)
         typed_ptr_type = SimTypePointer(dst_type).with_arch(self.codegen.project.arch)
-        # Recover typed loads from byte-wise void* walks without reintroducing invalid void* indexing.
         byte_base = CTypeCast(self.expr.variable.type, byte_ptr_type, self.expr.variable, codegen=self.codegen)
         offset = self.expr.index
         addr = (
