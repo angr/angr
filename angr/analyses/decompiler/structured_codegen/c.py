@@ -224,7 +224,9 @@ def _coerce_pointer_cmp_operands(
 
     if isinstance(lhs_type, SimTypePointer) and _is_pointer_like_type(rhs_type) and not type_equals(lhs_type, rhs_type):
         rhs = _coerce_pointer_expr(codegen, rhs, lhs_type)
-    elif isinstance(rhs_type, SimTypePointer) and _is_pointer_like_type(lhs_type) and not type_equals(lhs_type, rhs_type):
+    elif (
+        isinstance(rhs_type, SimTypePointer) and _is_pointer_like_type(lhs_type) and not type_equals(lhs_type, rhs_type)
+    ):
         lhs = _coerce_pointer_expr(codegen, lhs, rhs_type)
 
     return lhs, rhs
@@ -1924,7 +1926,9 @@ class CIndexedVariable(CExpression):
             and index.value < 0
         ):
             index = CConstant(-index.value, index.type, codegen=self.codegen)
-        if isinstance(variable_type, SimTypePointer) and isinstance(unpack_typeref(variable_type.pts_to), SimTypeBottom):
+        if isinstance(variable_type, SimTypePointer) and isinstance(
+            unpack_typeref(variable_type.pts_to), SimTypeBottom
+        ):
             variable = CTypeCast(
                 variable.type,
                 SimTypePointer(SimTypeChar()).with_arch(self.codegen.project.arch),
@@ -2309,9 +2313,7 @@ class CBinaryOp(CExpression):
             yield lhs_sign_cast, None
         elif lhs_cast_str is not None:
             yield lhs_cast_str, None
-        if lhs_sign_cast is not None and not force_lhs_parens:
-            force_lhs_parens = isinstance(lhs, CBinaryOp)
-        elif lhs_cast_str is not None and not force_lhs_parens:
+        if (lhs_sign_cast is not None and not force_lhs_parens) or (lhs_cast_str is not None and not force_lhs_parens):
             force_lhs_parens = isinstance(lhs, CBinaryOp)
         if isinstance(lhs, CBinaryOp) and (force_lhs_parens or self.op_precedence > lhs.op_precedence):
             paren = CClosingObject("(")
@@ -5212,7 +5214,7 @@ class PostDecrementLoopConditionFixer(CStructuredCodeWalker):
     @classmethod
     def _signed_constant_value(cls, const: CConstant) -> int | None:
         if not isinstance(const.value, int):
-            return
+            return None
         size = getattr(const.type, "size", None)
         if size is None:
             return const.value
@@ -5221,7 +5223,9 @@ class PostDecrementLoopConditionFixer(CStructuredCodeWalker):
         return value - (1 << size) if value & sign_bit else value
 
     @classmethod
-    def _rewrite_condition(cls, condition: CExpression | None, dec_info: tuple[CVariable, int] | None) -> CExpression | None:
+    def _rewrite_condition(
+        cls, condition: CExpression | None, dec_info: tuple[CVariable, int] | None
+    ) -> CExpression | None:
         if dec_info is None or not isinstance(condition, CBinaryOp) or condition.op not in {"CmpNE", "CmpEQ"}:
             return condition
 
