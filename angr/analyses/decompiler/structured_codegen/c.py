@@ -115,7 +115,9 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size if ty1.size is not None and ty2.size is not None else False
 
 
-def coerce_expr_to_type(expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator) -> CExpression:
+def coerce_expr_to_type(
+    expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator
+) -> CExpression:
     target_type = unpack_typeref(target_type)
     expr_type = unpack_typeref(expr.type)
 
@@ -126,7 +128,9 @@ def coerce_expr_to_type(expr: CExpression, target_type: SimType | None, codegen:
     return CTypeCast(expr.type, target_type.with_arch(codegen.project.arch), expr, codegen=codegen)
 
 
-def coerce_pointer_expr(expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator) -> CExpression:
+def coerce_pointer_expr(
+    expr: CExpression, target_type: SimType | None, codegen: CStructuredCodeGenerator
+) -> CExpression:
     target_type = unpack_typeref(target_type)
     expr_type = unpack_typeref(expr.type)
 
@@ -3251,7 +3255,9 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 (fallback_type_size or self.project.arch.bytes) * self.project.arch.byte_width
             )
         unpacked_type = unpack_typeref(variable_type)
-        if isinstance(variable, (SimStackVariable, SimMemoryVariable)) and not isinstance(variable, SimRegisterVariable):
+        if isinstance(variable, (SimStackVariable, SimMemoryVariable)) and not isinstance(
+            variable, SimRegisterVariable
+        ):
             if isinstance(unpacked_type, SimTypePointer) and isinstance(
                 unpack_typeref(unpacked_type.pts_to), (SimTypeArray, SimTypeFixedSizeArray)
             ):
