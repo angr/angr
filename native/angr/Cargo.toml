@@ -24,4 +24,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 target-lexicon = "0.13.5"
 
 [dev-dependencies]
-tempfile = "3.26.0"
+tempfile = "3.27.0"
