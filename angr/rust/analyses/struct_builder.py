@@ -75,13 +75,14 @@ class StructBuilder(Analysis):
         return rebased_field_exprs
 
     def _build_array(self, field_exprs, struct_ty) -> Array | None:
-        ptr_offset = struct_ty.offsets.get("ptr", None)
-        len_offset = struct_ty.offsets.get("len", None)
+        ptr_offset = struct_ty.offsets.get("ptr", None) or struct_ty.offsets.get("data_ptr", None)
+        len_offset = struct_ty.offsets.get("len", None) or struct_ty.offsets.get("length", None)
         if ptr_offset is None or len_offset is None or ptr_offset not in field_exprs or len_offset not in field_exprs:
             return None
         elements = []
         ptr_expr = field_exprs[ptr_offset]
-        ele_ty = struct_ty.fields["ptr"].pts_to
+        ele_ptr = struct_ty.fields.get("ptr", None) or struct_ty.fields.get("data_ptr", None)
+        ele_ty = ele_ptr.pts_to
         len_expr = field_exprs[len_offset]
         if isinstance(len_expr, Const):
             if len_expr.value > 64:

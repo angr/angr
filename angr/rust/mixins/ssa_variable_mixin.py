@@ -29,40 +29,55 @@ class SSAVariableMixin:
     def fix_stack_vvar_uses(self):
         srda = SRDAMixin(self.context._func, self.context._graph, self.context.project)
 
-        def _handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
-            if expr.op == "Reference":
-                operand = expr.operand
-                if (
-                    isinstance(operand, VirtualVariable)
-                    and operand.was_stack
-                    and operand.varid not in self._new_stack_vvars
-                ):
-                    vvar = srda.get_stack_vvar_by_insn(operand.stack_offset, stmt.tags["ins_addr"], block.idx)
-                    if vvar and vvar.varid in self._new_stack_vvars:
-                        new_expr = expr.copy()
-                        new_expr.operand = vvar
-                        return new_expr
-            return expr
-
-        def _handle_VirtualVariable(
-            expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
-        ):
-            if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
-                return expr
-            if expr.was_stack:
-                vvar = srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
-                if vvar and vvar.varid in self._new_stack_vvars:
-                    if expr.size < vvar.size:
-                        return Load(
-                            None,
-                            UnaryOp(None, "Reference", vvar),
-                            expr.size,
-                            self.context.project.arch.memory_endness,
-                        )
-                    return vvar
-            return expr
-
-        rewriter = AILBlockRewriter()
-        rewriter.expr_handlers.update({UnaryOp: _handle_UnaryOp, VirtualVariable: _handle_VirtualVariable})
+        rewriter = _StackVVarRewriter(srda, self._new_stack_vvars, self.context.project)
         for block in self.context._graph.nodes:
             rewriter.walk(block)
+
+
+class _StackVVarRewriter(AILBlockRewriter):
+    def __init__(self, srda: SRDAMixin, new_stack_vvars: dict, project):
+        super().__init__()
+        self._srda = srda
+        self._new_stack_vvars = new_stack_vvars
+        self._project = project
+
+    def _handle_UnaryOp(self, expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+        if expr.op == "Reference":
+            operand = expr.operand
+            if (
+                isinstance(operand, VirtualVariable)
+                and operand.was_stack
+                and operand.varid not in self._new_stack_vvars
+            ):
+                vvar = self._srda.get_stack_vvar_by_insn(operand.stack_offset, stmt.tags["ins_addr"], block.idx)
+                if vvar and vvar.varid in self._new_stack_vvars:
+                    new_expr = expr.copy()
+                    new_expr.operand = vvar
+                    return new_expr
+        return super()._handle_UnaryOp(expr_idx, expr, stmt_idx, stmt, block)
+
+    def _handle_VirtualVariable(
+        self, expr_idx: int, expr: VirtualVariable, stmt_idx: int, stmt: Statement, block: Block | None
+    ):
+        if expr.varid in self._new_stack_vvars or (isinstance(stmt, Assignment) and stmt.dst is expr):
+            return expr
+        if expr.was_stack:
+            vvar = self._srda.get_stack_vvar_by_insn(expr.stack_offset, stmt.tags["ins_addr"], block.idx)
+            if vvar and vvar.varid in self._new_stack_vvars:
+                if expr.size < vvar.size:
+                    return Load(
+                        None,
+                        UnaryOp(None, "Reference", vvar),
+                        expr.size,
+                        self._project.arch.memory_endness,
+                    )
+                return vvar
+        return expr
+
+    def _handle_Load(self, expr_idx: int, expr: Load, stmt_idx: int, stmt: Statement, block: Block | None):
+        expr = super()._handle_Load(expr_idx, expr, stmt_idx, stmt, block)
+        if isinstance(expr.addr, UnaryOp) and expr.addr.op == "Reference":
+            operand = expr.addr.operand
+            if operand.size == expr.size:
+                return operand
+        return expr
