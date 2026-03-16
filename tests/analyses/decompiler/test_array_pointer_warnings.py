@@ -52,6 +52,7 @@ _GCC_FLAGS = (
     "-std=gnu11",
     "-Wall",
     "-Wextra",
+    "-Werror",
     "-Wno-unused-variable",
     "-Wno-unused-but-set-variable",
 )
@@ -124,7 +125,7 @@ def _try_compile(source: str, tmp_dir: str, func_name: str) -> tuple[bool, str]:
 
 
 @pytest.mark.parametrize("bin_path,func_name,decl_pattern", _TARGETS)
-def test_array_pointer_codegen_compiles(bin_path, func_name, decl_pattern, tmp_path):
+def test_array_pointer_codegen_compiles_cleanly(bin_path, func_name, decl_pattern, tmp_path):
     if not os.path.isfile(bin_path):
         pytest.skip(f"Missing test binary: {bin_path}")
 
