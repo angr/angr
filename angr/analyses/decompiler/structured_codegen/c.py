@@ -1374,7 +1374,9 @@ class CAssignment(CStatement):
             # a = a + x  =>  a += x
             # a = x + a  =>  a += x
             yield f" {compound_assignment_ops[self.rhs.op]}= ", self
-            yield from CExpression._try_c_repr_chunks(_scalarize_array_operand(self.codegen, compound_expr_rhs, lhs.type))
+            yield from CExpression._try_c_repr_chunks(
+                _scalarize_array_operand(self.codegen, compound_expr_rhs, lhs.type)
+            )
         else:
             yield " = ", self
             yield from CExpression._try_c_repr_chunks(rhs)
@@ -2114,12 +2116,20 @@ class CBinaryOp(CExpression):
         lhs_type = unpack_typeref(lhs.type)
         rhs_type = unpack_typeref(rhs.type)
 
-        if _is_array_type(lhs_type) and rhs_type is not None and not isinstance(
-            rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+        if (
+            _is_array_type(lhs_type)
+            and rhs_type is not None
+            and not isinstance(
+                rhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
         ):
             lhs = _scalarize_array_operand(self.codegen, lhs, rhs_type)
-        if _is_array_type(rhs_type) and lhs_type is not None and not isinstance(
-            lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+        if (
+            _is_array_type(rhs_type)
+            and lhs_type is not None
+            and not isinstance(
+                lhs_type, (SimTypeArray, SimTypeFixedSizeArray, SimTypePointer, SimStruct, SimTypeFunction)
+            )
         ):
             rhs = _scalarize_array_operand(self.codegen, rhs, lhs_type)
 
