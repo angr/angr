@@ -365,9 +365,6 @@ class OverflowBuiltinSimplifier(SequenceOptimizationPass):
         super().__init__(*args, **kwargs)
         self.analyze()
 
-    def _check(self):
-        return bool(self.seq is not None and self.seq.nodes), None
-
     def _analyze(self, cache=None):
         walker = OverflowBuiltinWalker(self.manager, self.seq)
         result = walker.walk(self.seq)

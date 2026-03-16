@@ -17,8 +17,6 @@ def _replace_cfadd(expr):
     Returns the original expression unchanged if no replacement was made.
     """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target == "__CFADD__":
-        if not expr.args or len(expr.args) < 2:
-            return expr
         a, b = expr.args[0], expr.args[1]
         tags = expr.tags or {}
         add_expr = Expr.BinaryOp(None, "Add", [a, b], False, bits=a.bits, **tags)
@@ -131,9 +129,6 @@ class CarryFlagSimplifier(SequenceOptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.analyze()
-
-    def _check(self):
-        return bool(self.seq is not None and self.seq.nodes), None
 
     def _analyze(self, cache=None):
         walker = CarryFlagWalker()

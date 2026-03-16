@@ -28,8 +28,6 @@ def _replace_of_p(expr):
     Returns the original expression unchanged if no replacement was made.
     """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target in _OF_P_MAP:
-        if not expr.args or len(expr.args) < 2:
-            return expr
         builtin = _OF_P_MAP[expr.target]
         a = expr.args[0]
         tags = expr.tags or {}
@@ -149,9 +147,6 @@ class OverflowBuiltinPredicateSimplifier(SequenceOptimizationPass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.analyze()
-
-    def _check(self):
-        return bool(self.seq is not None and self.seq.nodes), None
 
     def _analyze(self, cache=None):
         walker = OverflowBuiltinPredicateWalker()
