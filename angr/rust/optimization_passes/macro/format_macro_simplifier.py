@@ -167,7 +167,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             and data.varid - 1 < len(arg_value.args)
                         ):
                             fields[offset] = arg_value.args[data.varid - 1]
-                    struct = self.project.analyses.StructBuilder(context=self, strict=True).build(fields, arguments_ty)
+                    builder = self.project.analyses.StructBuilder(context=self, strict=True)
+                    struct = builder.build(fields, arguments_ty)
                     return struct, def_block, def_stmt
         return None, None, None
 
