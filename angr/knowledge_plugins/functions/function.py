@@ -1184,7 +1184,8 @@ class Function(Serializable):
             # update the _local_blocks dict and _local_block_addrs set
             self._local_blocks[node.addr] = node
             self._local_block_addrs.add(node.addr)
-            self.update_func_block_count()
+            if update_func_block_count:
+                self.update_func_block_count()
         # add BlockNodes to the addr_to_block_node cache if not already there
         if isinstance(node, BlockNode):
             self._update_addr_to_block_cache(node)
@@ -1543,7 +1544,7 @@ class Function(Serializable):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel
+        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel,consider-using-from-import
         from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error,import-outside-toplevel
 
         tmp_graph = networkx.classes.digraph.DiGraph()
@@ -1816,7 +1817,8 @@ class Function(Serializable):
                     # we need to get arch from self.project
                     l.warning(
                         "Function %s does not have .project set. A possible prototype is found, but we cannot set it "
-                        "without .project.arch."
+                        "without .project.arch.",
+                        self.name,
                     )
                     return False
                 self.prototype = proto.with_arch(self.project.arch) if proto is not None else proto
@@ -1922,7 +1924,7 @@ class Function(Serializable):
             return "<ctor>"
         if meta["dtor"]:
             return "<dtor>"
-        if "<" and ">" in func_name:
+        if "<" in func_name and ">" in func_name:
             # remove template arguments
             depth = 0
             new_name_chars = []
@@ -1976,7 +1978,7 @@ class Function(Serializable):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
-            raise Exception(f"Too many definitions: {list(func_def.keys())} ")
+            raise AngrValueError(f"Too many definitions: {list(func_def.keys())} ")
 
         name, ty = func_def.popitem()
         assert isinstance(ty, SimTypeFunction)
