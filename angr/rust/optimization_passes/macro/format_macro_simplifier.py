@@ -126,7 +126,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         assert False
 
     def _is_debug_formatter(self, arg: Struct):
-        formatter = arg.get_field("formatter")
+        formatter = arg.get_field("formatter") or arg.get_field("field_8")
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
             if "core::fmt::Display" in name:
@@ -169,7 +169,8 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                             fields[offset] = arg_value.args[data.varid - 1]
                     builder = self.project.analyses.StructBuilder(context=self, strict=True)
                     struct = builder.build(fields, arguments_ty)
-                    return struct, def_block, def_stmt
+                    if struct:
+                        return struct, def_block, def_stmt
         return None, None, None
 
     def _try_find_argument_structs(self, arguments_struct: Struct, arguments_def_block: Block, arguments_def_stmt):
@@ -250,7 +251,14 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
             )
             value_def = stack_defs.get(arg.stack_offset + argument_ty_value_offset, None)
             formatter_def = stack_defs.get(arg.stack_offset + argument_ty_formatter_offset, None)
-            if value_def and formatter_def:
+            if (
+                value_def
+                and isinstance(value_def.data, Struct)
+                and value_def.data.size == argument_ty.size // self.project.arch.byte_width
+            ):
+                argument_structs.append(value_def.data)
+                stmts_to_remove[value_def.block].append(value_def.stmt)
+            elif value_def and formatter_def:
                 fields = {
                     argument_ty_value_offset: value_def.data,
                     argument_ty_formatter_offset: formatter_def.data,
@@ -294,7 +302,9 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         ]
                         placeholders.append("")
                         macro_args = [
-                            macro_arg.get_field("value.pointer") or macro_arg.get_field("value")
+                            macro_arg.get_field("value.pointer")
+                            or macro_arg.get_field("value")
+                            or macro_arg.get_field("field_0")
                             for macro_arg in macro_args
                         ]
                         for block, stmts in stmts_to_remove.items():
