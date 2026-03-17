@@ -391,7 +391,7 @@ class CFGNode(Serializable):
         """
         new_node = self.copy()
         new_node._size += other.size
-        new_node.instruction_addrs += other.instruction_addrs
+        new_node.instruction_addrs.extend(other.instruction_addrs)
         # FIXME: byte_string should never be none, but it is sometimes
         # like, for example, patcherex test_cfg.py:test_fullcfg_properties
         if new_node.byte_string is None or other.byte_string is None:

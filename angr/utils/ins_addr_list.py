@@ -112,6 +112,10 @@ class InsAddrList:
     def __hash__(self):
         raise TypeError("unhashable type: 'InsAddrList'")
 
+    def extend(self, other: InsAddrList) -> None:
+        addrs = list(self) + list(other)
+        self._ins_sizes = bytes([addrs[i + 1] - addrs[i] for i in range(len(addrs) - 1)] + [0])
+
     def index(self, value, start=0, stop=None):
         if stop is None:
             stop = len(self._ins_sizes)
