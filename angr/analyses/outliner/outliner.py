@@ -11,6 +11,8 @@ from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return
 from angr.analyses.analysis import AnalysesHub, Analysis
 from angr.analyses.s_liveness import SLivenessAnalysis
 from angr.analyses.s_reaching_definitions import SReachingDefinitionsAnalysis
+from angr.sim_variable import SimRegisterVariable, SimStackVariable, SimVariable
+from angr.utils.ssa import is_phi_assignment
 from angr.knowledge_plugins.functions import Function
 from angr.utils.graph import Dominators, compute_dominance_frontier, subgraph_between_nodes
 from angr.utils.ssa import is_phi_assignment
@@ -68,6 +70,26 @@ class Outliner(Analysis):
             self.frontier_vars = set()
 
         self.child_func, self.child_graph, self.child_funcargs = self._analyze()
+
+    @property
+    def child_vvars_for_clinic(self) -> dict[int, tuple[VirtualVariable, SimVariable]]:
+        out_funcargs = {}
+        for arg_idx, arg_vvar in enumerate(self.child_funcargs):
+            if arg_vvar.was_parameter:
+                if arg_vvar.parameter_category == VirtualVariableCategory.REGISTER:
+                    simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
+                elif arg_vvar.parameter_category == VirtualVariableCategory.STACK:
+                    simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
+                else:
+                    raise NotImplementedError
+            elif arg_vvar.was_reg:
+                simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
+            elif arg_vvar.was_stack:
+                simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
+            else:
+                raise NotImplementedError
+            out_funcargs[arg_idx] = arg_vvar, simvar
+        return out_funcargs
 
     def _next_vvar_id(self) -> int:
         vvar_id = self.vvar_id_start
