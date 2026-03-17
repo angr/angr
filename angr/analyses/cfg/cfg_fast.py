@@ -23,6 +23,7 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 
 from angr.analyses import AnalysesHub
 from angr.misc.ux import once
+from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key, block_key_to_addr, block_key_to_size
 from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.codenode import HookNode, FuncNode
@@ -54,6 +55,7 @@ if TYPE_CHECKING:
     from angr.block import Block
     from angr.knowledge_plugins.cfg.spilling_cfg import SpillingCFG
     from angr.engines.pcode.lifter import IRSB as PcodeIRSB
+    from angr.knowledge_plugins.cfg.types import CFGNODE_K
 
 
 VEX_IRSB_MAX_SIZE = 400
@@ -3574,7 +3576,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :return: None
         """
 
-        sorted_nodes = sorted(self.graph.nodes(), key=lambda n: n.addr if n is not None else 0)
+        sorted_node_keys: list[CFGNODE_K] = sorted(block_key for block_key in self.graph.node_keys)
 
         all_plt_stub_addrs = set(
             itertools.chain.from_iterable(
@@ -3586,14 +3588,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # leading instruction is a single-byte or multi-byte nop, make sure there is another CFGNode starts after the
         # nop instruction
 
-        nodes_to_append = {}
+        node_keys_to_append = {}
         # pylint:disable=too-many-nested-blocks
-        for a in sorted_nodes:
-            if (
-                a.addr in self.functions
-                and a.addr not in all_plt_stub_addrs
-                and not self._addr_hooked_or_syscall(a.addr)
-            ):
+        for node_key in sorted_node_keys:
+            addr = block_key_to_addr(node_key)
+            if addr in self.functions and addr not in all_plt_stub_addrs and not self._addr_hooked_or_syscall(addr):
+                a = self.model.get_any_node(addr)
                 all_in_edges = self.graph.in_edges(a, data=True)
                 if not any(data["jumpkind"] == "Ijk_Call" for _, _, data in all_in_edges):
                     # no one is calling it
@@ -3634,7 +3634,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                     # leading nop for alignment.
                     next_node_addr = a.addr + nop_length
                     if nop_length < a.size and not (
-                        self.model.has_node_addr(next_node_addr) or next_node_addr in nodes_to_append
+                        self.model.has_node_addr(next_node_addr) or next_node_addr in node_keys_to_append
                     ):
                         # create a new CFGNode that starts there
                         next_node_size = a.size - nop_length
@@ -3657,7 +3657,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         for _, dst, data in all_out_edges:
                             self.graph.add_edge(next_node, dst, **data)
 
-                        nodes_to_append[next_node_addr] = next_node
+                        node_keys_to_append[next_node_addr] = get_block_key(next_node)
 
                         # make sure there is a function begins there
                         try:
@@ -3689,57 +3689,62 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             continue
 
         # append all new nodes to sorted nodes
-        if nodes_to_append:
-            sorted_nodes = sorted(
-                sorted_nodes + list(nodes_to_append.values()), key=lambda n: n.addr if n is not None else 0
-            )
+        if node_keys_to_append:
+            sorted_node_keys = sorted(sorted_node_keys + list(node_keys_to_append.values()))
 
-        removed_nodes = set()
+        removed_node_keys = set()
 
-        a = None  # it always holds the very recent non-removed node
+        a_key = None  # a is always the most recent non-removed node
         is_arm = is_arm_arch(self.project.arch)
 
-        for i in range(len(sorted_nodes)):  # pylint:disable=consider-using-enumerate
-            if a is None:
-                a = sorted_nodes[0]
+        for i in range(len(sorted_node_keys)):  # pylint:disable=consider-using-enumerate
+            if a_key is None:
+                a_key = sorted_node_keys[0]
                 continue
 
-            b = sorted_nodes[i]
-            if self._addr_hooked_or_syscall(b.addr):
+            b_key = sorted_node_keys[i]
+            if self._addr_hooked_or_syscall(block_key_to_addr(b_key)):
                 continue
 
-            if b in removed_nodes:
+            if b_key in removed_node_keys:
                 # skip all removed nodes
                 continue
 
+            a_addr = block_key_to_addr(a_key)
+            b_addr = block_key_to_addr(b_key)
+            a_size = block_key_to_size(a_key)
+            b_size = block_key_to_size(b_key)
+
             # handle ARM vs THUMB...
             if is_arm:
-                a_real_addr = a.addr & 0xFFFF_FFFE
-                b_real_addr = b.addr & 0xFFFF_FFFE
+                a_real_addr = a_addr & 0xFFFF_FFFE
+                b_real_addr = b_addr & 0xFFFF_FFFE
             else:
-                a_real_addr = a.addr
-                b_real_addr = b.addr
+                a_real_addr = a_addr
+                b_real_addr = b_addr
 
-            if a_real_addr <= b_real_addr < a_real_addr + a.size:
+            if a_real_addr <= b_real_addr < a_real_addr + a_size:
                 # They are overlapping
 
                 try:
                     block = self.project.factory.fresh_block(
-                        a.addr, b_real_addr - a_real_addr, backup_state=self._base_state
+                        a_addr, b_real_addr - a_real_addr, backup_state=self._base_state
                     )
                 except SimTranslationError:
-                    a = b
+                    a_key = b_key
                     continue
                 if block.capstone.insns and all(self._is_noop_insn(insn) for insn in block.capstone.insns):
                     # It's a big nop - no function starts with nop
+                    a = self.graph.get_node_by_key(a_key)
+                    b = self.graph.get_node_by_key(b_key)
 
                     # add b to indices
-                    self._model.add_node(b.addr, b)
+                    self._model.add_node(b_addr, b)
 
                     # shrink a
-                    self._shrink_node(a, b.addr - a.addr, remove_function=False)
+                    self._shrink_node(a, b_addr - a_addr, remove_function=False)
 
-                    a = b
+                    a_key = b_key
                     continue
 
                 all_functions = self.kb.functions
@@ -3748,42 +3753,46 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # if there is no incoming edge to b, we should replace b with a
                 # this is mostly because we misidentified the function beginning. In fact a is the function beginning,
                 # but somehow we thought b is the beginning
-                if a.addr + a.size == b.addr + b.size:
+                if a_addr + a_size == b_addr + b_size:
+                    b = self.graph.get_node_by_key(b_key)
                     in_edges = len([_ for _, _, data in self.graph.in_edges([b], data=True)])
                     if in_edges == 0 and b in self.graph:
                         # we use node a to replace node b
                         # link all successors of b to a
+                        a = self.graph.get_node_by_key(a_key)
                         for _, dst, data in self.graph.out_edges([b], data=True):
                             self.graph.add_edge(a, dst, **data)
 
-                        self._model.remove_node(b.addr, b)
+                        self._model.remove_node(b_addr, b)
                         self.graph.remove_node(b)
 
-                        if b.addr in all_functions:
-                            del all_functions[b.addr]
+                        if b_addr in all_functions:
+                            del all_functions[b_addr]
 
                         # skip b
-                        removed_nodes.add(b)
+                        removed_node_keys.add(b_key)
 
                         continue
 
                 # next case - if b is directly from function prologue detection, or a basic block that is a successor of
                 # a wrongly identified basic block, we might be totally misdecoding b
+                a = self.graph.get_node_by_key(a_key)
+                b = self.graph.get_node_by_key(b_key)
                 if (not b.instruction_addrs or b.instruction_addrs[0] not in a.instruction_addrs) and b in self.graph:
                     # use a, truncate b
 
-                    new_b_addr = a.addr + a.size  # b starts right after a terminates
-                    new_b_size = b.addr + b.size - new_b_addr  # this may not be the size we want, since b might be
+                    new_b_addr = a_addr + a_size  # b starts right after a terminates
+                    new_b_size = b_addr + b_size - new_b_addr  # this may not be the size we want, since b might be
                     # misdecoded
 
                     # totally remove b
-                    self._model.remove_node(b.addr, b)
+                    self._model.remove_node(b_addr, b)
                     self.graph.remove_node(b)
 
-                    if b.addr in all_functions:
-                        del all_functions[b.addr]
+                    if b_addr in all_functions:
+                        del all_functions[b_addr]
 
-                    removed_nodes.add(b)
+                    removed_node_keys.add(b_key)
 
                     if new_b_size > 0:
                         # there are still some parts left in node b - we don't want to lose it
@@ -3794,7 +3803,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
                 # for other cases, we'll let them be for now
 
-            a = b  # update a
+            a_key = b_key  # update a
 
     def _remove_node(self, node):
         """
