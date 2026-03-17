@@ -1,5 +1,4 @@
 import os
-import struct
 import time
 from pathlib import Path
 import logging
@@ -53,53 +52,34 @@ class RustSymbolRecovery(Analysis):
         v_parts = version.split(".")
         return tuple(int(x) for x in v_parts), opt_level
 
-    @staticmethod
-    def _get_sig_nfuncs(sig_path):
-        """Read nfuncs from a FLIRT signature file header without parsing the full tree."""
-        with open(sig_path, "rb") as f:
-            header_fmt = "<6sBBIHHHHH12sBH"
-            sz = struct.calcsize(header_fmt)
-            header = f.read(sz)
-            unpacked = struct.unpack(header_fmt, header)
-            version = unpacked[1]
-            if version >= 6:
-                return max(struct.unpack("<I", f.read(4))[0], 1)
-        return 1
-
     def _match_signature(self, sig_path):
-        """Match a single signature file and return (match_count, match_score).
-
-        match_score = match_count / nfuncs, normalized so that signature files with
-        more patterns don't have an unfair advantage.
-        """
+        """Match a single signature file and return the number of matched std/core/alloc functions."""
         try:
             fa = self.project.analyses.Flirt(sig_path, dry_run=True)
             matched = fa.matched_suggestions["Temporary"][1]  # {addr: name}
-            nfuncs = self._get_sig_nfuncs(sig_path)
             count = 0
             for addr, name in matched.items():
                 name = demangle(name)
                 if not (name.startswith("core::") or name.startswith("std::") or name.startswith("alloc::")):
                     continue
                 count += 1
-            score = count / nfuncs
-            return count, score
+            return count
         except Exception:
-            return 0, 0.0
+            return 0
 
-    def _cached_score(self, sig_file):
-        """Return the best match score across all sig dirs for comparison between versions."""
+    def _cached_count(self, sig_file):
+        """Return the best match count across all sig dirs for comparison between versions."""
         if sig_file not in self._cache:
-            best_count, best_score = 0, 0.0
+            best_count = 0
             for sig_dir in self.sig_dirs:
                 sig_path = os.path.join(sig_dir, sig_file)
                 if os.path.exists(sig_path):
-                    count, score = self._match_signature(sig_path)
-                    if score > best_score:
-                        best_count, best_score = count, score
-            self._cache[sig_file] = (best_count, best_score)
-            l.info("[%d] Testing %s: %d matches (score=%.4f)", len(self._cache), sig_file, best_count, best_score)
-        return self._cache[sig_file][1]
+                    count = self._match_signature(sig_path)
+                    if count > best_count:
+                        best_count = count
+            self._cache[sig_file] = best_count
+            l.info("[%d] Testing %s: %d matches", len(self._cache), sig_file, best_count)
+        return self._cache[sig_file]
 
     def _identify_rustc_version(self):
         # Ensure CFG exists
@@ -130,7 +110,7 @@ class RustSymbolRecovery(Analysis):
         step = max(1, len(probe_sigs) // n_samples)
         sample_indices = list(range(0, len(probe_sigs), step))[:n_samples]
 
-        version_scores = [(idx, self._cached_score(probe_sigs[idx])) for idx in sample_indices]
+        version_scores = [(idx, self._cached_count(probe_sigs[idx])) for idx in sample_indices]
         best_probe_idx = max(version_scores, key=lambda x: x[1])[0]
         l.info("Best probe version: %s at index %d", probe_sigs[best_probe_idx], best_probe_idx)
 
@@ -140,16 +120,16 @@ class RustSymbolRecovery(Analysis):
         l.info("Phase 2: Fine search in range [%d, %d] around best probe", left, right)
 
         best_idx = best_probe_idx
-        best_score = self._cached_score(probe_sigs[best_probe_idx])
+        best_count = self._cached_count(probe_sigs[best_probe_idx])
         for i in range(left, right + 1):
-            s = self._cached_score(probe_sigs[i])
-            if s > best_score:
-                best_score = s
+            c = self._cached_count(probe_sigs[i])
+            if c > best_count:
+                best_count = c
                 best_idx = i
 
         best_version, _ = self._parse_version(probe_sigs[best_idx])
         self.project.rustc_version = ".".join(str(x) for x in best_version)
-        self.matched_count = self._cache[probe_sigs[best_idx]][0]
+        self.matched_count = self._cache[probe_sigs[best_idx]]
         l.info(
             "Best match: %s, matched %d functions (tested %d/%d sig files)",
             probe_sigs[best_idx].replace(".sig", ""),
@@ -160,15 +140,15 @@ class RustSymbolRecovery(Analysis):
 
         # Phase 3: Compare sig dirs and select the best one
         best_sig_dir = self.sig_dirs[0]
-        best_dir_score = 0.0
+        best_dir_count = 0
         best_sig_file = probe_sigs[best_idx]
         for sig_dir in self.sig_dirs:
             sig_path = os.path.join(sig_dir, best_sig_file)
             if os.path.exists(sig_path):
-                _, score = self._match_signature(sig_path)
-                l.info("Phase 3: %s score=%.4f for %s", sig_dir, score, best_sig_file)
-                if score > best_dir_score:
-                    best_dir_score = score
+                count = self._match_signature(sig_path)
+                l.info("Phase 3: %s count=%d for %s", sig_dir, count, best_sig_file)
+                if count > best_dir_count:
+                    best_dir_count = count
                     best_sig_dir = sig_dir
         self.best_sig_dir = best_sig_dir
         l.info("Selected sig dir: %s", self.best_sig_dir)
