@@ -124,6 +124,14 @@ explicit_attrs = {
         "generic_name": "unpack",
         "to_size": 128,
     },
+    "Iop_SliceV128": {
+        "generic_name": "slice",
+        "to_size": 128,
+    },
+    "Iop_Reverse32sIn64_x2": {
+        "generic_name": "reverse",
+        "to_size": 128,
+    },
 }
 
 for _vec_lanewidth in (8, 16, 32, 64):
@@ -579,6 +587,18 @@ class SimIROp:
 
     def _op_concat(self, args):
         return claripy.Concat(*args)
+
+    @staticmethod
+    def _op_Iop_SliceV128(args):
+        left, right, imm = args
+        assert imm.op == "BVV"
+        imm = imm.args[0]
+        return claripy.Concat(left, right)[127 + imm * 8 : imm * 8]
+
+    @staticmethod
+    def _op_Iop_Reverse32sIn64_x2(args):
+        arg = args[0]
+        return claripy.Concat(arg[95:64], arg[127:96], arg[31:0], arg[63:32])
 
     def _op_hi_half(self, args):
         return claripy.Extract(args[0].size() - 1, args[0].size() // 2, args[0])
@@ -1263,7 +1283,7 @@ def vexop_to_simop(op, extended=True, fp=True):
     if res is None and extended:
         attrs = op_attrs(op)
         if attrs is None:
-            raise UnsupportedIROpError("Operation not implemented")
+            raise UnsupportedIROpError(f"Operation {op} not implemented")
         res = SimIROp(op, **attrs)
     if res is None:
         raise UnsupportedIROpError("Operation not implemented")
