@@ -57,29 +57,12 @@ class TestOutliner(TestCase):
         print(dec_outer.codegen.text)
 
         # the second function
-        out_funcargs = {}
-        for arg_idx, arg_vvar in enumerate(outliner.child_funcargs):
-            if arg_vvar.was_parameter:
-                if arg_vvar.parameter_category == VirtualVariableCategory.REGISTER:
-                    simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
-                elif arg_vvar.parameter_category == VirtualVariableCategory.STACK:
-                    simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
-                else:
-                    raise NotImplementedError
-            elif arg_vvar.was_reg:
-                simvar = SimRegisterVariable(arg_vvar.reg_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
-            elif arg_vvar.was_stack:
-                simvar = SimStackVariable(arg_vvar.stack_offset, arg_vvar.size, ident=f"arg_{arg_idx}")
-            else:
-                raise NotImplementedError
-            out_funcargs[arg_idx] = arg_vvar, simvar
-
         dec_inner = proj.analyses[Decompiler].prep(
             fail_fast=True,
         )(
             outliner.child_func,
             clinic_graph=outliner.child_graph,
-            clinic_arg_vvars=out_funcargs,
+            clinic_arg_vvars=outliner.child_vvars_for_clinic,
             clinic_start_stage=ClinicStage.POST_CALLSITES,
             cfg=cfg.model,
         )
