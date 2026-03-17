@@ -85,6 +85,16 @@ def _replace_flag_builtins(expr):
             nz = Expr.BinaryOp(None, "CmpNE", [res, zero_n], False, bits=1, **tags)
             return Expr.BinaryOp(expr.idx, "And", [ge, nz], False, bits=expr.bits, **tags)
 
+        if target == "__ADD_COND_NBE__":
+            # (a + b) >=u a && (a + b) != 0  (x86 unsigned above for ADD)
+            a, b = expr.args[0], expr.args[1]
+            n = a.bits
+            res = Expr.BinaryOp(None, "Add", [a, b], False, bits=n, **tags)
+            no_cf = Expr.BinaryOp(None, "CmpGE", [res, a], False, bits=1, **tags)
+            zero = Expr.Const(None, None, 0, n, **tags)
+            nz = Expr.BinaryOp(None, "CmpNE", [res, zero], False, bits=1, **tags)
+            return Expr.BinaryOp(expr.idx, "And", [no_cf, nz], False, bits=expr.bits, **tags)
+
         if target == "__SBB_COND_A__":
             # zext(a, N+1) >=u (zext(b, N+1) + zext(c, N+1)) && (a - b - c) != 0
             a, b, carry = expr.args[0], expr.args[1], expr.args[2]

@@ -156,6 +156,16 @@ def _ail_to_claripy(
             nf_eq_vf = claripy.If(nf == vf, claripy.BVV(1, 1), claripy.BVV(0, 1))
             gt = claripy.If(claripy.And(nz != 0, nf_eq_vf != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
             return gt.zero_extend(expr.bits - 1) if expr.bits > 1 else gt
+        if expr.target == "__ADD_COND_NBE__":
+            a, b = args[0], args[1]
+            n = a.size()
+            # !CF && !ZF for a + b (x86 unsigned above)
+            res = a + b
+            zero = claripy.BVV(0, n)
+            no_cf = claripy.If(claripy.UGE(res, a), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            nz = claripy.If(res != zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            r = claripy.If(claripy.And(no_cf != 0, nz != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return r.zero_extend(expr.bits - 1) if expr.bits > 1 else r
         if expr.target == "__SBB_COND_A__":
             a, b, carry = args[0], args[1], args[2]
             n = a.size()

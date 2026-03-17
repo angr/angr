@@ -579,14 +579,22 @@ class X86CCallRewriter(CCallRewriterBase):
                         dep_2 = self._fix_size(
                             dep_2, op_v, X86_OpTypes["G_CC_OP_ADDB"], X86_OpTypes["G_CC_OP_ADDW"], ccall.tags
                         )
-                        res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        cf = Expr.BinaryOp(None, "CmpLT", (res, dep_1), False, bits=1, **ccall.tags)
                         if cond_v == X86_CondTypes["CondB"]:
+                            res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
+                            cf = Expr.BinaryOp(None, "CmpLT", (res, dep_1), False, bits=1, **ccall.tags)
                             return Expr.Convert(None, cf.bits, ccall.bits, False, cf, **ccall.tags)
 
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), False, bits=1, **ccall.tags)
-                        be = Expr.BinaryOp(None, "Or", (cf, zf), False, bits=1, **ccall.tags)
+                        # CondBE = Not(NBE). Emit Not(pseudo-builtin).
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        nbe = Expr.Call(
+                            None,
+                            "__ADD_COND_NBE__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        be = Expr.UnaryOp(ccall.idx, "Not", nbe, bits=1, **ccall.tags)
                         return Expr.Convert(None, be.bits, ccall.bits, False, be, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_SUBB"],
