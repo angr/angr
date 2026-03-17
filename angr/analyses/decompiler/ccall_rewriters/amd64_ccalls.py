@@ -114,15 +114,16 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                             signed=True,
                         )
-                        # DEC: CondLE is (ZF==1) or (SF!=OF). For DEC, OF=1 iff res == max_signed.
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        max_c = Expr.Const(None, None, max_s, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (dep_1, zero), False, bits=1, **ccall.tags)
-                        sf = Expr.BinaryOp(None, "CmpLT", (dep_1, zero), True, bits=1, **ccall.tags)
-                        of = Expr.BinaryOp(None, "CmpEQ", (dep_1, max_c), False, bits=1, **ccall.tags)
-                        sf_xor_of = Expr.BinaryOp(None, "CmpNE", (sf, of), False, bits=1, **ccall.tags)
-                        le = Expr.BinaryOp(None, "Or", (zf, sf_xor_of), False, bits=1, **ccall.tags)
+                        # DEC: CondLE is (ZF==1) or (SF!=OF). Emit pseudo-builtin.
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        le = Expr.Call(
+                            ccall.idx,
+                            "__DEC_COND_LE__",
+                            calling_convention=cc,
+                            args=[dep_1],
+                            bits=1,
+                            **ccall.tags,
+                        )
                         return Expr.Convert(None, le.bits, ccall.bits, False, le, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondNLE"]:
                     if op_v in {
@@ -209,16 +210,17 @@ class AMD64CCallRewriter(CCallRewriterBase):
                             ccall.tags,
                             signed=True,
                         )
-                        # DEC: CondNLE is (ZF==0) and (SF==OF). For DEC, OF=1 iff res == max_signed.
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        max_c = Expr.Const(None, None, max_s, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (dep_1, zero), False, bits=1, **ccall.tags)
-                        sf = Expr.BinaryOp(None, "CmpLT", (dep_1, zero), True, bits=1, **ccall.tags)
-                        of = Expr.BinaryOp(None, "CmpEQ", (dep_1, max_c), False, bits=1, **ccall.tags)
-                        not_zf = Expr.UnaryOp(None, "Not", zf, bits=1, **ccall.tags)
-                        sf_eq_of = Expr.BinaryOp(None, "CmpEQ", (sf, of), False, bits=1, **ccall.tags)
-                        nle = Expr.BinaryOp(None, "And", (not_zf, sf_eq_of), False, bits=1, **ccall.tags)
+                        # DEC: CondNLE is NOT CondLE. Emit Not(pseudo-builtin).
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        le = Expr.Call(
+                            None,
+                            "__DEC_COND_LE__",
+                            calling_convention=cc,
+                            args=[dep_1],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        nle = Expr.UnaryOp(ccall.idx, "Not", le, bits=1, **ccall.tags)
                         return Expr.Convert(None, nle.bits, ccall.bits, False, nle, **ccall.tags)
                 elif cond_v in {AMD64_CondTypes["CondZ"], AMD64_CondTypes["CondNZ"]}:
                     if op_v in {
@@ -684,23 +686,23 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         AMD64_OpTypes["G_CC_OP_SBBL"],
                         AMD64_OpTypes["G_CC_OP_SBBQ"],
                     }:
-                        # SBB: !CF && !ZF = no borrow and result!=0
-                        dep_1n, arg2, carry_n, result = self._sbb_prep(
+                        # SBB: CondNBE = !CF && !ZF. Emit pseudo-builtin.
+                        dep_1n, arg2, carry_n, _result = self._sbb_prep(
                             dep_1,
                             dep_2,
                             ndep,
                             op_v,
                             ccall.tags,
                         )
-                        ext = dep_1n.bits + 1
-                        a_ext = Expr.Convert(None, dep_1n.bits, ext, False, dep_1n, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1n.bits, ext, False, arg2, **ccall.tags)
-                        c_ext = Expr.Convert(None, dep_1n.bits, ext, False, carry_n, **ccall.tags)
-                        rhs = Expr.BinaryOp(None, "Add", (b_ext, c_ext), False, bits=ext, **ccall.tags)
-                        no_cf = Expr.BinaryOp(None, "CmpGE", (a_ext, rhs), False, bits=1, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, result.bits, **ccall.tags)
-                        no_zf = Expr.BinaryOp(None, "CmpNE", (result, zero), False, bits=1, **ccall.tags)
-                        r = Expr.BinaryOp(ccall.idx, "And", (no_cf, no_zf), False, bits=1, **ccall.tags)
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        r = Expr.Call(
+                            ccall.idx,
+                            "__SBB_COND_A__",
+                            calling_convention=cc,
+                            args=[dep_1n, arg2, carry_n],
+                            bits=1,
+                            **ccall.tags,
+                        )
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondBE"]:
                     if op_v in {
@@ -734,23 +736,24 @@ class AMD64CCallRewriter(CCallRewriterBase):
                         AMD64_OpTypes["G_CC_OP_SBBL"],
                         AMD64_OpTypes["G_CC_OP_SBBQ"],
                     }:
-                        # SBB: CF || ZF = borrow or result==0
-                        dep_1n, arg2, carry_n, result = self._sbb_prep(
+                        # SBB: CondBE = CF || ZF = Not(CondNBE). Emit Not(pseudo-builtin).
+                        dep_1n, arg2, carry_n, _result = self._sbb_prep(
                             dep_1,
                             dep_2,
                             ndep,
                             op_v,
                             ccall.tags,
                         )
-                        ext = dep_1n.bits + 1
-                        a_ext = Expr.Convert(None, dep_1n.bits, ext, False, dep_1n, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1n.bits, ext, False, arg2, **ccall.tags)
-                        c_ext = Expr.Convert(None, dep_1n.bits, ext, False, carry_n, **ccall.tags)
-                        rhs = Expr.BinaryOp(None, "Add", (b_ext, c_ext), False, bits=ext, **ccall.tags)
-                        cf = Expr.BinaryOp(None, "CmpLT", (a_ext, rhs), False, bits=1, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, result.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (result, zero), False, bits=1, **ccall.tags)
-                        r = Expr.BinaryOp(ccall.idx, "Or", (cf, zf), False, bits=1, **ccall.tags)
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        a = Expr.Call(
+                            None,
+                            "__SBB_COND_A__",
+                            calling_convention=cc,
+                            args=[dep_1n, arg2, carry_n],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        r = Expr.UnaryOp(ccall.idx, "Not", a, bits=1, **ccall.tags)
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                 elif cond_v == AMD64_CondTypes["CondNB"]:
                     if op_v in {

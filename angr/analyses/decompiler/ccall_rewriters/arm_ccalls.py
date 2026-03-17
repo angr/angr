@@ -17,6 +17,7 @@ from angr.engines.vex.claripy.ccall import (
 )
 from angr.engines.vex.claripy.ccall import ARMG_CC_OP_ADD, ARMG_CC_OP_LOGIC, ARMG_CC_OP_SBB, ARMG_CC_OP_SUB
 
+from angr.calling_conventions import SimCCUsercall
 from .rewriter_base import CCallRewriterBase
 
 
@@ -113,27 +114,17 @@ class ARMCCallRewriter(CCallRewriterBase):
                         return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
                     if op_v == ARMG_CC_OP_ADD:
                         # Triggered by: libgcc_s.so.1 from firmadyne_1004
-                        # CondLE is the inverse of CondGT, computed from the add result.
-                        res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), True, bits=1, **ccall.tags)
-                        nf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-
-                        ext_bits = dep_1.bits + 1
-                        a_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_1, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_2, **ccall.tags)
-                        s_ext = Expr.BinaryOp(None, "Add", (a_ext, b_ext), bits=ext_bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        min_s_u = (1 << ext_bits) - (1 << (dep_1.bits - 1))
-                        max_c = Expr.Const(None, None, max_s, ext_bits, **ccall.tags)
-                        min_c = Expr.Const(None, None, min_s_u, ext_bits, **ccall.tags)
-                        lt = Expr.BinaryOp(None, "CmpLT", (s_ext, min_c), True, bits=1, **ccall.tags)
-                        gt = Expr.BinaryOp(None, "CmpGT", (s_ext, max_c), True, bits=1, **ccall.tags)
-                        vf = Expr.ITE(None, lt, gt, Expr.Const(None, None, 1, 1, **ccall.tags), **ccall.tags)
-
-                        nf_eq_vf = Expr.BinaryOp(None, "CmpEQ", (nf, vf), False, bits=1, **ccall.tags)
-                        gt_cond = Expr.ITE(None, zf, nf_eq_vf, Expr.Const(None, None, 0, 1, **ccall.tags), **ccall.tags)
-                        le_cond = Expr.UnaryOp(None, "Not", gt_cond, bits=1, **ccall.tags)
+                        # CondLE = Not(CondGT). Emit Not(pseudo-builtin).
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        gt = Expr.Call(
+                            None,
+                            "__ADD_COND_GT__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        le_cond = Expr.UnaryOp(None, "Not", gt, bits=1, **ccall.tags)
                         return Expr.Convert(None, le_cond.bits, ccall.bits, False, le_cond, **ccall.tags)
 
                 elif cond_v == ARMCondNE:
@@ -146,15 +137,13 @@ class ARMCCallRewriter(CCallRewriterBase):
                 elif cond_v in {ARMCondHI, ARMCondLS}:
                     if op_v == ARMG_CC_OP_ADD:
                         # Triggered by: ld-uClibc-0.9.28.so (CondHI), bcm5081 (CondLS) from firmadyne_1004
-                        res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), True, bits=1, **ccall.tags)
-                        cf = Expr.BinaryOp(None, "CmpLT", (res, dep_1), False, bits=1, **ccall.tags)
-                        hi = Expr.BinaryOp(
+                        # Emit pseudo-builtin.
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        hi = Expr.Call(
                             None,
-                            "And",
-                            (cf, Expr.UnaryOp(None, "Not", zf, bits=1, **ccall.tags)),
-                            False,
+                            "__ADD_COND_HI__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
                             bits=1,
                             **ccall.tags,
                         )
@@ -164,49 +153,33 @@ class ARMCCallRewriter(CCallRewriterBase):
                 elif cond_v in {ARMCondGE, ARMCondLT}:
                     if op_v == ARMG_CC_OP_ADD:
                         # Triggered by: ld-uClibc-0.9.28.so from firmadyne_1004
-                        res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        nf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-
-                        ext_bits = dep_1.bits + 1
-                        a_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_1, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_2, **ccall.tags)
-                        s_ext = Expr.BinaryOp(None, "Add", (a_ext, b_ext), bits=ext_bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        min_s_u = (1 << ext_bits) - (1 << (dep_1.bits - 1))
-                        max_c = Expr.Const(None, None, max_s, ext_bits, **ccall.tags)
-                        min_c = Expr.Const(None, None, min_s_u, ext_bits, **ccall.tags)
-                        lt = Expr.BinaryOp(None, "CmpLT", (s_ext, min_c), True, bits=1, **ccall.tags)
-                        gt = Expr.BinaryOp(None, "CmpGT", (s_ext, max_c), True, bits=1, **ccall.tags)
-                        vf = Expr.ITE(None, lt, gt, Expr.Const(None, None, 1, 1, **ccall.tags), **ccall.tags)
-
-                        expr_op = "CmpEQ" if inv == 0 else "CmpNE"
-                        r = Expr.BinaryOp(ccall.idx, expr_op, (nf, vf), False, bits=1, **ccall.tags)
-                        return Expr.Convert(None, r.bits, ccall.bits, False, r, **ccall.tags)
+                        # Emit pseudo-builtin.
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        ge = Expr.Call(
+                            None,
+                            "__ADD_COND_GE__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        cond = ge if inv == 0 else Expr.UnaryOp(None, "Not", ge, bits=1, **ccall.tags)
+                        return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
 
                 elif cond_v in {ARMCondGT, ARMCondLE}:
                     if op_v == ARMG_CC_OP_ADD:
                         # Triggered by: libgcc_s.so.1 (CondLE) from firmadyne_1004
-                        res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), True, bits=1, **ccall.tags)
-                        nf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-
-                        ext_bits = dep_1.bits + 1
-                        a_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_1, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_2, **ccall.tags)
-                        s_ext = Expr.BinaryOp(None, "Add", (a_ext, b_ext), bits=ext_bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        min_s_u = (1 << ext_bits) - (1 << (dep_1.bits - 1))
-                        max_c = Expr.Const(None, None, max_s, ext_bits, **ccall.tags)
-                        min_c = Expr.Const(None, None, min_s_u, ext_bits, **ccall.tags)
-                        lt = Expr.BinaryOp(None, "CmpLT", (s_ext, min_c), True, bits=1, **ccall.tags)
-                        gt = Expr.BinaryOp(None, "CmpGT", (s_ext, max_c), True, bits=1, **ccall.tags)
-                        vf = Expr.ITE(None, lt, gt, Expr.Const(None, None, 1, 1, **ccall.tags), **ccall.tags)
-
-                        nf_eq_vf = Expr.BinaryOp(None, "CmpEQ", (nf, vf), False, bits=1, **ccall.tags)
-                        gt_cond = Expr.ITE(None, zf, nf_eq_vf, Expr.Const(None, None, 0, 1, **ccall.tags), **ccall.tags)
-                        cond = gt_cond if inv == 0 else Expr.UnaryOp(None, "Not", gt_cond, bits=1, **ccall.tags)
+                        # Emit pseudo-builtin.
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        gt = Expr.Call(
+                            None,
+                            "__ADD_COND_GT__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        cond = gt if inv == 0 else Expr.UnaryOp(None, "Not", gt, bits=1, **ccall.tags)
                         return Expr.Convert(None, cond.bits, ccall.bits, False, cond, **ccall.tags)
 
         return None

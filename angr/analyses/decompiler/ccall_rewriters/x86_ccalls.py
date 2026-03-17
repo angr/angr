@@ -85,37 +85,26 @@ class X86CCallRewriter(CCallRewriterBase):
                         X86_OpTypes["G_CC_OP_ADDL"],
                     }:
                         # Triggered by: gawk
-                        # CondLE/CondNLE is (ZF == 1) or (SF != OF), which we compute from the add result.
+                        # CondLE/CondNLE for ADD. Emit pseudo-builtin.
                         dep_1 = self._fix_size(
                             dep_1, op_v, X86_OpTypes["G_CC_OP_ADDB"], X86_OpTypes["G_CC_OP_ADDW"], ccall.tags
                         )
                         dep_2 = self._fix_size(
                             dep_2, op_v, X86_OpTypes["G_CC_OP_ADDB"], X86_OpTypes["G_CC_OP_ADDW"], ccall.tags
                         )
-                        ret = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        zf = Expr.BinaryOp(None, "CmpEQ", (ret, zero), True, bits=1, **ccall.tags)
-                        sf = Expr.BinaryOp(None, "CmpLT", (ret, zero), True, bits=1, **ccall.tags)
-
-                        ext_bits = dep_1.bits + 1
-                        a_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_1, **ccall.tags)
-                        b_ext = Expr.Convert(None, dep_1.bits, ext_bits, True, dep_2, **ccall.tags)
-                        s_ext = Expr.BinaryOp(None, "Add", (a_ext, b_ext), bits=ext_bits, **ccall.tags)
-                        max_s = (1 << (dep_1.bits - 1)) - 1
-                        min_s_u = (1 << ext_bits) - (1 << (dep_1.bits - 1))
-                        max_c = Expr.Const(None, None, max_s, ext_bits, **ccall.tags)
-                        min_c = Expr.Const(None, None, min_s_u, ext_bits, **ccall.tags)
-                        lt = Expr.BinaryOp(None, "CmpLT", (s_ext, min_c), True, bits=1, **ccall.tags)
-                        gt = Expr.BinaryOp(None, "CmpGT", (s_ext, max_c), True, bits=1, **ccall.tags)
-                        of = Expr.ITE(None, lt, gt, Expr.Const(None, None, 1, 1, **ccall.tags), **ccall.tags)
-
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        le = Expr.Call(
+                            None,
+                            "__ADD_COND_LE__",
+                            calling_convention=cc,
+                            args=[dep_1, dep_2],
+                            bits=1,
+                            **ccall.tags,
+                        )
                         if cond_v == X86_CondTypes["CondLE"]:
-                            sf_xor_of = Expr.BinaryOp(None, "CmpNE", (sf, of), False, bits=1, **ccall.tags)
-                            le = Expr.ITE(None, zf, sf_xor_of, Expr.Const(None, None, 1, 1, **ccall.tags), **ccall.tags)
                             return Expr.Convert(None, le.bits, ccall.bits, False, le, **ccall.tags)
-                        # CondNLE: (ZF == 0) and (SF == OF)
-                        sf_eq_of = Expr.BinaryOp(None, "CmpEQ", (sf, of), False, bits=1, **ccall.tags)
-                        nle = Expr.ITE(None, zf, sf_eq_of, Expr.Const(None, None, 0, 1, **ccall.tags), **ccall.tags)
+                        # CondNLE
+                        nle = Expr.UnaryOp(ccall.idx, "Not", le, bits=1, **ccall.tags)
                         return Expr.Convert(None, nle.bits, ccall.bits, False, nle, **ccall.tags)
                     if op_v in {
                         X86_OpTypes["G_CC_OP_LOGICB"],
@@ -141,22 +130,20 @@ class X86CCallRewriter(CCallRewriterBase):
                             X86_OpTypes["G_CC_OP_DECW"],
                             X86_OpTypes["G_CC_OP_DECL"],
                         }:
-                            # DEC: CondLE/CondNLE depends on OF. For DEC, OF=1 iff res == max_signed.
-                            max_s = (1 << (dep_1.bits - 1)) - 1
-                            max_c = Expr.Const(None, None, max_s, dep_1.bits, **ccall.tags)
-                            zf = Expr.BinaryOp(None, "CmpEQ", (dep_1, zero), False, bits=1, **ccall.tags)
-                            sf = Expr.BinaryOp(None, "CmpLT", (dep_1, zero), True, bits=1, **ccall.tags)
-                            of = Expr.BinaryOp(None, "CmpEQ", (dep_1, max_c), False, bits=1, **ccall.tags)
-
+                            # DEC: CondLE/CondNLE. Emit pseudo-builtin.
+                            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                            le = Expr.Call(
+                                None,
+                                "__DEC_COND_LE__",
+                                calling_convention=cc,
+                                args=[dep_1],
+                                bits=1,
+                                **ccall.tags,
+                            )
                             if cond_v == X86_CondTypes["CondLE"]:
-                                sf_xor_of = Expr.BinaryOp(None, "CmpNE", (sf, of), False, bits=1, **ccall.tags)
-                                le = Expr.BinaryOp(None, "Or", (zf, sf_xor_of), False, bits=1, **ccall.tags)
                                 return Expr.Convert(None, le.bits, ccall.bits, False, le, **ccall.tags)
-
-                            # CondNLE: (ZF == 0) and (SF == OF)
-                            sf_eq_of = Expr.BinaryOp(None, "CmpEQ", (sf, of), False, bits=1, **ccall.tags)
-                            not_zf = Expr.UnaryOp(None, "Not", zf, bits=1, **ccall.tags)
-                            nle = Expr.BinaryOp(None, "And", (not_zf, sf_eq_of), False, bits=1, **ccall.tags)
+                            # CondNLE
+                            nle = Expr.UnaryOp(ccall.idx, "Not", le, bits=1, **ccall.tags)
                             return Expr.Convert(None, nle.bits, ccall.bits, False, nle, **ccall.tags)
 
                         # LOGIC: OF=0, so CondLE/CondNLE reduces to result <=s 0 / >s 0.
@@ -540,8 +527,7 @@ class X86CCallRewriter(CCallRewriterBase):
                     }:
                         # Triggered by: grep
                         # For sbb ops, DEP2 encodes (arg2 XOR old_carry) and NDEP encodes old_carry.
-                        # VEX computes OF = ((dep1 ^ arg2) & (dep1 ^ res))[MSB], SF = res[MSB].
-                        # CondL = SF != OF, CondNL = SF == OF.
+                        # CondL = SF != OF, CondNL = SF == OF. Emit pseudo-builtin.
                         dep_1 = self._fix_size(
                             dep_1, op_v, X86_OpTypes["G_CC_OP_SBBB"], X86_OpTypes["G_CC_OP_SBBW"], ccall.tags
                         )
@@ -562,19 +548,20 @@ class X86CCallRewriter(CCallRewriterBase):
                             else carry
                         )
                         arg2 = Expr.BinaryOp(None, "Xor", (dep_2, carry_ext), bits=dep_1.bits, **ccall.tags)
-                        # res = dep1 - arg2 - carry
-                        sub1 = Expr.BinaryOp(None, "Sub", (dep_1, arg2), bits=dep_1.bits, **ccall.tags)
-                        res = Expr.BinaryOp(None, "Sub", (sub1, carry_ext), bits=dep_1.bits, **ccall.tags)
-                        zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-                        sf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-                        # OF = ((dep1 ^ arg2) & (dep1 ^ res))[MSB]
-                        xor1 = Expr.BinaryOp(None, "Xor", (dep_1, arg2), bits=dep_1.bits, **ccall.tags)
-                        xor2 = Expr.BinaryOp(None, "Xor", (dep_1, res), bits=dep_1.bits, **ccall.tags)
-                        of_full = Expr.BinaryOp(None, "And", (xor1, xor2), bits=dep_1.bits, **ccall.tags)
-                        of = Expr.BinaryOp(None, "CmpLT", (of_full, zero), True, bits=1, **ccall.tags)
-                        sf_of_op = "CmpNE" if cond_v == X86_CondTypes["CondL"] else "CmpEQ"
-                        cmp = Expr.BinaryOp(ccall.idx, sf_of_op, (sf, of), False, bits=1, **ccall.tags)
-                        return Expr.Convert(None, cmp.bits, ccall.bits, False, cmp, **ccall.tags)
+                        cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+                        sbb_l = Expr.Call(
+                            None,
+                            "__SBB_COND_L__",
+                            calling_convention=cc,
+                            args=[dep_1, arg2, carry_ext],
+                            bits=1,
+                            **ccall.tags,
+                        )
+                        if cond_v == X86_CondTypes["CondL"]:
+                            return Expr.Convert(None, sbb_l.bits, ccall.bits, False, sbb_l, **ccall.tags)
+                        # CondNL
+                        nl = Expr.UnaryOp(ccall.idx, "Not", sbb_l, bits=1, **ccall.tags)
+                        return Expr.Convert(None, nl.bits, ccall.bits, False, nl, **ccall.tags)
                 elif cond_v in {
                     X86_CondTypes["CondBE"],
                     X86_CondTypes["CondB"],

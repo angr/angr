@@ -24,6 +24,7 @@ from .flip_boolean_cmp import FlipBooleanCmp
 from .overflow_builtin_simplifier import OverflowBuiltinSimplifier
 from .overflow_builtin_p_simplifier import OverflowBuiltinPredicateSimplifier
 from .carry_flag_simplifier import CarryFlagSimplifier
+from .flag_cond_simplifier import FlagCondSimplifier
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
@@ -79,6 +80,7 @@ ALL_OPTIMIZATION_PASSES = [
     OverflowBuiltinSimplifier,
     OverflowBuiltinPredicateSimplifier,
     CarryFlagSimplifier,
+    FlagCondSimplifier,
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
     TagSlicer,
@@ -147,6 +149,7 @@ __all__ = (
     "DuplicationReverter",
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
+    "FlagCondSimplifier",
     "FlipBooleanCmp",
     "ITEExprConverter",
     "ITERegionConverter",

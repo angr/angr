@@ -28,6 +28,7 @@ from angr.engines.vex.claripy.ccall import (
     ARM64G_CC_OP_LOGIC64,
 )
 
+from angr.calling_conventions import SimCCUsercall
 from .rewriter_base import CCallRewriterBase
 
 _SUB_OPS = {ARM64G_CC_OP_SUB32, ARM64G_CC_OP_SUB64}
@@ -317,16 +318,13 @@ class ARM64CCallRewriter(CCallRewriterBase):
 
         if op_v in _ADD_OPS:
             # Triggered by: ARM64 binary — ADDS then B.HI / B.LS
-            # C && !Z from the add result.
-            res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-            zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-            zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), True, bits=1, **ccall.tags)
-            cf = Expr.BinaryOp(None, "CmpLT", (res, dep_1), False, bits=1, **ccall.tags)
-            hi = Expr.BinaryOp(
+            # C && !Z from the add result. Emit pseudo-builtin.
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            hi = Expr.Call(
                 None,
-                "And",
-                (cf, Expr.UnaryOp(None, "Not", zf, bits=1, **ccall.tags)),
-                False,
+                "__ADD_COND_HI__",
+                calling_convention=cc,
+                args=[dep_1, dep_2],
                 bits=1,
                 **ccall.tags,
             )
@@ -353,13 +351,17 @@ class ARM64CCallRewriter(CCallRewriterBase):
 
         if op_v in _ADD_OPS:
             # Triggered by: ARM64 binary — ADDS then B.GE / B.LT
-            # N==V for the add result. Compute N and V separately.
-            res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-            zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-            nf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-            vf = self._compute_add_overflow(dep_1, dep_2, ccall.tags)
-            expr_op = "CmpEQ" if inv == 0 else "CmpNE"
-            return Expr.BinaryOp(ccall.idx, expr_op, (nf, vf), False, bits=1, **ccall.tags)
+            # N==V for the add result. Emit pseudo-builtin.
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            ge = Expr.Call(
+                None,
+                "__ADD_COND_GE__",
+                calling_convention=cc,
+                args=[dep_1, dep_2],
+                bits=1,
+                **ccall.tags,
+            )
+            return ge if inv == 0 else Expr.UnaryOp(None, "Not", ge, bits=1, **ccall.tags)
 
         if op_v in _LOGIC_OPS:
             # Triggered by: ARM64 binary — ANDS / TST then B.GE / B.LT
@@ -389,17 +391,17 @@ class ARM64CCallRewriter(CCallRewriterBase):
 
         if op_v in _ADD_OPS:
             # Triggered by: ARM64 binary — ADDS then B.GT / B.LE
-            # !Z && N==V for the add result. Build it from pieces.
-            res = Expr.BinaryOp(None, "Add", (dep_1, dep_2), bits=dep_1.bits, **ccall.tags)
-            zero = Expr.Const(None, None, 0, dep_1.bits, **ccall.tags)
-            zf = Expr.BinaryOp(None, "CmpEQ", (res, zero), True, bits=1, **ccall.tags)
-            nf = Expr.BinaryOp(None, "CmpLT", (res, zero), True, bits=1, **ccall.tags)
-            vf = self._compute_add_overflow(dep_1, dep_2, ccall.tags)
-
-            nf_eq_vf = Expr.BinaryOp(None, "CmpEQ", (nf, vf), False, bits=1, **ccall.tags)
-            # GT = !Z && (N == V).  Use ITE: if Z then 0 else (N == V).
-            gt_cond = Expr.ITE(None, zf, nf_eq_vf, Expr.Const(None, None, 0, 1, **ccall.tags), **ccall.tags)
-            return gt_cond if inv == 0 else Expr.UnaryOp(None, "Not", gt_cond, bits=1, **ccall.tags)
+            # !Z && N==V for the add result. Emit pseudo-builtin.
+            cc = SimCCUsercall(self.project.arch, [], None) if self.project else None
+            gt = Expr.Call(
+                None,
+                "__ADD_COND_GT__",
+                calling_convention=cc,
+                args=[dep_1, dep_2],
+                bits=1,
+                **ccall.tags,
+            )
+            return gt if inv == 0 else Expr.UnaryOp(None, "Not", gt, bits=1, **ccall.tags)
 
         if op_v in _LOGIC_OPS:
             # Triggered by: ARM64 binary — ANDS / TST then B.GT / B.LE

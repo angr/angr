@@ -62,10 +62,10 @@ def _ail_to_claripy(
 ) -> claripy.ast.BV:
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str):
         assert expr.args is not None
-        a = _ail_to_claripy(expr.args[0], vv_map, mul_signed=mul_signed)
-        b = _ail_to_claripy(expr.args[1], vv_map, mul_signed=mul_signed)
-        n = a.size()
+        args = [_ail_to_claripy(arg, vv_map, mul_signed=mul_signed) for arg in expr.args]
         if expr.target == "__OFADD__":
+            a, b = args[0], args[1]
+            n = a.size()
             ext_a = a.sign_extend(1)
             ext_b = b.sign_extend(1)
             ext_sum = ext_a + ext_b
@@ -73,6 +73,8 @@ def _ail_to_claripy(
             of = claripy.If(ext_sum != trunc.sign_extend(1), claripy.BVV(1, 1), claripy.BVV(0, 1))
             return of.zero_extend(expr.bits - 1) if expr.bits > 1 else of
         if expr.target == "__OFMUL__":
+            a, b = args[0], args[1]
+            n = a.size()
             if mul_signed:
                 ext_a = a.sign_extend(n)
                 ext_b = b.sign_extend(n)
@@ -86,6 +88,102 @@ def _ail_to_claripy(
             else:
                 of = claripy.If(prod != trunc.zero_extend(n), claripy.BVV(1, 1), claripy.BVV(0, 1))
             return of.zero_extend(expr.bits - 1) if expr.bits > 1 else of
+        if expr.target == "__DEC_COND_LE__":
+            result = args[0]
+            n = result.size()
+            # ZF || (SF != OF) where OF = (result == INT_MAX) for DEC
+            zero = claripy.BVV(0, n)
+            max_s = claripy.BVV((1 << (n - 1)) - 1, n)
+            zf = claripy.If(result == zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            sf = claripy.If(claripy.SLT(result, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            of = claripy.If(result == max_s, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            sf_ne_of = claripy.If(sf != of, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            le = claripy.If(claripy.Or(zf != 0, sf_ne_of != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return le.zero_extend(expr.bits - 1) if expr.bits > 1 else le
+        if expr.target == "__ADD_COND_LE__":
+            a, b = args[0], args[1]
+            n = a.size()
+            # ZF || (SF != OF) for a + b
+            res = a + b
+            zero = claripy.BVV(0, n)
+            zf = claripy.If(res == zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            sf = claripy.If(claripy.SLT(res, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            ext_a = a.sign_extend(1)
+            ext_b = b.sign_extend(1)
+            ext_sum = ext_a + ext_b
+            trunc = claripy.Extract(n - 1, 0, ext_sum)
+            of = claripy.If(ext_sum != trunc.sign_extend(1), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            sf_ne_of = claripy.If(sf != of, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            le = claripy.If(claripy.Or(zf != 0, sf_ne_of != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return le.zero_extend(expr.bits - 1) if expr.bits > 1 else le
+        if expr.target == "__ADD_COND_HI__":
+            a, b = args[0], args[1]
+            n = a.size()
+            # CF && !ZF for a + b (unsigned higher)
+            res = a + b
+            zero = claripy.BVV(0, n)
+            cf = claripy.If(claripy.ULT(res, a), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            nz = claripy.If(res != zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            hi = claripy.If(claripy.And(cf != 0, nz != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return hi.zero_extend(expr.bits - 1) if expr.bits > 1 else hi
+        if expr.target == "__ADD_COND_GE__":
+            a, b = args[0], args[1]
+            n = a.size()
+            # NF == VF for a + b (signed >=)
+            res = a + b
+            zero = claripy.BVV(0, n)
+            nf = claripy.If(claripy.SLT(res, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            ext_a = a.sign_extend(1)
+            ext_b = b.sign_extend(1)
+            ext_sum = ext_a + ext_b
+            trunc = claripy.Extract(n - 1, 0, ext_sum)
+            vf = claripy.If(ext_sum != trunc.sign_extend(1), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            ge = claripy.If(nf == vf, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return ge.zero_extend(expr.bits - 1) if expr.bits > 1 else ge
+        if expr.target == "__ADD_COND_GT__":
+            a, b = args[0], args[1]
+            n = a.size()
+            # !ZF && (NF == VF) for a + b (signed >)
+            res = a + b
+            zero = claripy.BVV(0, n)
+            nz = claripy.If(res != zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            nf = claripy.If(claripy.SLT(res, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            ext_a = a.sign_extend(1)
+            ext_b = b.sign_extend(1)
+            ext_sum = ext_a + ext_b
+            trunc = claripy.Extract(n - 1, 0, ext_sum)
+            vf = claripy.If(ext_sum != trunc.sign_extend(1), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            nf_eq_vf = claripy.If(nf == vf, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            gt = claripy.If(claripy.And(nz != 0, nf_eq_vf != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return gt.zero_extend(expr.bits - 1) if expr.bits > 1 else gt
+        if expr.target == "__SBB_COND_A__":
+            a, b, carry = args[0], args[1], args[2]
+            n = a.size()
+            # !CF && !ZF for SBB (a - b - carry)
+            a_ext = a.zero_extend(1)
+            b_ext = b.zero_extend(1)
+            c_ext = carry.zero_extend(1)
+            rhs = b_ext + c_ext
+            no_cf = claripy.If(claripy.UGE(a_ext, rhs), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            res = a - b - carry
+            zero = claripy.BVV(0, n)
+            nz = claripy.If(res != zero, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            r = claripy.If(claripy.And(no_cf != 0, nz != 0), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return r.zero_extend(expr.bits - 1) if expr.bits > 1 else r
+        if expr.target == "__SBB_COND_L__":
+            a, b, carry = args[0], args[1], args[2]
+            n = a.size()
+            # SF != OF for SBB (a - b - carry)
+            res = a - b - carry
+            zero = claripy.BVV(0, n)
+            sf = claripy.If(claripy.SLT(res, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            # OF = ((a ^ b) & (a ^ res))[MSB]
+            xor1 = a ^ b
+            xor2 = a ^ res
+            of_full = xor1 & xor2
+            of = claripy.If(claripy.SLT(of_full, zero), claripy.BVV(1, 1), claripy.BVV(0, 1))
+            r = claripy.If(sf != of, claripy.BVV(1, 1), claripy.BVV(0, 1))
+            return r.zero_extend(expr.bits - 1) if expr.bits > 1 else r
         raise NotImplementedError(f"Unsupported builtin {expr.target}")
     if isinstance(expr, Expr.Const):
         return claripy.BVV(expr.value_int, expr.bits)
@@ -276,9 +374,11 @@ def test_x86_cond_l_sbbl_rewrite():
     )
     result = X86CCallRewriter(ccall, None).result
     assert result is not None
-    # CondL + SBB now computes SF != OF explicitly (matching VEX semantics)
-    cmp_expr = _cmp_from_result(result)
-    assert cmp_expr.op == "CmpNE"
+    # CondL + SBB now emits __SBB_COND_L__ pseudo-builtin
+    assert isinstance(result, Expr.Convert)
+    inner = result.operands[0]
+    assert isinstance(inner, Expr.Call) and inner.target == "__SBB_COND_L__"
+    assert len(inner.args) == 3
 
 
 def test_amd64_cond_nz_add_rewrite():
@@ -489,8 +589,7 @@ def test_arm_cond_hi_add_rewrite():
     result = ARMCCallRewriter(ccall, None).result
     assert result is not None
     assert isinstance(result, Expr.Convert)
-    assert isinstance(result.operands[0], Expr.BinaryOp)
-    assert result.operands[0].op == "And"
+    assert isinstance(result.operands[0], Expr.Call) and result.operands[0].target == "__ADD_COND_HI__"
 
 
 def test_arm_cond_ls_add_rewrite():
@@ -527,7 +626,7 @@ def test_arm_cond_gt_add_rewrite():
     result = ARMCCallRewriter(ccall, None).result
     assert result is not None
     assert isinstance(result, Expr.Convert)
-    assert isinstance(result.operands[0], Expr.ITE)
+    assert isinstance(result.operands[0], Expr.Call) and result.operands[0].target == "__ADD_COND_GT__"
 
 
 def test_amd64_cond_nl_sub_rewrite():
