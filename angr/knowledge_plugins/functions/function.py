@@ -470,6 +470,10 @@ class Function(Serializable):
                 )
 
     @property
+    def code_nodes(self) -> dict[int, CodeNode]:
+        return self._local_blocks
+
+    @property
     def cyclomatic_complexity(self):
         """
         The cyclomatic complexity of the function.

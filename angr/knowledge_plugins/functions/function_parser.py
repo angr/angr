@@ -111,7 +111,14 @@ class FunctionParser:
                 )
 
         # blocks
-        blocks_list = [b.serialize_to_cmessage() for b in function.blocks]
+        blocks_list = []
+        for _, b in function.code_nodes.items():
+            if isinstance(b, BlockNode):
+                block = primitives_pb2.Block()
+                block.ea = b.addr
+                block.size = b.size
+                block.bytes = b.bytestr
+                blocks_list.append(block)
         obj.blocks.extend(blocks_list)  # pylint:disable=no-member
 
         block_addrs_set = function.block_addrs_set
