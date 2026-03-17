@@ -30,6 +30,7 @@ class EmulatorStopReason(Enum):
     BREAKPOINT = "breakpoint"
     NO_SUCCESSORS = "no_successors"
     MEMORY_ERROR = "memory_error"
+    EMULATION_GAP = "emulation_gap"
     FAILURE = "failure"
     EXIT = "exit"
 
@@ -131,6 +132,9 @@ class Emulator:
             # Track the number of instructions executed using the state's history
             if self._state.history.recent_instruction_count > 0:
                 num_inst_executed += self._state.history.recent_instruction_count
+
+            if successors.successors[0].history.jumpkind == "Ijk_EmFail":
+                return EmulatorStopReason.EMULATION_GAP
 
             if successors.successors[0].history.jumpkind == "Ijk_SigSEGV":
                 return EmulatorStopReason.MEMORY_ERROR

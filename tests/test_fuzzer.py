@@ -48,6 +48,12 @@ mov byte ptr [rdi], 0
 ret
 """
 
+# Shellcode with a TLS access: fs:[0x10000] is unmapped when FS_OFFSET=0
+SHELLCODE_TLS_ACCESS = """
+mov rax, qword ptr fs:[0x10000]
+ret
+"""
+
 RETURN_ADDR = 0x100
 
 
@@ -239,6 +245,33 @@ class TestFuzzer:
         fuzzer.run_once()
         solutions_after_second = fuzzer.solutions()
         assert len(solutions_after_second) >= 1, "crash_path should produce a solution"
+
+    def test_tls_emulation_gap_not_crash(self):
+        """TLS access via uninitialised FS_OFFSET should be an emulation gap, not a crash."""
+        # With FS_OFFSET=0 the effective address 0x10000 is unmapped, triggering
+        # ReadUnmapped.  The emulation-gap heuristic should recognise the fs:
+        # prefix and classify this as Ijk_EmFail, NOT Ijk_SigSEGV.
+        project = angr.load_shellcode(SHELLCODE_TLS_ACCESS, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        mutator = DeterministicMutator([b"\x00"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        live_solutions = fuzzer.solutions()
+        assert len(live_solutions) == 0, "TLS emulation gap should not be classified as a crash"
 
     def test_vuln_stacksmash_deterministic(self):
         """Test that DeterministicMutator detects a stack buffer overflow in a real binary.

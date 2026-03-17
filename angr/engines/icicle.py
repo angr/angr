@@ -25,6 +25,60 @@ log = logging.getLogger(__name__)
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 
+# x86/x86-64 legacy instruction prefix bytes (appear before REX + opcode)
+_X86_LEGACY_PREFIXES = frozenset({0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0x66, 0x67, 0xF0, 0xF2, 0xF3})
+
+# Group 2 segment-override prefixes (only the last one in the prefix area
+# is effective; earlier ones are silently overridden by the CPU).
+_X86_SEGMENT_PREFIXES = frozenset({0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65})
+
+
+def _effective_segment_prefix(insn_bytes) -> int | None:
+    """Return the last (effective) segment-override prefix, or None."""
+    last_seg = None
+    for byte in insn_bytes:
+        if byte in _X86_SEGMENT_PREFIXES:
+            last_seg = byte
+        elif byte not in _X86_LEGACY_PREFIXES:
+            # REX (0x40-0x4F) or opcode — segment overrides must precede REX,
+            # so the last_seg we've seen is the effective one.
+            break
+    return last_seg
+
+
+def _is_x86_tls_gap(emu, prefix_byte: int, offset_reg: str) -> bool:
+    """Return True if the faulting instruction uses a segment prefix and the base is zero."""
+    try:
+        if emu.reg_read(offset_reg) != 0:
+            return False
+    except KeyError:
+        return False
+    try:
+        insn_bytes = emu.mem_read(emu.pc, 15)
+    except RuntimeError:
+        return False
+    return _effective_segment_prefix(insn_bytes) == prefix_byte
+
+
+def _is_emulation_gap(emu, exc: ExceptionCode, arch_name: str) -> bool:
+    """Determine if an unmapped-memory fault is an emulation gap, not a real crash.
+
+    Checks for known patterns where the OS/runtime would have set up memory
+    that the emulator left uninitialised.  Currently detects TLS accesses
+    through segment registers on x86/x86-64 when the corresponding
+    segment-base register is zero.
+
+    The arch→prefix mapping follows Linux TLS conventions (AMD64 uses fs:,
+    X86 uses gs:).  Other OS conventions can be added here.
+    """
+    if exc not in (ExceptionCode.ReadUnmapped, ExceptionCode.WriteUnmapped):
+        return False
+    if arch_name == "AMD64":
+        return _is_x86_tls_gap(emu, 0x64, "FS_OFFSET")
+    if arch_name == "X86":
+        return _is_x86_tls_gap(emu, 0x65, "GS_OFFSET")
+    return False
+
 
 @dataclass
 class IcicleStateTranslationData:
@@ -251,7 +305,11 @@ class IcicleEngine(ConcreteEngine):
         # 3.1 history.jumpkind
         exc = emu.exception_code
         if status == VmExit.UnhandledException:
-            if exc in (
+            if exc in (ExceptionCode.ReadUnmapped, ExceptionCode.WriteUnmapped) and _is_emulation_gap(
+                emu, exc, translation_data.base_state.arch.name
+            ):
+                state.history.jumpkind = "Ijk_EmFail"
+            elif exc in (
                 ExceptionCode.ReadUnmapped,
                 ExceptionCode.ReadPerm,
                 ExceptionCode.WriteUnmapped,
