@@ -1038,7 +1038,14 @@ class Function(Serializable):
 
     @dirty_func
     def _transit_to(
-        self, from_node: CodeNode, to_node, outside=False, ins_addr=None, stmt_idx=None, is_exception=False
+        self,
+        from_node: CodeNode,
+        to_node,
+        outside=False,
+        ins_addr=None,
+        stmt_idx=None,
+        is_exception=False,
+        update_func_block_count: bool = True,
     ):
         """
         Registers an edge between basic blocks in this function's transition graph.
@@ -1053,15 +1060,15 @@ class Function(Serializable):
         """
 
         if outside:
-            from_node = self._register_node(True, from_node)
+            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(False, to_node)
+                to_node = self._register_node(False, to_node, update_func_block_count=update_func_block_count)
 
             self._jumpout_sites.add(from_node)
         else:
-            from_node = self._register_node(True, from_node)
+            from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
             if to_node is not None:
-                to_node = self._register_node(True, to_node)
+                to_node = self._register_node(True, to_node, update_func_block_count=update_func_block_count)
 
         type_ = "transition" if not is_exception else "exception"
         if to_node is not None:
@@ -1086,6 +1093,7 @@ class Function(Serializable):
         ins_addr=None,
         return_to_outside=False,
         syscall: bool = False,
+        update_func_block_count: bool = True,
     ):
         """
         Registers an edge between the caller basic block and callee function.
@@ -1102,22 +1110,26 @@ class Function(Serializable):
         :type  ins_addr:    int or None
         """
 
-        from_node = self._register_node(True, from_node)
+        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
 
         self.transition_graph.add_edge(
             from_node, to_func, type="syscall" if syscall else "call", stmt_idx=stmt_idx, ins_addr=ins_addr
         )
         if ret_node is not None and not syscall:
-            ret_node = self._register_node(return_to_outside is False, ret_node)
-            self._fakeret_to(from_node, ret_node, to_outside=return_to_outside)
+            ret_node = self._register_node(
+                return_to_outside is False, ret_node, update_func_block_count=update_func_block_count
+            )
+            self._fakeret_to(
+                from_node, ret_node, to_outside=return_to_outside, update_func_block_count=update_func_block_count
+            )
 
         self._local_transition_graph = None
 
     @dirty_func
-    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False):
-        from_node = self._register_node(True, from_node)
+    def _fakeret_to(self, from_node, to_node, confirmed=None, to_outside=False, update_func_block_count: bool = True):
+        from_node = self._register_node(True, from_node, update_func_block_count=update_func_block_count)
         if confirmed:
-            to_node = self._register_node(not to_outside, to_node)
+            to_node = self._register_node(not to_outside, to_node, update_func_block_count=update_func_block_count)
 
         if confirmed is None:
             self.transition_graph.add_edge(from_node, to_node, type="fake_return", outside=to_outside)
@@ -1146,20 +1158,17 @@ class Function(Serializable):
 
         self._local_transition_graph = None
 
-    @dirty_func
-    def _update_local_blocks(self, node: CodeNode):
-        if node.addr not in self._local_blocks or self._local_blocks[node.addr] != node:
-            self._local_blocks[node.addr] = node
-            self._local_block_addrs.add(node.addr)
-            if self._function_manager is not None:
-                self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
+    def update_func_block_count(self) -> None:
+        """Update the cached block count of this function in the function manager."""
+        if self._function_manager is not None:
+            self._function_manager.set_func_block_count(self.addr, len(self._local_block_addrs))
 
     @dirty_func
     def _update_addr_to_block_cache(self, node: BlockNode):
         if node.addr not in self._addr_to_block_node:
             self._addr_to_block_node[node.addr] = node
 
-    def _register_node(self, is_local: bool, node: CodeNode) -> CodeNode:
+    def _register_node(self, is_local: bool, node: CodeNode, update_func_block_count: bool = True) -> CodeNode:
         # if the node already exists and is the same, we reuse the existing node
         if is_local and self._local_blocks.get(node.addr, None) == node:
             return self._local_blocks[node.addr]
@@ -1176,7 +1185,11 @@ class Function(Serializable):
         if node.addr == self.addr and (self.startpoint is None or not self.startpoint.is_hook):
             self.startpoint = node
         if is_local and node.addr not in self._local_blocks:
-            self._update_local_blocks(node)
+            # update the _local_blocks dict and _local_block_addrs set
+            self._local_blocks[node.addr] = node
+            self._local_block_addrs.add(node.addr)
+            if update_func_block_count:
+                self.update_func_block_count()
         # add BlockNodes to the addr_to_block_node cache if not already there
         if isinstance(node, BlockNode):
             self._update_addr_to_block_cache(node)
@@ -1535,7 +1548,7 @@ class Function(Serializable):
         """
         Draw the graph and save it to a PNG file.
         """
-        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel
+        import matplotlib.pyplot as pyplot  # pylint: disable=import-error,import-outside-toplevel,consider-using-from-import
         from networkx.drawing.nx_agraph import graphviz_layout  # pylint: disable=import-error,import-outside-toplevel
 
         tmp_graph = networkx.classes.digraph.DiGraph()
@@ -1808,7 +1821,8 @@ class Function(Serializable):
                     # we need to get arch from self.project
                     l.warning(
                         "Function %s does not have .project set. A possible prototype is found, but we cannot set it "
-                        "without .project.arch."
+                        "without .project.arch.",
+                        self.name,
                     )
                     return False
                 self.prototype = proto.with_arch(self.project.arch) if proto is not None else proto
@@ -1914,7 +1928,7 @@ class Function(Serializable):
             return "<ctor>"
         if meta["dtor"]:
             return "<dtor>"
-        if "<" and ">" in func_name:
+        if "<" in func_name and ">" in func_name:
             # remove template arguments
             depth = 0
             new_name_chars = []
@@ -1968,7 +1982,7 @@ class Function(Serializable):
             definition += ";"
         func_def = parse_defns(definition, arch=self.project.arch)
         if len(func_def.keys()) > 1:
-            raise Exception(f"Too many definitions: {list(func_def.keys())} ")
+            raise AngrValueError(f"Too many definitions: {list(func_def.keys())} ")
 
         name, ty = func_def.popitem()
         assert isinstance(ty, SimTypeFunction)

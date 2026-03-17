@@ -336,6 +336,7 @@ class FunctionParser:
                     ins_addr=ins_addr,
                     stmt_idx=stmt_idx,
                     is_exception=edge_type == "exception",
+                    update_func_block_count=False,  # we will update the block count at the end of this function
                 )
             elif edge_type in ("call", "syscall"):
                 # find the corresponding fake_ret edge
@@ -359,6 +360,7 @@ class FunctionParser:
                             ins_addr=ins_addr,
                             return_to_outside=fake_ret_edge is None,
                             syscall=edge_type == "syscall",
+                            update_func_block_count=False,  # we will update the block count at the end of this function
                         )
                     if fake_ret_edge is not None:
                         fakeret_src, fakeret_dst, fakeret_data = fake_ret_edge
@@ -368,6 +370,7 @@ class FunctionParser:
                             fakeret_dst,
                             confirmed=fakeret_data.get("confirmed"),
                             to_outside=fakeret_data.get("outside", None),
+                            update_func_block_count=False,  # we will update the block count at the end of this function
                         )
             elif edge_type == "return":
                 obj._return_from_call(
@@ -398,6 +401,8 @@ class FunctionParser:
         for block in blocks.values():
             if block not in added_nodes:
                 obj._register_node(True, block)
+
+        obj.update_func_block_count()
 
         obj._dirty = False
 
