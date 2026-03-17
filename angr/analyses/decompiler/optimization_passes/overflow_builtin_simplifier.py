@@ -193,11 +193,7 @@ class OverflowBuiltinWalker(SequenceWalker):
             return False
 
         builtin_name, arith_ops = _OF_MAP[target_name]
-        call_args = of_call.args
-        if not call_args or len(call_args) < 2:
-            return False
-
-        a, b = call_args[0], call_args[1]
+        a, b = of_call.args[0], of_call.args[1]
 
         # Try to find the matching arithmetic expression
         arith_block, arith_stmt_idx, arith_binop = self._find_arithmetic(cond_node, next_node, negated, arith_ops, a, b)
