@@ -648,16 +648,14 @@ class _OutDegreeView:
 
     def __getitem__(self, node: CFGNode) -> int:
         block_key = get_block_key(node)
-        if block_key not in self._graph._graph:
-            return 0
-        return self._graph._graph.out_degree(block_key)
+        return self._graph._out_degree_cache.get(block_key, 0)
 
     def __iter__(self) -> Iterator[tuple[CFGNode, int]]:
-        for block_key, deg in self._graph._graph.out_degree():
+        for block_key, deg in self._graph._out_degree_cache.items():
             yield self._graph.get_node_by_key(block_key), deg
 
     def __len__(self) -> int:
-        return len(self._graph._graph)
+        return len(self._graph._out_degree_cache)
 
 
 @overload
@@ -766,6 +764,7 @@ class SpillingCFG:
             db_batch_size=db_batch_size,
         )
         self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
+        self._out_degree_cache: dict[K, int] = {}
         self._spilling_enabled = cache_limit is not None
         self._edge_spilling_enabled = edge_cache_limit is not None
 
@@ -824,7 +823,12 @@ class SpillingCFG:
         if not self._keys_by_addr.get(node.addr):
             self._keys_by_addr.pop(node.addr, None)
         if block_key in self._graph:
+            # Decrement out_degree_cache for each predecessor
+            for pred_key in self._graph.predecessors(block_key):
+                if pred_key in self._out_degree_cache:
+                    self._out_degree_cache[pred_key] -= 1
             self._graph.remove_node(block_key)
+        self._out_degree_cache.pop(block_key, None)
 
     def has_node(self, node: CFGNode) -> bool:
         block_key = get_block_key(node)
@@ -875,12 +879,18 @@ class SpillingCFG:
         if dst_block_key not in self._graph:
             self._graph.add_node(dst_block_key)
 
+        # Update out_degree_cache before adding edge (only increment if edge is new)
+        has_edge = self._graph.has_edge(src_block_key, dst_block_key)
         self._graph.add_edge(src_block_key, dst_block_key, **attr)
+        if not has_edge:
+            self._out_degree_cache[src_block_key] = self._out_degree_cache.get(src_block_key, 0) + 1
 
     def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
         self._graph.remove_edge(src_block_key, dst_block_key)
+        if src_block_key in self._out_degree_cache:
+            self._out_degree_cache[src_block_key] -= 1
 
     def has_edge(self, src: CFGNode, dst: CFGNode) -> bool:
         src_block_key = get_block_key(src)
@@ -945,9 +955,7 @@ class SpillingCFG:
         yield from self._graph.out_edges(key, data=data)
 
     def out_degree_by_key(self, key: K) -> int:
-        if key not in self._graph:
-            return 0
-        return self._graph.out_degree(key)
+        return self._out_degree_cache.get(key, 0)
 
     #
     # Adjacency access
@@ -980,6 +988,7 @@ class SpillingCFG:
         for addr, keys in self._keys_by_addr.items():
             new_graph._keys_by_addr[addr] = set(keys)
         new_graph._graph = self._graph.copy()
+        new_graph._out_degree_cache = dict(self._out_degree_cache)
 
         return new_graph
 
@@ -1016,6 +1025,7 @@ class SpillingCFG:
         """
         Load graph structure from a networkx DiGraph with CFGNode instances as nodes.
         """
+        self._out_degree_cache.clear()
         self._graph.clear()
         self._nodes.clear()
 
@@ -1099,3 +1109,8 @@ class SpillingCFG:
         # initialize _keys_by_addr
         for node_key, node in self._nodes.items():
             self._keys_by_addr[node.addr].add(node_key)
+
+        # rebuild _out_degree_cache from the graph
+        self._out_degree_cache = {}
+        for key, deg in self._graph.out_degree():
+            self._out_degree_cache[key] = deg
