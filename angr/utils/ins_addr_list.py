@@ -1,12 +1,11 @@
 from __future__ import annotations
-
-from itertools import accumulate
+from collections.abc import Generator
 
 
 class InsAddrList:
     """
-    A memory-efficient replacement for list[int] that stores instruction addresses
-    as a base address plus a bytestring of instruction sizes (one byte per instruction).
+    A memory-efficient replacement for list[int] that stores instruction addresses as a base address plus a bytestring
+    of instruction sizes (one byte per instruction).
 
     Address reconstruction: addr[i] = base_addr + sum(ins_sizes[0:i])
 
@@ -62,13 +61,13 @@ class InsAddrList:
             raise IndexError(idx)
         return self._base_addr + sum(self._ins_sizes[:idx])
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[int]:
         addr = self._base_addr
         for size in self._ins_sizes:
             yield addr
             addr += size
 
-    def __reversed__(self):
+    def __reversed__(self) -> reversed[int]:
         return reversed(list(self))
 
     def __contains__(self, addr) -> bool:
@@ -92,34 +91,19 @@ class InsAddrList:
             return all(a == b for a, b in zip(self, other))
         return NotImplemented
 
-    def __add__(self, other):
+    def __add__(self, other) -> list[int]:
         if isinstance(other, (InsAddrList, list)):
             return list(self) + list(other)
         return NotImplemented
 
-    def __radd__(self, other):
+    def __radd__(self, other) -> list[int]:
         if isinstance(other, list):
             return other + list(self)
         return NotImplemented
 
-    def __iadd__(self, other):
-        if isinstance(other, InsAddrList):
-            if not self._ins_sizes:
-                return InsAddrList(other._base_addr, other._ins_sizes)
-            if not other._ins_sizes:
-                return self
-            # Compute gap: size of last instruction in self = other.base - self's last addr
-            last_addr = self[-1]
-            gap = other._base_addr - last_addr
-            new_sizes = bytearray(self._ins_sizes)
-            new_sizes[-1] = gap & 0xFF
-            new_sizes.extend(other._ins_sizes)
-            return InsAddrList(self._base_addr, bytes(new_sizes))
-        if isinstance(other, (list, tuple)):
-            if not other:
-                return self
-            other_ial = InsAddrList.from_addr_list(other)
-            return self.__iadd__(other_ial)
+    def __iadd__(self, other) -> list[int]:
+        if isinstance(other, (InsAddrList, list)):
+            return list(self) + list(other)
         return NotImplemented
 
     def __repr__(self) -> str:
