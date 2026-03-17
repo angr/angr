@@ -1697,9 +1697,10 @@ class CFGBase(Analysis):
 
         # Remove all nodes that are adjusted
         function_nodes.difference_update(adjusted_cfgnodes)
-        for n in self.graph:
-            if n.addr in tmp_functions or n.addr in removed_functions:
-                function_nodes.add(n)
+        for node_key in self.graph.node_keys:
+            node_addr = block_key_to_addr(node_key)
+            if node_addr in tmp_functions or node_addr in removed_functions:
+                function_nodes.add(self.graph.get_node_by_key(node_key))
 
         # ensure all function nodes are mapped to their function addresses
         for func_addr in predetermined_function_addrs:
