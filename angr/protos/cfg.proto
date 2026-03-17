@@ -22,7 +22,7 @@ message CFGNode {
     uint64          ea = 1; // Address of the node
     uint32          size = 2; // Size of the node
     repeated uint64 block_id = 3; // A unique identifier of the node (for int block_ids)
-    repeated uint64 instr_addrs = 5; // Instruction addresses
+    // repeated uint64 instr_addrs = 5; // Instruction addresses
     optional string simprocedure_name = 6; // Name of the SimProcedure, if any
     optional bool   no_ret = 7; // Whether this node does not return
     optional uint64 function_address = 8; // Address of the function this node belongs to
@@ -30,6 +30,8 @@ message CFGNode {
     optional bytes  byte_string = 10; // Raw bytes of the block
     optional string name = 11; // Display name of the node
     bool            is_syscall = 12; // Whether this is a syscall node
+    uint64          ins_base_addr = 13; // Base address for compact instruction address storage
+    bytes           ins_sizes = 14; // Instruction sizes as bytestring (one byte per instruction)
 }
 
 message CFGENode {
