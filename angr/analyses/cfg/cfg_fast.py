@@ -627,6 +627,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         check_funcret_max_job=500,
         indirect_calls_always_return: bool | None = None,
         jumptable_resolver_resolves_calls: bool | None = None,
+        retedges: bool = False,
         start=None,  # deprecated
         end=None,  # deprecated
         collect_data_references=None,  # deprecated
@@ -694,8 +695,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         :param int start:               (Deprecated) The beginning address of CFG recovery.
         :param int end:                 (Deprecated) The end address of CFG recovery.
         :param CFGArchOptions arch_options: Architecture-specific options.
-        :param dict extra_arch_options: Any key-value pair in kwargs will be seen as an arch-specific option and will
+        :param extra_arch_options:      Any key-value pair in kwargs will be seen as an arch-specific option and will
                                         be used to set the option value in self._arch_options.
+        :param retedges:                Whether to add return edges (from function endpoints to their return sites) in
+                                        the CFG. Return edges are not added by default because they are often not
+                                        useful during analysis; You can set retedges to True or call
+                                        make_return_edges() after CFG recovery to create return edges. Note that this
+                                        option does not impact function graphs.
 
         Extra parameters that angr.Analysis takes:
 
@@ -796,6 +802,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         self._use_eh_frame = eh_frame
         self._use_exceptions = exceptions
         self._check_funcret_max_job = check_funcret_max_job
+        self._retedges = retedges
 
         self._nodecode_window_size = nodecode_window_size
         self._nodecode_threshold = nodecode_threshold
@@ -1964,8 +1971,9 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         # optional: find and mark functions that must be alignments
         self.mark_function_alignments()
 
-        # make return edges
-        self._make_return_edges()
+        if self._retedges:
+            # make return edges
+            self.make_return_edges()
 
         if self.project.arch.name != "Soot" and self.project.loader.main_object.sections:
             # this binary has sections
@@ -4080,7 +4088,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         return callers
 
-    def _make_return_edges(self):
+    def make_return_edges(self):
         """
         For each returning function, create return edges in self.graph.
 
@@ -4101,7 +4109,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             startpoint = self.model.get_any_node(func_meta.startpoint.addr)
             if startpoint is None:
                 # weird...
-                l.warning("No CFGNode is found for function %s in _make_return_edges().", func_addr_str)
+                l.warning("No CFGNode is found for function %s in make_return_edges().", func_addr_str)
                 continue
 
             endpoints = self._get_return_sources(func_meta)
