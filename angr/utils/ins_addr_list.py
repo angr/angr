@@ -18,10 +18,10 @@ class InsAddrList:
 
     def __init__(self, base_addr: int = 0, ins_sizes: bytes | bytearray | list[int] = b""):
         self._base_addr: int = base_addr
-        if isinstance(ins_sizes, (bytes, bytearray)):
+        if isinstance(ins_sizes, (list, bytearray)):
             self._ins_sizes: bytes = bytes(ins_sizes)
         else:
-            self._ins_sizes: bytes = bytes(ins_sizes)
+            self._ins_sizes: bytes = ins_sizes
 
     @classmethod
     def from_addr_list(cls, addrs) -> InsAddrList:
