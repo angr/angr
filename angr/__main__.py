@@ -182,6 +182,8 @@ def disassemble(args):
     Disassemble functions.
     """
     err, show_status = _make_status_console()
+    if not args.pbar:
+        show_status = False
 
     loader_main_opts_kwargs = {}
     if args.base_addr is not None:
@@ -255,6 +257,8 @@ def decompile(args):
     structurer = args.structurer or DEFAULT_STRUCTURER.NAME
     should_highlight = ansi_color_enabled and not args.no_colors
     err, show_status = _make_status_console()
+    if not args.pbar:
+        show_status = False
 
     # Resolve loader args
     loader_main_opts_kwargs = {}
@@ -424,6 +428,14 @@ def main():
     parser.add_argument("--version", action="version", version=angr.__version__)
     parser.add_argument(
         "-v", "--verbose", action="count", default=0, help="Increase verbosity level (can be used multiple times)."
+    )
+    parser.add_argument(
+        "-n",
+        "--nopbar",
+        action="store_false",
+        dest="pbar",
+        default=True,
+        help="Disable progress bars; useful when debugging.",
     )
     subparsers = parser.add_subparsers(metavar="command", required=True)
 
