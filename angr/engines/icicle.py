@@ -60,6 +60,67 @@ def _is_x86_tls_gap(emu, prefix_byte: int, offset_reg: str) -> bool:
     return _effective_segment_prefix(insn_bytes) == prefix_byte
 
 
+def _syscall_insn_len(arch_name: str) -> int:
+    """Return the byte length of the syscall instruction for the given arch."""
+    # x86/x86_64: syscall (0F 05), int 0x80 (CD 80), sysenter (0F 34) are all 2 bytes.
+    if arch_name in ("AMD64", "X86"):
+        return 2
+    # ARM/Thumb SVC is 4 bytes (ARM) or 2 bytes (Thumb), but the icicle PC
+    # already accounts for the instruction, so default to 4 for ARM.
+    if arch_name.startswith("ARM") or arch_name.startswith("AARCH"):
+        return 4
+    # MIPS syscall is 4 bytes
+    if arch_name.startswith("MIPS"):
+        return 4
+    return 4
+
+
+def _ensure_duplex_stdio(state: HeavyConcreteState) -> None:
+    """Replace non-duplex stdio fds with duplex wrappers.
+
+    Concrete code (e.g. glibc) may both read and write any stdio fd.
+    angr's default setup uses a unidirectional SimFileDescriptor for
+    stderr (fd 2), which crashes when the concrete code reads from it.
+    Upgrade any such fds to SimFileDescriptorDuplex so both directions work.
+    """
+    from angr.storage.file import SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
+
+    posix = state.posix
+    for fd_num in (0, 1, 2):
+        fd_obj = posix.fd.get(fd_num)
+        if fd_obj is None or isinstance(fd_obj, SimFileDescriptorDuplex):
+            continue
+        if isinstance(fd_obj, SimFileDescriptor):
+            orig_file = fd_obj.file
+            # Create a companion stream for the missing direction
+            if orig_file.write_mode:
+                # write-only (e.g. stderr) — add an empty read stream
+                read_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_read", write_mode=False)
+                read_file.set_state(state)
+                duplex = SimFileDescriptorDuplex(read_file, orig_file)
+            else:
+                # read-only (e.g. stdin) — add an empty write stream
+                write_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_write", write_mode=True)
+                write_file.set_state(state)
+                duplex = SimFileDescriptorDuplex(orig_file, write_file)
+            duplex.set_state(state)
+            posix.fd[fd_num] = duplex
+
+
+def _syscall_jumpkind(arch_name: str, emu) -> str:
+    """Map icicle's generic Syscall exception to the arch-specific VEX jumpkind."""
+    if arch_name in ("AMD64", "X86"):
+        try:
+            insn = emu.mem_read(emu.pc, 2)
+        except RuntimeError:
+            insn = b""
+        if insn == b"\xcd\x80":
+            return "Ijk_Sys_int128"
+        if insn == b"\x0f\x05":
+            return "Ijk_Sys_syscall"
+    return "Ijk_Sys_syscall"
+
+
 def _is_emulation_gap(emu, exc: ExceptionCode, arch_name: str) -> bool:
     """Determine if an unmapped-memory fault is an emulation gap, not a real crash.
 
@@ -257,15 +318,24 @@ class IcicleEngine(ConcreteEngine):
             size = state.memory.page_size
             perm_bits = state.memory.permissions(addr).concrete_value
             emu.mem_map(addr, size, perm_bits)
-            memory = state.memory.concrete_load(addr, size)
+            memory, bitmap = state.memory.concrete_load(addr, size, with_bitmap=True)
+            if any(bitmap):
+                # Page has symbolic writes (e.g. stack argv/argc from entry_state).
+                # Resolve them through the full memory system so icicle sees
+                # the correct concrete values.
+                memory = state.solver.eval(state.memory.load(addr, size), cast_to=bytes)
             emu.mem_write(addr, memory)
 
             if perm_bits & 2:
                 writable_pages.add(page_num)
 
-        # Add breakpoints for simprocedures
-        for addr in proj._sim_procedures:
-            emu.add_breakpoint(addr)
+        # Add breakpoints for simprocedures, skipping ifunc resolvers
+        # which should run natively in the concrete engine.
+        from angr.procedures.linux_loader.sim_loader import IFuncResolver
+
+        for addr, proc in proj._sim_procedures.items():
+            if not isinstance(proc, IFuncResolver):
+                emu.add_breakpoint(addr)
 
         translation_data = IcicleStateTranslationData(
             base_state=state,
@@ -333,7 +403,12 @@ class IcicleEngine(ConcreteEngine):
             ):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
-                state.history.jumpkind = "Ijk_Syscall"
+                state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
+                # icicle stops AT the syscall instruction; set IP to the
+                # instruction *after* it so that add_successor's syscall
+                # categorisation stores the correct return address into
+                # ip_at_syscall before rewriting IP to the cle##kernel handler.
+                state.regs.ip = emu.pc + _syscall_insn_len(arch_name)
             elif exc == ExceptionCode.Halt:
                 state.history.jumpkind = "Ijk_Exit"
             elif exc == ExceptionCode.InvalidInstruction:
@@ -441,7 +516,9 @@ class IcicleEngine(ConcreteEngine):
         # 3. Copy writable page contents.
         for page_num in writable_pages:
             addr = page_num * page_size
-            memory = state.memory.concrete_load(addr, page_size)
+            memory, bitmap = state.memory.concrete_load(addr, page_size, with_bitmap=True)
+            if any(bitmap):
+                memory = state.solver.eval(state.memory.load(addr, page_size), cast_to=bytes)
             emu.mem_write(addr, memory)
 
         return IcicleStateTranslationData(
@@ -478,6 +555,7 @@ class IcicleEngine(ConcreteEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
+        _ensure_duplex_stdio(state)
         if self._cached_emu is not None and self._snapshot_mode:
             # Fast path: restore snapshot and sync only changed state
             if self._base_translation_data is None:
@@ -502,9 +580,10 @@ class IcicleEngine(ConcreteEngine):
                 if emu.pc != addr and emu.add_breakpoint(addr):
                     added_breakpoints.append(addr)
 
-        # Set the instruction count limit
+        # Set the instruction count limit (icount_limit is absolute, so offset
+        # by the current cpu_icount which may be non-zero after snapshot restore)
         if num_inst is not None and num_inst > 0:
-            emu.icount_limit = num_inst
+            emu.icount_limit = emu.cpu_icount + num_inst
 
         # Reset page modification tracking so only writes during execution
         # are recorded.  This clears per-page modified flags and the global

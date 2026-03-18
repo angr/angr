@@ -16,6 +16,7 @@ pub struct PyExecutorInner<S> {
     apply_fn: Py<PyAny>,
     observers: OT,
     timeout: Option<Duration>,
+    max_icount: Option<u64>,
     cached_engine: Option<Py<PyAny>>,
     phantom: std::marker::PhantomData<S>,
 }
@@ -26,6 +27,7 @@ impl<S> PyExecutorInner<S> {
         apply_fn: Bound<PyAny>,
         observers: OT,
         timeout: Option<Duration>,
+        max_icount: Option<u64>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
             return Err(pyo3::exceptions::PyTypeError::new_err(
@@ -37,6 +39,7 @@ impl<S> PyExecutorInner<S> {
             apply_fn: apply_fn.unbind(),
             observers,
             timeout,
+            max_icount,
             cached_engine: None,
             phantom: std::marker::PhantomData,
         })
@@ -104,9 +107,15 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 emulator.call_method1("add_breakpoint", (return_addr,))?;
                 emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
 
-                let exit = emulator
-                    .getattr("run")?
-                    .call0()?
+                let exit = if let Some(limit) = self.max_icount {
+                    emulator
+                        .getattr("run")?
+                        .call1((limit,))?
+                } else {
+                    emulator
+                        .getattr("run")?
+                        .call0()?
+                }
                     .getattr("name")?
                     .extract::<String>()?;
 

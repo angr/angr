@@ -57,7 +57,45 @@ mov rax, qword ptr fs:[0x10000]
 ret
 """
 
+# Shellcode with a syscall (getpid): exercises syscall jumpkind mapping and return address
+SHELLCODE_WITH_SYSCALL = """
+push rax
+mov eax, 39
+syscall
+pop rcx
+cmp cl, 0x41
+je path_a
+cmp cl, 0x42
+je path_b
+ret
+path_a:
+nop
+ret
+path_b:
+nop
+nop
+ret
+"""
+
+# Shellcode that reads a byte from [rdi]: exercises concrete_load bitmap fallback
+SHELLCODE_READ_MEMORY = """
+movzx eax, byte ptr [rdi]
+cmp al, 0x41
+je path_a
+cmp al, 0x42
+je path_b
+ret
+path_a:
+nop
+ret
+path_b:
+nop
+nop
+ret
+"""
+
 RETURN_ADDR = 0x100
+DATA_ADDR = 0x200
 
 
 def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
@@ -65,6 +103,14 @@ def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-
     state.regs.rax = input[0] if input else 0
     # Set the return address so the executor's breakpoint fires on normal return.
     # Must be inside the binary's mapped region but past the shellcode bytes.
+    cc = state.project.factory.cc()
+    cc.return_addr.set_value(state, RETURN_ADDR)
+
+
+def _apply_fn_memory(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
+    # Store the fuzzed byte at DATA_ADDR and point rdi at it.
+    state.memory.store(DATA_ADDR, bytes([input[0] if input else 0]))
+    state.regs.rdi = DATA_ADDR
     cc = state.project.factory.cc()
     cc.return_addr.set_value(state, RETURN_ADDR)
 
@@ -275,6 +321,38 @@ class TestFuzzer:
         fuzzer.run_once()
         live_solutions = fuzzer.solutions()
         assert len(live_solutions) == 0, "TLS emulation gap should not be classified as a crash"
+
+    def test_syscall_handling(self):
+        """Test that a syscall instruction is handled and execution resumes correctly."""
+        project = angr.load_shellcode(SHELLCODE_WITH_SYSCALL, "amd64")
+        base_state = project.factory.entry_state(
+            add_options={angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL},
+        )
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
+
+    def test_symbolic_memory_visible_in_icicle(self):
+        """Test that state.memory.store() writes are visible to icicle concrete execution."""
+        project = angr.load_shellcode(SHELLCODE_READ_MEMORY, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn_memory, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
 
     def test_concrete_libc_start_main_hook(self):
         """__libc_start_main hook redirects to main through the fuzzer."""
