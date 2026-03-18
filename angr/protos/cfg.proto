@@ -18,6 +18,12 @@ message BlockIDProto {
     string jump_type = 3;
 }
 
+message CFGEdgeData {
+    Edge.JumpKind jumpkind = 1;
+    uint64        ins_addr = 2;
+    int32         stmt_idx = 3;
+}
+
 message CFGNode {
     uint64          ea = 1; // Address of the node
     uint32          size = 2; // Size of the node

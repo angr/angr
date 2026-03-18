@@ -22,7 +22,7 @@ import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
-from angr.protos import primitives_pb2, cfg_pb2
+from angr.protos import cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from .types import K, CFG_ADDR_TYPES
 from .block_id import BlockID
@@ -219,10 +219,10 @@ class SpillingAdjDict(MutableMapping):
 
     @staticmethod
     def _serialize_edge_data(edge_data: dict) -> bytes:
-        """Serialize an edge attribute dict to Edge protobuf bytes."""
-        edge = primitives_pb2.Edge()  # type:ignore
+        """Serialize an edge attribute dict to CFGEdgeData protobuf bytes."""
+        edge = cfg_pb2.CFGEdgeData()  # type:ignore
         jk = cfg_jumpkind_to_pb(edge_data.get("jumpkind"))
-        edge.jumpkind = primitives_pb2.Edge.UnknownJumpkind if jk is None else jk  # type:ignore
+        edge.jumpkind = cfg_pb2.CFGEdgeData.UnknownJumpkind if jk is None else jk  # type:ignore
         v = edge_data.get("ins_addr")
         edge.ins_addr = v if v is not None else 0xFFFF_FFFF_FFFF_FFFF
         v = edge_data.get("stmt_idx")
@@ -231,8 +231,8 @@ class SpillingAdjDict(MutableMapping):
 
     @staticmethod
     def _deserialize_edge_data(data: bytes) -> dict:
-        """Deserialize Edge protobuf bytes to an edge attribute dict."""
-        edge = primitives_pb2.Edge()  # type:ignore
+        """Deserialize CFGEdgeData protobuf bytes to an edge attribute dict."""
+        edge = cfg_pb2.CFGEdgeData()  # type:ignore
         edge.ParseFromString(data)
         return {
             "jumpkind": cfg_jumpkind_from_pb(edge.jumpkind),
