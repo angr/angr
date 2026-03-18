@@ -47,7 +47,9 @@ class CFGManager(KnowledgeBasePlugin):
 
     def new_model(self, prefix, addr_type: str = "int"):
         if prefix not in self.cfgs:
-            return self[prefix]
+            model = self[prefix]
+            model.addr_type = addr_type
+            return model
 
         # find a unique ident
         i = 0
