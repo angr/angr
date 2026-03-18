@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint:disable=no-self-use
 """Test cases for SpillingCFG call destination keys cache."""
 
 from __future__ import annotations
@@ -182,7 +183,7 @@ class TestCallDstCacheNodes(unittest.TestCase):
 
     def test_empty_graph(self):
         g = _make_graph()
-        assert list(g.call_destination_nodes()) == []
+        assert not list(g.call_destination_nodes())
 
 
 class TestCallDstCacheCopy(unittest.TestCase):
