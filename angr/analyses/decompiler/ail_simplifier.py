@@ -1552,7 +1552,14 @@ class AILSimplifier(Analysis):
         def_locations_to_remove: set[AILCodeLocation] = set()
         updated_use_locations: set[AILCodeLocation] = set()
 
-        for eq in equivalence:
+        for eq in sorted(
+            equivalence,
+            key=lambda x: (
+                x.codeloc.block_addr,
+                x.codeloc.block_idx if x.codeloc.block_idx is not None else -1,
+                x.codeloc.stmt_idx,
+            ),
+        ):
             # register variable == Call
             if isinstance(eq.atom0, VirtualVariable) and (eq.atom0.was_reg or eq.atom0.was_tmp):
                 if isinstance(eq.atom1, Call):
