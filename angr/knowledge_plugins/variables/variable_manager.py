@@ -1179,9 +1179,9 @@ class VariableManagerInternal(Serializable):
                             unify(v1, v2)
 
         classes_dedup = {min(p, key=key): p for p in congruence_classes.values()}
-        for exemplar, class_ in classes_dedup.items():
+        for exemplar, class_ in sorted(classes_dedup.items(), key=lambda x: key(x[0])):
             uv = exemplar.copy()
-            for v in class_:
+            for v in sorted(class_, key=lambda v: v.ident or ""):
                 self.set_unified_variable(v, uv)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
