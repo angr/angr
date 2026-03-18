@@ -239,9 +239,14 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
-        # Special case for x86 gs register
-        if state.arch.name == "X86":
-            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+        # Special case for x86 segment registers used for TLS.
+        # Only set segment offsets when the loader actually initialised TLS;
+        # otherwise the register holds a placeholder value from archinfo.
+        if proj is not None and proj.loader.tls.threads:
+            if state.arch.name == "X86":
+                emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+            elif state.arch.name == "AMD64":
+                emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
 
         # 2. Copy the memory contents
 
@@ -292,6 +297,16 @@ class IcicleEngine(ConcreteEngine):
 
         if IcicleEngine.__is_arm(emu.architecture):  # Hack to work around us calling it r15t
             state.registers.store("pc", (emu.pc | 1) if emu.isa_mode == 1 else emu.pc)
+
+        # The register copy above clobbers angr's TLS base (fs/gs) with
+        # icicle's 16-bit segment selector (0).  Restore from FS/GS_OFFSET.
+        arch_name = translation_data.base_state.arch.name
+        if arch_name == "AMD64":
+            with suppress(KeyError):
+                state.regs.fs = emu.reg_read("FS_OFFSET")
+        elif arch_name == "X86":
+            with suppress(KeyError):
+                state.regs.gs = emu.reg_read("GS_OFFSET") >> 16
 
         # 2. Copy only memory pages that were actually modified during execution
         modified_addrs = set(emu.modified_pages)
@@ -370,9 +385,14 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:
             emu.pc = state.addr
 
-        # Special case for x86 gs register
-        if state.arch.name == "X86":
-            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+        # Special case for x86 segment registers used for TLS.
+        # Only set segment offsets when the loader actually initialised TLS;
+        # otherwise the register holds a placeholder value from archinfo.
+        if state.project is not None and state.project.loader.tls.threads:
+            if state.arch.name == "X86":
+                emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+            elif state.arch.name == "AMD64":
+                emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
 
         # 2. Sync only mapping/permission deltas from explicit page changes.
         page_size = state.memory.page_size

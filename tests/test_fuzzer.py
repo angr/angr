@@ -6,6 +6,9 @@ import struct
 import tempfile
 
 import angr
+from angr.procedures.glibc.__libc_start_main import (
+    __libc_start_main as _libc_start_main,
+)
 from angr.rustylib.fuzzer import (
     DeterministicMutator,
     Fuzzer,
@@ -272,6 +275,45 @@ class TestFuzzer:
         fuzzer.run_once()
         live_solutions = fuzzer.solutions()
         assert len(live_solutions) == 0, "TLS emulation gap should not be classified as a crash"
+
+    def test_concrete_libc_start_main_hook(self):
+        """__libc_start_main hook redirects to main through the fuzzer."""
+
+        class _Hook(angr.SimProcedure):
+            NO_RET = True
+
+            def run(self, main, argc, argv, init, fini):
+                main, argc, argv, _, _ = _libc_start_main._extract_args(
+                    self.state, main, argc, argv, init, fini
+                )
+                self.state.regs.rdi = argc
+                self.state.regs.rsi = argv
+                envp = argv + (argc + 1) * self.state.arch.bytes
+                self.state.regs.rdx = envp
+                self.jump(main)
+
+        # Reuse SHELLCODE as "main" — it branches on al
+        project = angr.load_shellcode(SHELLCODE, "amd64")
+
+        # Hook an address within the mapped page as __libc_start_main
+        HOOK_ADDR = 0x200
+        project.hook(HOOK_ADDR, _Hook())
+
+        # Start at the hook; rdi = main (shellcode at 0x0)
+        base_state = project.factory.blank_state(addr=HOOK_ADDR)
+        base_state.regs.rdi = 0
+        base_state.regs.rsi = 1
+        base_state.regs.rdx = 0
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B", b"C"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
 
     def test_vuln_stacksmash_deterministic(self):
         """Test that DeterministicMutator detects a stack buffer overflow in a real binary.
