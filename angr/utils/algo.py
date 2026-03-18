@@ -1,21 +1,24 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from collections.abc import Callable
 
+if TYPE_CHECKING:
+    from collections import deque
 
-def binary_insert(lst: list, elem: Any, key: Callable, lo: int = 0, hi: int | None = None) -> None:
+
+def binary_insert(lst: list | deque, elem: Any, key: Callable, lo: int = 0, hi: int | None = None) -> None:
     """
     Insert an element into a sorted list, and keep the list sorted.
 
     The major difference from bisect.bisect_left is that this function supports a key method, so user doesn't have
     to create the key array for each insertion.
 
-    :param list lst: The list. Must be pre-ordered.
-    :param object element: An element to insert into the list.
-    :param func key: A method to get the key for each element in the list.
-    :param int lo: Lower bound of the search.
-    :param int hi: Upper bound of the search.
-    :return: None
+    :param lst:     The list. Must be pre-ordered.
+    :param element: An element to insert into the list.
+    :param key:     A method to get the key for each element in the list.
+    :param lo:      Lower bound of the search.
+    :param hi:      Upper bound of the search.
+    :return:        None
     """
 
     if lo < 0:
