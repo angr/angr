@@ -1,5 +1,6 @@
 from __future__ import annotations
 from collections.abc import Generator
+from collections.abc import Iterator
 
 
 class InsAddrList:
@@ -67,7 +68,7 @@ class InsAddrList:
             yield addr
             addr += size
 
-    def __reversed__(self) -> reversed[int]:
+    def __reversed__(self) -> Iterator[int]:
         return reversed(list(self))
 
     def __contains__(self, addr) -> bool:
