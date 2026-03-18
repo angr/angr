@@ -1129,6 +1129,15 @@ class VariableManagerInternal(Serializable):
                     return True
         return False
 
+    @staticmethod
+    def _unify_variables_varkey(v_: SimVariable) -> tuple[str, int, str]:
+        """Get a unique key for variable unification."""
+        if isinstance(v_, SimRegisterVariable):
+            return "reg", v_.reg, v_.ident
+        if isinstance(v_, SimStackVariable):
+            return "stack", v_.offset, v_.ident
+        return "none", 0, ""
+
     def unify_variables(self, interference: networkx.Graph[int] | None = None) -> None:
         """
         Map SSA variables to a unified variable. Fill in self._unified_variables.
@@ -1146,16 +1155,6 @@ class VariableManagerInternal(Serializable):
             canon_partition.update(old_partition)
             for v in old_partition:
                 congruence_classes[v] = canon_partition
-
-        def key(vi):
-            v = self._vvarid_to_variable.get(vi, None)
-            if v is None:
-                return ("none", 0)
-            if isinstance(v, SimRegisterVariable):
-                return ("reg", v.reg)
-            if isinstance(v, SimStackVariable):
-                return ("stack", v.offset)
-            return ("none", 0)
 
         if interference is not None:
             # unify variables based on phi nodes
@@ -1181,10 +1180,14 @@ class VariableManagerInternal(Serializable):
                         if not self._variables_interfere(interference, v1, v2):
                             unify(v1, v2)
 
-        classes_dedup = {min(p, key=key): p for p in congruence_classes.values()}
-        for exemplar, class_ in classes_dedup.items():
+        classes_dedup = {
+            min(p, key=VariableManagerInternal._unify_variables_varkey): p for p in congruence_classes.values()
+        }
+        for exemplar, class_ in sorted(
+            classes_dedup.items(), key=lambda x: VariableManagerInternal._unify_variables_varkey(x[0])
+        ):
             uv = exemplar.copy()
-            for v in class_:
+            for v in sorted(class_, key=lambda v: v.ident or ""):
                 self.set_unified_variable(v, uv)
 
     def set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
