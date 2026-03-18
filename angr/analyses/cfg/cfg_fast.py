@@ -27,6 +27,7 @@ from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key, block_key_to_
 from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.codenode import HookNode, FuncNode
+from angr.utils.ins_addr_list import InsAddrList
 from angr import sim_options as o
 from angr.errors import (
     AngrCFGError,
@@ -2630,7 +2631,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 # and this next part will fail. Use the real IRSB instead
                 irsb = self._lift(cfg_node.addr, size=cfg_node.size).vex
                 assert irsb is not None
-                cfg_node.instruction_addrs = irsb.instruction_addresses
+                cfg_node.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
                 resolved, resolved_targets, ij = self._indirect_jump_encountered(
                     addr, cfg_node, irsb, current_function_addr, stmt_idx
                 )
@@ -3176,7 +3177,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 self._add_data_reference(irsb_addr, stmt_idx_, insn_addr, val, data_size=data_size, data_type=data_type)
 
         # get all instruction addresses
-        instr_addrs = irsb.instruction_addresses
+        instr_addrs = list(irsb.instruction_addresses)
 
         # ARM-only: we need to simulate temps and registers to handle addresses that are coming from constant pools
         regs = {}

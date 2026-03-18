@@ -11,6 +11,7 @@ from angr.codenode import BlockNode, HookNode, SyscallNode
 from angr.engines.successors import SimSuccessors
 from angr.serializable import Serializable
 from angr.protos import cfg_pb2
+from angr.utils.ins_addr_list import InsAddrList
 from .block_id import BlockID
 
 if TYPE_CHECKING:
@@ -110,7 +111,12 @@ class CFGNode(Serializable):
             self._name = repr(addr)
         else:
             self._name = simprocedure_name
-        self.instruction_addrs = list(instruction_addrs) if instruction_addrs is not None else []
+        if isinstance(instruction_addrs, InsAddrList):
+            self.instruction_addrs = instruction_addrs
+        elif instruction_addrs is not None:
+            self.instruction_addrs = InsAddrList.from_addr_list(list(instruction_addrs))
+        else:
+            self.instruction_addrs = InsAddrList()
 
         if is_syscall is not None:
             self._is_syscall = is_syscall
@@ -124,7 +130,7 @@ class CFGNode(Serializable):
 
         if not instruction_addrs and not self.is_simprocedure and irsb is not None:
             # We have to collect instruction addresses by ourselves
-            self.instruction_addrs = irsb.instruction_addresses
+            self.instruction_addrs = InsAddrList.from_addr_list(irsb.instruction_addresses)
 
         self.irsb = None
         self.soot_block = soot_block
@@ -279,7 +285,9 @@ class CFGNode(Serializable):
         obj = self._get_cmsg()
         obj.ea = self.addr
         obj.size = self.size
-        obj.instr_addrs.extend(self.instruction_addrs)
+        assert isinstance(self.instruction_addrs, InsAddrList)
+        obj.ins_base_addr = self.instruction_addrs.base_addr
+        obj.ins_sizes = self.instruction_addrs.ins_sizes
         if self.block_id is not None:
             if type(self.block_id) is int:
                 obj.block_id.append(self.block_id)  # pylint:disable=no-member
@@ -302,7 +310,7 @@ class CFGNode(Serializable):
     @classmethod
     def parse_from_cmessage(cls, cmsg, cfg=None):  # pylint:disable=arguments-differ
         block_id = None if len(cmsg.block_id) == 0 else cmsg.block_id[0]
-        instruction_addrs = None if not cmsg.instr_addrs else list(cmsg.instr_addrs)
+        instruction_addrs = InsAddrList(cmsg.ins_base_addr, cmsg.ins_sizes)
 
         node = cls(
             cmsg.ea,
@@ -383,7 +391,7 @@ class CFGNode(Serializable):
         """
         new_node = self.copy()
         new_node._size += other.size
-        new_node.instruction_addrs += other.instruction_addrs
+        new_node.instruction_addrs.extend(other.instruction_addrs)
         # FIXME: byte_string should never be none, but it is sometimes
         # like, for example, patcherex test_cfg.py:test_fullcfg_properties
         if new_node.byte_string is None or other.byte_string is None:
@@ -588,7 +596,9 @@ class CFGENode(CFGNode):
         base = obj.base
         base.ea = self.addr
         base.size = self.size
-        base.instr_addrs.extend(self.instruction_addrs)
+        assert isinstance(self.instruction_addrs, InsAddrList)
+        base.ins_base_addr = self.instruction_addrs.base_addr
+        base.ins_sizes = self.instruction_addrs.ins_sizes
         if self.simprocedure_name is not None:
             base.simprocedure_name = self.simprocedure_name
         base.no_ret = self.no_ret
@@ -651,8 +661,7 @@ class CFGENode(CFGNode):
             callsite_tuples = None
         block_id = BlockID(bid.addr, callsite_tuples, bid.jump_type)
 
-        instruction_addrs = list(base.instr_addrs) if base.instr_addrs else None
-
+        instruction_addrs = InsAddrList(base.ins_base_addr, base.ins_sizes)
         callstack_key = None
         if cmsg.callstack_key:
             callstack_key = tuple(entry.value if entry.has_value else None for entry in cmsg.callstack_key)

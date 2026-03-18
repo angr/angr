@@ -9,6 +9,7 @@ from archinfo import Arch, ArchARM
 
 from .protos import primitives_pb2 as pb2
 from .serializable import Serializable
+from .utils.ins_addr_list import InsAddrList
 
 try:
     from .engines import pcode
@@ -263,7 +264,7 @@ class Block(Serializable):
         self._const_prop = const_prop
 
         self._instructions: int | None = num_inst
-        self._instruction_addrs: list[int] = []
+        self._instruction_addrs: InsAddrList = InsAddrList()
 
         self._bytes = byte_string
         self.size = size
@@ -310,7 +311,7 @@ class Block(Serializable):
     def _parse_vex_info(self, vex_block):
         if vex_block is not None:
             self._instructions = vex_block.instructions
-            self._instruction_addrs = vex_block.instruction_addresses
+            self._instruction_addrs = InsAddrList.from_addr_list(vex_block.instruction_addresses)
             self.size = vex_block.size
 
     def __repr__(self):
