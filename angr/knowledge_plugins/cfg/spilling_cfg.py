@@ -757,6 +757,7 @@ class SpillingCFG:
             db_batch_size=db_batch_size,
         )
         self._keys_by_addr: dict[int, set[K]] = defaultdict(set)
+        self._call_dst_keys: set[K] = set()
         self._out_degree_cache: dict[K, int] = {}
         self._spilling_enabled = cache_limit is not None
         self._edge_spilling_enabled = edge_cache_limit is not None
@@ -816,6 +817,23 @@ class SpillingCFG:
         if not self._keys_by_addr.get(node.addr):
             self._keys_by_addr.pop(node.addr, None)
         if block_key in self._graph:
+            # Update call destination cache: remove this node as a destination
+            self._call_dst_keys.discard(block_key)
+            # For each outgoing call edge, check if the successor loses all incoming call edges
+            for _, succ_key, edata in self._graph.out_edges(block_key, data=True):
+                ejk = edata.get("jumpkind", "")
+                if (ejk == "Ijk_Call" or ejk.startswith("Ijk_Sys")) and succ_key in self._call_dst_keys:
+                    has_other_call = False
+                    for pred_key, _, pred_edata in self._graph.in_edges(succ_key, data=True):
+                        if pred_key == block_key:
+                            continue
+                        pjk = pred_edata.get("jumpkind", "")
+                        if pjk == "Ijk_Call" or pjk.startswith("Ijk_Sys"):
+                            has_other_call = True
+                            break
+                    if not has_other_call:
+                        self._call_dst_keys.discard(succ_key)
+
             # Decrement out_degree_cache for each predecessor
             for pred_key in self._graph.predecessors(block_key):
                 if pred_key in self._out_degree_cache:
@@ -878,9 +896,33 @@ class SpillingCFG:
         if not has_edge:
             self._out_degree_cache[src_block_key] = self._out_degree_cache.get(src_block_key, 0) + 1
 
+        # Track call destination keys
+        jumpkind = attr.get("jumpkind", "")
+        if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
+            self._call_dst_keys.add(dst_block_key)
+
     def remove_edge(self, src: CFGNode, dst: CFGNode) -> None:
         src_block_key = get_block_key(src)
         dst_block_key = get_block_key(dst)
+
+        # Update call destination cache before removing the edge
+        if dst_block_key in self._call_dst_keys:
+            edge_data = self._graph.get_edge_data(src_block_key, dst_block_key)
+            if edge_data is not None:
+                jk = edge_data.get("jumpkind", "")
+                if jk == "Ijk_Call" or jk.startswith("Ijk_Sys"):
+                    # Check if dst has any other incoming call edges
+                    has_other_call = False
+                    for pred_key, _, edata in self._graph.in_edges(dst_block_key, data=True):
+                        if pred_key == src_block_key:
+                            continue
+                        ejk = edata.get("jumpkind", "")
+                        if ejk == "Ijk_Call" or ejk.startswith("Ijk_Sys"):
+                            has_other_call = True
+                            break
+                    if not has_other_call:
+                        self._call_dst_keys.discard(dst_block_key)
+
         self._graph.remove_edge(src_block_key, dst_block_key)
         if src_block_key in self._out_degree_cache:
             self._out_degree_cache[src_block_key] -= 1
@@ -902,6 +944,20 @@ class SpillingCFG:
     def edges(self) -> _EdgeView:
         """Return a view of edges supporting len(), iteration, and call with data=True."""
         return _EdgeView(self)
+
+    #
+    # Call destination cache
+    #
+
+    @property
+    def call_destination_keys(self) -> set[K]:
+        """Return the set of block keys that are destinations of call/syscall edges."""
+        return self._call_dst_keys
+
+    def call_destination_nodes(self) -> Iterator[CFGNode]:
+        """Yield CFGNode for each call/syscall destination."""
+        for key in self._call_dst_keys:
+            yield self.get_node_by_key(key)
 
     #
     # Neighbor operations
@@ -980,6 +1036,7 @@ class SpillingCFG:
         new_graph._keys_by_addr = defaultdict(set)
         for addr, keys in self._keys_by_addr.items():
             new_graph._keys_by_addr[addr] = set(keys)
+        new_graph._call_dst_keys = set(self._call_dst_keys)
         new_graph._graph = self._graph.copy()
         new_graph._out_degree_cache = dict(self._out_degree_cache)
 
@@ -1019,6 +1076,7 @@ class SpillingCFG:
         Load graph structure from a networkx DiGraph with CFGNode instances as nodes.
         """
         self._out_degree_cache.clear()
+        self._call_dst_keys.clear()
         self._graph.clear()
         self._nodes.clear()
 
@@ -1107,3 +1165,10 @@ class SpillingCFG:
         self._out_degree_cache = {}
         for key, deg in self._graph.out_degree():
             self._out_degree_cache[key] = deg
+
+        # rebuild call destination keys cache from edges
+        self._call_dst_keys = set()
+        for _, dst_key, edata in self._graph.edges(data=True):
+            jk = edata.get("jumpkind", "")
+            if jk == "Ijk_Call" or jk.startswith("Ijk_Sys"):
+                self._call_dst_keys.add(dst_key)
