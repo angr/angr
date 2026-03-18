@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 # pylint: disable=import-outside-toplevel
-from collections import defaultdict
+from collections import defaultdict, deque
 from typing import Any, Generic, TypeVar, TYPE_CHECKING
 from collections.abc import Callable
 
@@ -83,7 +83,7 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
         self._should_abort = False
 
         # All remaining jobs
-        self._job_info_queue: list[JobInfo[JobType, JobKey]] = []
+        self._job_info_queue: deque[JobInfo[JobType, JobKey]] = deque()
 
         # A map between job key to job. Jobs with the same key will be merged by calling _merge_jobs()
         self._job_map: dict[JobKey, JobInfo[JobType, JobKey]] = {}
@@ -412,13 +412,13 @@ class ForwardAnalysis(Generic[AnalysisState, NodeType, JobType, JobKey, Successo
                 continue
             except AngrSkipJobNotice:
                 # consume and skip this job
-                self._job_info_queue.pop(0)
+                self._job_info_queue.popleft()
                 self._job_map.pop(self._job_key(job_info.job), None)
                 continue
 
             # remove the job info from the map
             self._job_map.pop(self._job_key(job_info.job), None)
-            self._job_info_queue.pop(0)
+            self._job_info_queue.popleft()
 
             self._process_job_and_get_successors(job_info)
 
