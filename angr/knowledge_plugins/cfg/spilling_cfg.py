@@ -59,7 +59,6 @@ class SpillingCFGNodeDict:
     ):
         self._data: dict[K, CFGNode] = {}
         self._spilled_keys: set[K] = set()
-        self._all_keys: set[K] = set()  # all_keys == _data.keys() | _spilled_keys, used for iteration
 
         self._cache_limit: int = cache_limit
         self._db_batch_size: int = db_batch_size
@@ -112,20 +111,19 @@ class SpillingCFGNodeDict:
             del self._data[block_key]
         # Remove from spilled set if present
         self._spilled_keys.discard(block_key)
-        self._all_keys.discard(block_key)
         # Remove from LRU order
         if block_key in self._lru_order:
             del self._lru_order[block_key]
 
     def __contains__(self, block_key: K) -> bool:
-        return block_key in self._all_keys
+        return block_key in self._data or block_key in self._spilled_keys
 
     def __len__(self) -> int:
-        return len(self._all_keys)
+        return len(self._data) + len(self._spilled_keys)
 
     def __iter__(self) -> Iterator[K]:
         # Iterate over all block_keys
-        yield from self._all_keys
+        yield from list(self._data) + list(self._spilled_keys)
 
     def get(self, block_key: K, default: CFGNode | None = None) -> CFGNode | None:
         try:
@@ -148,7 +146,6 @@ class SpillingCFGNodeDict:
         self._data.clear()
         self._lru_order.clear()
         self._spilled_keys.clear()
-        self._all_keys.clear()
         self._cleanup_lmdb()
 
     def copy(self) -> SpillingCFGNodeDict:
@@ -160,8 +157,6 @@ class SpillingCFGNodeDict:
         )
         # Temporarily disable eviction during copy
         new_dict._eviction_enabled = False
-
-        new_dict._all_keys = set(self._all_keys)
 
         # Copy in-memory nodes
         for block_key, node in self._data.items():
@@ -221,7 +216,7 @@ class SpillingCFGNodeDict:
 
     @property
     def total_count(self) -> int:
-        return len(self._all_keys)
+        return len(self._spilled_keys) + len(self._data)
 
     def is_cached(self, block_key: K) -> bool:
         return block_key in self._data
@@ -237,7 +232,6 @@ class SpillingCFGNodeDict:
             self._lru_order[block_key] = None
 
     def _on_node_stored(self, block_key: K) -> None:
-        self._all_keys.add(block_key)
         self._touch(block_key)
         self._spilled_keys.discard(block_key)
 
@@ -423,7 +417,6 @@ class SpillingCFGNodeDict:
         self._cfg_model_ref = None
         self._lru_order = OrderedDict()
         self._spilled_keys = set()
-        self._all_keys = set()
         self._nodesdb = None
         self._eviction_enabled = True
         self._loading_from_lmdb = False
