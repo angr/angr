@@ -22,6 +22,10 @@ from angr.utils.formatting import ansi_color_enabled
 if TYPE_CHECKING:
     from angr.knowledge_plugins.functions import Function
 
+pdb = __import__("pdb")
+with contextlib.suppress(ImportError):
+    pdb = __import__("ipdb")
+
 
 log = logging.getLogger(__name__)
 
@@ -217,7 +221,9 @@ def disassemble(args):
                     disasm = proj.analyses.Disassembly(func)
                     text = disasm.render(show_bytes=True, min_edge_depth=10)
                 except Exception as e:  # pylint:disable=broad-exception-caught
-                    if not args.catch_exceptions:
+                    if args.pdb:
+                        pdb.post_mortem(e.__traceback__)
+                    elif not args.catch_exceptions:
                         raise
                     exception_string = str(e).replace("\n", " ")
 
@@ -344,7 +350,9 @@ def decompile(args):
                             progress_callback=progress_cb,  # pyright: ignore[reportCallIssue]
                         )
                 except Exception as e:  # pylint:disable=broad-exception-caught
-                    if not args.catch_exceptions:
+                    if args.pdb:
+                        pdb.post_mortem(e.__traceback__)
+                    elif not args.catch_exceptions:
                         raise
                     exception_string = str(e).replace("\n", " ")
 
@@ -390,6 +398,14 @@ def _add_common_args(subparser):
         help="""
         Catch exceptions during analysis. The scope of error handling may depend on the command used for analysis.
         If multiple functions are specified for analysis, each function will be handled individually.""",
+        action="store_true",
+        default=False,
+    )
+    subparser.add_argument(
+        "--pdb",
+        help="""
+        Implies --catch-exceptions, and also launches a postmortem debug shell when we catch one.
+        """,
         action="store_true",
         default=False,
     )
