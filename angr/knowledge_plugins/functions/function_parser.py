@@ -276,33 +276,31 @@ class FunctionParser:
         edges = {}
         fake_return_edges = defaultdict(list)
         for edge_cmsg in cmsg.graph.edges:
-            try:
-                src = FunctionParser._get_block_or_func(
+            if edge_cmsg.src_ea in blocks:
+                src = blocks[edge_cmsg.src_ea]
+            else:
+                src = FunctionParser._get_hook_or_func_node(
                     edge_cmsg.src_ea,
-                    blocks,
                     external_blocks,
                     external_func_addrs,
                     project,
                 )
-            except KeyError as err:
-                raise KeyError(f"Address of the edge source {edge_cmsg.src_ea:#x} is not found.") from err
 
             edge_type = func_edge_type_from_pb(edge_cmsg.jumpkind)
             assert edge_type is not None
 
-            try:
-                if edge_type == "call":
-                    dst = FuncNode(edge_cmsg.dst_ea)
+            if edge_type == "call":
+                dst = FuncNode(edge_cmsg.dst_ea)
+            else:
+                if edge_cmsg.dst_ea in blocks:
+                    dst = blocks[edge_cmsg.dst_ea]
                 else:
-                    dst = FunctionParser._get_block_or_func(
+                    dst = FunctionParser._get_hook_or_func_node(
                         edge_cmsg.dst_ea,
-                        blocks,
                         external_blocks,
                         external_func_addrs,
                         project,
                     )
-            except KeyError as err:
-                raise KeyError(f"Address of the edge destination {edge_cmsg.dst_ea:#x} is not found.") from err
 
             data = {
                 "outside": edge_cmsg.is_outside,
@@ -409,14 +407,8 @@ class FunctionParser:
         return obj
 
     @staticmethod
-    def _get_block_or_func(addr, blocks, external_blocks: dict, external_func_addrs: set[int], project):
-        # should we get a block or a function?
-        try:
-            return blocks[addr]
-            # it's a block. just return it
-        except KeyError:
-            pass
-
+    def _get_hook_or_func_node(addr, external_blocks: dict, external_func_addrs: set[int], project):
+        # should we get a hook node, a func node, or a block in external_blocks?
         if addr in external_func_addrs:
             if project is not None and project.is_hooked(addr):
                 # get a hook node instead
@@ -428,8 +420,8 @@ class FunctionParser:
             return external_blocks[addr]
 
         raise ValueError(
-            "Unsupported case: The block %#x is not in local or external blocks. "
-            "This probably indicates a bug in angrdb generation."
+            f"Unsupported case: The block addr {addr:#x} is not an external function or block. "
+            f"This probably indicates a bug in angrdb generation."
         )
 
     @staticmethod
