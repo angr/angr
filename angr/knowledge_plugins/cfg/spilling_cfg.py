@@ -883,6 +883,9 @@ class SpillingCFG:
         self._nodes[src_block_key] = src
         self._nodes[dst_block_key] = dst
 
+        self.add_edge_by_key(src_block_key, dst_block_key, **attr)
+
+    def add_edge_by_key(self, src_block_key: K, dst_block_key: K, **attr) -> None:
         # Ensure nodes exist in the graph structure
         if src_block_key not in self._graph:
             self._graph.add_node(src_block_key)

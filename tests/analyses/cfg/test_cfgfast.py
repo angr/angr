@@ -26,21 +26,21 @@ def cstring_to_unicode_string(cstr: bytes) -> bytes:
 
 
 class TestCfgfast(unittest.TestCase):
-    def cfg_fast_functions_check(self, arch, binary_path, func_addrs, func_features):
+    def cfg_fast_functions_check(self, arch: str, binary_path: str, func_addrs: set[int], func_features: dict):
         """
         Generate a fast CFG on the given binary, and test if all specified functions are found
 
-        :param str arch: the architecture, will be prepended to `binary_path`
-        :param str binary_path: path to the binary under the architecture directory
-        :param dict func_addrs: A collection of function addresses that should be recovered
-        :param dict func_features: A collection of features for some of the functions
+        :param arch: the architecture, will be prepended to `binary_path`
+        :param binary_path: path to the binary under the architecture directory
+        :param func_addrs: A collection of function addresses that should be recovered
+        :param func_features: A collection of features for some of the functions
         :return: None
         """
 
         path = os.path.join(test_location, arch, binary_path)
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
         assert set(cfg.kb.functions.keys()).issuperset(func_addrs)
 
         for func_addr, feature_dict in func_features.items():
@@ -66,20 +66,20 @@ class TestCfgfast(unittest.TestCase):
             if returning != "undefined":
                 assert cfg.kb.functions.function(addr=func_addr).returning is returning
 
-    def cfg_fast_edges_check(self, arch, binary_path, edges):
+    def cfg_fast_edges_check(self, arch: str, binary_path: str, edges: set[tuple[int, int]]):
         """
         Generate a fast CFG on the given binary, and test if all edges are found.
 
-        :param str arch: the architecture, will be prepended to `binary_path`
-        :param str binary_path: path to the binary under the architecture directory
-        :param list edges: a list of edges
+        :param arch: the architecture, will be prepended to `binary_path`
+        :param binary_path: path to the binary under the architecture directory
+        :param edges: a list of edges
         :return: None
         """
 
         path = os.path.join(test_location, arch, binary_path)
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         for src, dst in edges:
             src_node = cfg.model.get_any_node(src)
@@ -157,7 +157,7 @@ class TestCfgfast(unittest.TestCase):
 
         # nothing should prevent us from finish creating the CFG
 
-    def test_fauxware_function_feauters_x86_64(self):
+    def test_fauxware_function_features_x86_64(self):
         functions = {
             0x4004E0,
             0x400510,
@@ -495,7 +495,7 @@ class TestCfgfast(unittest.TestCase):
         path = os.path.join(test_location, "i386", "fauxware_pie")
         proj = angr.Project(path, load_options={"auto_load_libs": False})
 
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         # puts
         puts_node = cfg.model.get_any_node(0x4005B0)
@@ -575,6 +575,7 @@ class TestCfgfast(unittest.TestCase):
             symbols=False,
             detect_tail_calls=True,
             data_references=True,
+            retedges=True,
         )
 
         all_func_addrs = set(cfg.functions.keys())
@@ -746,7 +747,7 @@ class TestCfgfast(unittest.TestCase):
 
         path = os.path.join(test_location, "armel", "start_ordering")
         proj = angr.Project(path, auto_load_libs=False)
-        cfg = proj.analyses.CFGFast()
+        cfg = proj.analyses.CFGFast(retedges=True)
 
         # if ordering is incorrect, edge to function 0x103D4 will not exist
         n = cfg.model.get_any_node(proj.entry)
