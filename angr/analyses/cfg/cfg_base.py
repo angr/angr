@@ -1661,10 +1661,8 @@ class CFGBase(Analysis):
         function_nodes = set()
 
         # Find nodes for beginnings of all functions
-        for _, dst, data in self.graph.edges(data=True):
-            jumpkind = data.get("jumpkind", "")
-            if jumpkind == "Ijk_Call" or jumpkind.startswith("Ijk_Sys"):
-                function_nodes.add(dst)
+        for node in self.graph.call_destination_nodes():
+            function_nodes.add(node)
 
         entry_node = self.model.get_any_node(self._binary.entry, force_fastpath=True)
         if entry_node is not None:
