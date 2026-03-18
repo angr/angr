@@ -1147,15 +1147,12 @@ class VariableManagerInternal(Serializable):
             for v in old_partition:
                 congruence_classes[v] = canon_partition
 
-        def key(vi):
-            v = self._vvarid_to_variable.get(vi, None)
-            if v is None:
-                return ("none", 0)
-            if isinstance(v, SimRegisterVariable):
-                return ("reg", v.reg)
-            if isinstance(v, SimStackVariable):
-                return ("stack", v.offset)
-            return ("none", 0)
+        def key(v_: SimVariable) -> tuple[str, int]:
+            if isinstance(v_, SimRegisterVariable):
+                return "reg", v_.reg
+            if isinstance(v_, SimStackVariable):
+                return "stack", v_.offset
+            return "none", 0
 
         if interference is not None:
             # unify variables based on phi nodes
