@@ -18,7 +18,7 @@ from angr.utils.graph import GraphUtils
 from angr.analyses import AnalysesHub
 from angr import BP, BP_BEFORE, BP_AFTER, SIM_PROCEDURES, procedures
 from angr import options as o
-from angr.codenode import BlockNode
+from angr.codenode import BlockNode, FuncNode
 from angr.engines.procedure import ProcedureEngine
 from angr.exploration_techniques.loop_seer import LoopSeer
 from angr.exploration_techniques.slicecutor import Slicecutor
@@ -1125,8 +1125,8 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
 
         self._make_completed_functions()
         new_changes = self._iteratively_analyze_function_features()
-        functions_do_not_return = new_changes["functions_do_not_return"]
-        self._update_function_callsites(functions_do_not_return)
+        funcaddrs_do_not_return = new_changes["functions_do_not_return"]
+        self._update_function_callsites(funcaddrs_do_not_return)
 
         # Create all pending edges
         for _, edges in self._pending_edges.items():
@@ -1641,9 +1641,9 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                 # - Job pended by an unknown function
 
                 new_changes = self._iteratively_analyze_function_features()
-                functions_do_not_return = new_changes["functions_do_not_return"]
+                funcaddrs_do_not_return = new_changes["functions_do_not_return"]
 
-                self._update_function_callsites(functions_do_not_return)
+                self._update_function_callsites(funcaddrs_do_not_return)
 
                 if not self._clean_pending_exits():
                     # no more pending exits are removed. we are good to go!
@@ -2183,27 +2183,28 @@ class CFGEmulated(ForwardAnalysis, CFGBase):  # pylint: disable=abstract-method
                     stmt_idx=stmt_idx,
                 )
 
-    def _update_function_callsites(self, noreturns):
+    def _update_function_callsites(self, noreturns: set[int]):
         """
         Update the callsites of functions (remove return targets) that are calling functions that are just deemed not
         returning.
 
-        :param iterable func_addrs: A collection of functions for newly-recovered non-returning functions.
+        :param iterable noreturns:  A collection of functions for newly-recovered non-returning functions.
         :return:                    None
         """
 
-        for callee_func in noreturns:
+        for callee_func_addr in noreturns:
             # consult the callgraph to find callers of each function
-            if callee_func.addr not in self.functions.callgraph:
+            if callee_func_addr not in self.functions.callgraph:
                 continue
-            caller_addrs = self.functions.callgraph.predecessors(callee_func.addr)
+            caller_addrs = self.functions.callgraph.predecessors(callee_func_addr)
             for caller_addr in caller_addrs:
                 caller = self.functions[caller_addr]
-                if callee_func not in caller.transition_graph:
+                callee_funcnode = FuncNode(callee_func_addr)
+                if callee_funcnode not in caller.transition_graph:
                     continue
-                callsites = caller.transition_graph.predecessors(callee_func)
+                callsites = caller.transition_graph.predecessors(callee_funcnode)
                 for callsite in callsites:
-                    caller._add_call_site(callsite.addr, callee_func.addr, None)
+                    caller._add_call_site(callsite.addr, callee_func_addr, None)
 
     def _add_additional_edges(self, input_state, sim_successors, cfg_node, successors):
         """

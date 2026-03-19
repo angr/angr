@@ -1171,10 +1171,10 @@ class CFGBase(Analysis):
 
             if returning:
                 func.returning = True
-                changes["functions_return"].append(func)
+                changes["functions_return"].append(func.addr)
             elif returning is False:
                 func.returning = False
-                changes["functions_do_not_return"].append(func)
+                changes["functions_do_not_return"].append(func.addr)
 
             if returning is not None and func.addr in functions.callgraph:
                 # Add all callers of this function to all_functions list
@@ -1187,12 +1187,11 @@ class CFGBase(Analysis):
 
         return changes
 
-    def _iteratively_analyze_function_features(self, all_funcs_completed=False):
+    def _iteratively_analyze_function_features(self, all_funcs_completed=False) -> dict[str, set[int]]:
         """
         Iteratively analyze function features until a fixed point is reached.
 
         :return: the "changes" dict
-        :rtype:  dict
         """
 
         changes = {"functions_do_not_return": set(), "functions_return": set()}

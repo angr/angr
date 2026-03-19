@@ -3936,10 +3936,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             if not new_returning_functions and not new_not_returning_functions:
                 break
 
-            for returning_function in new_returning_functions:
-                self._pending_jobs.add_returning_function(returning_function.addr)
-                if returning_function.addr in self._function_returns:
-                    for fr in self._function_returns[returning_function.addr]:
+            for returning_function_addr in new_returning_functions:
+                self._pending_jobs.add_returning_function(returning_function_addr)
+                if returning_function_addr in self._function_returns:
+                    for fr in self._function_returns[returning_function_addr]:
                         # Confirm them all
                         if not self.kb.functions.contains_addr(fr.caller_func_addr):
                             # FIXME: A potential bug might arise here. After post processing (phase 2), if the function
@@ -3961,12 +3961,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                             fr.caller_func_addr, fr.callee_func_addr, return_to_snippet
                         )
 
-                    del self._function_returns[returning_function.addr]
+                    del self._function_returns[returning_function_addr]
 
-            for nonreturning_function in new_not_returning_functions:
-                self._pending_jobs.add_nonreturning_function(nonreturning_function.addr)
-                if nonreturning_function.addr in self._function_returns:
-                    for fr in self._function_returns[nonreturning_function.addr]:
+            for nonreturning_function_addr in new_not_returning_functions:
+                self._pending_jobs.add_nonreturning_function(nonreturning_function_addr)
+                if nonreturning_function_addr in self._function_returns:
+                    for fr in self._function_returns[nonreturning_function_addr]:
                         # Remove all pending FakeRet edges
                         if (
                             self.kb.functions.contains_addr(fr.caller_func_addr)
@@ -3974,7 +3974,7 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                         ):
                             self._updated_nonreturning_functions.add(fr.caller_func_addr)
 
-                    del self._function_returns[nonreturning_function.addr]
+                    del self._function_returns[nonreturning_function_addr]
 
     def _pop_pending_job(self, returning=True) -> CFGJob | None:
         while self._pending_jobs:
