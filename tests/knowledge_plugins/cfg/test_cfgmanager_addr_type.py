@@ -13,13 +13,13 @@ class TestCFGManagerNewCFGModelAddrType(TestCase):
 
     def test_new_model_first_call_sets_addr_type(self):
         """new_model should set addr_type even when the prefix doesn't exist yet (first call)."""
-        manager = CFGManager(None)
+        manager = CFGManager(None)  # type: ignore
         model = manager.new_model("CFGEmulated", addr_type="block_id")
         assert model.addr_type == "block_id"
 
     def test_new_model_second_call_sets_addr_type(self):
         """new_model should set addr_type when the prefix already exists (subsequent calls)."""
-        manager = CFGManager(None)
+        manager = CFGManager(None)  # type: ignore
         # first call
         manager.new_model("CFGEmulated", addr_type="block_id")
         # second call
@@ -28,7 +28,7 @@ class TestCFGManagerNewCFGModelAddrType(TestCase):
 
     def test_graph_addr_type_matches_model(self):
         """The SpillingCFG and underlying SpillingDiGraph should inherit addr_type from the model."""
-        manager = CFGManager(None)
+        manager = CFGManager(None)  # type: ignore
         model = manager.new_model("CFGEmulated", addr_type="block_id")
         assert model.graph.addr_type == "block_id"
         assert model.graph._graph.addr_type == "block_id"

@@ -1,10 +1,14 @@
 from __future__ import annotations
 from collections import defaultdict
+from typing import TYPE_CHECKING
 
 from archinfo.arch_arm import is_arm_arch
 
 from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 from .cfg_model import CFGModel
+
+if TYPE_CHECKING:
+    from .cfg_model import CFG_ADDR_TYPES
 
 
 class CFGManager(KnowledgeBasePlugin):
@@ -45,7 +49,7 @@ class CFGManager(KnowledgeBasePlugin):
     def __setitem__(self, ident, model):
         self.cfgs[ident] = model
 
-    def new_model(self, prefix, addr_type: str = "int"):
+    def new_model(self, prefix, addr_type: CFG_ADDR_TYPES = "int"):
         if prefix not in self.cfgs:
             model = self[prefix]
             model.addr_type = addr_type

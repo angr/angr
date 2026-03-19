@@ -686,7 +686,7 @@ def block_key_to_addr(block_key: CFGNODE_K | CFGENODE_K) -> int: ...
 def block_key_to_addr(block_key: SOOTNODE_K) -> SootAddressDescriptor: ...
 
 
-def block_key_to_addr(block_key: K) -> int:
+def block_key_to_addr(block_key: K) -> int | SootAddressDescriptor:
     """Extract the address from a block key."""
     if isinstance(block_key, SootAddressDescriptor):
         return block_key
@@ -719,6 +719,8 @@ class SpillingCFG:
     addr_type must be "int", "block_id", or "soot". You can change addr_type before the first node is inserted but not
     after, since it affects how keys are serialized and deserialized.
     """
+
+    _addr_type: CFG_ADDR_TYPES
 
     def __init__(
         self,
