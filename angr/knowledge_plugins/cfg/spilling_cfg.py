@@ -686,7 +686,7 @@ def block_key_to_addr(block_key: CFGNODE_K | CFGENODE_K) -> int: ...
 def block_key_to_addr(block_key: SOOTNODE_K) -> SootAddressDescriptor: ...
 
 
-def block_key_to_addr(block_key: K) -> int:
+def block_key_to_addr(block_key: K) -> int | SootAddressDescriptor:
     """Extract the address from a block key."""
     if isinstance(block_key, SootAddressDescriptor):
         return block_key
@@ -719,6 +719,8 @@ class SpillingCFG:
     addr_type must be "int", "block_id", or "soot". You can change addr_type before the first node is inserted but not
     after, since it affects how keys are serialized and deserialized.
     """
+
+    _addr_type: CFG_ADDR_TYPES
 
     def __init__(
         self,
@@ -1031,6 +1033,7 @@ class SpillingCFG:
             db_batch_size=self._nodes.db_batch_size,
             edge_cache_limit=self._graph._edge_cache_limit if self._edge_spilling_enabled else None,
             edge_db_batch_size=self._graph._edge_db_batch_size,
+            addr_type=self._addr_type,
         )
 
         new_graph._nodes = self._nodes.copy()
@@ -1146,9 +1149,11 @@ class SpillingCFG:
             "spilling_enabled": self._spilling_enabled,
             "edge_spilling_enabled": self._edge_spilling_enabled,
             "db_batch_size": self._nodes.db_batch_size,
+            "addr_type": self._addr_type,
         }
 
     def __setstate__(self, state: dict):
+        self._addr_type = state.get("addr_type", "int")
         self._graph = state["graph"]
         self._spilling_enabled = state["spilling_enabled"]
         self._edge_spilling_enabled = state.get("edge_spilling_enabled", False)

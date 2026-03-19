@@ -317,6 +317,7 @@ class CFGModel(Serializable):
             db_batch_size=self._db_batch_size,
             edge_cache_limit=self._edge_cache_limit,
             edge_db_batch_size=self._edge_db_batch_size,
+            addr_type=self.addr_type,
         )
         model.graph = self.graph.copy()
         model.graph._cfg_model = model
