@@ -588,9 +588,8 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        # collect a variable to rename
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
+        # get a variable to rename
+        unified_vars = list(dec.codegen.cfunc.get_unified_local_vars())
         assert len(unified_vars) > 0
 
         target_var = unified_vars[0]
@@ -623,7 +622,7 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
+        unified_vars = list(dec.codegen.cfunc.get_unified_local_vars())
         assert len(unified_vars) > 0
 
         target_var = unified_vars[0]
