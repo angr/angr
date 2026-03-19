@@ -25,7 +25,7 @@ dependencies = [
     "cffi>=1.14.0",
     "claripy==9.2.207.dev0",
     "cle==9.2.207.dev0",
-    "lmdb",
+    "lmdb==2.1.1",
     "msgspec",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.0",
