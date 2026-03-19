@@ -136,7 +136,7 @@ class RuntimeDb(KnowledgeBasePlugin):
             return None
 
         try:
-            return lmdb.open(lmdb_path, map_size=self._lmdb_mapsize, max_dbs=10)
+            return lmdb.open(lmdb_path, sync=False, map_size=self._lmdb_mapsize, max_dbs=10)
         except (PermissionError, OSError):
             return None
 
