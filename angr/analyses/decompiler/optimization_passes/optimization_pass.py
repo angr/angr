@@ -427,6 +427,9 @@ class SequenceOptimizationPass(BaseOptimizationPass):
         self.seq = seq
         self.out_seq = None
 
+    def _check(self):
+        return bool(self.seq is not None and self.seq.nodes), None
+
 
 class StructuringOptimizationPass(OptimizationPass):
     """
