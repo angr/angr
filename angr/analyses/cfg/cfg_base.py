@@ -185,7 +185,9 @@ class CFGBase(Analysis):
         )
 
         # Get all executable memory regions
-        self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
+        if not objects:
+            objects = self.project.loader.all_objects
+        self._exec_mem_regions = self._executable_memory_regions(objects=objects, force_segment=self._force_segment)
         self._exec_mem_region_size = sum((end - start) for start, end in self._exec_mem_regions)
 
         # initialize UnresolvableJumpTarget and UnresolvableCallTarget SimProcedure
@@ -238,15 +240,10 @@ class CFGBase(Analysis):
             )
 
         if regions is None:
-            if self._skip_unmapped_addrs:
-                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
-            else:
-                if not objects:
-                    objects = self.project.loader.all_objects
-                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
-                if not regions:
-                    # fall back to using min and max addresses of all objects
-                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+            regions = self._exec_mem_regions
+            if not self._skip_unmapped_addrs and not regions:
+                # fall back to using min and max addresses of all objects
+                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
 
         for start, end in regions:
             if end < start:
@@ -754,14 +751,17 @@ class CFGBase(Analysis):
                         max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
                         tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
-                if sections and segments:
-                    # are there executable segments with no sections inside?
-                    for segment in segments:
-                        for section in sections:
-                            if segment[0] <= section[0] < segment[1]:
-                                break
-                        else:
-                            memory_regions.append(segment)
+                if force_segment:
+                    memory_regions += segments
+                else:
+                    if sections and segments:
+                        # are there executable segments with no sections inside?
+                        for segment in segments:
+                            for section in sections:
+                                if segment[0] <= section[0] < segment[1]:
+                                    break
+                            else:
+                                memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
                 has_executable = True
