@@ -2205,6 +2205,20 @@ class Clinic(Analysis):
 
         return tmp_kb
 
+    @staticmethod
+    def _pick_variable(variables):
+        """
+        Deterministically pick a variable from a set. Using max() with SimVariable.key
+        avoids non-determinism from set iteration order depending on PYTHONHASHSEED.
+        """
+        if len(variables) == 1:
+            return next(iter(variables))
+        # variables may be (var, offset) tuples or bare SimVariable objects
+        first = next(iter(variables))
+        if isinstance(first, tuple):
+            return max(variables, key=lambda v: v[0].key)
+        return max(variables, key=lambda v: v.key)
+
     def _link_variables_on_block(self, block, kb):
         """
         Link atoms (AIL expressions) in the given block to corresponding variables identified previously.
@@ -2222,7 +2236,7 @@ class Clinic(Analysis):
                 # find a memory variable
                 mem_vars = variable_manager.find_variables_by_atom(block.addr, stmt_idx, stmt, block_idx=block.idx)
                 if len(mem_vars) == 1:
-                    stmt.variable, stmt.offset = next(iter(mem_vars))
+                    stmt.variable, stmt.offset = self._pick_variable(mem_vars)
                 else:
                     # check if the dest address is a variable
                     stmt: ailment.Stmt.Store
@@ -2231,7 +2245,7 @@ class Clinic(Analysis):
                         # global variable?
                         variables = global_variables.get_global_variables(stmt.addr.value)
                         if variables:
-                            var = next(iter(variables))
+                            var = self._pick_variable(variables)
                             stmt.variable = var
                             stmt.offset = 0
                     else:
@@ -2322,14 +2336,14 @@ class Clinic(Analysis):
             else:
                 final_reg_vars = reg_vars
             if len(final_reg_vars) >= 1:
-                reg_var, offset = next(iter(final_reg_vars))
+                reg_var, offset = self._pick_variable(final_reg_vars)
                 expr.variable = reg_var
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.VirtualVariable:
             vars_ = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(vars_) >= 1:
-                var, offset = next(iter(vars_))
+                var, offset = self._pick_variable(vars_)
                 expr.variable = var
                 expr.variable_offset = offset
 
@@ -2363,14 +2377,14 @@ class Clinic(Analysis):
                     l.error(
                         "More than one variable are available for atom %s. Consider fixing it using phi nodes.", expr
                     )
-                var, offset = next(iter(variables))
+                var, offset = self._pick_variable(variables)
                 expr.variable = var
                 expr.variable_offset = offset
 
         elif type(expr) is ailment.Expr.BinaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = self._pick_variable(variables)
                 expr.variable = var
                 expr.variable_offset = offset
             else:
@@ -2384,7 +2398,7 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.UnaryOp:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = self._pick_variable(variables)
                 expr.variable = var
                 expr.variable_offset = offset
             else:
@@ -2404,7 +2418,7 @@ class Clinic(Analysis):
         elif type(expr) is ailment.Expr.ITE:
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = self._pick_variable(variables)
                 expr.variable = var
                 expr.variable_offset = offset
             else:
@@ -2415,7 +2429,7 @@ class Clinic(Analysis):
         elif isinstance(expr, ailment.Expr.BasePointerOffset):
             variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
             if len(variables) >= 1:
-                var, offset = next(iter(variables))
+                var, offset = self._pick_variable(variables)
                 expr.variable = var
                 expr.variable_offset = offset
 
@@ -2446,14 +2460,14 @@ class Clinic(Analysis):
                             global_variables.add_variable("global", global_var.addr, global_var)
                             global_vars = {global_var}
                 if global_vars:
-                    global_var = next(iter(global_vars))
+                    global_var = self._pick_variable(global_vars)
                     expr.tags["reference_variable"] = global_var
                     expr.tags["reference_variable_offset"] = 0
                 else:
                     # is there a related constant variable?
                     variables = variable_manager.find_variables_by_atom(block.addr, stmt_idx, expr, block_idx=block.idx)
                     if len(variables) >= 1:
-                        var, offset = next(iter(variables))
+                        var, offset = self._pick_variable(variables)
                         expr.variable = var
                         expr.variable_offset = offset
 
