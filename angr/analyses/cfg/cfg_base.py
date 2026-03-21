@@ -185,7 +185,9 @@ class CFGBase(Analysis):
         )
 
         # Get all executable memory regions
-        self._exec_mem_regions = self._executable_memory_regions(None, self._force_segment)
+        if not objects:
+            objects = self.project.loader.all_objects
+        self._exec_mem_regions = self._executable_memory_regions(objects=objects, force_segment=self._force_segment)
         self._exec_mem_region_size = sum((end - start) for start, end in self._exec_mem_regions)
 
         # initialize UnresolvableJumpTarget and UnresolvableCallTarget SimProcedure
@@ -238,15 +240,10 @@ class CFGBase(Analysis):
             )
 
         if regions is None:
-            if self._skip_unmapped_addrs:
-                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
-            else:
-                if not objects:
-                    objects = self.project.loader.all_objects
-                regions = self._executable_memory_regions(objects=objects, force_segment=force_segment)
-                if not regions:
-                    # fall back to using min and max addresses of all objects
-                    regions = [(obj.min_addr, obj.max_addr) for obj in objects]
+            regions = self._exec_mem_regions
+            if not self._skip_unmapped_addrs and not regions:
+                # fall back to using min and max addresses of all objects
+                regions = [(obj.min_addr, obj.max_addr) for obj in objects]
 
         for start, end in regions:
             if end < start:
@@ -264,12 +261,7 @@ class CFGBase(Analysis):
                 l.warning("You specified both base_state and skip_specific_regions. They may conflict with each other.")
             regions = [r for r in regions if not self._should_skip_region(r[0])]
 
-        if not regions and self.project.arch.name != "Soot":
-            raise AngrCFGError(
-                "Regions are empty, or all regions are skipped. You may want to manually specify regions."
-            )
-
-        self._regions_size = sum((end - start) for start, end in regions)
+        self._regions_size = sum((end - start) for start, end in regions) if regions else 0
         self._regions: SortedDict = SortedDict(regions)
 
         l.debug("CFG recovery covers %d regions:", len(self._regions))
@@ -624,8 +616,6 @@ class CFGBase(Analysis):
         """
 
         if not self._regions:
-            if self.project.arch.name != "Soot":
-                l.error("self._regions is empty or not properly set.")
             return None
 
         return next(self._regions.irange())
@@ -735,12 +725,14 @@ class CFGBase(Analysis):
         binaries = self.project.loader.all_objects if objects is None else objects
 
         memory_regions = []
+        has_executable = False
 
         for b in binaries:
             if not b.has_memory:
                 continue
 
             if isinstance(b, ELF):
+                has_executable = True
                 # If we have sections, we get result from sections
                 sections = []
                 if not force_segment and b.sections:
@@ -759,16 +751,20 @@ class CFGBase(Analysis):
                         max_mapped_addr = segment.min_addr + min(segment.memsize, segment.filesize)
                         tpl = (segment.min_addr, max_mapped_addr)
                         segments.append(tpl)
-                if sections and segments:
-                    # are there executable segments with no sections inside?
-                    for segment in segments:
-                        for section in sections:
-                            if segment[0] <= section[0] < segment[1]:
-                                break
-                        else:
-                            memory_regions.append(segment)
+                if force_segment:
+                    memory_regions += segments
+                else:
+                    if sections and segments:
+                        # are there executable segments with no sections inside?
+                        for segment in segments:
+                            for section in sections:
+                                if segment[0] <= section[0] < segment[1]:
+                                    break
+                            else:
+                                memory_regions.append(segment)
 
             elif isinstance(b, (Coff, PE)):
+                has_executable = True
                 for section in b.sections:
                     if section.is_executable:
                         max_mapped_addr = section.min_addr + min(section.memsize, section.filesize)
@@ -776,6 +772,7 @@ class CFGBase(Analysis):
                         memory_regions.append(tpl)
 
             elif isinstance(b, XBE):
+                has_executable = True
                 # some XBE files will mark the data sections as executable
                 for section in b.sections:
                     if (
@@ -787,6 +784,7 @@ class CFGBase(Analysis):
                         memory_regions.append(tpl)
 
             elif isinstance(b, MachO):
+                has_executable = True
                 if b.segments:
                     # Get all executable segments
                     for seg in b.segments:
@@ -843,7 +841,7 @@ class CFGBase(Analysis):
                 tpl = (b.min_addr, b.max_addr + 1)
                 memory_regions.append(tpl)
 
-        if not memory_regions:
+        if not memory_regions and not has_executable:
             memory_regions = [(start, start + len(backer)) for start, backer in self.project.loader.memory.backers()]
 
         return sorted(memory_regions, key=lambda x: x[0])
