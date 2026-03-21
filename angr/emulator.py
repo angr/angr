@@ -58,8 +58,7 @@ class Emulator:
         self._engine = engine
         self._state = init_state
         self._breakpoints = set()
-        # Invalidate any stale continuation state so the first
-        # process_concrete call does a full snapshot restore.
+        # Ensure first process_concrete does a full snapshot restore.
         if hasattr(engine, "invalidate_vm_state"):
             engine.invalidate_vm_state()
 
@@ -116,8 +115,7 @@ class Emulator:
             if num_inst is not None:
                 remaining_inst = num_inst - num_inst_executed
 
-            # Signal the engine that this is a continuation (same run),
-            # so it can skip the expensive snapshot restore + full sync.
+            # Signal continuation so the engine can skip snapshot restore.
             if completed_engine_execs > 0 and hasattr(self._engine, "prepare_continuation"):
                 self._engine.prepare_continuation()
 
@@ -146,11 +144,7 @@ class Emulator:
                 return EmulatorStopReason.EMULATION_GAP
 
             if successors.successors[0].history.jumpkind == "Ijk_SigSEGV":
-                # Check if we actually landed on a breakpoint — the
-                # concrete engine may not honour the breakpoint (e.g.
-                # new JIT block with stale counter) and instead crash
-                # at that address.  Report it as a breakpoint, not a
-                # crash, so the fuzzer treats it as a clean exit.
+                # JIT may miss a breakpoint and crash at that address instead.
                 landed_addr = self._state.addr & ~1
                 if landed_addr in self._breakpoints:
                     return EmulatorStopReason.BREAKPOINT

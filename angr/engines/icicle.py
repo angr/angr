@@ -76,13 +76,8 @@ def _syscall_insn_len(arch_name: str) -> int:
 
 
 def _ensure_duplex_stdio(state: HeavyConcreteState) -> None:
-    """Replace non-duplex stdio fds with duplex wrappers.
-
-    Concrete code (e.g. glibc) may both read and write any stdio fd.
-    angr's default setup uses a unidirectional SimFileDescriptor for
-    stderr (fd 2), which crashes when the concrete code reads from it.
-    Upgrade any such fds to SimFileDescriptorDuplex so both directions work.
-    """
+    """Upgrade unidirectional stdio fds to duplex so concrete code can
+    read/write any stdio fd without crashing."""
     from angr.storage.file import SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
 
     posix = state.posix
@@ -92,14 +87,11 @@ def _ensure_duplex_stdio(state: HeavyConcreteState) -> None:
             continue
         if isinstance(fd_obj, SimFileDescriptor):
             orig_file = fd_obj.file
-            # Create a companion stream for the missing direction
             if orig_file.write_mode:
-                # write-only (e.g. stderr) — add an empty read stream
                 read_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_read", write_mode=False)
                 read_file.set_state(state)
                 duplex = SimFileDescriptorDuplex(read_file, orig_file)
             else:
-                # read-only (e.g. stdin) — add an empty write stream
                 write_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_write", write_mode=True)
                 write_file.set_state(state)
                 duplex = SimFileDescriptorDuplex(orig_file, write_file)
@@ -122,16 +114,7 @@ def _syscall_jumpkind(arch_name: str, emu) -> str:
 
 
 def _is_emulation_gap(emu, exc: ExceptionCode, arch_name: str) -> bool:
-    """Determine if an unmapped-memory fault is an emulation gap, not a real crash.
-
-    Checks for known patterns where the OS/runtime would have set up memory
-    that the emulator left uninitialised.  Currently detects TLS accesses
-    through segment registers on x86/x86-64 when the corresponding
-    segment-base register is zero.
-
-    The arch→prefix mapping follows Linux TLS conventions (AMD64 uses fs:,
-    X86 uses gs:).  Other OS conventions can be added here.
-    """
+    """Check if an unmapped-memory fault is a TLS emulation gap, not a real crash."""
     if exc not in (ExceptionCode.ReadUnmapped, ExceptionCode.WriteUnmapped):
         return False
     if arch_name == "AMD64":
@@ -304,9 +287,7 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
-        # Special case for x86 segment registers used for TLS.
-        # Only set segment offsets when the loader actually initialised TLS;
-        # otherwise the register holds a placeholder value from archinfo.
+        # Set x86 TLS segment offsets if the loader initialised TLS.
         if proj is not None and proj.loader.tls.threads:
             if state.arch.name == "X86":
                 emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
@@ -324,9 +305,7 @@ class IcicleEngine(ConcreteEngine):
             emu.mem_map(addr, size, perm_bits)
             memory, bitmap = state.memory.concrete_load(addr, size, with_bitmap=True)
             if any(bitmap):
-                # Page has symbolic writes (e.g. stack argv/argc from entry_state).
-                # Resolve them through the full memory system so icicle sees
-                # the correct concrete values.
+                # Page has symbolic values — resolve through the solver.
                 memory = state.solver.eval(state.memory.load(addr, size), cast_to=bytes)
             emu.mem_write(addr, memory)
 
@@ -372,8 +351,7 @@ class IcicleEngine(ConcreteEngine):
         if IcicleEngine.__is_arm(emu.architecture):  # Hack to work around us calling it r15t
             state.registers.store("pc", (emu.pc | 1) if emu.isa_mode == 1 else emu.pc)
 
-        # The register copy above clobbers angr's TLS base (fs/gs) with
-        # icicle's 16-bit segment selector (0).  Restore from FS/GS_OFFSET.
+        # Restore TLS base from FS/GS_OFFSET (register copy clobbers it).
         arch_name = translation_data.base_state.arch.name
         if arch_name == "AMD64":
             with suppress(KeyError):
@@ -408,10 +386,7 @@ class IcicleEngine(ConcreteEngine):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
                 state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
-                # icicle stops AT the syscall instruction; set IP to the
-                # instruction *after* it so that add_successor's syscall
-                # categorisation stores the correct return address into
-                # ip_at_syscall before rewriting IP to the cle##kernel handler.
+                # Advance IP past the syscall instruction.
                 state.regs.ip = emu.pc + _syscall_insn_len(arch_name)
             elif exc == ExceptionCode.Halt:
                 state.history.jumpkind = "Ijk_Exit"
@@ -464,16 +439,14 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:
             emu.pc = state.addr
 
-        # Special case for x86 segment registers used for TLS.
-        # Only set segment offsets when the loader actually initialised TLS;
-        # otherwise the register holds a placeholder value from archinfo.
+        # Set x86 TLS segment offsets if the loader initialised TLS.
         if state.project is not None and state.project.loader.tls.threads:
             if state.arch.name == "X86":
                 emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
             elif state.arch.name == "AMD64":
                 emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
 
-        # 2. Sync only mapping/permission deltas from explicit page changes.
+        # 2. Sync mapping/permission deltas.
         page_size = state.memory.page_size
         explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
         base_explicit_page_metadata = base_translation_data.explicit_page_metadata
@@ -517,10 +490,7 @@ class IcicleEngine(ConcreteEngine):
             else:
                 writable_pages.discard(page_num)
 
-        # 3. Copy writable page contents — only pages that actually differ
-        # from the snapshot.  After snapshot restore the VM has the snapshot's
-        # memory, so pages whose angr page-object identity matches the
-        # snapshot's base_state are guaranteed unchanged and can be skipped.
+        # 3. Copy writable pages that differ from the snapshot (COW identity check).
         base_state_pages = base_translation_data.base_state.memory._pages
         for page_num in writable_pages:
             cur_page = state.memory._pages.get(page_num)
@@ -558,18 +528,11 @@ class IcicleEngine(ConcreteEngine):
         return self._cached_emu is not None and self._cached_emu.has_snapshot()
 
     def invalidate_vm_state(self) -> None:
-        """Mark the icicle VM state as stale.
-
-        Call this before starting a fresh execution to ensure the next
-        process_concrete does a full snapshot restore instead of a
-        lightweight continuation sync.
-        """
+        """Force the next process_concrete to do a full snapshot restore."""
         self._continuation_ready = False
 
     def prepare_continuation(self) -> None:
-        """Signal that the next process_concrete call is a continuation
-        of the previous run (same Emulator.run() loop).  Only the
-        Emulator should call this — direct callers should not."""
+        """Signal that the next process_concrete is a continuation (skip snapshot restore)."""
         if self._cached_emu is not None and self._live_translation_data is not None:
             self._continuation_ready = True
 
@@ -610,11 +573,7 @@ class IcicleEngine(ConcreteEngine):
         translation_data: IcicleStateTranslationData,
         changed_pages: list[int],
     ) -> IcicleStateTranslationData:
-        """Lightweight sync for continuation within the same Emulator.run().
-
-        Only registers and the specified changed memory pages are pushed
-        to the icicle VM.  The snapshot is NOT restored.
-        """
+        """Sync only registers and changed pages to icicle (no snapshot restore)."""
         icicle_arch = translation_data.icicle_arch
 
         # 1. Registers
@@ -625,8 +584,7 @@ class IcicleEngine(ConcreteEngine):
                     state.solver.eval(state.registers.load(register), cast_to=int),
                 )
 
-        # Explicitly set PC — the register write above may target a
-        # sub-register (e.g. "ip" → 16-bit IP instead of full RIP).
+        # Explicitly set PC (register write may target a sub-register).
         if IcicleEngine.__is_thumb(state.arch, icicle_arch, state.addr):
             emu.pc = state.addr & ~1
             emu.isa_mode = 1
@@ -683,12 +641,7 @@ class IcicleEngine(ConcreteEngine):
         _ensure_duplex_stdio(state)
 
         if self._continuation_ready and self._cached_emu is not None and self._live_translation_data is not None:
-            # Continuation path: the icicle VM already holds valid state
-            # from the previous run in the same Emulator.run() loop.
-            # Sync register changes and memory pages that the hook/syscall
-            # handler may have modified.  We always re-sync pages that
-            # icicle wrote in the last run (they have unique page objects
-            # so COW detection misses in-place writes by hooks).
+            # Continuation: sync registers + changed/dirty pages (no snapshot restore).
             changed = self._get_changed_writable_pages(state, self._live_translation_data.writable_pages)
             pages_to_sync = set(changed) | self._last_dirty_pages
             translation_data = self.__sync_continuation(
@@ -696,8 +649,7 @@ class IcicleEngine(ConcreteEngine):
             )
             emu = self._cached_emu
         elif self._cached_emu is not None and self._snapshot_mode:
-            # Fresh start with snapshot: restore and sync only pages that
-            # differ from the snapshot (detected via page object identity).
+            # Fresh start: restore snapshot, sync only changed pages.
             if self._base_translation_data is None:
                 raise ValueError("No base translation data. Run process_concrete first with snapshot mode enabled.")
             self._cached_emu.restore_snapshot()
@@ -708,8 +660,7 @@ class IcicleEngine(ConcreteEngine):
             # Full init path
             emu, translation_data = self.__convert_angr_state_to_icicle(state)
 
-            # Map pages for extra stop points (e.g. sentinel return addresses
-            # like 0xDEADBEEF) so they survive snapshot restore.
+            # Map pages for extra stop points so they survive snapshot restore.
             if extra_stop_points is not None:
                 is_arm = IcicleEngine.__is_arm(translation_data.icicle_arch)
                 page_size = state.memory.page_size
@@ -726,8 +677,7 @@ class IcicleEngine(ConcreteEngine):
                 self._cached_emu = emu
                 self._base_translation_data = translation_data
 
-        # Set extra stop points, skip the current PC. Track which ones were
-        # actually added so we can clean them up after the run.
+        # Set extra stop points (cleaned up after the run).
         added_breakpoints = []
         is_arm = IcicleEngine.__is_arm(translation_data.icicle_arch)
         if extra_stop_points is not None:
@@ -736,37 +686,31 @@ class IcicleEngine(ConcreteEngine):
                     addr = addr & ~1  # Clear thumb bit
                 if emu.pc != addr and emu.add_breakpoint(addr):
                     added_breakpoints.append(addr)
-        # Sync JIT breakpoint counters so newly added breakpoints are
-        # honoured even if the JIT already compiled the affected blocks.
+        # Sync JIT counters for newly added breakpoints.
         if added_breakpoints:
             emu.revalidate_breakpoints()
 
-        # Set the instruction count limit (icount_limit is absolute, so offset
-        # by the current cpu_icount which may be non-zero after snapshot restore)
+        # icount_limit is absolute — offset by current cpu_icount.
         if num_inst is not None and num_inst > 0:
             emu.icount_limit = emu.cpu_icount + num_inst
 
-        # Reset page modification tracking so only writes during execution
-        # are recorded.  This clears per-page modified flags and the global
-        # modified set, allowing __convert_icicle_state_to_angr to skip
-        # pages that were not touched.
+        # Reset dirty page tracking so only this run's writes are recorded.
         page_size = state.memory.page_size
         emu.reset_page_modification_tracking([page_num * page_size for page_num in translation_data.writable_pages])
 
         # Run it
         status = emu.run()
 
-        # Remove extra stop points to prevent accumulation across runs
+        # Clean up extra stop points
         for addr in added_breakpoints:
             emu.remove_breakpoint(addr)
 
-        # Save dirty page numbers before converting (the conversion reads them)
         page_size = state.memory.page_size
         self._last_dirty_pages = {addr // page_size for addr in emu.modified_pages}
 
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
-        # Save state for potential continuation by the Emulator
+        # Save state for potential continuation
         self._continuation_ready = False
         self._live_translation_data = translation_data
         self._save_page_ids(result, translation_data.writable_pages)
