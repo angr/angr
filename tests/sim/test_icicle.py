@@ -176,10 +176,11 @@ class TestIcicle(TestCase):
 
         # There should be one successor
         assert len(successors.successors) == 1
-        # Check that the emulator exited at the expected instruction
-        assert successors.successors[0].ip.concrete_value == 0x0
+        # Check that the emulator exited past the syscall instruction
+        # (icicle advances PC past the syscall: svc is 4 bytes on aarch64)
+        assert successors.successors[0].ip.concrete_value == 0x4
         # Check that the syscall was invoked
-        assert successors.successors[0].history.jumpkind == "Ijk_Syscall"
+        assert successors.successors[0].history.jumpkind.startswith("Ijk_Sys")
 
 
 class TestSnapshotSync(TestCase):

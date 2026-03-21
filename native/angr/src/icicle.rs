@@ -480,15 +480,25 @@ impl Icicle {
     // Snapshot/restore
 
     pub fn save_snapshot(&mut self) {
+        // Disable JIT recompilation: recompile() groups blocks across code
+        // regions, bypassing per-block breakpoint checks and silently
+        // swallowing breakpoints.
+        self.vm.enable_recompilation = false;
         self.snapshot = Some(self.vm.snapshot());
     }
 
     pub fn restore_snapshot(&mut self) -> PyResult<()> {
-        let snapshot = self
-            .snapshot
-            .as_ref()
-            .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
-        self.vm.restore(snapshot);
+        {
+            let snapshot = self
+                .snapshot
+                .as_ref()
+                .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
+            self.vm.restore(snapshot);
+        }
+        // Re-sync per-block breakpoint counters with the breakpoint set and
+        // invalidate stale JIT entries (blocks lifted after add_breakpoint
+        // have a stale counter of 0).
+        self.revalidate_breakpoints();
         if let Some(path_tracer) = self.path_tracer {
             path_tracer.clear(&mut self.vm);
         }
@@ -500,6 +510,33 @@ impl Icicle {
 
     pub fn has_snapshot(&self) -> bool {
         self.snapshot.is_some()
+    }
+
+    /// Sync each block's `breakpoints` counter with `code.breakpoints` and
+    /// invalidate JIT entries for any blocks whose counter was stale.
+    fn revalidate_breakpoints(&mut self) -> usize {
+        let breakpoints: Vec<u64> = self.vm.code.breakpoints.iter().copied().collect();
+        if breakpoints.is_empty() {
+            return 0;
+        }
+        let mut fixed = 0usize;
+        for block_id in 0..self.vm.code.blocks.len() {
+            let (start, end, current) = {
+                let b = &self.vm.code.blocks[block_id];
+                (b.start, b.end, b.breakpoints)
+            };
+            let expected = breakpoints
+                .iter()
+                .filter(|&&addr| start <= addr && addr < end)
+                .count() as u32;
+            if current != expected {
+                self.vm.code.blocks[block_id].breakpoints = expected;
+                self.vm.jit.remove_fast_lookup(start);
+                self.vm.jit.invalidate(block_id);
+                fixed += 1;
+            }
+        }
+        fixed
     }
 
     pub fn clear_path_tracer(&mut self) {
