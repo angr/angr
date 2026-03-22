@@ -396,5 +396,6 @@ class TestCommandLineInterface(unittest.TestCase):
             "entry_point": 0x400000,
         }
 
+
 if __name__ == "__main__":
     unittest.main()

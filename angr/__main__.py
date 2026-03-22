@@ -276,7 +276,6 @@ def decompile(args):
     if args.entry_point is not None:
         loader_main_opts_kwargs["entry_point"] = args.entry_point
 
-
     # Load binary
     proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
 
@@ -434,10 +433,10 @@ def _add_common_args(subparser):
         default=None,
     )
     subparser.add_argument(
-          "--blob",
-          help="Treat the input file as a raw binary blob instead of auto-detecting a file format.",
-          action="store_true",
-          default=False,
+        "--blob",
+        help="Treat the input file as a raw binary blob instead of auto-detecting a file format.",
+        action="store_true",
+        default=False,
     )
     subparser.add_argument(
         "--arch",
