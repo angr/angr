@@ -321,6 +321,80 @@ class TestCommandLineInterface(unittest.TestCase):
         assert stdout == ""
         assert "error decompiling" in stderr.lower()
 
+    def test_blob_requires_required_args(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        with (
+            mock.patch("sys.argv", [sys.executable, "disassemble", bin_path, "--blob"]),
+            mock.patch("sys.stderr", new=io.StringIO()) as fake_err,
+            self.assertRaises(SystemExit) as exc,
+        ):
+            main()
+
+        assert exc.exception.code == 2
+        assert "--blob requires --arch" in fake_err.getvalue()
+
+    def test_disassemble_blob_loader_options(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        fake_proj = mock.Mock()
+        fake_proj.analyses.CFG.return_value = None
+        fake_proj.kb.functions = {}
+
+        with mock.patch("angr.__main__.angr.Project", return_value=fake_proj) as mock_project:
+            output = run_cli(
+                "disassemble",
+                bin_path,
+                "--blob",
+                "--arch",
+                "AMD64",
+                "--base-addr",
+                "0x400000",
+                "--entry-point",
+                "0x400000",
+            )
+
+        assert output == ""
+        _, kwargs = mock_project.call_args
+        assert kwargs["auto_load_libs"] is False
+        assert kwargs["main_opts"] == {
+            "backend": "blob",
+            "arch": "AMD64",
+            "base_addr": 0x400000,
+            "entry_point": 0x400000,
+        }
+
+    def test_decompile_blob_loader_options(self):
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+
+        fake_cfg = mock.Mock()
+        fake_cfg.kb.functions = {}
+        fake_cfg.functions = {}
+
+        fake_proj = mock.Mock()
+        fake_proj.analyses.CFG.return_value = fake_cfg
+
+        with mock.patch("angr.__main__.angr.Project", return_value=fake_proj) as mock_project:
+            output = run_cli(
+                "decompile",
+                bin_path,
+                "--blob",
+                "--arch",
+                "AMD64",
+                "--base-addr",
+                "0x400000",
+                "--entry-point",
+                "0x400000",
+                "--no-colors",
+            )
+
+        assert output == ""
+        _, kwargs = mock_project.call_args
+        assert kwargs["auto_load_libs"] is False
+        assert kwargs["main_opts"] == {
+            "backend": "blob",
+            "arch": "AMD64",
+            "base_addr": 0x400000,
+            "entry_point": 0x400000,
+        }
 
 if __name__ == "__main__":
     unittest.main()
