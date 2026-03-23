@@ -352,6 +352,22 @@ class CFBlanket(Analysis):
                 else:
                     # is it empty?
                     _l.warning("Empty PE object %s.", repr(obj))
+            elif isinstance(obj, cle.MachO):
+                if obj.sections and "section" not in self._exclude_region_types:
+                    for section in obj.sections:
+                        if not section.memsize or not section.vaddr:
+                            continue
+                        min_addr, max_addr = section.min_addr, section.max_addr
+                        self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj, section=section)
+                elif obj.segments and "segment" not in self._exclude_region_types:
+                    for segment in obj.segments:
+                        if not segment.memsize:
+                            continue
+                        min_addr, max_addr = segment.min_addr, segment.max_addr
+                        self._mark_unknowns_core(min_addr, max_addr + 1, obj=obj, segment=segment)
+                else:
+                    # is it empty?
+                    _l.warning("Empty MachO object %s.", repr(obj))
             elif isinstance(obj, ELFTLSObject):
                 if "tls" in self._exclude_region_types:
                     # Skip them for now
