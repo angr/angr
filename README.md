@@ -73,6 +73,20 @@ pip install --no-build-isolation -e .
 python demo.py
 ```
 
+### Oxidizer UI
+
+[Oxidizer UI](https://github.com/sefcom/oxidizer-ui) provides a GUI based on angr-management for interactive Rust decompilation.
+
+1. Install oxidizer-ui (requires a working Oxidizer installation):
+```bash
+pip install git+https://github.com/sefcom/oxidizer-ui.git
+```
+
+2. Launch the GUI:
+```bash
+angr-management [binary name]
+```
+
 ### Output
 ```rust
 fn sub_455300(a0: i64, a1: i64, a2: i64, a3: i64) -> u32 {
