@@ -186,8 +186,14 @@ def disassemble(args):
         show_status = False
 
     loader_main_opts_kwargs = {}
+    if args.blob:
+        loader_main_opts_kwargs["backend"] = "blob"
     if args.base_addr is not None:
         loader_main_opts_kwargs["base_addr"] = args.base_addr
+    if args.arch is not None:
+        loader_main_opts_kwargs["arch"] = args.arch
+    if args.entry_point is not None:
+        loader_main_opts_kwargs["entry_point"] = args.entry_point
 
     proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
 
@@ -260,10 +266,15 @@ def decompile(args):
     if not args.pbar:
         show_status = False
 
-    # Resolve loader args
     loader_main_opts_kwargs = {}
+    if args.blob:
+        loader_main_opts_kwargs["backend"] = "blob"
     if args.base_addr is not None:
         loader_main_opts_kwargs["base_addr"] = args.base_addr
+    if args.arch is not None:
+        loader_main_opts_kwargs["arch"] = args.arch
+    if args.entry_point is not None:
+        loader_main_opts_kwargs["entry_point"] = args.entry_point
 
     # Load binary
     proj = angr.Project(args.binary, auto_load_libs=False, main_opts=loader_main_opts_kwargs)
@@ -421,6 +432,23 @@ def _add_common_args(subparser):
         type=lambda x: int(x, 0),
         default=None,
     )
+    subparser.add_argument(
+        "--blob",
+        help="Treat the input file as a raw binary blob instead of auto-detecting a file format.",
+        action="store_true",
+        default=False,
+    )
+    subparser.add_argument(
+        "--arch",
+        help="Architecture to use when loading a raw binary blob.",
+        default=None,
+    )
+    subparser.add_argument(
+        "--entry-point",
+        help="Entry point to use when loading a raw binary blob.",
+        type=lambda x: int(x, 0),
+        default=None,
+    )
 
 
 def main():
@@ -513,6 +541,14 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.blob:
+        if args.arch is None:
+            parser.error("--blob requires --arch")
+        if args.base_addr is None:
+            parser.error("--blob requires --base-addr")
+        if args.entry_point is None:
+            parser.error("--blob requires --entry-point")
 
     log_level = max(logging.ERROR - (10 * args.verbose), logging.DEBUG)
     logging.getLogger("angr").setLevel(log_level)
