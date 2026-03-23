@@ -35,6 +35,7 @@ dependencies = [
     "pypcode>=3.2.1,<4.0",
     "pyvex==9.2.214.dev0",
     "rich>=13.1.0",
+    "rust-demangler==1.0",
     "sortedcontainers",
     "sympy",
     "typing-extensions",

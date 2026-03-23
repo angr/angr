@@ -5,6 +5,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     curl \
+    # PySide6 / Qt6 runtime dependencies for oxidizer-ui
+    libglib2.0-0 \
+    libgl1 \
+    libegl1 \
+    libxkbcommon0 \
+    libxkbcommon-x11-0 \
+    libdbus-1-3 \
+    libfontconfig1 \
+    # X11 / xcb libraries required by Qt xcb platform plugin
+    libx11-xcb1 \
+    libxcb1 \
+    libxcb-cursor0 \
+    libxcb-glx0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-shm0 \
+    libxcb-sync1 \
+    libxcb-xfixes0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    # X11 session/auth libraries
+    libsm6 \
+    libice6 \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust (needed by setuptools-rust)
@@ -29,5 +60,8 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir --no-build-isolation -e .
+
+# Install oxidizer-ui (after angr so its dependency is satisfied)
+RUN pip install --no-cache-dir git+https://github.com/sefcom/oxidizer-ui.git
 
 CMD ["bash"]
