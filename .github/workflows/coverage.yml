@@ -18,7 +18,7 @@ env:
   # z3-sys's build script to download Z3), and rustc links with -nodefaultlibs,
   # so the gcov runtime must be linked explicitly.
   RUSTFLAGS: "-C instrument-coverage -C codegen-units=1 -C link-dead-code -C link-arg=-lgcov"
-  LLVM_PROFILE_FILE: "%p-%m.profraw"
+  LLVM_PROFILE_FILE: "%c%p-%m.profraw"
   CFLAGS: "--coverage -O0 -g"
   LDFLAGS: "--coverage -g"
 
