@@ -327,8 +327,10 @@ class TypeDBLoader(Analysis):
         return None
 
     def _analyze(self):
-        # rustc_version = RustVersionIdentifier(self.project).identify_rust_version()
-        rustc_version = self.project.rustc_version or "1.88.0"
+        if self.project.rustc_version is None:
+            l.info("No Rustc version available. Attempting to identify Rustc version...")
+            self.project.analyses.RustcVersionIdentification()
+        rustc_version = self.project.rustc_version
         l.info("Rust version: %s", rustc_version)
         type_db_filename = f"{rustc_version}.json"
         type_db_path = Path(__file__).parent.joinpath("type_db").joinpath(type_db_filename)

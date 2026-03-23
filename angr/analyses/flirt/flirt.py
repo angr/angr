@@ -35,7 +35,13 @@ class FlirtAnalysis(Analysis):
       current binary, and then match all possible signatures for the architecture.
     """
 
-    def __init__(self, sig: FlirtSignature | str | None = None, max_mismatched_bytes: int = 0, dry_run: bool = False):
+    def __init__(
+        self,
+        sig: FlirtSignature | str | None = None,
+        max_mismatched_bytes: int = 0,
+        dry_run: bool = False,
+        match_named_functions: bool = False,
+    ):
         from angr.flirt import FLIRT_SIGNATURES_BY_ARCH  # pylint:disable=import-outside-toplevel
 
         self._is_arm = is_arm_arch(self.project.arch)
@@ -44,6 +50,7 @@ class FlirtAnalysis(Analysis):
         self.matched_suggestions: dict[str, tuple[FlirtSignature, dict[int, str]]] = {}
         self._temporary_sig = False
         self._max_mismatched_bytes = max_mismatched_bytes
+        self._match_named_functions = match_named_functions
 
         if sig:
             if isinstance(sig, str):
@@ -150,7 +157,7 @@ class FlirtAnalysis(Analysis):
                         if func.addr in self._suggestions:
                             # we already have a suggestion for this function
                             continue
-                        if not func.is_default_name:
+                        if not self._match_named_functions and not func.is_default_name:
                             # it already has a name. skip
                             continue
 
@@ -235,7 +242,7 @@ class FlirtAnalysis(Analysis):
                 return
             func = matched_func
 
-        if func.is_default_name:
+        if func.is_default_name or self._match_named_functions:
             # set the function name
             # TODO: Make sure function names do not conflict with existing ones
             _l.debug("Identified %s @ %#x (%#x-%#x)", flirt_func.name, func_addr, base_addr, flirt_func.offset)
