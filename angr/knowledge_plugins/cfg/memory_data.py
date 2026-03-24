@@ -42,6 +42,8 @@ _SORT_TO_IDX = {
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}
 
+MEMORY_DATA_SORTS = set(_SORT_TO_IDX)
+
 
 class MemoryData(Serializable):
     """

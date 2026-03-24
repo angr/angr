@@ -24,7 +24,14 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 from angr.analyses import AnalysesHub
 from angr.misc.ux import once
 from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key, block_key_to_addr, block_key_to_size
-from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.cfg import (
+    CFGNode,
+    MEMORY_DATA_SORTS,
+    MemoryDataSort,
+    MemoryData,
+    IndirectJump,
+    IndirectJumpType,
+)
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.codenode import HookNode, FuncNode
 from angr.utils.ins_addr_list import InsAddrList
@@ -3363,7 +3370,10 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
             MemoryDataSort.Unspecified,
         } and self._seg_list.is_occupied(data_addr):
             existing_data_type = self._seg_list.occupied_by_sort(data_addr)
-            if existing_data_type not in {None, MemoryDataSort.Unknown, MemoryDataSort.Unspecified}:
+            if (
+                existing_data_type not in {None, MemoryDataSort.Unknown, MemoryDataSort.Unspecified}
+                and existing_data_type in MEMORY_DATA_SORTS
+            ):
                 data_type = existing_data_type
 
         self.model.add_memory_data(data_addr, data_type, data_size=data_size)
