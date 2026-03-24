@@ -818,6 +818,10 @@ class CFGModel(Serializable):
                     for j in range(0, data_size, pointer_size):
                         ptr = self.project.loader.fast_memory_load_pointer(data_addr + j)
 
+                        if ptr is None:
+                            # unmapped memory
+                            break
+
                         # is this pointer coming from the current binary?
                         obj = self.project.loader.find_object_containing(ptr, membership_check=False)
                         if obj is not self.project.loader.main_object:
