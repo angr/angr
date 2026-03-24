@@ -219,11 +219,15 @@ class CFGBase(Analysis):
 
         self._function_addresses_from_symbols = self._load_func_addrs_from_symbols()
         self._function_addresses_from_eh_frame = self._load_func_addrs_from_eh_frame()
+        self._function_addr_and_names_from_hints = self._load_func_addr_and_names_from_hints()
 
         # Cache if an object has executable sections or not
         self._object_to_executable_sections = {}
         # Cache if an object has executable segments or not
         self._object_to_executable_segments = {}
+
+        # record addresses of memory data objects that are newly added during CFG recovery.
+        self._new_memory_data_addrs: set[int] = set()
 
         if model is not None:
             self._model = model
@@ -590,6 +594,18 @@ class CFGBase(Analysis):
             for suc in successors
             if get_ins_addr(suc) in can_produce_exits or get_exit_stmt_idx(suc) == DEFAULT_STATEMENT
         ]
+
+    def record_memory_data_addr(self, addr: int) -> None:
+        """
+        Record the address of a newly added memory data object.
+        """
+        self._new_memory_data_addrs.add(addr)
+
+    def reset_memory_data_addrs(self) -> None:
+        """
+        Reset the set of addresses of newly added memory data objects.
+        """
+        self._new_memory_data_addrs = set()
 
     # Methods for determining scanning scope
 
@@ -1018,6 +1034,19 @@ class CFGBase(Analysis):
                 if function_hint.source == FunctionHintSource.EH_FRAME:
                     addrs.add(function_hint.addr)
         return addrs
+
+    def _load_func_addr_and_names_from_hints(self) -> set[tuple[int, str | None]]:
+        """
+        Get possible function addresses from CLE's function hints.
+
+        :return:    A set of tuples of addresses and function names that are probably functions.
+        """
+
+        addrs_and_names = set()
+        for function_hint in self._binary.function_hints:
+            if function_hint.source != FunctionHintSource.EH_FRAME:
+                addrs_and_names.add((function_hint.addr, function_hint.name))
+        return addrs_and_names
 
     #
     # Analyze function features

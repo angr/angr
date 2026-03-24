@@ -72,3 +72,7 @@ class TestDecompilerErrors(unittest.TestCase):
             assert False, "Must not raise BadException"
 
         assert decomp.codegen.text is not None
+
+
+if __name__ == "__main__":
+    unittest.main()

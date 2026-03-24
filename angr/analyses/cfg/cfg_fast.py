@@ -24,7 +24,14 @@ from archinfo.arch_arm import is_arm_arch, get_real_address_if_arm
 from angr.analyses import AnalysesHub
 from angr.misc.ux import once
 from angr.knowledge_plugins.cfg.spilling_cfg import get_block_key, block_key_to_addr, block_key_to_size
-from angr.knowledge_plugins.cfg import CFGNode, MemoryDataSort, MemoryData, IndirectJump, IndirectJumpType
+from angr.knowledge_plugins.cfg import (
+    CFGNode,
+    MEMORY_DATA_SORTS,
+    MemoryDataSort,
+    MemoryData,
+    IndirectJump,
+    IndirectJumpType,
+)
 from angr.knowledge_plugins.xrefs import XRef, XRefType
 from angr.codenode import HookNode, FuncNode
 from angr.utils.ins_addr_list import InsAddrList
@@ -51,6 +58,7 @@ from angr.rustylib import SegmentList
 from .cfg_arch_options import CFGArchOptions
 from .cfg_base import CFGBase
 from .indirect_jump_resolvers.jumptable import JumpTableResolver
+from .meta_structs import get_data_regions_from_meta_regions
 
 if TYPE_CHECKING:
     from angr.block import Block
@@ -1477,6 +1485,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
         for d in self.model.memory_data.values():
             self._seg_list.occupy(d.addr, d.size, d.sort)
 
+        # Mark metadata regions (PE import/export tables, IAT, etc.) as data
+        for addr, size, sort in get_data_regions_from_meta_regions(self.project.loader):
+            if not self._seg_list.is_occupied(addr):
+                self._seg_list.occupy(addr, size, sort)
+                self.model.memory_data[addr] = MemoryData(addr, size, sort)
+
         # Sadly, not all calls to functions are explicitly made by call
         # instruction - they could be a jmp or b, or something else. So we
         # should record all exits from a single function, and then add
@@ -1501,6 +1515,13 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
         if self._use_symbols:
             starting_points |= self._function_addresses_from_symbols
+
+        # Add function hints from CLE (e.g., PE export tables)
+        for addr, name in self._function_addr_and_names_from_hints:
+            if self._inside_regions(addr):
+                starting_points.add(addr)
+                if name:
+                    self.kb.functions.function(addr, name=name)
 
         if self._extra_function_starts:
             starting_points |= set(self._extra_function_starts)
@@ -1831,6 +1852,12 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 return
 
         if self._force_complete_scan or self._force_smart_scan:
+            if self._new_memory_data_addrs:
+                self.model.tidy_data_references(
+                    memory_data_addrs=list(self._new_memory_data_addrs), seg_list=self._seg_list, fill_gaps=False
+                )
+                self.reset_memory_data_addrs()
+
             addr = self._next_code_addr_smart() if self._force_smart_scan else self._next_code_addr()
 
             if addr is None:
@@ -3064,12 +3091,6 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 data_type_str = ref.data_type_str
                 is_store = False
 
-            # special logic: we do not call occupy for storing attempts in executable memory regions
-            if ref.data_size and (not is_store or not self._addr_in_exec_memory_regions(ref.data_addr)):
-                self._seg_list.occupy(ref.data_addr, ref.data_size, "unknown")
-                if assumption is not None:
-                    assumption.add_data_seg(ref.data_addr, ref.data_size)
-
             self._add_data_reference(
                 irsb_addr,
                 ref.stmt_idx,
@@ -3078,6 +3099,16 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
                 data_size=ref.data_size,
                 data_type=data_type_str,
             )
+
+            # special logic: we do not call occupy for storing attempts in executable memory regions
+            if (
+                not self._seg_list.is_occupied(ref.data_addr)
+                and ref.data_size
+                and (not is_store or not self._addr_in_exec_memory_regions(ref.data_addr))
+            ):
+                self._seg_list.occupy(ref.data_addr, ref.data_size, "unknown")
+                if assumption is not None:
+                    assumption.add_data_seg(ref.data_addr, ref.data_size)
 
             if ref.data_size == self.project.arch.bytes and is_arm_arch(self.project.arch):
                 self._process_irsb_data_ref_inlined_data(irsb_addr, ref)
@@ -3333,7 +3364,20 @@ class CFGFast(ForwardAnalysis[CFGNode, CFGNode, CFGJob, int, object], CFGBase): 
 
             return
 
+        if data_type in {
+            MemoryDataSort.Integer,
+            MemoryDataSort.Unknown,
+            MemoryDataSort.Unspecified,
+        } and self._seg_list.is_occupied(data_addr):
+            existing_data_type = self._seg_list.occupied_by_sort(data_addr)
+            if (
+                existing_data_type not in {None, MemoryDataSort.Unknown, MemoryDataSort.Unspecified}
+                and existing_data_type in MEMORY_DATA_SORTS
+            ):
+                data_type = existing_data_type
+
         self.model.add_memory_data(data_addr, data_type, data_size=data_size)
+        self.record_memory_data_addr(data_addr)
         cr = XRef(
             ins_addr=insn_addr,
             block_addr=irsb_addr,
