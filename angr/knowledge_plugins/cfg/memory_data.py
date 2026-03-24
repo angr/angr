@@ -17,6 +17,9 @@ class MemoryDataSort:
     ELFHeader = "elf-header"
     FloatingPoint = "fp"  # the size is determined by the MemoryData itself
     Alignment = "alignment"
+    PEImportDirectory = "pe-import-directory"
+    PEExportDirectory = "pe-export-directory"
+    PEDelayImportDirectory = "pe-delay-import-directory"
 
 
 _SORT_TO_IDX = {
@@ -32,6 +35,9 @@ _SORT_TO_IDX = {
     MemoryDataSort.ELFHeader: cfg_pb2.MemoryData.ELFHeader,
     MemoryDataSort.FloatingPoint: cfg_pb2.MemoryData.FloatingPoint,
     MemoryDataSort.Alignment: cfg_pb2.MemoryData.Alignment,
+    MemoryDataSort.PEImportDirectory: cfg_pb2.MemoryData.PEImportDirectory,
+    MemoryDataSort.PEExportDirectory: cfg_pb2.MemoryData.PEExportDirectory,
+    MemoryDataSort.PEDelayImportDirectory: cfg_pb2.MemoryData.PEDelayImportDirectory,
 }
 
 _IDX_TO_SORT = {v: k for k, v in _SORT_TO_IDX.items()}

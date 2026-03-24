@@ -32,14 +32,19 @@ if TYPE_CHECKING:
     from .types import CFG_ADDR_TYPES
 
     K = TypeVar("K", int, SootMethodDescriptor)
+    T = TypeVar("T")
 
     class SortedList(Generic[K], list[K]):  # pylint:disable=missing-class-docstring
         def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
         def add(self, value: K) -> None: ...  # pylint:disable=unused-argument,no-self-use
         def bisect_left(self, value: K) -> int: ...  # pylint:disable=unused-argument,no-self-use
 
+    class SortedDict(Generic[K, T], dict[K, T]):  # pylint:disable=missing-class-docstring
+        def irange(self, *args, **kwargs) -> Iterator[K]: ...  # pylint:disable=unused-argument,no-self-use
+        def copy(self) -> SortedDict[K, T]: ...  # pylint:disable=no-self-use
+
 else:
-    from sortedcontainers import SortedList
+    from sortedcontainers import SortedList, SortedDict
 
 
 l = logging.getLogger(name=__name__)
@@ -119,7 +124,7 @@ class CFGModel(Serializable):
 
         # Memory references
         # A mapping between address and the actual data in memory
-        self.memory_data: dict[int, MemoryData] = {}
+        self.memory_data: SortedDict[int, MemoryData] = SortedDict()
         # A mapping between address of the instruction that's referencing the memory data and the memory data itself
         self.insn_addr_to_memory_data: dict[int, MemoryData] = {}
 
@@ -678,6 +683,7 @@ class CFGModel(Serializable):
         xrefs: XRefManager | None = None,
         seg_list: SegmentList | None = None,
         data_type_guessing_handlers: list[Callable] | None = None,
+        fill_gaps: bool = True,
     ) -> bool:
         """
         Go through all data references (or the ones as specified by memory_data_addrs) and determine their sizes and
@@ -689,6 +695,10 @@ class CFGModel(Serializable):
         :param seg_list:            The segment list that CFGFast uses during CFG recovery.
         :param data_type_guessing_handlers: A list of Python functions that will guess data types. They will be called
                                     in sequence to determine data types for memory data whose type is unknown.
+        :param fill_gaps:           If True, when a memory data entry is found to have a gap between its end and the
+                                    next data entry, a new memory data entry will be created to fill the gap. fill_gaps
+                                    should only be set to True at the end of CFG recovery when traversing the entire
+                                    memory_data dict for the last time.
         :return:                    True if new data entries are found, False otherwise.
         """
 
@@ -751,8 +761,6 @@ class CFGModel(Serializable):
                     # boundary does not exist, which means the data address is not mapped at all
                     data.max_size = 0
 
-        keys = sorted(self.memory_data.keys())
-
         new_data_found = False
 
         i = 0
@@ -790,21 +798,17 @@ class CFGModel(Serializable):
                 if len(content_holder) == 1:
                     memory_data.content = content_holder[0]
 
-                if memory_data.max_size is not None and (0 < memory_data.size < memory_data.max_size):
+                if (
+                    fill_gaps
+                    and memory_data.max_size is not None
+                    and (0 < memory_data.size < memory_data.max_size)
+                    and seg_list is not None
+                ):
                     # Create another memory_data object to fill the gap
-                    new_addr = data_addr + memory_data.size
-                    new_md = MemoryData(new_addr, None, None, max_size=memory_data.max_size - memory_data.size)
-                    self.memory_data[new_addr] = new_md
-                    if xrefs is not None:
-                        # Make a copy of all old references
-                        old_crs = xrefs.get_xrefs_by_dst(data_addr)
-                        crs = []
-                        for old_cr in old_crs:
-                            cr = old_cr.copy()
-                            cr.memory_data = new_md
-                            crs.append(cr)
-                        xrefs.add_xrefs(crs)
-                    keys.insert(i, new_addr)
+                    next_addr = None if i >= len(keys) else keys[i]
+                    new_addr = self._fill_memory_data_gap(seg_list, memory_data, next_addr, xrefs)
+                    if new_addr is not None:
+                        keys.insert(i, new_addr)
 
                 if data_type == MemoryDataSort.PointerArray:
                     # make sure all pointers are identified
@@ -848,6 +852,46 @@ class CFGModel(Serializable):
                 seg_list.occupy(data_addr, memory_data.size, memory_data.sort)
 
         return new_data_found
+
+    def _fill_memory_data_gap(
+        self, seg_list: SegmentList, memory_data: MemoryData, next_addr: int | None, xrefs
+    ) -> int | None:
+        new_addr = memory_data.addr + memory_data.size
+
+        next_free_pos = seg_list.next_free_pos(new_addr)
+
+        max_size = memory_data.max_size - memory_data.size
+
+        # find the immediate next memory data entry to see if max_size needs to be reduced
+        try:
+            next_obj_addr = next(self.memory_data.irange(minimum=new_addr))
+            if next_free_pos >= next_obj_addr:
+                # no gap exists between next_addr and next_obj_addr
+                return None
+            new_addr = next_free_pos
+            max_size = next_obj_addr
+        except StopIteration:
+            pass
+
+        max_size = min(max_size, memory_data.addr + memory_data.max_size - new_addr)
+        if next_addr is not None:
+            max_size = min(max_size, next_addr - new_addr)
+
+        if max_size <= 0:
+            return None
+
+        new_md = MemoryData(new_addr, None, None, max_size=max_size)
+        self.memory_data[new_addr] = new_md
+        if xrefs is not None:
+            # Make a copy of all old references
+            old_crs = xrefs.get_xrefs_by_dst(memory_data.addr)
+            crs = []
+            for old_cr in old_crs:
+                cr = old_cr.copy()
+                cr.memory_data = new_md
+                crs.append(cr)
+            xrefs.add_xrefs(crs)
+        return new_addr
 
     def _guess_data_type(
         self,
