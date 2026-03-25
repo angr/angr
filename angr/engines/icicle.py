@@ -19,6 +19,7 @@ from angr.engines.hook import HooksMixin
 from angr.engines.syscall import SimEngineSyscall
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
+from angr.state_plugins.icicle import SimStateIcicle
 
 log = logging.getLogger(__name__)
 
@@ -166,10 +167,7 @@ class IcicleEngine(ConcreteEngine):
         self._cached_emu: Icicle | None = None
         self._base_translation_data: IcicleStateTranslationData | None = None
         self._snapshot_mode: bool = False
-        self._continuation_ready: bool = False
-        self._live_translation_data: IcicleStateTranslationData | None = None
-        self._live_page_ids: dict[int, int | None] = {}
-        self._last_dirty_pages: set[int] = set()
+        self._run_counter: int = 0
 
     @staticmethod
     def __make_icicle_arch(arch: Arch) -> str | None:
@@ -527,40 +525,25 @@ class IcicleEngine(ConcreteEngine):
         """Check if a snapshot is available for fast restore."""
         return self._cached_emu is not None and self._cached_emu.has_snapshot()
 
-    def invalidate_vm_state(self) -> None:
-        """Force the next process_concrete to do a full snapshot restore."""
-        self._continuation_ready = False
-
-    def prepare_continuation(self) -> None:
-        """Signal that the next process_concrete is a continuation (skip snapshot restore)."""
-        if self._cached_emu is not None and self._live_translation_data is not None:
-            self._continuation_ready = True
-
-    def restore_and_sync(self, state: HeavyConcreteState) -> None:
-        """Restore the cached VM from snapshot and sync the given state to it."""
-        if self._cached_emu is None or self._base_translation_data is None:
-            raise ValueError("No cached emulator. Run process_concrete first with snapshot mode enabled.")
-        self._continuation_ready = False
-        self._cached_emu.restore_snapshot()
-        self._base_translation_data = self.__sync_angr_state_to_icicle(
-            self._cached_emu, state, self._base_translation_data
-        )
-
-    def _save_page_ids(self, state: HeavyConcreteState, writable_pages: set[int]) -> None:
-        """Snapshot page object identities for fast change detection."""
-        self._live_page_ids = {}
+    @staticmethod
+    def _build_page_ids(state: HeavyConcreteState, writable_pages: set[int]) -> dict[int, int | None]:
+        """Build page object identity snapshot for fast change detection."""
+        page_ids: dict[int, int | None] = {}
         for page_num in writable_pages:
             page = state.memory._pages.get(page_num)
-            self._live_page_ids[page_num] = id(page) if page is not None else None
+            page_ids[page_num] = id(page) if page is not None else None
+        return page_ids
 
-    def _get_changed_writable_pages(self, state: HeavyConcreteState, writable_pages: set[int]) -> list[int]:
-        """Return writable page numbers whose page object changed since the
-        last ``_save_page_ids`` call (copy-on-write detection)."""
+    @staticmethod
+    def _get_changed_writable_pages(
+        state: HeavyConcreteState, writable_pages: set[int], page_ids: dict[int, int | None]
+    ) -> list[int]:
+        """Return writable page numbers whose page object changed (COW detection)."""
         changed: list[int] = []
         for page_num in writable_pages:
             page = state.memory._pages.get(page_num)
             cur_id = id(page) if page is not None else None
-            if self._live_page_ids.get(page_num) != cur_id:
+            if page_ids.get(page_num) != cur_id:
                 changed.append(page_num)
         return changed
 
@@ -638,12 +621,27 @@ class IcicleEngine(ConcreteEngine):
     ) -> HeavyConcreteState:
         _ensure_duplex_stdio(state)
 
-        if self._continuation_ready and self._cached_emu is not None and self._live_translation_data is not None:
+        # Check for continuation via state plugin.
+        plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
+        icicle_plugin = plugin if isinstance(plugin, SimStateIcicle) else None
+
+        is_continuation = (
+            icicle_plugin is not None
+            and icicle_plugin.engine_id == id(self)
+            and icicle_plugin.run_id == self._run_counter
+            and self._cached_emu is not None
+        )
+
+        if is_continuation:
+            assert icicle_plugin is not None
+            assert self._cached_emu is not None
             # Continuation: sync registers + changed/dirty pages (no snapshot restore).
-            changed = self._get_changed_writable_pages(state, self._live_translation_data.writable_pages)
-            pages_to_sync = set(changed) | self._last_dirty_pages
+            changed = self._get_changed_writable_pages(
+                state, icicle_plugin.translation_data.writable_pages, icicle_plugin.page_ids
+            )
+            pages_to_sync = set(changed) | icicle_plugin.dirty_pages
             translation_data = self.__sync_continuation(
-                self._cached_emu, state, self._live_translation_data, list(pages_to_sync)
+                self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
             )
             emu = self._cached_emu
         elif self._cached_emu is not None and self._snapshot_mode:
@@ -651,7 +649,6 @@ class IcicleEngine(ConcreteEngine):
             if self._base_translation_data is None:
                 raise ValueError("No base translation data. Run process_concrete first with snapshot mode enabled.")
             self._cached_emu.restore_snapshot()
-            self._last_dirty_pages = set()
             translation_data = self.__sync_angr_state_to_icicle(self._cached_emu, state, self._base_translation_data)
             emu = self._cached_emu
         else:
@@ -697,15 +694,22 @@ class IcicleEngine(ConcreteEngine):
         for addr in added_breakpoints:
             emu.remove_breakpoint(addr)
 
-        page_size = state.memory.page_size
-        self._last_dirty_pages = {addr // page_size for addr in emu.modified_pages}
-
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
-        # Save state for potential continuation
-        self._continuation_ready = False
-        self._live_translation_data = translation_data
-        self._save_page_ids(result, translation_data.writable_pages)
+        # Attach plugin for continuation detection on the next call.
+        page_size = state.memory.page_size
+        dirty_pages = {addr // page_size for addr in emu.modified_pages}
+        self._run_counter += 1
+        result.register_plugin(
+            "icicle",
+            SimStateIcicle(
+                engine_id=id(self),
+                run_id=self._run_counter,
+                translation_data=translation_data,
+                page_ids=self._build_page_ids(result, translation_data.writable_pages),
+                dirty_pages=dirty_pages,
+            ),
+        )
 
         return result
 

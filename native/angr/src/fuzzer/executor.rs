@@ -108,16 +108,12 @@ impl Executor<EM, I, S, Z> for PyExecutorInner<S> {
                 emulator.call_method1("add_breakpoint", (return_addr & !1,))?;
 
                 let exit = if let Some(limit) = self.max_icount {
-                    emulator
-                        .getattr("run")?
-                        .call1((limit,))?
+                    emulator.getattr("run")?.call1((limit,))?
                 } else {
-                    emulator
-                        .getattr("run")?
-                        .call0()?
+                    emulator.getattr("run")?.call0()?
                 }
-                    .getattr("name")?
-                    .extract::<String>()?;
+                .getattr("name")?
+                .extract::<String>()?;
 
                 Ok((emulator.unbind(), exit))
             }()

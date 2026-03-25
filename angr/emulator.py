@@ -58,9 +58,6 @@ class Emulator:
         self._engine = engine
         self._state = init_state
         self._breakpoints = set()
-        # Ensure first process_concrete does a full snapshot restore.
-        if hasattr(engine, "invalidate_vm_state"):
-            engine.invalidate_vm_state()
 
     @property
     def state(self) -> HeavyConcreteState:
@@ -114,10 +111,6 @@ class Emulator:
             remaining_inst: int | None = None
             if num_inst is not None:
                 remaining_inst = num_inst - num_inst_executed
-
-            # Signal continuation so the engine can skip snapshot restore.
-            if completed_engine_execs > 0 and hasattr(self._engine, "prepare_continuation"):
-                self._engine.prepare_continuation()
 
             # Run the engine to get successors
             try:
