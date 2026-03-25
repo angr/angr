@@ -361,9 +361,7 @@ class TestFuzzer:
             NO_RET = True
 
             def run(self, main, argc, argv, init, fini):
-                main, argc, argv, _, _ = _libc_start_main._extract_args(
-                    self.state, main, argc, argv, init, fini
-                )
+                main, argc, argv, _, _ = _libc_start_main._extract_args(self.state, main, argc, argv, init, fini)
                 self.state.regs.rdi = argc
                 self.state.regs.rsi = argv
                 envp = argv + (argc + 1) * self.state.arch.bytes

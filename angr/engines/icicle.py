@@ -67,7 +67,7 @@ def _syscall_insn_len(arch_name: str) -> int:
         return 2
     # ARM/Thumb SVC is 4 bytes (ARM) or 2 bytes (Thumb), but the icicle PC
     # already accounts for the instruction, so default to 4 for ARM.
-    if arch_name.startswith("ARM") or arch_name.startswith("AARCH"):
+    if arch_name.startswith(("ARM", "AARCH")):
         return 4
     # MIPS syscall is 4 bytes
     if arch_name.startswith("MIPS"):
@@ -553,9 +553,7 @@ class IcicleEngine(ConcreteEngine):
             page = state.memory._pages.get(page_num)
             self._live_page_ids[page_num] = id(page) if page is not None else None
 
-    def _get_changed_writable_pages(
-        self, state: HeavyConcreteState, writable_pages: set[int]
-    ) -> list[int]:
+    def _get_changed_writable_pages(self, state: HeavyConcreteState, writable_pages: set[int]) -> list[int]:
         """Return writable page numbers whose page object changed since the
         last ``_save_page_ids`` call (copy-on-write detection)."""
         changed: list[int] = []
