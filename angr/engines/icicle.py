@@ -658,18 +658,6 @@ class IcicleEngine(ConcreteEngine):
             # Full init path
             emu, translation_data = self.__convert_angr_state_to_icicle(state)
 
-            # Map pages for extra stop points so they survive snapshot restore.
-            if extra_stop_points is not None:
-                is_arm = IcicleEngine.__is_arm(translation_data.icicle_arch)
-                page_size = state.memory.page_size
-                for bp_addr in extra_stop_points:
-                    if is_arm:
-                        bp_addr = bp_addr & ~1
-                    bp_page_num = bp_addr // page_size
-                    if bp_page_num not in translation_data.mapped_pages:
-                        emu.mem_map(bp_page_num * page_size, page_size, 5)  # r-x
-                        translation_data.mapped_pages.add(bp_page_num)
-
             if self._snapshot_mode and self._cached_emu is None:
                 emu.save_snapshot()
                 self._cached_emu = emu
@@ -682,7 +670,13 @@ class IcicleEngine(ConcreteEngine):
             for addr in extra_stop_points:
                 if is_arm:
                     addr = addr & ~1  # Clear thumb bit
-                if emu.pc != addr and emu.add_breakpoint(addr):
+                if emu.pc == addr:
+                    continue
+                bp_page = addr // state.memory.page_size
+                if bp_page not in translation_data.mapped_pages:
+                    log.debug("Breakpoint at %#x skipped: page not mapped.", addr)
+                    continue
+                if emu.add_breakpoint(addr):
                     added_breakpoints.append(addr)
         # Sync JIT counters for newly added breakpoints.
         if added_breakpoints:
