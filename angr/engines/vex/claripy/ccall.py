@@ -1019,9 +1019,9 @@ def generic_rotate_with_carry(state, left, arg, rot_amt, carry_bit_in, sz):
         sized_amt = (rot_amt & 0x1F) % 9
     elif sz == 2:
         sized_amt = (rot_amt & 0x1F) % 17
-    elif sz == 3:
-        sized_amt = rot_amt & 0x1F
     elif sz == 4:
+        sized_amt = rot_amt & 0x1F
+    elif sz == 8:
         sized_amt = rot_amt & 0x3F
 
     # Ajust the BV size
