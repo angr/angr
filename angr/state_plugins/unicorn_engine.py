@@ -301,14 +301,16 @@ class Uniwrapper:
     """Wrapper around unicorn.Uc that tracks mapped memory and hooks."""
 
     # pylint: disable=missing-class-docstring
-    def __init__(self, arch, cache_key):
+    def __init__(self, arch, cache_key, thumb=False):
         l.debug("Creating unicorn state!")
         self.arch = arch
         self.cache_key = cache_key
+        self.thumb = thumb
         self.wrapped_mapped = set()
         self.wrapped_hooks = set()
         self.id = None
-        self._uc = unicorn.Uc(arch.uc_arch, arch.uc_mode)
+        uc_mode = arch.uc_mode_thumb if thumb else arch.uc_mode
+        self._uc = unicorn.Uc(arch.uc_arch, uc_mode)
 
     def __getattr__(self, name):
         # Delegate attribute access to the underlying Uc instance
@@ -833,16 +835,18 @@ class Unicorn(SimStatePlugin):
     @property
     def uc(self):
         new_id = next(_unicounter)
+        is_thumb = self.state.arch.qemu_name == "arm" and self.state.arch.is_thumb(self.state.addr)
         if (
             not hasattr(_unicorn_tls, "uc")
             or _unicorn_tls.uc is None
             or _unicorn_tls.uc.arch != self.state.arch
             or _unicorn_tls.uc.cache_key != self.cache_key
         ):
-            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
+            _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
         elif _unicorn_tls.uc.id != self._unicount:
-            if not self._reuse_unicorn:
-                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key)
+            # Recreate if ARM mode changed (unicorn instances are bound to ARM/Thumb mode)
+            if not self._reuse_unicorn or _unicorn_tls.uc.thumb != is_thumb:
+                _unicorn_tls.uc = Uniwrapper(self.state.arch, self.cache_key, thumb=is_thumb)
             else:
                 # l.debug("Reusing unicorn state!")
                 _unicorn_tls.uc.reset()

@@ -2331,8 +2331,10 @@ void State::start_propagating_taint() {
 		// Block was not lifted and processed before. So it could end in syscall
 		curr_block_details.vex_lift_result = lift_block(block_address, block_size);
 		if ((curr_block_details.vex_lift_result == NULL) || (curr_block_details.vex_lift_result->size == 0) ||
-		    (curr_block_details.vex_lift_result->size != curr_block_details.block_size)) {
+		    (curr_block_details.vex_lift_result->size > curr_block_details.block_size)) {
 			// Failed to lift block to VEX. We don't execute the block because it could end in a syscall.
+			// For Thumb code, VEX may split blocks at different points than unicorn (e.g., IT blocks),
+			// so a smaller VEX block is acceptable — we only need the jumpkind to check for syscalls.
 			stop(STOP_VEX_LIFT_FAILED);
 			return;
 		}
