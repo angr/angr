@@ -563,6 +563,24 @@ class TestExtraStopPoints(TestCase):
         assert state3.regs.x4.concrete_value == 2  # 3 - 1
         assert state3.addr == project.entry + 20  # After last instruction
 
+    def test_unmapped_stop_point_skipped(self):
+        """Test that a stop point on an unmapped page is silently skipped."""
+        shellcode = "mov x0, 0x1; mov x1, 0x2"
+        project = angr.load_shellcode(shellcode, "aarch64")
+
+        engine = IcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        # 0xDEAD0000 is unmapped — should be skipped, not crash
+        successors = engine.process(init_state, extra_stop_points={0xDEAD0000})
+        assert len(successors.successors) == 1
+        final_state = successors.successors[0]
+        assert final_state.regs.x0.concrete_value == 1
+        assert final_state.regs.x1.concrete_value == 2
+
     def test_stop_point_at_start(self):
         """Test that a stop point at the very first instruction is ignored (execution resumes immediately)."""
         shellcode = "mov x0, 0x1; mov x1, 0x2"
