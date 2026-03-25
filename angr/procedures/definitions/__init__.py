@@ -8,11 +8,11 @@ import inspect
 from collections import defaultdict
 from typing import Any, TYPE_CHECKING
 
-import msgspec
 import pydemumble
 import archinfo
 
 from angr.errors import AngrMissingTypeError
+from angr.utils.json_utils import json_decode
 from angr.sim_type import parse_cpp_file, parse_file, SimTypeFunction, SimTypeBottom, SimType
 from angr.calling_conventions import DEFAULT_CC, CC_NAMES, SimCC
 from angr.misc import autoimport
@@ -76,7 +76,7 @@ class SimTypeCollection:
 
             d = self.types_json[name]
             if isinstance(d, str):
-                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+                d = json_decode(d.replace("'", '"').encode("utf-8"))
             try:
                 t = SimType.from_json(d, type_collection=self, memo=memo)
             except (TypeError, ValueError) as ex:
@@ -376,7 +376,7 @@ class SimLibrary:
         if name not in self.prototypes and name in self.prototypes_json:
             d = self.prototypes_json[name]
             if isinstance(d, str):
-                d = msgspec.json.decode(d.replace("'", '"').encode("utf-8"))
+                d = json_decode(d.replace("'", '"').encode("utf-8"))
             if not isinstance(d, dict):
                 l.warning("Failed to load prototype %s from JSON", name)
                 proto = None
@@ -847,7 +847,7 @@ def load_type_collections(only=None, skip=None) -> None:
     for f in types_json_files:
         with open(f, "rb") as fp:
             data = fp.read()
-            d = msgspec.json.decode(data)
+            d = json_decode(data)
             if not isinstance(d, dict) or d.get("_t", "") != "types":
                 l.warning("Invalid type collection JSON file: %s", f)
                 continue
@@ -893,7 +893,7 @@ def _load_definitions(base_dir: str, only: set[str] | None = None, skip: set[str
             if module_name in skip:
                 continue
             with open(os.path.join(base_dir, f), "rb") as f:
-                d = msgspec.json.decode(f.read())
+                d = json_decode(f.read())
                 if not (isinstance(d, dict) and d.get("_t", "") == "lib"):
                     l.warning("Invalid SimLibrary JSON file: %s", f)
                     continue

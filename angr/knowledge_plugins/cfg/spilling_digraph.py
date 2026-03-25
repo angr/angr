@@ -17,11 +17,11 @@ from collections import OrderedDict, UserDict
 from collections.abc import Iterator, MutableMapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
-import msgspec
 import lmdb
 import networkx
 from archinfo.arch_soot import SootMethodDescriptor, SootAddressDescriptor
 
+from angr.utils.json_utils import json_encode, json_decode
 from angr.protos import cfg_pb2
 from angr.utils.enums_conv import cfg_jumpkind_to_pb, cfg_jumpkind_from_pb
 from .types import K, CFG_ADDR_TYPES
@@ -285,7 +285,7 @@ class SpillingAdjDict(MutableMapping):
                         "block_idx": dst_key.block_idx,
                         "stmt_idx": dst_key.stmt_idx,
                     }
-                    key_bytes = msgspec.json.encode(d)
+                    key_bytes = json_encode(d)
 
                 case _:
                     raise TypeError(f"Unsupported addr_type {self.addr_type}")
@@ -334,7 +334,7 @@ class SpillingAdjDict(MutableMapping):
                     dst_key = (block_id_obj, size, looping_times)
 
                 case "soot":
-                    d = msgspec.json.decode(key_bytes)
+                    d = json_decode(key_bytes)
                     method = SootMethodDescriptor(d["class_name"], d["name"], d["params"])
                     dst_key = SootAddressDescriptor(method, d["block_idx"], d["stmt_idx"])
 

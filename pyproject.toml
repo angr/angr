@@ -26,7 +26,7 @@ dependencies = [
     "claripy==9.2.208.dev0",
     "cle==9.2.208.dev0",
     "lmdb==2.1.1",
-    "msgspec",
+    "msgspec; implementation_name == 'cpython'",
     "mulpyplexer",
     "networkx!=2.8.1,>=2.0",
     "protobuf>=6.33.0",
