@@ -5,15 +5,15 @@ falling back to the standard library json module otherwise.
 
 from __future__ import annotations
 import platform
+import contextlib
 import json
 from typing import Any
 
+_msgspec = None
 
 if platform.python_implementation() == "CPython":
-    try:
+    with contextlib.suppress(ImportError):
         import msgspec as _msgspec
-    except ImportError:
-        _msgspec = None
 
 
 def json_encode(obj: Any) -> bytes:
