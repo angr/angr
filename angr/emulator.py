@@ -137,10 +137,6 @@ class Emulator:
                 return EmulatorStopReason.EMULATION_GAP
 
             if successors.successors[0].history.jumpkind == "Ijk_SigSEGV":
-                # JIT may miss a breakpoint and crash at that address instead.
-                landed_addr = self._state.addr & ~1
-                if landed_addr in self._breakpoints:
-                    return EmulatorStopReason.BREAKPOINT
                 return EmulatorStopReason.MEMORY_ERROR
 
             completed_engine_execs += 1

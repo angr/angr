@@ -675,9 +675,6 @@ class IcicleEngine(ConcreteEngine):
                     continue
                 if emu.add_breakpoint(addr):
                     added_breakpoints.append(addr)
-        # Sync JIT counters for newly added breakpoints.
-        if added_breakpoints:
-            emu.revalidate_breakpoints()
 
         # icount_limit is absolute — offset by current cpu_icount.
         if num_inst is not None and num_inst > 0:
