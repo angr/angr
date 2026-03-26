@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.rust.sim_type import RustSimStruct
 from angr.rust.mixins import SRDAMixin
 from angr.ailment import Block, Const

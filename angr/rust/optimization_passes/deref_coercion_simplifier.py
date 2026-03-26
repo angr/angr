@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 from angr.ailment.block_walker import AILBlockRewriter
@@ -17,7 +18,7 @@ STR_CMP_EQ_FUNCTION = "<alloc::string::String as core::cmp::PartialEq<&str>>::eq
 
 
 class StrCmpSimplifierWalker(AILBlockRewriter):
-    def __init__(self, context: "DerefCoercionSimplifier"):
+    def __init__(self, context: DerefCoercionSimplifier):
         super().__init__()
         self.context = context
 
@@ -61,9 +62,9 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
     def _simplify_str_arguments(self, call: Call, block, stmt, is_expr):
         string_ty = self.project.kb.known_structs["alloc::string::String"]
         ptr_offset = (
-                string_ty.get_field_offset("vec.buf.ptr.pointer")
-                or string_ty.get_field_offset("vec.buf.inner.ptr.pointer")
-                or 0
+            string_ty.get_field_offset("vec.buf.ptr.pointer")
+            or string_ty.get_field_offset("vec.buf.inner.ptr.pointer")
+            or 0
         )
         len_offset = string_ty.get_field_offset("vec.len") or self.project.arch.bytes
         if call.args:
@@ -74,8 +75,7 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
                 arg0 = args.pop(0)
                 vvar = arg0
                 if isinstance(arg0, VirtualVariable) and vvar.was_stack:
-                    vvar = self.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.tags["ins_addr"],
-                                                               block.idx)
+                    vvar = self.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.tags["ins_addr"], block.idx)
                     if isinstance(vvar, VirtualVariable) and vvar.was_stack:
                         returnty = None
                         value = self.get_terminal_vvar_value(vvar)
@@ -86,9 +86,9 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
                         if isinstance(returnty, RustSimStruct) and returnty.name == string_ty.name:
                             arg1 = args.pop(0)
                             if (
-                                    isinstance(arg1, VirtualVariable)
-                                    and arg1.was_stack
-                                    and arg1.stack_offset - arg0.stack_offset == len_offset - ptr_offset
+                                isinstance(arg1, VirtualVariable)
+                                and arg1.was_stack
+                                and arg1.stack_offset - arg0.stack_offset == len_offset - ptr_offset
                             ):
                                 new_args.append(vvar)
                                 changed = True

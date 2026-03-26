@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Union
 from itertools import count
 
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
@@ -160,21 +159,20 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_RustEnum(self, tc: typeconsts.RustEnum):
         if tc.name.startswith("core::result::Result<") or tc.name.startswith("Result<"):
             return self._translate_Result(tc)
-        elif tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
+        if tc.name.startswith("core::option::Option<") or tc.name.startswith("Option<"):
             return self._translate_Option(tc)
-        else:
-            return RustSimEnum(
-                tc.name,
-                [
-                    EnumVariant(
-                        variant.name,
-                        [(self._tc2simtype(field_ty), field_name) for field_ty, field_name in variant.fields],
-                        variant.discriminant,
-                        variant.discriminant_size,
-                    )
-                    for variant in tc.variants
-                ],
-            ).with_arch(self.arch)
+        return RustSimEnum(
+            tc.name,
+            [
+                EnumVariant(
+                    variant.name,
+                    [(self._tc2simtype(field_ty), field_name) for field_ty, field_name in variant.fields],
+                    variant.discriminant,
+                    variant.discriminant_size,
+                )
+                for variant in tc.variants
+            ],
+        ).with_arch(self.arch)
 
     def _tc2simtype(self, tc):
         if tc is None:
@@ -205,16 +203,15 @@ class RustTypeTranslator(TypeTranslator):
     def _translate_RustSimTypeInt(self, ty: RustSimTypeInt):
         if ty.size == 8:
             return typeconsts.Int8()
-        elif ty.size == 16:
+        if ty.size == 16:
             return typeconsts.Int16()
-        elif ty.size == 32:
+        if ty.size == 32:
             return typeconsts.Int32()
-        elif ty.size == 64:
+        if ty.size == 64:
             return typeconsts.Int64()
-        elif ty.size == 128:
+        if ty.size == 128:
             return typeconsts.Int128()
-        else:
-            return IntVar(size=ty.size)
+        return IntVar(size=ty.size)
 
     def _translate_RustSimStruct(self, ty: RustSimStruct) -> TypeConstant | typeconsts.BottomType:
         if ty in self.memo:
@@ -262,7 +259,7 @@ class RustTypeTranslator(TypeTranslator):
     # Utility
     # ----------------------------------------------------------------
 
-    def ctype2rust(self, simtype: Union[sim_type.SimType, RustSimType]):
+    def ctype2rust(self, simtype: sim_type.SimType | RustSimType):
         if isinstance(simtype, RustSimType):
             return simtype
         if isinstance(simtype, SimTypeNum):

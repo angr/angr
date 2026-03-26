@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 import traceback
-from typing import Tuple, List
 from collections import OrderedDict
 
 from angr.analyses.decompiler.clinic import ClinicStage
@@ -149,7 +149,7 @@ class RustCallingConventionAnalysis(Analysis):
             is_arg0_retbuf=is_arg0_ret_buf,
         )
 
-    def _infer_return_type(self) -> Tuple[RustSimType | None, bool]:
+    def _infer_return_type(self) -> tuple[RustSimType | None, bool]:
         # The first argument is not used as return buffer
         if (
             len(self.model.callsite_memory_writes[0]) != 0
@@ -194,13 +194,11 @@ class RustCallingConventionAnalysis(Analysis):
                     pack=True,
                 ).with_arch(self.project.arch)
                 # Check if discriminant 0 has any concrete overflow value
-                none_has_concrete_overflow = any(
-                    ov is not None for rv, ov in self.model.const_ret_values if rv == 0
-                )
+                none_has_concrete_overflow = any(ov is not None for rv, ov in self.model.const_ret_values if rv == 0)
 
                 if len(ret_values) == 0:
                     return payload_ty, False
-                elif len(ret_values) == 1 and 0 in ret_values and not none_has_concrete_overflow:
+                if len(ret_values) == 1 and 0 in ret_values and not none_has_concrete_overflow:
                     none_discriminant = next(iter(ret_values))
                     return (
                         RustSimTypeOption(
@@ -212,7 +210,7 @@ class RustCallingConventionAnalysis(Analysis):
                         ).with_arch(self.project.arch),
                         False,
                     )
-                elif len(ret_values) == 2:
+                if len(ret_values) == 2:
                     smaller, larger = sorted(ret_values)
                     if larger - smaller == 1:
                         # Discriminants differ by 1 → Result<T, E>
@@ -233,7 +231,7 @@ class RustCallingConventionAnalysis(Analysis):
                             ).with_arch(self.project.arch),
                             False,
                         )
-                    elif 0 in ret_values and not none_has_concrete_overflow:
+                    if 0 in ret_values and not none_has_concrete_overflow:
                         # Discriminants differ by >1 → Option<T>
                         none_discriminant = smaller
                         return (
@@ -263,7 +261,7 @@ class RustCallingConventionAnalysis(Analysis):
                     discriminant = expr
             struct_ty = RustSimStruct(
                 fields,
-                name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+                name=f"struct{sum(field.size or 0 for field in fields.values()) // 8}",
                 pack=True,
             ).with_arch(self.project.arch)
             candidates_and_paths.append(((struct_ty, discriminant), path))
@@ -296,7 +294,7 @@ class RustCallingConventionAnalysis(Analysis):
                     fields[f"field_{offset}"] = arg_ty
                 struct_ty = RustSimStruct(
                     fields,
-                    name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+                    name=f"struct{sum(field.size or 0 for field in fields.values()) // 8}",
                     pack=True,
                 ).with_arch(self.project.arch)
             candidates.append(struct_ty)
@@ -384,10 +382,9 @@ class RustCallingConventionAnalysis(Analysis):
         value, is_err = self.callsite_discriminant_hint
         if is_err:
             return value if value in discriminant_values else None
-        else:
-            # value is Ok; derive Err as the other discriminant
-            if len(discriminant_values) == 2 and value in discriminant_values:
-                return (discriminant_values - {value}).pop()
+        # value is Ok; derive Err as the other discriminant
+        if len(discriminant_values) == 2 and value in discriminant_values:
+            return (discriminant_values - {value}).pop()
         return None
 
     def _remove_discriminant_from_struct(self, struct_type: RustSimStruct):
@@ -399,12 +396,12 @@ class RustCallingConventionAnalysis(Analysis):
             offset += field_type.size // self.project.arch.byte_width
         return RustSimStruct(
             fields,
-            name=f"struct{sum(field.size if field.size else 0 for field in fields.values()) // 8}",
+            name=f"struct{sum(field.size or 0 for field in fields.values()) // 8}",
             pack=True,
         ).with_arch(self.project.arch)
 
     def _infer_potential_enum_type(
-        self, candidates_and_paths: List[Tuple[Tuple[RustSimStruct, Const | None], Tuple[Block]]]
+        self, candidates_and_paths: list[tuple[tuple[RustSimStruct, Const | None], tuple[Block]]]
     ) -> RustSimEnum | None:
         if len(candidates_and_paths) <= 1:
             return None
@@ -421,10 +418,10 @@ class RustCallingConventionAnalysis(Analysis):
 
         if len(candidates_and_discriminants) == 2:
             discriminants = list(discriminant for _, discriminant in candidates_and_discriminants)
-            discriminant_sizes = set(discriminant.bits for discriminant in discriminants if discriminant is not None)
+            discriminant_sizes = {discriminant.bits for discriminant in discriminants if discriminant is not None}
             if len(discriminant_sizes) == 1:
                 discriminant_size = next(iter(discriminant_sizes))
-                candidate_sizes = sorted(set(candidate.size for candidate, _ in candidates_and_discriminants))
+                candidate_sizes = sorted({candidate.size for candidate, _ in candidates_and_discriminants})
                 overlapping_discriminant = None in discriminants
                 if candidate_sizes[0] == discriminant_size:
                     # Option<T> or Result<(), E>
@@ -457,7 +454,7 @@ class RustCallingConventionAnalysis(Analysis):
                         some_discriminant,
                         some_discriminant_size,
                     )
-                elif None not in discriminants:
+                if None not in discriminants:
                     # Result<T, E> with both discriminants known
                     # Default: sort by discriminant value (smaller = Ok, larger = Err)
                     struct_type_and_discriminant = tuple(
@@ -484,7 +481,7 @@ class RustCallingConventionAnalysis(Analysis):
                         err_discriminant.value,
                         discriminant_size,
                     )
-                elif candidates_and_discriminants[1][1] is None:
+                if candidates_and_discriminants[1][1] is None:
                     # Result<T, E> with one discriminant missing (T is larger, discriminant omitted)
                     (err_type, err_discriminant), (ok_type, _) = candidates_and_discriminants
                     discriminant_size = discriminant_size // 8
@@ -512,7 +509,7 @@ class RustCallingConventionAnalysis(Analysis):
                     err_discriminant=None,
                     err_discriminant_size=0,
                 )
-            elif (
+            if (
                 len(structs_by_size) > 2
                 and min(structs_by_size) > 16 * self.project.arch.byte_width
                 and not all(discriminant is None for _, discriminant in candidates_and_discriminants)

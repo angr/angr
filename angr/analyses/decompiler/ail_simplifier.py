@@ -37,7 +37,6 @@ from angr.ailment.expression import (
     BinaryOp,
     VirtualVariable,
     UnaryOp,
-    ComboRegister,
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis

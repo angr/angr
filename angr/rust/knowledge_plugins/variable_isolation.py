@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ...knowledge_plugins.plugin import KnowledgeBasePlugin
 
 

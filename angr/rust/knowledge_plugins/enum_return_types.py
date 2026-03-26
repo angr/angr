@@ -1,8 +1,8 @@
+from __future__ import annotations
 from angr.knowledge_plugins import KnowledgeBasePlugin
 
 
 class EnumReturnTypes(KnowledgeBasePlugin):
-
     def __init__(self, kb):
         super().__init__(kb)
         self.enum_return_types = {}

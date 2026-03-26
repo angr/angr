@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment.expression import VirtualVariable
 from angr.ailment.statement import Label, Jump, Assignment, ConditionalJump
 

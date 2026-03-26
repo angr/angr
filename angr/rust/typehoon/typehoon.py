@@ -1,5 +1,6 @@
+from __future__ import annotations
 from collections import defaultdict
-from typing import Set, Optional, Dict, Union, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from ...analyses.typehoon.typehoon import Typehoon
 from ...analyses.analysis import AnalysesHub
@@ -11,7 +12,6 @@ from ...sim_variable import SimVariable, SimStackVariable
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
-    from angr.analyses.typehoon.typevars import TypeConstraint
 
 
 class RustTypehoon(Typehoon):
@@ -20,8 +20,8 @@ class RustTypehoon(Typehoon):
         constraints,
         func_var,
         ground_truth=None,
-        var_mapping: Optional[Dict["SimVariable", Set["TypeVariable"]]] = None,
-        must_struct: Optional[Set["TypeVariable"]] = None,
+        var_mapping: dict[SimVariable, set[TypeVariable]] | None = None,
+        must_struct: set[TypeVariable] | None = None,
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
         constraint_set_degradation_threshold: int = 150,

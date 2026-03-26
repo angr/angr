@@ -225,7 +225,6 @@ class Register(Atom):
 
 
 class ComboRegister(Atom):
-
     def __init__(self, idx, variable, registers: list[Register | VirtualVariable], **kwargs):
         super().__init__(idx, variable, **kwargs)
         self.registers = registers
@@ -272,8 +271,8 @@ class VirtualVariable(Atom):
     __slots__ = (
         "category",
         "oident",
-        "varid",
         "reg_vvars",
+        "varid",
     )
 
     def __init__(
@@ -328,7 +327,7 @@ class VirtualVariable(Atom):
         if self.was_combo_reg:
             assert isinstance(self.oident, tuple)
             return self.oident
-        elif self.was_parameter and self.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
+        if self.was_parameter and self.parameter_category == VirtualVariableCategory.COMBO_REGISTER:
             assert isinstance(self.oident[1], tuple)
             return self.oident[1]
         raise TypeError("Is not a combo register")
@@ -2067,6 +2066,8 @@ class Call(Expression):
             bits=self.bits,
             **self.tags,
         )
+
+
 #
 # Rust-specific expressions
 #
@@ -2086,7 +2087,7 @@ class StringLiteral(Expression):
         return f'"{repr(self.data)[1:-1]}"'
 
     def __str__(self):
-        return f"StringLiteral({repr(self)})"
+        return f"StringLiteral({self!r})"
 
     __hash__ = TaggedObject.__hash__
 
@@ -2122,7 +2123,7 @@ class Struct(Expression):
         field = self.fields.get(offset, None)
         if len(path) == 1:
             return field
-        elif isinstance(field, Struct):
+        if isinstance(field, Struct):
             return field.get_field(".".join(path[1:]))
         return None
 
@@ -2174,8 +2175,7 @@ class Struct(Expression):
 
         if replaced:
             return True, Struct(self.idx, self.name, new_fields, self.field_offsets, self.bits, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     matches = likes
 
@@ -2199,7 +2199,7 @@ class Enum(Expression):
         return str(self)
 
     def __str__(self):
-        return f"{self.name}({str(self.fields)})"
+        return f"{self.name}({self.fields!s})"
 
     __hash__ = TaggedObject.__hash__
 
@@ -2234,8 +2234,7 @@ class Enum(Expression):
 
         if replaced:
             return True, Enum(self.idx, self.name, new_fields, self.bits, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     matches = likes
 
@@ -2292,14 +2291,13 @@ class Array(Expression):
 
         if replaced:
             return True, Array(self.idx, new_elements, self.bits, **self.tags)
-        else:
-            return False, self
+        return False, self
 
     matches = likes
 
 
 class Let(Op):
-    __slots__ = ("variant", "defs", "src", "bits")
+    __slots__ = ("bits", "defs", "src", "variant")
 
     def __init__(self, idx, variant, defs, src, **kwargs):
         super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)

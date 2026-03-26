@@ -12,7 +12,7 @@ import networkx
 import capstone
 
 from angr import ailment
-from angr.ailment import AILBlockWalker, Statement, Block, AILBlockRewriter
+from angr.ailment import Statement, Block, AILBlockRewriter
 from angr.ailment.block_walker import AILBlockViewer
 from angr.analyses.decompiler.callsite_maker import CallSiteMaker
 from angr.code_location import ExternalCodeLocation
@@ -79,9 +79,8 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from .optimization_passes import get_optimization_passes, OptimizationPassStage, RegisterSaveAreaSimplifier
 from ..typehoon.typehoon import Typehoon
-from angr.ailment.expression import Struct, Array, Enum, Let, ComboRegister, VirtualVariable
+from angr.ailment.expression import Struct, Array, Enum, Let
 from angr.ailment.statement import FunctionLikeMacro
 from .semantic_naming import SemanticNamingOrchestrator
 
@@ -623,7 +622,6 @@ class Clinic(Analysis):
         """
 
         class ComboRegReferenceWalker(AILBlockRewriter):
-
             def __init__(self, project):
                 super().__init__()
                 self.project = project
@@ -2023,17 +2021,16 @@ class Clinic(Analysis):
             # across registers). most importantly, a ComboArg represents one variable, not multiple, but we
             # have no way to know that until later down the pipeline.
             return arg_loc.locations
-        elif isinstance(arg_loc, SimStructArg):
+        if isinstance(arg_loc, SimStructArg):
             tmp_locs = []
             for field_name in arg_loc.struct.fields:
                 if field_name not in arg_loc.locs:
                     continue
                 tmp_locs += Clinic._expand_argloc(arg_loc.locs[field_name])
             return tmp_locs
-        elif isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
+        if isinstance(arg_loc, (SimRegArg, SimStackArg, SimReferenceArgument)):
             return [arg_loc]
-        else:
-            raise NotImplementedError("Not implemented yet.")
+        raise NotImplementedError("Not implemented yet.")
 
     @timethis
     def _make_argument_list(self) -> list[SimVariable]:
@@ -2509,7 +2506,6 @@ class Clinic(Analysis):
                 var, offset = next(iter(vars_))
                 expr.variable = var
                 expr.variable_offset = offset
-
 
             if expr.was_combo_reg:
                 for reg_vvar in expr.reg_vvars:

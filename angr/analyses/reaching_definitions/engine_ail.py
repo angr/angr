@@ -23,7 +23,6 @@ from angr.code_location import CodeLocation, ExternalCodeLocation
 from .subject import SubjectType
 from .rd_state import ReachingDefinitionsState
 from .function_handler import FunctionHandler, FunctionCallData
-from ...engines.engine import DataType_co
 
 l = logging.getLogger(name=__name__)
 

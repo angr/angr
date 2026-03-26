@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment.expression import VirtualVariable, Const, UnaryOp, BinaryOp
 from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Label
 from angr.rust.mixins import CFAMixin, SSAVariableMixin
@@ -132,9 +133,8 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
             eq_is_early = false_early
 
         if eq_is_early:
-            return (discriminant_value, True)   # ret == X → early return → X is Err
-        else:
-            return (discriminant_value, False)  # ret != X → early return → X is Ok
+            return (discriminant_value, True)  # ret == X → early return → X is Err
+        return (discriminant_value, False)  # ret != X → early return → X is Ok
 
     def _is_early_return_block(self, block, block_map, visited=None):
         """Check if a block leads to a simple early return (only labels, register assignments, and returns)."""
@@ -152,9 +152,9 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                 if next_block:
                     return self._is_early_return_block(next_block, block_map, visited)
                 return False
-            elif isinstance(stmt, Label):
-                continue
-            elif isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+            elif isinstance(stmt, Label) or (
+                isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg
+            ):
                 continue
             else:
                 return False

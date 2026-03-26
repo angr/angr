@@ -1,8 +1,7 @@
-from typing import Optional
+from __future__ import annotations
 
-from angr.ailment import Block, Assignment, Const
-from angr.ailment.expression import Convert
-from angr.ailment.statement import Statement, Label, Call, Return, ConditionalJump, Jump
+from angr.ailment import Block, Const
+from angr.ailment.statement import Statement, Label, Call, ConditionalJump
 from angr.rust.utils.ail import CallFinder
 
 from angr.rust.utils.demangler import normalize
@@ -29,13 +28,13 @@ class CFAMixin:
     def get_one_successor(self, block) -> Block:
         return next(self._graph.successors(block))
 
-    def first_non_label_stmt(self, block) -> Optional[Statement]:
+    def first_non_label_stmt(self, block) -> Statement | None:
         for stmt in block.statements:
             if not isinstance(stmt, Label):
                 return stmt
         return None
 
-    def last_stmt(self, block) -> Optional[Statement]:
+    def last_stmt(self, block) -> Statement | None:
         if block.statements:
             return block.statements[-1]
         return None
@@ -46,7 +45,7 @@ class CFAMixin:
         for stmt in stmts:
             block.statements.remove(stmt)
 
-    def terminal_call(self, block) -> Optional[Call]:
+    def terminal_call(self, block) -> Call | None:
         stmt = self.last_stmt(block)
         finder = CallFinder()
         finder.walk_statement(stmt, block)
@@ -56,10 +55,10 @@ class CFAMixin:
             finder.walk_statement(stmt, block)
         return finder.call
 
-    def get_call_target(self, call: Call) -> Optional[str]:
+    def get_call_target(self, call: Call) -> str | None:
         if isinstance(call.target, str):
             return call.target
-        elif isinstance(call.target, Const) and call.target.value in self._project.kb.functions:
+        if isinstance(call.target, Const) and call.target.value in self._project.kb.functions:
             func = self._project.kb.functions[call.target.value]
             return func.name
         return None

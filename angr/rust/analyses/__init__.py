@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .rust_calling_convention import *
 from .rust_type_hints import *
 from .known_type_loader import *

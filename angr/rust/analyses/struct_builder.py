@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import OrderedDict
 
 import claripy
@@ -22,7 +23,7 @@ class StructBuilder(Analysis):
             field_offset = offsets[name]
             if offset == field_offset and field_ty.size > 0:
                 return name, field_ty
-            elif isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
+            if isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
                 return self._resolve_field(field_ty, offset - field_offset)
         return None, None
 
@@ -41,7 +42,7 @@ class StructBuilder(Analysis):
                     data.value = bv[bv.size() - 1 : bv.size() - bits].concrete_value
                     leftover.value = bv[bv.size() - bits - 1 : 0].concrete_value
                 return data, leftover
-            elif isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
+            if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.project.arch.byte_width
                 leftover = data.copy()
@@ -119,7 +120,7 @@ class StructBuilder(Analysis):
             array = self._build_array(field_exprs, struct_ty)
             if array:
                 return array
-            elif self.strict:
+            if self.strict:
                 return None
         fields = {}
         for field_name, field_ty in struct_ty.fields.items():

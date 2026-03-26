@@ -1,5 +1,5 @@
+from __future__ import annotations
 import logging
-from typing import Optional
 
 import archinfo
 from angr.ailment import Block, Const
@@ -76,7 +76,7 @@ class TransformationPass(OptimizationPass):
                 ins_addr=terminal.ins_addr,
             )
 
-    def old_replace_jump_target(self, block, old_target: Optional[Block], new_target: Block):
+    def old_replace_jump_target(self, block, old_target: Block | None, new_target: Block):
         if not block.statements:
             return
         terminal = block.statements[-1]

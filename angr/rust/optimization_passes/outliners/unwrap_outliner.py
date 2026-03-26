@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from angr.ailment.expression import Const, BinaryOp, VirtualVariable, Load, StringLiteral
@@ -44,9 +45,7 @@ class UnwrapSimplifierState:
                     self.unwrap_failed_block.addr,
                     self.unwrap_failed_block.idx,
                 )
-            ):
-                return jump.condition.operands[1].value
-            elif (
+            ) or (
                 op == "CmpNE"
                 and isinstance(jump.false_target, Const)
                 and (jump.false_target.value, jump.false_target_idx)
@@ -82,7 +81,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
         op0 = cond.operands[0]
         if isinstance(op0, Load):
             return unwrap_stack_vvar_reference(op0.addr)
-        elif isinstance(op0, VirtualVariable):
+        if isinstance(op0, VirtualVariable):
             return op0
         return None
 
@@ -101,7 +100,7 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
             if (
                 isinstance(last_stmt, ConditionalJump)
                 and isinstance(last_stmt.condition, BinaryOp)
-                and ((cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition)))
+                and (cmp_vvar := self._extract_vvar_from_cond(last_stmt.condition))
             ):
                 call = self.get_terminal_vvar_value(cmp_vvar)
                 if isinstance(call, Call) and isinstance(

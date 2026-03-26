@@ -33,7 +33,6 @@ from angr.ailment.expression import (
     Reinterpret,
 )
 
-from angr.engines.engine import DataType_co
 from angr.engines.light import SimEngineNostmtAIL
 
 if TYPE_CHECKING:

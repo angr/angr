@@ -1,3 +1,4 @@
+from __future__ import annotations
 from .combo_register_rewriter import ComboRegisterRewriter
 from .deref_coercion_simplifier_uninlined import DerefCoercionSimplifierUninlined
 from .error_propagation_simplifier import ErrorPropagationSimplifier

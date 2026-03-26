@@ -1,10 +1,10 @@
+from __future__ import annotations
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 from angr.ailment import Assignment, Expression, Statement, Block, UnaryOp
 from angr.ailment.expression import VirtualVariable, Load, BasePointerOffset, StackBaseOffset, BinaryOp, Const
-from angr.ailment.statement import Store, Call, ConditionalJump
+from angr.ailment.statement import Store
 
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, CallFinder
 
@@ -95,7 +95,7 @@ class DFAMixin:
                 stack_defs[dst_vvar.stack_offset] = StackDefinition(data, stmt, idx, block)
         return stack_defs
 
-    def extract_write_to_stack_vvar(self, stmt) -> Tuple[Optional[VirtualVariable], Optional[Expression]]:
+    def extract_write_to_stack_vvar(self, stmt) -> tuple[VirtualVariable | None, Expression | None]:
         if isinstance(stmt, Assignment):
             if isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_stack:
                 return stmt.dst, stmt.src

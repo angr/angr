@@ -1,6 +1,6 @@
+from __future__ import annotations
 import logging
 from collections import defaultdict, deque
-from typing import Tuple
 
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins import KnowledgeBasePlugin
@@ -39,7 +39,6 @@ l = logging.getLogger(__name__)
 
 
 class FormatWrapperIdentification(Analysis):
-
     def __init__(self):
         self._format_wrappers = {}
 
@@ -69,7 +68,6 @@ AnalysesHub.register_default("FormatWrapperIdentification", FormatWrapperIdentif
 
 
 class FormatWrappers(KnowledgeBasePlugin):
-
     def __init__(self, kb):
         super().__init__(kb)
         self._analyzed = False
@@ -104,7 +102,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _select_macro(self, func_name, fmt_str) -> Tuple[str, str, RustSimType | None] | Tuple[None, None, None]:
+    def _select_macro(self, func_name, fmt_str) -> tuple[str, str, RustSimType | None] | tuple[None, None, None]:
         match func_name.split("::")[-1]:
             case "_print":
                 if fmt_str.endswith("\n"):
@@ -141,7 +139,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 def_block, def_stmt = self.get_def_block_and_stmt(arg_value)
                 if isinstance(arg_value, Struct) and arg_value.name == "core::fmt::Arguments":
                     return arg_value, def_block, def_stmt
-                elif (
+                if (
                     isinstance(arg_value, Call)
                     and isinstance(arg_value.target, Const)
                     and arg_value.target.value in self.project.kb.functions
@@ -234,7 +232,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                     return None, None
             return argument_structs, stmts_to_remove
         # Pattern-2: Argument(s) are directly Structs
-        elif all(isinstance(arg_value, Struct) for arg_value in arg_values):
+        if all(isinstance(arg_value, Struct) for arg_value in arg_values):
             for arg_value in arg_values:
                 argument_structs.append(arg_value)
                 def_block, def_stmt = self.get_def_block_and_stmt(arg_value)

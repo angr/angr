@@ -1,4 +1,4 @@
-from typing import Optional
+from __future__ import annotations
 from collections import OrderedDict
 
 from angr.ailment import Const
@@ -8,7 +8,6 @@ from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class StructMatcher:
-
     def __init__(self, project):
         self.project = project
         self._matchers = (self._match_Arguments,)
@@ -33,9 +32,7 @@ class StructMatcher:
             and 1 >= fields[pieces_len_offset].value - fields[args_len_offset].value >= 0
             and extract_str_from_addr(self.project, fields[pieces_ptr_offset].value) is not None
         ):
-            if fmt_offset in fields:
-                return arguments_ty
-            elif (
+            if fmt_offset in fields or (
                 args_len_offset == fmt_offset - self.project.arch.bytes
                 and isinstance(fields[args_len_offset], Const)
                 and fields[args_len_offset].value == 0
@@ -53,7 +50,6 @@ class StructMatcher:
 
 
 class KnownStructs(KnowledgeBasePlugin):
-
     def __init__(self, kb):
         super().__init__(kb)
         self.known_struct_types = OrderedDict()
@@ -70,7 +66,7 @@ class KnownStructs(KnowledgeBasePlugin):
     def __contains__(self, item):
         return item in self.known_struct_types
 
-    def match_with_known_structs(self, fields) -> Optional[RustSimStruct]:
+    def match_with_known_structs(self, fields) -> RustSimStruct | None:
         return StructMatcher(self._kb._project).match(fields)
 
 

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict, OrderedDict
 
 import claripy
@@ -24,7 +25,7 @@ from angr.utils.ssa import VVarUsesCollector
 
 
 class StructBuilder:
-    def __init__(self, context: "StructInstantiationSimplifier"):
+    def __init__(self, context: StructInstantiationSimplifier):
         self.context = context
         self.pending_potential_structs = []
         self._arch = context.project.arch
@@ -35,7 +36,7 @@ class StructBuilder:
             field_offset = offsets[name]
             if offset == field_offset and field_ty.size > 0:
                 return name, field_ty
-            elif isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
+            if isinstance(field_ty, RustSimStruct) and offsets[name] < offset < offsets[name] + field_ty.size // 8:
                 return self._resolve_field(field_ty, offset - field_offset)
         return None, None
 
@@ -54,7 +55,7 @@ class StructBuilder:
                     data.value = bv[bv.size() - 1 : bv.size() - bits].concrete_value
                     leftover.value = bv[bv.size() - bits - 1 : 0].concrete_value
                 return data, leftover
-            elif isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
+            if isinstance(data, Load) and isinstance(data.addr, UnaryOp) and data.addr.op == "Reference":
                 size = bits // self.context.project.arch.byte_width
                 leftover_size = (data.bits - bits) // self.context.project.arch.byte_width
                 leftover = data.copy()

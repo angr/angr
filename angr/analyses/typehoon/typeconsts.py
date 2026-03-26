@@ -5,10 +5,8 @@ All type constants used in type inference. They can be mapped, translated, or re
 
 from __future__ import annotations
 
-import dataclasses
 import functools
 import itertools
-from typing import List, Tuple, Optional
 
 
 def memoize(f):
@@ -372,7 +370,7 @@ class Struct(TypeConstant):
 class EnumVariant:
     def __init__(self, name, fields, discriminant, discriminant_size, size):
         self.name = name
-        self.fields: List[Tuple[TypeConstant, Optional[str]]] = fields
+        self.fields: list[tuple[TypeConstant, str | None]] = fields
         self.discriminant = discriminant
         self.discriminant_size = discriminant_size
         self.size = size
@@ -392,7 +390,6 @@ class EnumVariant:
 
 
 class RustEnum(TypeConstant):
-
     def __init__(self, name=None, variants=None):
         super().__init__(name)
         self.variants = variants if variants is not None else []

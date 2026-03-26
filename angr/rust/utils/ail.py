@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Union
+from __future__ import annotations
 
 from angr.ailment import Block, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
 from angr.ailment.expression import VirtualVariable
@@ -30,7 +30,7 @@ class CallFinder(AILBlockViewer):
             self.call = stmt
 
 
-def find_call(obj: Union[Block, Statement, Expression], include_macro=False):
+def find_call(obj: Block | Statement | Expression, include_macro=False):
     walker = CallFinder(include_macro)
     if isinstance(obj, Block):
         walker.walk(obj)
@@ -41,7 +41,7 @@ def find_call(obj: Union[Block, Statement, Expression], include_macro=False):
     return walker.call
 
 
-def has_call(obj: Union[Block, Statement, Expression], include_macro=False):
+def has_call(obj: Block | Statement | Expression, include_macro=False):
     return find_call(obj, include_macro) is not None
 
 
@@ -78,7 +78,7 @@ def unwrap_combo_reg_vvar_reference(expr) -> VirtualVariable | None:
     return None
 
 
-def deref_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+def deref_vvar_and_offset(expr) -> tuple[VirtualVariable, int] | tuple[None, None]:
     """
     If expr is a dereference of a VirtualVariable (possibly with an offset), return the VirtualVariable and offset.
     Otherwise, return (None, None).
@@ -97,7 +97,7 @@ def deref_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, Non
     return None, None
 
 
-def extract_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+def extract_vvar_and_offset(expr) -> tuple[VirtualVariable, int] | tuple[None, None]:
     """
     If expr is a VirtualVariable (possibly with an offset), return the VirtualVariable and offset.
     Otherwise, return (None, None).
@@ -113,11 +113,11 @@ def extract_vvar_and_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, N
     return None, None
 
 
-def unwrap_stack_vvar_reference_with_offset(expr) -> Tuple[VirtualVariable, int] | Tuple[None, None]:
+def unwrap_stack_vvar_reference_with_offset(expr) -> tuple[VirtualVariable, int] | tuple[None, None]:
     if isinstance(expr, UnaryOp) and expr.op == "Reference":
         if isinstance(expr.operand, VirtualVariable) and expr.operand.was_stack:
             return expr.operand, 0
-        elif (
+        if (
             isinstance(expr.operand, BinaryOp)
             and expr.op == "Add"
             and isinstance(expr.operand.operands[0], VirtualVariable)

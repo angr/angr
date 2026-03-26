@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import Block, Assignment, Const, AILBlockViewer
 from angr.ailment.expression import VirtualVariable, Enum
 from angr.ailment.statement import Label, Return, Jump, Call
@@ -12,7 +13,7 @@ from angr.utils.ssa import VVarUsesCollector
 
 
 class ErrorPropagationWalker(SequenceWalker):
-    def __init__(self, context: "ErrorPropagationSimplifier"):
+    def __init__(self, context: ErrorPropagationSimplifier):
         super().__init__()
         self.context = context
         self.dead_assignments = set()
@@ -51,7 +52,7 @@ class ErrorPropagationWalker(SequenceWalker):
     def _is_early_return(self, node):
         if isinstance(node, Block):
             return self._is_early_return_block(node)
-        elif isinstance(node, SequenceNode):
+        if isinstance(node, SequenceNode):
             nodes = node.nodes
             if nodes and isinstance(nodes[-1], Block):
                 if self._is_early_return(nodes[-1]):
@@ -132,7 +133,7 @@ class ErrorPropagationWalker(SequenceWalker):
                     assignment.dst = new_dst_vvar
                 new_ok_node = super()._handle(ok_node)
                 return new_ok_node or ok_node
-            elif isinstance(node.scrutinee, Call):
+            if isinstance(node.scrutinee, Call):
                 node.scrutinee.tags["propagates_error"] = True
                 new_ok_node = super()._handle(ok_node)
                 return new_ok_node or ok_node

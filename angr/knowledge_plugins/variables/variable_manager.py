@@ -17,7 +17,14 @@ from angr.utils.ail import is_phi_assignment
 from angr.utils.types import unpack_pointer, replace_pointer_pts_to
 from angr.protos import variables_pb2
 from angr.serializable import Serializable
-from angr.sim_variable import SimVariable, SimStackVariable, SimMemoryVariable, SimRegisterVariable, SimConstantVariable, SimComboRegisterVariable
+from angr.sim_variable import (
+    SimVariable,
+    SimStackVariable,
+    SimMemoryVariable,
+    SimRegisterVariable,
+    SimConstantVariable,
+    SimComboRegisterVariable,
+)
 from angr.sim_type import (
     TypeRef,
     SimType,

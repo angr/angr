@@ -1,12 +1,13 @@
 # pylint:disable=missing-class-docstring,too-many-boolean-expressions,unused-argument
-from typing import Optional, Dict, List, Tuple, Set, Any, Union, TYPE_CHECKING, Callable
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+from collections.abc import Callable
 from collections import defaultdict, OrderedDict, Counter
 import logging
-from functools import reduce
 
 import angr.ailment as ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
-from angr.ailment.expression import StackBaseOffset, BinaryOp, VirtualVariable, StringLiteral, Struct, Array, Enum, Let
+from angr.ailment.expression import StackBaseOffset, BinaryOp, StringLiteral, Struct, Array, Enum, Let
 
 from angr.ailment.statement import FunctionLikeMacro
 from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
@@ -33,10 +34,8 @@ from ....rust.sim_type import (
     RustSimTypeInt,
     RustSimTypeFunction,
     RustSimTypeReference,
-    RustSimTypeVec,
     RustSimStruct,
     EnumVariant,
-    RustSimTypeOption,
     RustSimTypeStrRef,
 )
 from ....knowledge_plugins.functions import Function
@@ -83,13 +82,13 @@ def unpack_typeref(ty):
     return ty
 
 
-def unpack_pointer(ty) -> Optional[SimType]:
+def unpack_pointer(ty) -> SimType | None:
     if isinstance(ty, RustSimTypeReference):
         return ty.pts_to
     return None
 
 
-def unpack_array(ty) -> Optional[SimType]:
+def unpack_array(ty) -> SimType | None:
     if isinstance(ty, SimTypeArray):
         return ty.elem_type
     if isinstance(ty, SimTypeFixedSizeArray):
@@ -130,7 +129,7 @@ def qualifies_for_implicit_cast(ty1, ty2):
     return ty1.size <= ty2.size
 
 
-def extract_terms(expr: "RustExpression") -> Tuple[int, List[Tuple[int, "RustExpression"]]]:
+def extract_terms(expr: RustExpression) -> tuple[int, list[tuple[int, RustExpression]]]:
     # handle unnecessary type casts
     if isinstance(expr, RustTypeCast):
         expr = MakeTypecastsImplicit.collapse(expr.dst_type, expr.expr)
@@ -147,37 +146,35 @@ def extract_terms(expr: "RustExpression") -> Tuple[int, List[Tuple[int, "RustExp
     if isinstance(expr, RustConstant):
         return expr.value, []
     # elif isinstance(expr, CUnaryOp) and expr.op == 'Minus'
-    elif isinstance(expr, RustBinaryOp) and expr.op == "Add":
+    if isinstance(expr, RustBinaryOp) and expr.op == "Add":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 + c2, t1 + t2
-    elif isinstance(expr, RustBinaryOp) and expr.op == "Sub":
+    if isinstance(expr, RustBinaryOp) and expr.op == "Sub":
         c1, t1 = extract_terms(expr.lhs)
         c2, t2 = extract_terms(expr.rhs)
         return c1 - c2, t1 + [(-c, t) for c, t in t2]
-    elif isinstance(expr, RustBinaryOp) and expr.op == "Mul":
+    if isinstance(expr, RustBinaryOp) and expr.op == "Mul":
         if isinstance(expr.lhs, RustConstant):
             c, t = extract_terms(expr.rhs)
             return c * expr.lhs.value, [(c1 * expr.lhs.value, t1) for c1, t1 in t]
-        elif isinstance(expr.rhs, RustConstant):
+        if isinstance(expr.rhs, RustConstant):
             c, t = extract_terms(expr.lhs)
             return c * expr.rhs.value, [(c1 * expr.rhs.value, t1) for c1, t1 in t]
-        else:
-            return 0, [(1, expr)]
-    elif isinstance(expr, RustBinaryOp) and expr.op == "Shl":
+        return 0, [(1, expr)]
+    if isinstance(expr, RustBinaryOp) and expr.op == "Shl":
         if isinstance(expr.rhs, RustConstant):
             c, t = extract_terms(expr.lhs)
             return c << expr.rhs.value, [(c1 << expr.rhs.value, t1) for c1, t1 in t]
         return 0, [(1, expr)]
-    else:
-        return 0, [(1, expr)]
+    return 0, [(1, expr)]
 
 
-def is_machine_word_size_type(type_: SimType, arch: "archinfo.Arch") -> bool:
+def is_machine_word_size_type(type_: SimType, arch: archinfo.Arch) -> bool:
     return isinstance(type_, SimTypeReg) and type_.size == arch.bits
 
 
-def guess_value_type(value: int, project: "angr.Project") -> Optional[SimType]:
+def guess_value_type(value: int, project: angr.Project) -> SimType | None:
     if project.kb.functions.contains_addr(value):
         # might be a function pointer
         return RustSimTypeReference(SimTypeBottom(label="void")).with_arch(project.arch)
@@ -262,7 +259,7 @@ class RustConstruct:
     __slots__ = ("codegen",)
 
     def __init__(self, codegen):
-        self.codegen: "RustStructuredCodeGenerator" = codegen
+        self.codegen: RustStructuredCodeGenerator = codegen
 
     def c_repr(self, indent=0, pos_to_node=None, pos_to_addr=None, addr_to_pos=None):
         """
@@ -371,7 +368,7 @@ class RustConstruct:
         return "".join(mapper(self.c_repr_chunks(indent)))
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @staticmethod
     def indent_str(indent=0):
@@ -385,15 +382,15 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
 
     __slots__ = (
         "addr",
-        "name",
-        "functy",
         "arg_list",
-        "statements",
-        "variables_in_use",
-        "variable_manager",
         "demangled_name",
-        "unified_local_vars",
+        "functy",
+        "name",
         "show_demangled_name",
+        "statements",
+        "unified_local_vars",
+        "variable_manager",
+        "variables_in_use",
     )
 
     def __init__(
@@ -401,7 +398,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         addr,
         name,
         functy: RustSimTypeFunction,
-        arg_list: List["RustVariable"],
+        arg_list: list[RustVariable],
         statements,
         variables_in_use,
         variable_manager,
@@ -417,15 +414,15 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         self.arg_list = arg_list
         self.statements = statements
         self.variables_in_use = variables_in_use
-        self.variable_manager: "VariableManagerInternal" = variable_manager
+        self.variable_manager: VariableManagerInternal = variable_manager
         self.demangled_name = demangled_name
-        self.unified_local_vars: Dict[SimVariable, Set[Tuple[RustVariable, SimType]]] = self.get_unified_local_vars()
+        self.unified_local_vars: dict[SimVariable, set[tuple[RustVariable, SimType]]] = self.get_unified_local_vars()
         self.show_demangled_name = show_demangled_name
 
-    def get_unified_local_vars(self) -> Dict[SimVariable, Set[Tuple["RustVariable", SimType]]]:
-        unified_to_var_and_types: Dict[SimVariable, Set[Tuple[RustVariable, SimType]]] = defaultdict(set)
+    def get_unified_local_vars(self) -> dict[SimVariable, set[tuple[RustVariable, SimType]]]:
+        unified_to_var_and_types: dict[SimVariable, set[tuple[RustVariable, SimType]]] = defaultdict(set)
 
-        arg_set: Set[SimVariable] = set()
+        arg_set: set[SimVariable] = set()
         for arg in self.arg_list:
             # TODO: Handle CIndexedVariable
             if isinstance(arg, RustVariable):
@@ -750,8 +747,8 @@ class RustWhileLoop(RustLoop):
     """
 
     __slots__ = (
-        "condition",
         "body",
+        "condition",
         "tags",
     )
 
@@ -798,8 +795,8 @@ class RustDoWhileLoop(RustLoop):
     """
 
     __slots__ = (
-        "condition",
         "body",
+        "condition",
         "tags",
     )
 
@@ -848,7 +845,7 @@ class RustForLoop(RustStatement):
     Represents a for-loop in C.
     """
 
-    __slots__ = ("initializer", "condition", "iterator", "body", "tags")
+    __slots__ = ("body", "condition", "initializer", "iterator", "tags")
 
     def __init__(self, initializer, condition, iterator, body, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -900,11 +897,11 @@ class RustIfElse(RustStatement):
     Represents an if-else construct in Rust.
     """
 
-    __slots__ = ("condition_and_nodes", "else_node", "simplify_else_scope", "cstyle_ifs", "tags")
+    __slots__ = ("condition_and_nodes", "cstyle_ifs", "else_node", "simplify_else_scope", "tags")
 
     def __init__(
         self,
-        condition_and_nodes: List[Tuple[RustExpression, Optional[RustStatement]]],
+        condition_and_nodes: list[tuple[RustExpression, RustStatement | None]],
         else_node=None,
         simplify_else_scope=False,
         cstyle_ifs=True,
@@ -1080,13 +1077,13 @@ class RustSwitchCase(RustStatement):
     Represents a switch-case statement in C.
     """
 
-    __slots__ = ("switch", "cases", "default", "tags")
+    __slots__ = ("cases", "default", "switch", "tags")
 
     def __init__(self, switch, cases, default, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.switch = switch
-        self.cases: List[Tuple[Union[int, Tuple[int]], RustStatements]] = cases
+        self.cases: list[tuple[int | tuple[int], RustStatements]] = cases
         self.default = default
         self.tags = tags
 
@@ -1159,13 +1156,13 @@ class RustPatternMatch(RustStatement):
     Represents a pattern-match statement in Rust.
     """
 
-    __slots__ = ("scrutinee", "arms", "default", "tags")
+    __slots__ = ("arms", "default", "scrutinee", "tags")
 
     def __init__(self, match_expr, cases, default, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.scrutinee = match_expr
-        self.arms: List[Tuple[EnumVariant, Tuple[RustExpression], RustStatements]] = cases
+        self.arms: list[tuple[EnumVariant, tuple[RustExpression], RustStatements]] = cases
         self.default = default
         self.tags = tags
 
@@ -1219,7 +1216,7 @@ class RustIfLet(RustStatement):
     Represents an if let statement in Rust.
     """
 
-    __slots__ = ("pattern", "scrutinee", "true_node", "false_node", "tags")
+    __slots__ = ("false_node", "pattern", "scrutinee", "tags", "true_node")
 
     def __init__(self, pattern, scrutinee, true_node, false_node, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -1290,7 +1287,7 @@ class RustAssignment(RustStatement):
         self.tags = tags
 
     def c_repr_chunks(self, indent=0, asexpr=False):
-        if "hidden" in self.tags and self.tags["hidden"]:
+        if self.tags.get("hidden"):
             return
 
         indent_str = self.indent_str(indent=indent)
@@ -1367,10 +1364,9 @@ class RustFunctionLikeMacro(RustStatement, RustExpression):
     def type(self):
         if self.is_expr:
             return self.returnty or RustSimTypeInt(signed=False).with_arch(self.codegen.project.arch)
-        else:
-            raise RuntimeError(
-                "RustFunctionLikeMacro.type should not be accessed if the function call is used as a statement."
-            )
+        raise RuntimeError(
+            "RustFunctionLikeMacro.type should not be accessed if the function call is used as a statement."
+        )
 
 
 class RustFunctionCall(RustStatement, RustExpression):
@@ -1382,17 +1378,17 @@ class RustFunctionCall(RustStatement, RustExpression):
     """
 
     __slots__ = (
-        "callee_target",
-        "callee_func",
         "args",
-        "returning",
-        "ret_expr",
-        "receiver",
-        "tags",
+        "callee_func",
+        "callee_target",
+        "callsite_prototype",
         "is_expr",
+        "receiver",
+        "ret_expr",
+        "returning",
         "show_demangled_name",
         "show_disambiguated_name",
-        "callsite_prototype",
+        "tags",
     )
 
     def __init__(
@@ -1407,12 +1403,12 @@ class RustFunctionCall(RustStatement, RustExpression):
         is_expr: bool = False,
         show_demangled_name=True,
         show_disambiguated_name: bool = True,
-        callsite_prototype: Optional[RustSimTypeFunction] = None,
+        callsite_prototype: RustSimTypeFunction | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.callee_target = callee_target
-        self.callee_func: Optional["Function"] = callee_func
+        self.callee_func: Function | None = callee_func
         self.args = args if args is not None else []
         self.returning = returning
         self.ret_expr = ret_expr
@@ -1424,7 +1420,7 @@ class RustFunctionCall(RustStatement, RustExpression):
         self.callsite_prototype = callsite_prototype
 
     @property
-    def prototype(self) -> Optional[SimTypeFunction]:  # TODO there should be a prototype for each callsite!
+    def prototype(self) -> SimTypeFunction | None:  # TODO there should be a prototype for each callsite!
         if self.callsite_prototype:
             return self.callsite_prototype
         if self.callee_func is not None and self.callee_func.prototype is not None:
@@ -1436,8 +1432,7 @@ class RustFunctionCall(RustStatement, RustExpression):
     def type(self):
         if self.is_expr:
             return self.prototype.returnty or RustSimTypeInt(signed=False).with_arch(self.codegen.project.arch)
-        else:
-            raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
+        raise RuntimeError("CFunctionCall.type should not be accessed if the function call is used as a statement.")
 
     def c_repr_chunks(self, indent=0, asexpr: bool = False):
         """
@@ -1526,9 +1521,9 @@ class RustReturn(RustStatement):
 
 class RustGoto(RustStatement):
     __slots__ = (
+        "tags",
         "target",
         "target_idx",
-        "tags",
     )
 
     def __init__(self, target, target_idx, tags=None, **kwargs):
@@ -1538,7 +1533,7 @@ class RustGoto(RustStatement):
             # unpack target
             target = target.value
 
-        self.target: Union[int, RustExpression] = target
+        self.target: int | RustExpression = target
         self.target_idx = target_idx
         self.tags = tags
 
@@ -1591,13 +1586,13 @@ class RustLabel(RustStatement):
     """
 
     __slots__ = (
-        "name",
-        "ins_addr",
         "block_idx",
+        "ins_addr",
+        "name",
         "tags",
     )
 
-    def __init__(self, name: str, ins_addr: int, block_idx: Optional[int], tags=None, **kwargs):
+    def __init__(self, name: str, ins_addr: int, block_idx: int | None, tags=None, **kwargs):
         super().__init__(**kwargs)
         self.name = name
         self.ins_addr = ins_addr
@@ -1614,9 +1609,9 @@ class RustLabel(RustStatement):
 
 class RustStruct(RustExpression):
     __slots__ = (
-        "name",
-        "fields",
         "field_names",
+        "fields",
+        "name",
         "tags",
     )
 
@@ -1656,8 +1651,8 @@ class RustStruct(RustExpression):
 
 class RustEnum(RustExpression):
     __slots__ = (
-        "name",
         "fields",
+        "name",
         "tags",
     )
 
@@ -1687,9 +1682,9 @@ class RustEnum(RustExpression):
 
 class RustStructField(RustExpression):
     __slots__ = (
-        "struct_type",
-        "offset",
         "field",
+        "offset",
+        "struct_type",
         "tags",
     )
 
@@ -1823,17 +1818,17 @@ class RustVariable(RustExpression):
     """
 
     __slots__ = (
+        "tags",
+        "unified_variable",
         "variable",
         "variable_type",
-        "unified_variable",
-        "tags",
     )
 
     def __init__(self, variable: SimVariable, unified_variable=None, variable_type=None, tags=None, **kwargs):
         super().__init__(**kwargs)
 
         self.variable: SimVariable = variable
-        self.unified_variable: Optional[SimVariable] = unified_variable
+        self.unified_variable: SimVariable | None = unified_variable
         self.variable_type: SimType = variable_type.with_arch(self.codegen.project.arch)
         self.tags = tags
 
@@ -1976,7 +1971,7 @@ class RustUnaryOp(RustExpression):
             "Dereference": self._c_repr_chunks_dereference,
         }
 
-        handler = OP_MAP.get(self.op, None)
+        handler = OP_MAP.get(self.op)
         if handler is not None:
             yield from handler()
         else:
@@ -2024,9 +2019,9 @@ class RustBinaryOp(RustExpression):
     Binary operations.
     """
 
-    __slots__ = ("op", "lhs", "rhs", "tags", "common_type", "_cstyle_null_cmp")
+    __slots__ = ("_cstyle_null_cmp", "common_type", "lhs", "op", "rhs", "tags")
 
-    def __init__(self, op, lhs, rhs, tags: Optional[dict] = None, **kwargs):
+    def __init__(self, op, lhs, rhs, tags: dict | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.op = op
@@ -2073,8 +2068,7 @@ class RustBinaryOp(RustExpression):
         if lhs_signed == rhs_signed:
             if lhs_ty.size > rhs_ty.size:
                 return lhs_ty
-            else:
-                return rhs_ty
+            return rhs_ty
 
         if lhs_signed:
             signed_ty = lhs_ty
@@ -2154,7 +2148,7 @@ class RustBinaryOp(RustExpression):
             "AccessField": self._c_repr_chunks_access_field,
         }
 
-        handler = OP_MAP.get(self.op, None)
+        handler = OP_MAP.get(self.op)
         if handler is not None:
             yield from handler()
         else:
@@ -2301,13 +2295,13 @@ class RustBinaryOp(RustExpression):
 
 class RustTypeCast(RustExpression):
     __slots__ = (
-        "src_type",
         "dst_type",
         "expr",
+        "src_type",
         "tags",
     )
 
-    def __init__(self, src_type: Optional[SimType], dst_type: RustSimType, expr: RustExpression, tags=None, **kwargs):
+    def __init__(self, src_type: SimType | None, dst_type: RustSimType, expr: RustExpression, tags=None, **kwargs):
         super().__init__(**kwargs)
         # assert isinstance(dst_type, RustSimType)
         self.src_type = (src_type or expr.type).with_arch(self.codegen.project.arch)
@@ -2343,12 +2337,12 @@ class RustTypeCast(RustExpression):
 
 class RustConstant(RustExpression):
     __slots__ = (
-        "value",
         "reference_values",
         "tags",
+        "value",
     )
 
-    def __init__(self, value, type_: SimType, reference_values=None, tags: Optional[Dict] = None, **kwargs):
+    def __init__(self, value, type_: SimType, reference_values=None, tags: dict | None = None, **kwargs):
         super().__init__(**kwargs)
 
         self.value = value
@@ -2361,8 +2355,7 @@ class RustConstant(RustExpression):
         ident = (self.tags or {}).get("ins_addr", None)
         if ident is not None:
             return ("inst", ident)
-        else:
-            return ("val", self.value)
+        return ("val", self.value)
 
     @property
     def fmt(self):
@@ -2400,9 +2393,9 @@ class RustConstant(RustExpression):
                     value_size = self._type.size
                 else:
                     value_size = None
-                if value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF:
-                    result = True
-                elif value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF:
+                if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
+                    value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
+                ):
                     result = True
 
         return result
@@ -2541,8 +2534,8 @@ class RustRegister(RustExpression):
 class RustITE(RustExpression):
     __slots__ = (
         "cond",
-        "iftrue",
         "iffalse",
+        "iftrue",
         "tags",
     )
 
@@ -2576,7 +2569,7 @@ class RustMultiStatementExpression(RustExpression):
     (stmt0, stmt1, stmt2, expr)
     """
 
-    __slots__ = ("stmts", "expr", "tags")
+    __slots__ = ("expr", "stmts", "tags")
 
     def __init__(self, stmts: RustStatements, expr: RustExpression, tags=None, **kwargs):
         super().__init__(**kwargs)
@@ -2696,7 +2689,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         indent=0,
         cfg=None,
         variable_kb=None,
-        func_args: Optional[List[SimVariable]] = None,
+        func_args: list[SimVariable] | None = None,
         binop_depth_cutoff: int = 16,
         show_casts=True,
         braces_on_own_lines=False,
@@ -2776,11 +2769,11 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self._variable_kb = variable_kb if variable_kb is not None else self.kb
         self.binop_depth_cutoff = binop_depth_cutoff
 
-        self._variables_in_use: Optional[Dict] = None
-        self._inlined_strings: Set[SimMemoryVariable] = set()
-        self._function_pointers: Set[SimMemoryVariable] = set()
-        self.ailexpr2cnode: Optional[Dict[Tuple[Expr.Expression, bool], RustExpression]] = None
-        self.cnode2ailexpr: Optional[Dict[RustExpression, Expr.Expression]] = None
+        self._variables_in_use: dict | None = None
+        self._inlined_strings: set[SimMemoryVariable] = set()
+        self._function_pointers: set[SimMemoryVariable] = set()
+        self.ailexpr2cnode: dict[tuple[Expr.Expression, bool], RustExpression] | None = None
+        self.cnode2ailexpr: dict[RustExpression, Expr.Expression] | None = None
         self._indent = indent
         self.show_casts = show_casts
         self.comment_gotos = comment_gotos
@@ -2788,9 +2781,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.use_compound_assignments = use_compound_assignments
         self.show_local_types = show_local_types
         self.cstyle_null_cmp = cstyle_null_cmp
-        self.expr_comments: Dict[int, str] = expr_comments if expr_comments is not None else {}
-        self.stmt_comments: Dict[int, str] = stmt_comments if stmt_comments is not None else {}
-        self.const_formats: Dict[Any, Dict[str, Any]] = const_formats if const_formats is not None else {}
+        self.expr_comments: dict[int, str] = expr_comments if expr_comments is not None else {}
+        self.stmt_comments: dict[int, str] = stmt_comments if stmt_comments is not None else {}
+        self.const_formats: dict[Any, dict[str, Any]] = const_formats if const_formats is not None else {}
         self.externs = externs or set()
         self.show_externs = show_externs
         self.show_demangled_name = show_demangled_name
@@ -2801,10 +2794,10 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_pos_to_node = None
         self.map_pos_to_addr = None
         self.map_addr_to_pos = None
-        self.map_ast_to_pos: Optional[Dict[SimVariable, Set[PositionMappingElement]]] = None
-        self.map_addr_to_label: Dict[Tuple[int, Optional[int]], RustLabel] = {}
-        self.rust_func: Optional[RustFunction] = None
-        self.cexterns: Optional[Set[RustVariable]] = None
+        self.map_ast_to_pos: dict[SimVariable, set[PositionMappingElement]] | None = None
+        self.map_addr_to_label: dict[tuple[int, int | None], RustLabel] = {}
+        self.rust_func: RustFunction | None = None
+        self.cexterns: set[RustVariable] | None = None
         self.display_notes = display_notes
 
         self._analyze()
@@ -2905,7 +2898,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             self.map_ast_to_pos,
         ) = self.render_text(self.rust_func)
 
-    RENDER_TYPE = Tuple[str, PositionMapping, PositionMapping, InstructionMapping, Dict[Any, Set[Any]]]
+    RENDER_TYPE = tuple[str, PositionMapping, PositionMapping, InstructionMapping, dict[Any, set[Any]]]
 
     def render_text(self, rust_func: RustFunction) -> RENDER_TYPE:
         pos_to_node = PositionMapping()
@@ -2965,10 +2958,9 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _get_variable_type(self, var, is_global=False):
         if is_global:
             return self._variable_kb.variables["global"].get_variable_type(var)
-        else:
-            return self._variable_kb.variables[self._func.addr].get_variable_type(var)
+        return self._variable_kb.variables[self._func.addr].get_variable_type(var)
 
-    def _get_derefed_type(self, ty: SimType) -> Optional[SimType]:
+    def _get_derefed_type(self, ty: SimType) -> SimType | None:
         if ty is None:
             return None
         ty = unpack_typeref(ty)
@@ -2998,7 +2990,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def default_simtype_from_size(self, n: int, signed: bool = True) -> SimType:
         return RustSimTypeInt(size=n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
-    def _variable(self, variable: SimVariable, fallback_type_size: Optional[int]) -> RustVariable:
+    def _variable(self, variable: SimVariable, fallback_type_size: int | None) -> RustVariable:
         # TODO: we need to fucking make sure that variable recovery and type inference actually generates a size
         # TODO: for each variable it links into the fucking ail. then we can remove fallback_type_size.
         # if "c8" in str(variable):
@@ -3040,7 +3032,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         return result
 
     def _access_constant_offset_reference(
-        self, expr: RustExpression, offset: int, data_type: Optional[SimType]
+        self, expr: RustExpression, offset: int, data_type: SimType | None
     ) -> RustExpression:
         result = self._access_constant_offset(expr, offset, data_type or SimTypeBottom(), True)
         if isinstance(result, RustTypeCast) and data_type is None:
@@ -3396,7 +3388,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         # if (node, is_expr) in self.ailexpr2cnode:
         #     return self.ailexpr2cnode[(node, is_expr)]
 
-        handler: Optional[Callable] = self._handlers.get(node.__class__, None)
+        handler: Callable | None = self._handlers.get(node.__class__, None)
         if handler is not None:
             if isinstance(node, (Stmt.Call, Stmt.FunctionLikeMacro)):
                 # special case for Call
@@ -3439,14 +3431,14 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "do-while":
+        if loop_node.sort == "do-while":
             return RustDoWhileLoop(
                 self._handle(loop_node.condition),
                 None if loop_node.sequence_node is None else self._handle(loop_node.sequence_node, is_expr=False),
                 tags=tags,
                 codegen=self,
             )
-        elif loop_node.sort == "for":
+        if loop_node.sort == "for":
             return RustForLoop(
                 None if loop_node.initializer is None else self._handle(loop_node.initializer),
                 None if loop_node.condition is None else self._handle(loop_node.condition),
@@ -3456,8 +3448,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 codegen=self,
             )
 
-        else:
-            raise NotImplementedError()
+        raise NotImplementedError
 
     def _handle_Condition(self, condition_node: ConditionNode, **kwargs):
         tags = {"ins_addr": condition_node.addr}
@@ -3721,14 +3712,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
             return RustReturn(None, tags=stmt.tags, codegen=self)
-        elif len(stmt.ret_exprs) == 1:
+        if len(stmt.ret_exprs) == 1:
             ret_expr = stmt.ret_exprs[0]
             return RustReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
-        else:
-            # TODO: Multiple return expressions
-            l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
-            ret_expr = stmt.ret_exprs[0]
-            return RustReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
+        # TODO: Multiple return expressions
+        l.warning("StructuredCodeGen does not support multiple return expressions yet. Only picking the first one.")
+        ret_expr = stmt.ret_exprs[0]
+        return RustReturn(self._handle(ret_expr), tags=stmt.tags, codegen=self)
 
     def _handle_Stmt_Label(self, stmt: Stmt.Label, **kwargs):
         clabel = RustLabel(stmt.name, stmt.tags["ins_addr"], stmt.tags["block_idx"], tags=stmt.tags, codegen=self)
@@ -3766,8 +3756,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # FIXME: The type should be associated to the register expression itself
             type_ = self.default_simtype_from_size(expr.size, signed=False)
             return self._access_constant_offset(self._get_variable_reference(cvar), offset, type_, lvalue, negotiate)
-        else:
-            return RustRegister(expr, tags=expr.tags, codegen=self)
+        return RustRegister(expr, tags=expr.tags, codegen=self)
 
     def _handle_Expr_Load(self, expr: Expr.Load, **kwargs):
         ty = self.default_simtype_from_size(expr.size)
@@ -3955,7 +3944,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     def _handle_Expr_Convert(self, expr: Expr.Convert, **kwargs):
         # width of converted type is easy
         if 64 >= expr.to_bits > 32:
-            dst_type: Union[RustSimTypeInt, SimTypeChar] = RustSimTypeInt(64)
+            dst_type: RustSimTypeInt | SimTypeChar = RustSimTypeInt(64)
         elif 32 >= expr.to_bits > 16:
             dst_type = RustSimTypeInt(32)
         elif 16 >= expr.to_bits > 8:

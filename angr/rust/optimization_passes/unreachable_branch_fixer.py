@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import BinaryOp
 from angr.ailment.expression import VirtualVariable, Const
 from angr.ailment.statement import ConditionalJump, Assignment

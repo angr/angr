@@ -1,3 +1,4 @@
+from __future__ import annotations
 from networkx.classes import DiGraph
 from networkx.exception import NetworkXError
 
@@ -11,7 +12,6 @@ from angr.utils.graph import GraphUtils
 
 
 class Pathfinder:
-
     def __init__(self, graph, srda_mixin: SRDAMixin = None):
         self.graph = graph
         self._srda_mixin = srda_mixin
@@ -27,7 +27,6 @@ class Pathfinder:
         new_path = [block.copy() for block in path]
 
         class PhiRewriter(AILBlockRewriter):
-
             def __init__(self):
                 super().__init__()
                 self.pred_block = None
@@ -78,7 +77,7 @@ class Pathfinder:
                 if not path_changed:
                     new_paths.append(path)
             paths = new_paths
-        paths = set(tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return))
+        paths = {tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return)}
         return paths
 
     def find_ret2arg0_paths(self, remove_phi=False):
@@ -89,7 +88,7 @@ class Pathfinder:
                 paths = paths.union(self._find_ret2arg0_path(block, visited))
             else:
                 visited.add(block)
-        paths = set(self._remove_phi(path) if remove_phi else path for path in paths)
+        paths = {self._remove_phi(path) if remove_phi else path for path in paths}
         return paths
 
     @staticmethod

@@ -1,8 +1,9 @@
+from __future__ import annotations
 import angr.ailment as ailment
 from angr.ailment.expression import VirtualVariable, Struct
 from angr.ailment.statement import Call, Store, Assignment, FunctionLikeMacro
 
-from ..sim_type import RustSimStruct, RustSimEnum, is_composite_type
+from ..sim_type import RustSimStruct, is_composite_type
 from ...utils.graph import GraphUtils
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
