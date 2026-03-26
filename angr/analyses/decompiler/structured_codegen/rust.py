@@ -246,11 +246,6 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
             indent_str=indent_str,
         )
         return
-    # TODO: Handle other types
-    yield "<unhandled-type> ", None
-    if name and name_type:
-        yield name, name_type
-    yield "<unknown-name>", None
 
 
 #
