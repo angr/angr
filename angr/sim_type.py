@@ -1667,8 +1667,8 @@ class SimStruct(NamedTypeMixin, SimType):
         if self._arch is None:
             raise ValueError("Need an arch to calculate offsets")
 
-        offsets = {}
-        offset_so_far = 0
+        offsets = {}  # field name -> offset in bytes
+        bitoffset_so_far = 0  # offset in *bits*
         for name, ty in self.fields.items():
             ty_size = ty.size
             if ty_size is None:
@@ -1679,17 +1679,17 @@ class SimStruct(NamedTypeMixin, SimType):
                 )
                 continue
             if not self._pack and ty_size > 0:
-                align = ty.alignment
+                align = ty.alignment * self._arch.byte_width
                 if align is NotImplemented:
                     # hack!
                     align = 1
-                if offset_so_far % align != 0:
-                    offset_so_far += align - offset_so_far % align
-                offsets[name] = offset_so_far
-                offset_so_far += ty_size // self._arch.byte_width
+                if bitoffset_so_far % align != 0:
+                    bitoffset_so_far += align - bitoffset_so_far % align
+                offsets[name] = bitoffset_so_far // self._arch.byte_width
+                bitoffset_so_far += ty_size
             else:
-                offsets[name] = offset_so_far
-                offset_so_far += ty_size // self._arch.byte_width
+                offsets[name] = bitoffset_so_far // self._arch.byte_width
+                bitoffset_so_far += ty_size
 
         return offsets
 
