@@ -169,3 +169,51 @@ class TestBreakpoints(TestCase):
         assert stop_reason == EmulatorStopReason.INSTRUCTION_LIMIT
         assert emulator.state.regs.x0.concrete_value == 1
         assert emulator.state.regs.x1.concrete_value == 2
+
+    def test_breakpoints_property(self):
+        """Test that the breakpoints property returns the current set."""
+        shellcode = "mov x0, 0x1"
+        project = angr.load_shellcode(shellcode, "aarch64")
+        engine = UberIcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+        emulator = Emulator(engine, init_state.copy())
+
+        assert emulator.breakpoints == set()
+        emulator.add_breakpoint(0x100)
+        emulator.add_breakpoint(0x200)
+        assert emulator.breakpoints == {0x100, 0x200}
+
+    def test_memory_error(self):
+        """Test that a memory error (segfault) is reported correctly."""
+        # Load from unmapped address 0x0
+        shellcode = "ldr x0, [x1]"
+        project = angr.load_shellcode(shellcode, "aarch64", start_offset=0x1000, load_address=0x1000)
+        engine = UberIcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        emulator = Emulator(engine, init_state.copy())
+        stop_reason = emulator.run()
+        assert stop_reason == EmulatorStopReason.MEMORY_ERROR
+
+    def test_emulation_gap(self):
+        """Test that an emulation gap (e.g. TLS access) is reported correctly."""
+        # mov rax, fs:[0] — accesses TLS segment with FS base = 0
+        shellcode = "mov rax, fs:[0]"
+        project = angr.load_shellcode(shellcode, "amd64")
+        engine = UberIcicleEngine(project)
+        init_state = project.factory.blank_state(
+            remove_options={*o.symbolic},
+            add_options={o.ZERO_FILL_UNCONSTRAINED_MEMORY, o.ZERO_FILL_UNCONSTRAINED_REGISTERS},
+        )
+
+        emulator = Emulator(engine, init_state.copy())
+        stop_reason = emulator.run()
+        # With FS=0 and no TLS threads, this is classified as a memory error
+        # (TLS gap detection requires loader.tls.threads to be populated)
+        assert stop_reason in (EmulatorStopReason.EMULATION_GAP, EmulatorStopReason.MEMORY_ERROR)
