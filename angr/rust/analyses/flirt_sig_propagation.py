@@ -1,5 +1,6 @@
 from __future__ import annotations
-from ...analyses import Analysis, AnalysesHub
+
+from angr.analyses import Analysis, AnalysesHub
 
 
 class FlirtSigPropagation(Analysis):
@@ -18,19 +19,17 @@ class FlirtSigPropagation(Analysis):
 
     def _analyze(self):
         """Propagate FLIRT signatures to simple functions that call FLIRT-matched functions."""
-        cfg = self.cfg
         queue = [func.addr for func in self.project.kb.functions.values() if func.from_signature == "flirt"]
         while queue:
             func_addr = queue.pop(0)
             func = self.project.kb.functions[func_addr]
             for pred_addr in self.project.kb.callgraph.predecessors(func_addr):
                 pred_func = self.project.kb.functions[pred_addr]
-                if self._is_simple_function(pred_func):
-                    if not pred_func.from_signature:
-                        pred_func.from_signature = "flirt"
-                        pred_func.is_default_name = False
-                        pred_func.name = func.name
-                        queue.append(pred_addr)
+                if self._is_simple_function(pred_func) and not pred_func.from_signature:
+                    pred_func.from_signature = "flirt"
+                    pred_func.is_default_name = False
+                    pred_func.name = func.name
+                    queue.append(pred_addr)
 
 
 AnalysesHub.register_default("FlirtSigPropagation", FlirtSigPropagation)

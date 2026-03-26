@@ -1,7 +1,6 @@
 from __future__ import annotations
 from angr.ailment import Expression, Assignment
-from angr.ailment.expression import VirtualVariable, Phi
-from angr.ailment.statement import Call, FunctionLikeMacro
+from angr.ailment.expression import VirtualVariable, Phi, FunctionLikeMacro, Call
 from angr.rust.sim_type import RustSimTypeFunction, RustSimType
 from angr.analyses.s_reaching_definitions import SRDAView
 from angr.knowledge_plugins.key_definitions.constants import OP_BEFORE

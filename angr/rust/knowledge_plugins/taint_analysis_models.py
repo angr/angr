@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections import defaultdict
 from pprint import pformat
 
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class TaintAnalysisModel:

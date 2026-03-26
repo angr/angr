@@ -544,7 +544,6 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "Return": self._handle_stmt_Return,
             "DirtyStatement": self._handle_stmt_DirtyStatement,
             "Label": self._handle_stmt_Label,
-            "FunctionLikeMacro": self._handle_stmt_FunctionLikeMacro,
         }
         self._expr_handlers: dict[str, Callable[[Any], DataType_co]] = {
             "Atom": self._handle_expr_Atom,
@@ -735,10 +734,6 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
 
     @abstractmethod
     def _handle_stmt_SideEffectStatement(self, stmt: ailment.statement.SideEffectStatement) -> StmtDataType: ...
-
-    def _handle_stmt_FunctionLikeMacro(self, stmt):
-        for arg in stmt.args:
-            self._expr(arg)
 
     @abstractmethod
     def _handle_stmt_Return(self, stmt: ailment.statement.Return) -> StmtDataType: ...

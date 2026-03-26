@@ -32,10 +32,9 @@ from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
 from .structured_codegen.rust import RustStructuredCodeGenerator
-from ..typehoon.typehoon import Typehoon
-from ...rust.typehoon.typehoon import RustTypehoon
-from ...rust.optimization_passes import *
-from ...rust.definitions import *
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.rust.typehoon.typehoon import RustTypehoon
+from angr.rust.optimization_passes import get_rust_optimization_passes
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel

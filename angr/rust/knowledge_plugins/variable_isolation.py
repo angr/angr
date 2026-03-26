@@ -1,5 +1,6 @@
 from __future__ import annotations
-from ...knowledge_plugins.plugin import KnowledgeBasePlugin
+
+from angr.knowledge_plugins.plugin import KnowledgeBasePlugin
 
 
 class VariableIsolation(KnowledgeBasePlugin):

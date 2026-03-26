@@ -3,8 +3,8 @@ import logging
 
 from angr.ailment.block_walker import AILBlockRewriter
 from angr.ailment import Block, BinaryOp, Const
-from angr.ailment.expression import VirtualVariable, StringLiteral
-from angr.ailment.statement import Call, Statement, FunctionLikeMacro
+from angr.ailment.expression import VirtualVariable, StringLiteral, FunctionLikeMacro, Call
+from angr.ailment.statement import Statement
 
 from angr.rust.sim_type import RustSimStruct
 from angr.rust.optimization_passes.utils import CallRewriter
@@ -23,7 +23,7 @@ class StrCmpSimplifierWalker(AILBlockRewriter):
         self.context = context
 
     def _handle_BinaryOp(self, expr_idx: int, expr: BinaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
-        if expr.op == "CmpEQ" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:
+        if expr.op == "CmpEQ" and isinstance(expr.operands[1], Const) and expr.operands[1].value == 0:  # noqa: SIM102
             if (
                 isinstance(expr.operands[0], Call)
                 and expr.operands[0].args
@@ -59,7 +59,7 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
 
         self.analyze()
 
-    def _simplify_str_arguments(self, call: Call, block, stmt, is_expr):
+    def _simplify_str_arguments(self, call: Call, block, stmt):
         string_ty = self.project.kb.known_structs["alloc::string::String"]
         ptr_offset = (
             string_ty.get_field_offset("vec.buf.ptr.pointer")
@@ -74,7 +74,8 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
             while len(args) >= 2:
                 arg0 = args.pop(0)
                 vvar = arg0
-                if isinstance(arg0, VirtualVariable) and vvar.was_stack:
+                if isinstance(vvar, VirtualVariable) and vvar.was_stack:
+                    assert isinstance(arg0, VirtualVariable)
                     vvar = self.get_stack_vvar_by_insn(vvar.stack_offset - ptr_offset, stmt.tags["ins_addr"], block.idx)
                     if isinstance(vvar, VirtualVariable) and vvar.was_stack:
                         returnty = None
@@ -97,9 +98,9 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
 
             new_args.extend(args)
             if changed:
-                new_stmt = call.copy()
-                new_stmt.args = new_args
-                return new_stmt
+                new_call = call.copy()
+                new_call.args = new_args
+                return new_call
         return call
 
     def _check(self):

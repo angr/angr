@@ -16,7 +16,7 @@ from .structuring.structurer_nodes import (
     ConditionalBreakNode,
     IncompleteSwitchCaseNode,
 )
-from ...rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
+from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class SequenceWalker:

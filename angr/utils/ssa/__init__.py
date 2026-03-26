@@ -23,8 +23,8 @@ from angr.ailment.expression import (
     UnaryOp,
     VEXCCallExpression,
 )
-from angr.ailment.expression import Call
-from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement, FunctionLikeMacro
+from angr.ailment.expression import Call, FunctionLikeMacro
+from angr.ailment.statement import Statement, Assignment, Store, CAS, SideEffectStatement
 from angr.ailment.block_walker import AILBlockViewer
 
 from angr.knowledge_plugins.key_definitions import atoms

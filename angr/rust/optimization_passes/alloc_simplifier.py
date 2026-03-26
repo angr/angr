@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import archinfo
 from angr.ailment import Const, AILBlockWalker, Block
-from angr.ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral
-from angr.ailment.statement import Store, Assignment, Call, ConditionalJump, Label, Jump, Statement, FunctionLikeMacro
+from angr.ailment.expression import BinaryOp, VirtualVariable, UnaryOp, StringLiteral, FunctionLikeMacro, Call
+from angr.ailment.statement import Store, Assignment, ConditionalJump, Label, Jump, Statement
 
 from .base import TransformationPass, SSAVariableHelper
-from ..mixins.srda_mixin import SRDAMixin
-from ..sim_type import RustSimTypeVec, RustSimTypeInt
-from ... import SIM_LIBRARIES
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
+from angr.rust.mixins.srda_mixin import SRDAMixin
+from angr.rust.sim_type import RustSimTypeVec, RustSimTypeInt
+from angr import SIM_LIBRARIES
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 
 
 class VecIndexingWalker(AILBlockWalker):
@@ -66,33 +66,34 @@ class SimplificationState:
         self.vec_element_size = None
 
     def _try_outline_string(self):
-        if self.alloc_align is None or (isinstance(self.alloc_align, Const) and self.alloc_align.value == 1):
-            if isinstance(self.alloc_size, Const):
-                alloc_size = self.alloc_size.value
-                init_bytes = bytearray(b"\x00" * alloc_size)
-                for stmt in self.init_stmts:
-                    if isinstance(stmt, Store) and isinstance(stmt.data, Const):
-                        vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
-                        data = stmt.data.value.to_bytes(stmt.data.size, self.context.endian)
-                        init_bytes[offset : offset + stmt.data.size] = data
-                try:
-                    decoded_str = init_bytes.decode()
-                    if decoded_str.isprintable():
-                        data = StringLiteral(None, decoded_str, self.context.project.arch.bits)
-                        call = Call(
-                            idx=None,
-                            target="String::from",
-                            prototype=self.context.librust.get_prototype("String::from")
-                            .with_arch(self.context.project.arch)
-                            .normalize(),
-                            args=[data],
-                            ret_expr=None,
-                            **self.construct_stmts[0].tags,
-                        )
-                        call.bits = 3 * self.context.project.arch.bits
-                        return call
-                except UnicodeDecodeError:
-                    pass
+        if (
+            self.alloc_align is None or (isinstance(self.alloc_align, Const) and self.alloc_align.value == 1)
+        ) and isinstance(self.alloc_size, Const):
+            alloc_size = self.alloc_size.value
+            init_bytes = bytearray(b"\x00" * alloc_size)
+            for stmt in self.init_stmts:
+                if isinstance(stmt, Store) and isinstance(stmt.data, Const):
+                    _vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
+                    data = stmt.data.value.to_bytes(stmt.data.size, self.context.endian)
+                    init_bytes[offset : offset + stmt.data.size] = data
+            try:
+                decoded_str = init_bytes.decode()
+                if decoded_str.isprintable():
+                    data = StringLiteral(None, decoded_str, self.context.project.arch.bits)
+                    call = Call(
+                        idx=None,
+                        target="String::from",
+                        prototype=self.context.librust.get_prototype("String::from")
+                        .with_arch(self.context.project.arch)
+                        .normalize(),
+                        args=[data],
+                        ret_expr=None,
+                        **self.construct_stmts[0].tags,
+                    )
+                    call.bits = 3 * self.context.project.arch.bits
+                    return call
+            except UnicodeDecodeError:
+                pass
         return None
 
     def _try_outline_vec(self):
@@ -107,7 +108,7 @@ class SimplificationState:
                 init_bytes = bytearray(b"\x00" * alloc_size)
                 for stmt in self.init_stmts:
                     if isinstance(stmt, Store):
-                        vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
+                        _vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
                         data = stmt.data.value.to_bytes(stmt.data.size, self.context.endian)
                         init_bytes[offset : offset + stmt.data.size] = data
                 elements = []
@@ -118,7 +119,7 @@ class SimplificationState:
                     elements.append(element)
                 ele_ty = RustSimTypeInt(ele_size * self.context.project.arch.byte_width, signed=False)
                 returnty = RustSimTypeVec(ele_ty).with_arch(self.context.project.arch)
-                macro = FunctionLikeMacro(
+                return FunctionLikeMacro(
                     None,
                     "vec",
                     elements,
@@ -127,7 +128,6 @@ class SimplificationState:
                     returnty=returnty,
                     **self.construct_stmts[-1].tags,
                 )
-                return macro
         return None
 
     def outline(self):
@@ -148,7 +148,7 @@ class SimplificationState:
             outline_result = self._try_outline_vec()
 
         replacement = None
-        if isinstance(outline_result, Call) or isinstance(outline_result, FunctionLikeMacro):
+        if isinstance(outline_result, (Call, FunctionLikeMacro)):
             if category == "Store":
                 replacement = Store(
                     None,
@@ -231,7 +231,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
     def _find_init_stmts(self, block):
         for stmt in block.statements:
             if isinstance(stmt, Store):
-                vvar, offset = self.extract_vvar_and_offset(stmt.addr)
+                vvar, _offset = self.extract_vvar_and_offset(stmt.addr)
                 value = self.get_terminal_vvar_value(vvar)
                 if value in self.states:
                     state = self.states[value]
@@ -281,7 +281,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                 stmt_back = block.statements[idx + 1]
             if idx + 2 < len(block.statements):
                 stmt_back_back = block.statements[idx + 2]
-            if isinstance(stmt, Store) or isinstance(stmt, Assignment):
+            if isinstance(stmt, (Store, Assignment)):
                 vvar = stmt.data if isinstance(stmt, Store) else stmt.src
                 value = self.get_terminal_vvar_value(vvar)
                 if value in self.states:
@@ -311,7 +311,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                 block = self.blocks_by_addr_and_idx[(block_addr, block_idx)]
                 visited_blocks.append(block)
                 if (
-                    all(isinstance(stmt, Label) or isinstance(stmt, Jump) for stmt in block.statements)
+                    all(isinstance(stmt, (Label, Jump)) for stmt in block.statements)
                     and self.num_successors(block) == 1
                 ):
                     succ = self.get_one_successor(block)

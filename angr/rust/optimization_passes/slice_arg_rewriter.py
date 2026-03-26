@@ -63,7 +63,7 @@ class SliceArgRewriter(OptimizationPass):
             # )
         return None
 
-    def _rewrite_slice_arguments(self, call: Call, block, stmt, is_expr):
+    def _rewrite_slice_arguments(self, call: Call, block, stmt):
         if isinstance(call.target, Const) and call.target.value in self.kb.functions:
             func = self.kb.functions[call.target.value]
             if (
@@ -75,7 +75,7 @@ class SliceArgRewriter(OptimizationPass):
                 offset_to_arg_ty = {}
                 cur_offset = 0
                 session = func.calling_convention.arg_session(func.prototype.returnty)
-                for i, arg_ty in enumerate(func.prototype.args):
+                for arg_ty in func.prototype.args:
                     offset_to_arg_ty[cur_offset] = (arg_ty, func.calling_convention.next_arg(session, arg_ty))
                     cur_offset += arg_ty.size
                 arg_to_offset = {}

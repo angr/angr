@@ -1,11 +1,15 @@
 from __future__ import annotations
+from typing import TYPE_CHECKING
+
 from angr.ailment import Const, Register
 from angr.ailment.expression import ComboRegister
-from angr.ailment.statement import Call
-from .utils import CallRewriter
+from .utils import SideEffectStatementRewriter
 
-from ...calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+
+if TYPE_CHECKING:
+    from angr.ailment.statement import SideEffectStatement
 
 
 class RetExprRewriter(OptimizationPass):
@@ -31,9 +35,9 @@ class RetExprRewriter(OptimizationPass):
         return [arg]
 
     def _analyze(self, cache=None):
-        def callback(call: Call, block, stmt, is_expr):
-            if isinstance(call.target, Const) and call.target.value in self.kb.functions:
-                func = self.kb.functions[call.target.value]
+        def callback(call_stmt: SideEffectStatement, block, stmt):
+            if isinstance(call_stmt.expr.target, Const) and call_stmt.expr.target.value in self.kb.functions:
+                func = self.kb.functions[call_stmt.expr.target.value]
                 if func.prototype and func.calling_convention and func.prototype.returnty:
                     ret_val = func.calling_convention.return_val(func.prototype.returnty)
                     ret_locs = self._flatten_locs(ret_val)
@@ -54,12 +58,12 @@ class RetExprRewriter(OptimizationPass):
                             )
                             regs.append(reg)
                         ret_expr = ComboRegister(None, None, regs)
-                        new_call = call.copy()
+                        new_call = call_stmt.copy()
                         new_call.ret_expr = ret_expr
                         return new_call
-            return call
+            return call_stmt
 
-        rewriter = CallRewriter(callback)
+        rewriter = SideEffectStatementRewriter(callback)
         for block in self._graph.nodes:
             rewriter.walk(block)
 

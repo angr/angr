@@ -126,10 +126,6 @@ class SimEngineRDAIL(
             self.state.analysis.stmt_observe(self.stmt_idx, stmt, self.block, self.state, OP_AFTER)
             self.state.analysis.insn_observe(self.ins_addr, stmt, self.block, self.state, OP_AFTER)
 
-    def _handle_stmt_FunctionLikeMacro(self, stmt):
-        for arg in stmt.args:
-            self._expr(arg)
-
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
         dst = stmt.dst

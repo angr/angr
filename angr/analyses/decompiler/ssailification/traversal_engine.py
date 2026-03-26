@@ -441,10 +441,6 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
         for suboff in range(offset, offset + size):
             self.state.register_defs[suboff] = {def_}
 
-    def _handle_stmt_FunctionLikeMacro(self, stmt):
-        for arg in stmt.args:
-            self._expr(arg)
-
     def _handle_stmt_Assignment(self, stmt):
         src = self._expr(stmt.src)
 

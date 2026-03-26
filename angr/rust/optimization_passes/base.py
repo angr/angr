@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import contextlib
 import logging
 
 import archinfo
@@ -11,8 +13,8 @@ from angr.ailment.expression import (
 from angr.ailment.statement import Call, Statement, Jump, ConditionalJump, Return, Assignment
 from networkx import NetworkXError
 
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ...rust.utils.demangler import normalize
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
+from angr.rust.utils.demangler import normalize
 
 l = logging.getLogger(name=__name__)
 
@@ -25,7 +27,7 @@ class SSAVariableHelper:
         vvar_id = self.context.vvar_id_start
         self.context.vvar_id_start += 1
         vvar_bits = bits
-        vvar = VirtualVariable(
+        return VirtualVariable(
             None,
             vvar_id,
             vvar_bits,
@@ -33,7 +35,6 @@ class SSAVariableHelper:
             oident=dst_offset,
             **tags,
         )
-        return vvar
 
 
 class TransformationPass(OptimizationPass):
@@ -140,16 +141,12 @@ class TransformationPass(OptimizationPass):
             return
         # Remove old edges
         if old_target:
-            try:
+            with contextlib.suppress(NetworkXError):
                 self._graph.remove_edge(block, old_target)
-            except NetworkXError:
-                pass
         else:
             for succ in list(self._graph.successors(block)):
-                try:
+                with contextlib.suppress(NetworkXError):
                     self._graph.remove_edge(block, succ)
-                except NetworkXError:
-                    pass
         # Add new edge
         self._graph.add_edge(block, new_target)
 
@@ -171,7 +168,7 @@ class TransformationPass(OptimizationPass):
     def has_terminal(self, block):
         if len(block.statements):
             last_stmt = block.statements
-            if isinstance(last_stmt, Return) or isinstance(last_stmt, Jump) or isinstance(last_stmt, ConditionalJump):
+            if isinstance(last_stmt, (Return, Jump, ConditionalJump)):
                 return True
         return False
 

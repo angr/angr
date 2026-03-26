@@ -19,7 +19,6 @@ from angr.ailment.statement import (
     ConditionalJump,
     DirtyStatement,
     WeakAssignment,
-    FunctionLikeMacro,
     Return,
 )
 from angr.ailment.expression import (
@@ -37,6 +36,7 @@ from angr.ailment.expression import (
     BinaryOp,
     VirtualVariable,
     UnaryOp,
+    FunctionLikeMacro,
 )
 
 from angr.analyses.s_propagator import SPropagatorAnalysis

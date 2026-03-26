@@ -2074,6 +2074,8 @@ class Call(Expression):
 
 
 class StringLiteral(Expression):
+    __slots__ = ("data",)
+
     def __init__(self, idx, data, bits, **kwargs):
         super().__init__(idx, 0, **kwargs)
         self.data = data
@@ -2109,13 +2111,15 @@ class StringLiteral(Expression):
 
 
 class Struct(Expression):
+    __slots__ = ("field_names", "field_offsets", "fields", "name")
+
     def __init__(self, idx, name, fields, field_offsets, bits, **kwargs):
         super().__init__(idx, (max(field.depth for field in fields.values()) if len(fields) else 0) + 1, **kwargs)
         self.name = name
         self.fields = fields
         self.field_offsets = field_offsets
         self.field_names = OrderedDict([(v, k) for k, v in field_offsets.items()])
-        self._bits = bits
+        self.bits = bits
 
     def get_field(self, name):
         path = name.split(".")
@@ -2130,10 +2134,6 @@ class Struct(Expression):
     @property
     def size(self):
         return self.bits // 8
-
-    @property
-    def bits(self):
-        return self._bits
 
     def __repr__(self):
         return str(self)
@@ -2185,15 +2185,11 @@ class Enum(Expression):
         super().__init__(idx, (max(field.depth for field in fields) if len(fields) else 0) + 1, **kwargs)
         self.name = name
         self.fields = fields
-        self._bits = bits
+        self.bits = bits
 
     @property
     def size(self):
         return self.bits // 8
-
-    @property
-    def bits(self):
-        return self._bits
 
     def __repr__(self):
         return str(self)
@@ -2243,15 +2239,11 @@ class Array(Expression):
     def __init__(self, idx, elements, bits, **kwargs):
         super().__init__(idx, (max(ele.depth for ele in elements) if len(elements) else 0) + 1, **kwargs)
         self.elements = elements
-        self._bits = bits
+        self.bits = bits
 
     @property
     def size(self):
         return self.bits // 8
-
-    @property
-    def bits(self):
-        return self._bits
 
     @property
     def length(self):
@@ -2297,7 +2289,7 @@ class Array(Expression):
 
 
 class Let(Op):
-    __slots__ = ("bits", "defs", "src", "variant")
+    __slots__ = ("defs", "src", "variant")
 
     def __init__(self, idx, variant, defs, src, **kwargs):
         super().__init__(idx, depth=src.depth + 1, op="let", **kwargs)
@@ -2322,3 +2314,67 @@ class Let(Op):
         return type(self) is type(other) and self.variant == other.variant and self.src == other.src
 
     matches = likes
+
+
+#
+# Rust-specific expressions
+#
+
+
+class Macro(Call, ABC):
+    __slots__ = ("delimiter", "name", "returnty")
+
+    def __init__(self, idx, name: str, delimiter="()", returnty=None, **kwargs):
+        # TODO: Update depth
+        super().__init__(idx, target=name, **kwargs)
+        self.name = name
+        self.delimiter = delimiter
+        self.returnty = returnty
+
+
+class FunctionLikeMacro(Macro):
+    __slots__ = ()
+
+    def __init__(self, idx, name: str, args, bits=None, delimiter="()", returnty=None, **kwargs):
+        super().__init__(idx, name, delimiter, returnty, bits=bits, **kwargs)
+        self.args = args
+
+    __hash__ = TaggedObject.__hash__
+
+    @property
+    def size(self):
+        if self.bits:
+            return self.bits // 8
+        return None
+
+    def _hash_core(self):
+        return stable_hash((FunctionLikeMacro, self.idx, self.name))
+
+    def __str__(self):
+        return f"{self.name}!{self.delimiter[0]}{self.args}{self.delimiter[1]}"
+
+    def __repr__(self):
+        return f"Macro(name={self.name}, args={self.args})"
+
+    def likes(self, other):
+        return (
+            type(self) is type(other)
+            and self.name == other.name
+            and self.delimiter == other.delimiter
+            and self.bits == other.bits
+            and len(self.args) == len(other.args)
+            and all(arg.likes(other_arg) for arg, other_arg in zip(self.args, other.args))
+        )
+
+    matches = likes
+
+    def copy(self):
+        return FunctionLikeMacro(self.idx, self.name, self.args, self.bits, self.delimiter, self.returnty, **self.tags)
+
+    @property
+    def verbose_op(self):
+        return "macro_call"
+
+    @property
+    def op(self):
+        return "macro_call"

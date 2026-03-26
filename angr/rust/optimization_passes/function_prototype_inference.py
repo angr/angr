@@ -1,10 +1,10 @@
 from __future__ import annotations
 from angr.ailment.expression import VirtualVariable, Const, UnaryOp, BinaryOp
-from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Label
+from angr.ailment.statement import Assignment, ConditionalJump, Jump, Return, Label, SideEffectStatement
 from angr.rust.mixins import CFAMixin, SSAVariableMixin
 from angr.rust.analyses.rust_calling_convention import Pathfinder
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
-from angr.rust.optimization_passes.utils import CallRewriter
+from angr.rust.optimization_passes.utils import SideEffectStatementRewriter
 from angr.rust.sim_type import RustSimTypeFunction, is_composite_type
 
 
@@ -25,17 +25,17 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
     def _check(self):
         return self.project.is_rust_binary, None
 
-    def _analyze_and_replace_call(self, call, block, stmt, is_expr):
+    def _analyze_and_replace_call(self, call_stmt: SideEffectStatement, block, stmt):
         # Perform calling convention analysis on target function if it's never analyzed
         if (
-            call
-            and not isinstance(call.prototype, RustSimTypeFunction)
-            and isinstance(call.target, Const)
-            and call.target.value in self.kb.functions
+            call_stmt is not None
+            and not isinstance(call_stmt.expr.prototype, RustSimTypeFunction)
+            and isinstance(call_stmt.expr.target, Const)
+            and call_stmt.expr.target.value in self.kb.functions
         ):
-            func = self.kb.functions[call.target.value]
+            func = self.kb.functions[call_stmt.expr.target.value]
             if isinstance(func.prototype, RustSimTypeFunction):
-                call.prototype = func.prototype
+                call_stmt.expr.prototype = func.prototype
             else:
                 post_callsite_block = self.get_one_successor(block) if self.num_successors(block) == 1 else None
                 post_callsite_path = (
@@ -45,42 +45,38 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                     func,
                     callsite_path=Pathfinder(self._graph).find_backward_path(block),
                     post_callsite_path=post_callsite_path,
-                    is_call_expr=is_expr,
+                    is_call_expr=True,
                     callsite_discriminant_hint=self._detect_callsite_discriminant_hint(post_callsite_path),
                 )
-                call.prototype = rcc.model.inferred_prototype
-                func.prototype = call.prototype
+                call_stmt.expr.prototype = rcc.model.inferred_prototype
+                func.prototype = call_stmt.expr.prototype
                 func.is_prototype_guessed = False
 
-        if call and isinstance(call.prototype, RustSimTypeFunction):
-            is_arg0_retbuf = call.prototype.is_arg0_retbuf
-            prototype = call.prototype.normalize()
+        if call_stmt is not None and isinstance(call_stmt.expr.prototype, RustSimTypeFunction):
+            is_arg0_retbuf = call_stmt.expr.prototype.is_arg0_retbuf
+            prototype = call_stmt.expr.prototype.normalize()
             returnty = prototype.returnty
             if is_composite_type(returnty):
                 if is_arg0_retbuf:
-                    arg0 = call.args[0] if call.args else None
+                    arg0 = call_stmt.expr.args[0] if call_stmt.expr.args else None
                     if (
                         isinstance(arg0, UnaryOp)
                         and arg0.op == "Reference"
                         and isinstance(arg0.operand, VirtualVariable)
                         and arg0.operand.was_stack
                     ):
-                        call = call.copy()
+                        call = call_stmt.expr.copy()
                         call.args = call.args[1:]
                         call.bits = returnty.size
                         call.prototype = prototype
-                        if is_expr:
-                            return call
                         dst_vvar = self.new_stack_vvar(arg0.operand.stack_offset, call.bits, arg0.operand.tags)
                         dst_vvar.tags["type"] = returnty
                         self.project.kb.type_hints.add_type_hint(dst_vvar, returnty)
-                        assignment = Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
-                        return assignment
+                        return Assignment(idx=None, dst=dst_vvar, src=call, **call.tags)
                 else:
-                    if is_expr:
-                        if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
-                            stmt.dst.tags["type"] = returnty
-        return call
+                    if isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg:
+                        stmt.dst.tags["type"] = returnty
+        return call_stmt
 
     def _detect_callsite_discriminant_hint(self, post_callsite_path):
         """
@@ -105,7 +101,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         if not (isinstance(cond, BinaryOp) and cond.op in ("CmpEQ", "CmpNE")):
             return None
 
-        op0, op1 = cond.operands
+        _, op1 = cond.operands
         if not isinstance(op1, Const):
             return None
 
@@ -127,11 +123,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
 
         # CmpEQ: true branch → ret == X,  false branch → ret != X
         # CmpNE: true branch → ret != X,  false branch → ret == X
-        if cond.op == "CmpEQ":
-            eq_is_early = true_early
-        else:
-            eq_is_early = false_early
-
+        eq_is_early = true_early if cond.op == "CmpEQ" else false_early
         if eq_is_early:
             return (discriminant_value, True)  # ret == X → early return → X is Err
         return (discriminant_value, False)  # ret != X → early return → X is Ok
@@ -161,7 +153,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
         return has_return
 
     def _analyze(self, cache=None):
-        rewriter = CallRewriter(callback=self._analyze_and_replace_call)
+        rewriter = SideEffectStatementRewriter(self._analyze_and_replace_call)
         for block in self._graph.nodes:
             rewriter.walk(block)
         self.fix_stack_vvar_uses()

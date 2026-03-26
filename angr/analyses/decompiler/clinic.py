@@ -79,9 +79,8 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from ..typehoon.typehoon import Typehoon
-from angr.ailment.expression import Struct, Array, Enum, Let
-from angr.ailment.statement import FunctionLikeMacro
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.ailment.expression import Struct, Array, Enum, Let, FunctionLikeMacro
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -633,23 +632,22 @@ class Clinic(Analysis):
                 if expr.was_combo_reg:
                     for reg_vvar in expr.reg_vvars:
                         self.varid_to_combo_reg[reg_vvar.varid] = expr
-                elif expr.was_reg:
-                    if expr.varid in self.varid_to_combo_reg:
-                        combo_reg = self.varid_to_combo_reg[expr.varid]
-                        offset = 0
-                        for reg_vvar in combo_reg.reg_vvars:
-                            if reg_vvar.reg_offset == expr.reg_offset:
-                                break
-                            offset += reg_vvar.size
-                        addr = ailment.Expr.UnaryOp(None, "Reference", combo_reg)
-                        if offset != 0:
-                            addr += ailment.Expr.Const(None, None, offset, self.project.arch.bits)
-                        return ailment.Expr.Load(
-                            None,
-                            addr,
-                            expr.size,
-                            self.project.arch.memory_endness,
-                        )
+                elif expr.was_reg and expr.varid in self.varid_to_combo_reg:
+                    combo_reg = self.varid_to_combo_reg[expr.varid]
+                    offset = 0
+                    for reg_vvar in combo_reg.reg_vvars:
+                        if reg_vvar.reg_offset == expr.reg_offset:
+                            break
+                        offset += reg_vvar.size
+                    addr = ailment.Expr.UnaryOp(None, "Reference", combo_reg)
+                    if offset != 0:
+                        addr += ailment.Expr.Const(None, None, offset, self.project.arch.bits)
+                    return ailment.Expr.Load(
+                        None,
+                        addr,
+                        expr.size,
+                        self.project.arch.memory_endness,
+                    )
                 return expr
 
         walker = ComboRegReferenceWalker(self.project)
@@ -2443,10 +2441,6 @@ class Clinic(Analysis):
             elif stmt_type is ailment.Stmt.Return:
                 assert isinstance(stmt, ailment.Stmt.Return)
                 self._link_variables_on_return(variable_manager, global_variables, block, stmt_idx, stmt)
-
-            elif stmt_type is FunctionLikeMacro:
-                for arg in stmt.args:
-                    self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, arg)
 
     def _link_variables_on_return(
         self, variable_manager, global_variables, block: ailment.Block, stmt_idx: int, stmt: ailment.Stmt.Return
