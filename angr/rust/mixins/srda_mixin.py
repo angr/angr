@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import Expression, Assignment
 from angr.ailment.expression import VirtualVariable, Phi
 from angr.ailment.statement import Call, FunctionLikeMacro
@@ -25,20 +26,19 @@ class SRDAMixin:
         return self.srda_view.get_vvar_value(vvar)
 
     def get_terminal_vvar_values(self, vvar, visited=None):
-        visited = visited if visited else set()
+        visited = visited or set()
         value = vvar
         visited.add(value)
         while (value := self.get_vvar_value(value)) and value not in visited:
             visited.add(value)
             if isinstance(value, VirtualVariable):
                 continue
-            elif isinstance(value, Phi):
+            if isinstance(value, Phi):
                 result = set()
                 for _, phi_vvar in value.src_and_vvars:
                     result |= self.get_terminal_vvar_values(phi_vvar, visited)
                 return result
-            else:
-                return {value}
+            return {value}
         return set()
 
     def get_terminal_vvar_value(self, vvar, visited=None):
@@ -58,7 +58,7 @@ class SRDAMixin:
             if isinstance(value, VirtualVariable):
                 cur_vvar = value
                 continue
-            elif isinstance(value, Phi):
+            if isinstance(value, Phi):
                 result = {}  # varid -> VirtualVariable
                 for _, phi_vvar in value.src_and_vvars:
                     terminal = self.get_terminal_vvar(phi_vvar, set(visited))

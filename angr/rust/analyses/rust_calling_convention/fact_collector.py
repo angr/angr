@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from angr.ailment import AILBlockViewer
@@ -20,7 +21,7 @@ class MemoryWriteCollector(AILBlockViewer):
     to parameter-backed addresses.
     """
 
-    def __init__(self, fc: "FactCollector"):
+    def __init__(self, fc: FactCollector):
         super().__init__()
         self._fc = fc
 
@@ -73,7 +74,7 @@ class CalleeWriteCollector:
     its memory writes into the current function's facts.
     """
 
-    def __init__(self, fc: "FactCollector"):
+    def __init__(self, fc: FactCollector):
         self._fc = fc
 
     def collect(self):
@@ -122,7 +123,7 @@ class ConstRetValueCollector:
     including values propagated through tail calls.
     """
 
-    def __init__(self, fc: "FactCollector"):
+    def __init__(self, fc: FactCollector):
         self._fc = fc
 
     def _resolve_const_values(self, expr):
@@ -158,7 +159,9 @@ class ConstRetValueCollector:
 
             # Resolve const values and build (ret_value, overflow_ret_value|None) tuples
             ret_values = self._resolve_const_values(ret_expr)
-            overflow_ret_values = (self._resolve_const_values(overflow_ret_expr) if overflow_ret_expr else set()) or {None}
+            overflow_ret_values = (self._resolve_const_values(overflow_ret_expr) if overflow_ret_expr else set()) or {
+                None
+            }
             for ret_value in ret_values:
                 for overflow_ret_value in overflow_ret_values:
                     self._fc.const_ret_values.add((ret_value, overflow_ret_value))
@@ -187,7 +190,7 @@ class CallsiteFactCollector:
     stack regions that initialize struct arguments passed by reference.
     """
 
-    def __init__(self, fc: "FactCollector"):
+    def __init__(self, fc: FactCollector):
         self._fc = fc
 
     def collect(self):

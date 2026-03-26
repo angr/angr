@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.rust.sim_type import RustSimTypeFunction, RustSimTypeReference
 from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Struct, StringLiteral
@@ -50,7 +51,6 @@ class VecOutliner(OptimizationPass):
             return stmt
 
         class StringStructWalker(AILBlockRewriter):
-
             def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
                 return callback(stmt_idx, stmt, block)
 

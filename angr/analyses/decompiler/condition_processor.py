@@ -32,7 +32,7 @@ from .structuring.structurer_nodes import (
     IncompleteSwitchCaseNode,
 )
 from .graph_region import GraphRegion
-from .utils import first_nonlabel_nonphi_statement, peephole_optimize_expr
+from .utils import peephole_optimize_expr
 
 l = logging.getLogger(__name__)
 

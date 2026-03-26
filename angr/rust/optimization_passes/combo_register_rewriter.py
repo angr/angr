@@ -1,9 +1,10 @@
-from angr.ailment.expression import ComboRegister, VirtualVariable, VirtualVariableCategory, UnaryOp
+from __future__ import annotations
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp
 from angr.ailment.statement import Call
 from .utils import CallRewriter, replace_argument_pairs
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import SRDAMixin
-from angr.ailment import AILBlockWalker, Statement, Block
+from angr.ailment import Statement, Block
 
 
 class ComboRegisterRewriter(OptimizationPass, SRDAMixin):

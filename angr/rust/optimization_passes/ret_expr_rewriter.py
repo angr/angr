@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import Const, Register
 from angr.ailment.expression import ComboRegister
 from angr.ailment.statement import Call

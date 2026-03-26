@@ -1,3 +1,4 @@
+from __future__ import annotations
 import networkx as nx
 from angr.ailment import Assignment
 from angr.ailment.expression import VirtualVariable

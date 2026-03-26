@@ -1,7 +1,7 @@
+from __future__ import annotations
 import itertools
 import logging
 from collections import OrderedDict, defaultdict
-from typing import List
 import sys
 
 from angr.ailment import Const, AILBlockWalkerBase, Block, Statement
@@ -18,7 +18,6 @@ l = logging.getLogger(name=__name__)
 
 
 class FeatureCollector(AILBlockWalkerBase):
-
     def __init__(self, project, depth=0):
         super().__init__()
         self.project = project
@@ -45,7 +44,7 @@ class FeatureCollector(AILBlockWalkerBase):
             if offset >= field_offset and offset < field_offset + field_ty.size // 8:
                 if offset == field_offset and not isinstance(field_ty, RustSimStruct):
                     return ".".join(path + [field_name])
-                elif isinstance(field_ty, RustSimStruct):
+                if isinstance(field_ty, RustSimStruct):
                     return FeatureCollector._resolve_struct_field(field_ty, offset - field_offset, path + [field_name])
                 return None
         return None
@@ -185,7 +184,7 @@ class StructMemoryLayoutAnalysis(Analysis, CFAMixin, DFAMixin):
                     feature_collector.process(arg_idx, clinic)
                     self.ground_truth[func.demangled_name] = feature_collector.get_feature(struct_ty)
 
-    def _permutate_fields(self, struct_ty: RustSimStruct) -> List[RustSimStruct]:
+    def _permutate_fields(self, struct_ty: RustSimStruct) -> list[RustSimStruct]:
         if struct_ty.name in self._permutation_memo:
             return self._permutation_memo[struct_ty.name]
 

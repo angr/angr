@@ -1,14 +1,11 @@
 from __future__ import annotations
 import logging
-from typing import Any, Optional
+from typing import Any
 
-import networkx
-from networkx.classes import DiGraph
 
-from angr.ailment import BinaryOp, Assignment, UnaryOp
+from angr.ailment import BinaryOp, Assignment
 from angr.ailment.expression import Load, Const, VirtualVariable, Enum
 from angr.ailment.statement import ConditionalJump, Return, Label, Call, Store
-from angr.analyses.s_propagator import SPropagatorAnalysis
 from angr.analyses.decompiler.utils import copy_graph
 from angr.rust.mixins import DFAMixin
 from angr.rust.sim_type import EnumVariant, RustSimTypeOption, RustSimTypeResult
@@ -133,7 +130,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         return None, None, None, None
 
     @staticmethod
-    def inverse_variant(enum_type, discriminant) -> Optional[EnumVariant]:
+    def inverse_variant(enum_type, discriminant) -> EnumVariant | None:
         if enum_type.num_variants() == 2:
             for variant in enum_type.variants:
                 if variant.discriminant != discriminant:

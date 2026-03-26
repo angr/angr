@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import re
 from collections import defaultdict
@@ -30,7 +31,6 @@ l = logging.getLogger(__name__)
 
 
 class RustVersionIdentifier:
-
     def __init__(self, project):
         self.cfg = project.kb.cfgs.get_most_accurate()
 
@@ -314,7 +314,7 @@ class TypeDBLoader(Analysis):
                 and old_prototype.returnty.size == self.project.arch.bits * 2
             ):
                 return prototype
-            elif (
+            if (
                 sum(arg_ty.size for arg_ty in old_prototype.args)
                 == sum(arg_ty.size for arg_ty in prototype.args) + self.project.arch.bits
             ):

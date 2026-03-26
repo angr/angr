@@ -1,8 +1,9 @@
+from __future__ import annotations
 from collections import OrderedDict
 
 from angr.rust.mixins import DFAMixin, SSAVariableMixin
 from angr.ailment import AILBlockRewriter, Block
-from angr.ailment.expression import Struct, Const, StringLiteral, VirtualVariable
+from angr.ailment.expression import Struct, Const, StringLiteral
 from angr.ailment.statement import Statement, Assignment
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
 from angr.rust.optimization_passes.utils import extract_str
@@ -62,7 +63,6 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
             return expr
 
         class StructWalker(AILBlockRewriter):
-
             def _handle_Struct(self, expr_idx: int, expr: Struct, stmt_idx: int, stmt: Statement, block: Block | None):
                 return callback(expr)
 

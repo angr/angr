@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Union, Tuple
+from __future__ import annotations
 from collections import OrderedDict
 
 from ..sim_type import (
@@ -21,7 +21,7 @@ def is_composite_type(ty):
 
 class RustSimType:
     def repr(self, name=None, full=0, memo=None, indent=0):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def c_repr(self, name=None, full=0, memo=None, indent=0):
         return self.repr(name, full, memo, indent)
@@ -107,15 +107,15 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
     _ident = "rust_func"
     _args = ("args", "returnty", "label", "arg_names", "variadic", "is_arg0_retbuf", "is_class_member_function")
 
-    args: List[RustSimType]
-    returnty: Optional[RustSimType]
+    args: list[RustSimType]
+    returnty: RustSimType | None
 
     base = False
 
     def __init__(
         self,
-        args: List[RustSimType],
-        returnty: Optional[RustSimType],
+        args: list[RustSimType],
+        returnty: RustSimType | None,
         label=None,
         arg_names=None,
         variadic=False,
@@ -295,7 +295,7 @@ class RustSimTypeArray(RustSimType, SimTypeArray):
         if name is None:
             return repr(self)
 
-        return f"{name}: {repr(self)}"
+        return f"{name}: {self!r}"
 
     def _with_arch(self, arch):
         out = RustSimTypeArray(self.elem_type.with_arch(arch), self.length, self.label)
@@ -311,7 +311,7 @@ class RustSimStruct(RustSimType, SimStruct):
     _args = ("fields", "name", "pack", "align")
     _fields = ("name", "fields")
 
-    def __init__(self, fields: Union[Dict[str, SimType], OrderedDict], name=None, pack=False, align=None):
+    def __init__(self, fields: dict[str, SimType] | OrderedDict, name=None, pack=False, align=None):
         SimStruct.__init__(self, fields, name, pack, align)
         self._size = None
 
@@ -355,8 +355,7 @@ class RustSimStruct(RustSimType, SimStruct):
         if not full or (memo is not None and self in memo):
             if name is None:
                 return repr(self)
-            else:
-                return f"{name}: {repr(self)}"
+            return f"{name}: {self!r}"
 
         indented = " " * indent if indent is not None else ""
         new_indent = indent + 4 if indent is not None else None
@@ -383,7 +382,7 @@ class RustSimStruct(RustSimType, SimStruct):
         field_ty = self.fields.get(path[0], None)
         if len(path) == 1:
             return field_ty
-        elif isinstance(field_ty, RustSimStruct):
+        if isinstance(field_ty, RustSimStruct):
             return field_ty.get_field_ty(".".join(path[1:]))
         return None
 
@@ -396,7 +395,7 @@ class RustSimStruct(RustSimType, SimStruct):
             return default
         if len(path) == 1:
             return base_offset
-        elif isinstance(field_ty, RustSimStruct):
+        if isinstance(field_ty, RustSimStruct):
             addon_offset = field_ty.get_field_offset(".".join(path[1:]))
             if addon_offset is not None:
                 return base_offset + addon_offset
@@ -530,7 +529,7 @@ class RustSimTypeVec(RustSimStruct, SimType):
         RustSimStruct.__init__(
             self,
             fields,
-            name=f"Vec<{repr(element_type)}>",
+            name=f"Vec<{element_type!r}>",
         )
         SimType.__init__(self, label)
         self.element_type = element_type
@@ -587,7 +586,7 @@ class RustSimTypeBottom(RustSimType, SimTypeBottom):
 class EnumVariant:
     def __init__(self, name, fields, discriminant, discriminant_size):
         self.name = name
-        self.fields: List[Tuple[SimType, Optional[str]]] = fields
+        self.fields: list[tuple[SimType, str | None]] = fields
         self.discriminant = discriminant
         self.discriminant_size = discriminant_size
 
@@ -691,7 +690,7 @@ class EnumVariant:
 class RustSimEnum(RustSimType, SimType):
     _ident = "rust_enum"
 
-    def __init__(self, name, variants: List[EnumVariant]):
+    def __init__(self, name, variants: list[EnumVariant]):
         super().__init__()
         self.name = name
         self.variants = variants
@@ -721,7 +720,7 @@ class RustSimEnum(RustSimType, SimType):
     def __repr__(self):
         return self.repr()
 
-    def get_variant(self, discriminant) -> Optional[EnumVariant]:
+    def get_variant(self, discriminant) -> EnumVariant | None:
         for variant in self.variants:
             if variant.discriminant == discriminant:
                 return variant

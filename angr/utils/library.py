@@ -33,7 +33,7 @@ def get_function_name(s):
                 "declaration string."
             )
 
-        s = s[s.index("))") + 2:].strip()
+        s = s[s.index("))") + 2 :].strip()
 
     if "(" not in s:
         raise ValueError("Cannot find any left parenthesis in the function declaration string.")

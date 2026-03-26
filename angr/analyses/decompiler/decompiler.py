@@ -3,8 +3,7 @@ from __future__ import annotations
 import logging
 from collections import defaultdict
 from collections.abc import Iterable
-from enum import Enum
-from typing import List, Tuple, Optional, Iterable, Union, Type, Set, Dict, Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import networkx
 from cle import SymbolType
@@ -32,15 +31,11 @@ from .sequence_walker import SequenceWalker
 from .structuring.structurer_nodes import SequenceNode
 from .presets import DECOMPILATION_PRESETS, DecompilationPreset
 from .notes import DecompilationNote
-from .structured_codegen.c import CStructuredCodeGenerator
 from .structured_codegen.rust import RustStructuredCodeGenerator
 from ..typehoon.typehoon import Typehoon
 from ...rust.typehoon.typehoon import RustTypehoon
 from ...rust.optimization_passes import *
 from ...rust.definitions import *
-from .optimization_passes.return_duplicator_high import ReturnDuplicatorHigh
-from .optimization_passes.return_duplicator_low import ReturnDuplicatorLow
-from .optimization_passes.flip_boolean_cmp import FlipBooleanCmp
 
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg.cfg_model import CFGModel
@@ -179,10 +174,10 @@ class Decompiler(Analysis):
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
         self._clinic_skip_stages = clinic_skip_stages
-        self.codegen: Optional["BaseStructuredCodeGenerator"] = None
+        self.codegen: BaseStructuredCodeGenerator | None = None
         self.codegen_cls = codegen_cls
         self.cache: DecompilationCache | None = None
-        self.cache: Optional[DecompilationCache] = None
+        self.cache: DecompilationCache | None = None
         self.options_by_class = None
         self.seq_node: SequenceNode | None = None
         self.unoptimized_ail_graph: networkx.DiGraph | None = None

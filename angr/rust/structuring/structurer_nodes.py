@@ -1,5 +1,5 @@
+from __future__ import annotations
 from collections import OrderedDict
-from typing import Tuple
 
 from angr.ailment.statement import Statement
 
@@ -9,16 +9,16 @@ from angr.rust.sim_type import EnumVariant
 
 class PatternMatchNode(BaseNode):
     __slots__ = (
-        "scrutinee",
+        "addr",
         "arms",
         "default_node",
-        "addr",
+        "scrutinee",
     )
 
     def __init__(
         self,
         scrutinee,
-        arms: OrderedDict[Tuple[EnumVariant, Tuple[Statement]], SequenceNode],
+        arms: OrderedDict[tuple[EnumVariant, tuple[Statement]], SequenceNode],
         default_node,
         addr=None,
     ):
@@ -37,11 +37,11 @@ class PatternMatchNode(BaseNode):
 
 class IfLetNode(BaseNode):
     __slots__ = (
+        "addr",
+        "false_node",
         "pattern",
         "scrutinee",
         "true_node",
-        "false_node",
-        "addr",
     )
 
     def __init__(

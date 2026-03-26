@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import AILBlockRewriter, Block
 from angr.ailment.expression import Const, Struct, StringLiteral
 from angr.ailment.statement import Assignment, Call
@@ -41,7 +42,6 @@ class StringOutliner(OptimizationPass):
             return stmt
 
         class AssignmentRewriter(AILBlockRewriter):
-
             def _handle_Assignment(self, stmt_idx: int, stmt: Assignment, block: Block | None) -> Assignment | None:
                 return callback(stmt_idx, stmt, block)
 

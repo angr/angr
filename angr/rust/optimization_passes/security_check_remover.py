@@ -1,3 +1,4 @@
+from __future__ import annotations
 from ..mixins.cfg_transformation_mixin import CFGTransformationMixin
 from ..mixins.cfa_mixin import CFAMixin
 from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage

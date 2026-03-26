@@ -68,9 +68,6 @@ class Assignment(Statement):
         self.dst = dst
         self.src = src
 
-
-
-
     def likes(self, other):
         return type(other) is Assignment and self.dst.likes(other.dst) and self.src.likes(other.src)
 
@@ -928,6 +925,7 @@ class Label(Statement):
 
     def deep_copy(self, manager) -> Label:
         return Label(manager.next_atom(), self.name, **self.tags)
+
 
 #
 # Rust-specific statements

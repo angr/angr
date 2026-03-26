@@ -1,5 +1,6 @@
-from angr.ailment import Const, Register
-from angr.ailment.expression import ComboRegister, VirtualVariable, VirtualVariableCategory
+from __future__ import annotations
+from angr.ailment import Const
+from angr.ailment.expression import VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Call
 from .utils import CallRewriter, replace_argument_pairs
 from angr.rust.sim_type import RustSimTypeSlice
@@ -43,7 +44,7 @@ class SliceArgRewriter(OptimizationPass):
                 reg_vvars=[vvar0, vvar1],
                 **vvar0.tags,
             )
-        elif (
+        if (
             vvar0.was_parameter
             and vvar1.was_parameter
             and vvar0.parameter_category == VirtualVariableCategory.REGISTER

@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from __future__ import annotations
 
 import archinfo
 from angr.ailment import Const
@@ -16,7 +16,7 @@ from ....analyses.decompiler.optimization_passes.optimization_pass import Optimi
 
 
 class SimplificationState:
-    def __init__(self, context: "VecMacroSimplifier", alloc_block, alloc_call):
+    def __init__(self, context: VecMacroSimplifier, alloc_block, alloc_call):
         self.context = context
         self.alloc_block = alloc_block
         self.alloc_call = alloc_call
@@ -32,7 +32,7 @@ class SimplificationState:
         # Statements that construct the final object
         self.construct_stmt = None
 
-    def _extract_stack_offset_and_size(self, vvars: List[VirtualVariable]):
+    def _extract_stack_offset_and_size(self, vvars: list[VirtualVariable]):
         sorted_vvars = sorted(vvars, key=lambda v: v.stack_offset)
         cur_offset = sorted_vvars[0].stack_offset
         size = 0
@@ -144,7 +144,7 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
         CFAMixin.__init__(self, self._graph, self.project)
         CFGTransformationMixin.__init__(self, self._graph)
 
-        self.states: Dict[Call, SimplificationState] = {}
+        self.states: dict[Call, SimplificationState] = {}
         self.librust = SIM_LIBRARIES["librust"]
 
         self._stmt_to_block = {}
@@ -169,7 +169,7 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
                 return SimplificationState(self, block, alloc_call)
         return None
 
-    def extract_vvar_and_offset(self, expr) -> [Optional[VirtualVariable], Optional[int]]:
+    def extract_vvar_and_offset(self, expr) -> [VirtualVariable | None, int | None]:
         if (
             isinstance(expr, BinaryOp)
             and expr.op == "Add"
@@ -177,7 +177,7 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
             and isinstance(expr.operands[1], Const)
         ):
             return expr.operands[0], expr.operands[1].value
-        elif isinstance(expr, VirtualVariable):
+        if isinstance(expr, VirtualVariable):
             return expr, 0
         return None, None
 

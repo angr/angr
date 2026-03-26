@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import defaultdict
 
 from angr.ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum

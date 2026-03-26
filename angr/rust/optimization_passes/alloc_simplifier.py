@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from __future__ import annotations
 
 import archinfo
 from angr.ailment import Const, AILBlockWalker, Block
@@ -25,7 +25,7 @@ class VecIndexingWalker(AILBlockWalker):
             op1 = idx_expr.operands[1]
             if isinstance(op0, Const) and op0.value == self.element_size:
                 return op1
-            elif isinstance(op1, Const) and op1.value == self.element_size:
+            if isinstance(op1, Const) and op1.value == self.element_size:
                 return op0
         return None
 
@@ -45,7 +45,7 @@ class VecIndexingWalker(AILBlockWalker):
 
 
 class SimplificationState:
-    def __init__(self, context: "AllocSimplifier", alloc_block, alloc_call):
+    def __init__(self, context: AllocSimplifier, alloc_block, alloc_call):
         self.context = context
         self.alloc_block = alloc_block
         self.alloc_call = alloc_call
@@ -190,7 +190,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
         SRDAMixin.__init__(self, func, self._graph, self.project)
         SSAVariableHelper.__init__(self, self)
 
-        self.states: Dict[Call, SimplificationState] = {}
+        self.states: dict[Call, SimplificationState] = {}
         self.librust = SIM_LIBRARIES["librust"]
 
         self._used_construct_stmts = set()
@@ -216,7 +216,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
                 return SimplificationState(self, block, alloc_call)
         return None
 
-    def extract_vvar_and_offset(self, expr) -> [Optional[VirtualVariable], Optional[int]]:
+    def extract_vvar_and_offset(self, expr) -> [VirtualVariable | None, int | None]:
         if (
             isinstance(expr, BinaryOp)
             and expr.op == "Add"
@@ -224,7 +224,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
             and isinstance(expr.operands[1], Const)
         ):
             return expr.operands[0], expr.operands[1].value
-        elif isinstance(expr, VirtualVariable):
+        if isinstance(expr, VirtualVariable):
             return expr, 0
         return None, None
 
@@ -242,7 +242,7 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
             return None
         if all(isinstance(stmt, Store) for stmt in stmts):
             vvars_and_offsets = [self.extract_vvar_and_offset(stmt.addr) for stmt in stmts]
-            vvars = set(vvar for vvar, offset in vvars_and_offsets)
+            vvars = {vvar for vvar, offset in vvars_and_offsets}
             offsets = [offset for vvar, offset in vvars_and_offsets]
             data = [stmt.data for stmt in stmts]
             data.pop(store_alloc_ptr_idx)

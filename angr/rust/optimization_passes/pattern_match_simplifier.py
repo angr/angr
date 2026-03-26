@@ -1,8 +1,9 @@
+from __future__ import annotations
 from collections import OrderedDict
 
 import angr.ailment as ailment
 from angr.ailment.expression import VirtualVariable, Load
-from angr.ailment.statement import Label, Assignment, Call, Return
+from angr.ailment.statement import Label, Assignment, Return
 from angr.analyses.decompiler.structuring.structurer_nodes import ConditionNode
 
 from angr.rust.utils.ail import unwrap_stack_vvar_reference
@@ -26,7 +27,6 @@ class PatternMatchWalker(SequenceWalker, DFAMixin):
     @staticmethod
     def _find_first_block(node):
         class BlockFinder(SequenceWalker):
-
             def __init__(self):
                 super().__init__(
                     handlers={ailment.Block: self._handle_Block}, force_forward_scan=True, update_seqnode_in_place=False

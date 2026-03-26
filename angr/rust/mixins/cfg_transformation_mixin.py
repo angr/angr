@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 
 import networkx
@@ -217,7 +218,7 @@ class CFGTransformationMixin:
         self._update_phi_variables_after_removing_block(graph, preds, block)
         if (block.addr, block.idx) in self._block_by_addr_and_idx:
             del self._block_by_addr_and_idx[(block.addr, block.idx)]
-        l.debug(f"Block:\n{str(block)}removed by {self.__class__.__module__}.{self.__class__.__name__}")
+        l.debug(f"Block:\n{block!s}removed by {self.__class__.__module__}.{self.__class__.__name__}")
 
         # Remove old successors (and their successors recursively) with no predecessor
         # Notice that old successors may not be connected to the predecessors of original block
@@ -229,7 +230,7 @@ class CFGTransformationMixin:
                 if (succ.addr, succ.idx) in self._block_by_addr_and_idx:
                     del self._block_by_addr_and_idx[(succ.addr, succ.idx)]
                 l.debug(
-                    f"Successor:\n{str(block)}removed by {self.__class__.__module__}.{self.__class__.__name__} because of zero in-degree"
+                    f"Successor:\n{block!s}removed by {self.__class__.__module__}.{self.__class__.__name__} because of zero in-degree"
                 )
 
         return True

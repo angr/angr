@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment.expression import StackBaseOffset, VirtualVariable, StringLiteral
 from angr.ailment.statement import Call, Assignment, FunctionLikeMacro
 from angr.utils.graph import GraphUtils

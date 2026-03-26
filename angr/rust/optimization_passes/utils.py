@@ -1,15 +1,8 @@
+from __future__ import annotations
 import angr.ailment as ailment
 from angr.ailment import Block, AILBlockRewriter
 from angr.ailment.statement import *
 from angr.ailment.expression import *
-from angr.calling_conventions import (
-    SimFunctionArgument,
-    SimStackArg,
-    SimRegArg,
-    SimReferenceArgument,
-    SimComboArg,
-    SimStructArg,
-)
 
 
 def extract_callee(obj, kb):

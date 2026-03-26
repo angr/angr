@@ -1,3 +1,4 @@
+from __future__ import annotations
 from angr.ailment import AILBlockRewriter, Statement, Block, Assignment
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp, Load
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
