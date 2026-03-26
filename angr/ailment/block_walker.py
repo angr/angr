@@ -17,7 +17,6 @@ from .statement import (
     Jump,
     DirtyStatement,
     WeakAssignment,
-    FunctionLikeMacro,
 )
 from .expression import (
     Call,
@@ -44,6 +43,7 @@ from .expression import (
     Atom,
     Extract,
     Insert,
+    FunctionLikeMacro,
 )
 
 ExprType = TypeVar("ExprType")
@@ -91,7 +91,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             Enum: self._handle_Enum,
             Struct: self._handle_Struct,
             Array: self._handle_Array,
-            FunctionLikeMacro: self._handle_FunctionLikeMacroExpr,
+            FunctionLikeMacro: self._handle_FunctionLikeMacro,
             StringLiteral: self._handle_StringLiteral,
         }
 
@@ -338,13 +338,7 @@ class AILBlockWalker(Generic[ExprType, StmtType, BlockType]):
             self._handle_expr(idx, ele, stmt_idx, stmt, block)
         return self._top(expr_idx, expr, stmt_idx, stmt, block)
 
-    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
-        return self._stmt_top(stmt_idx, stmt, block)
-
-    def _handle_FunctionLikeMacroExpr(
+    def _handle_FunctionLikeMacro(
         self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         if expr.args:
@@ -529,12 +523,7 @@ class AILBlockViewer(AILBlockWalker[None, None, None]):
         for idx, ele in enumerate(expr.elements):
             self._handle_expr(idx, ele, stmt_idx, stmt, block)
 
-    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
-        if stmt.args:
-            for i, arg in enumerate(stmt.args):
-                self._handle_expr(i, arg, stmt_idx, stmt, block)
-
-    def _handle_FunctionLikeMacroExpr(
+    def _handle_FunctionLikeMacro(
         self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         if expr.args:
@@ -840,10 +829,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
         if changed:
             new_expr = expr.copy()
             new_expr.operands = (operand_0, operand_1)
-            if operand_0 is None:
-                import ipdb
-
-                ipdb.set_trace()
+            assert operand_0 is not None
             new_expr.depth = max(operand_0.depth, operand_1.depth) + 1
             return new_expr
         return expr
@@ -1068,37 +1054,7 @@ class AILBlockRewriter(AILBlockWalker[Expression, Statement, Block]):
             return new_expr
         return expr
 
-    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
-        changed = False
-
-        new_args = None
-        if stmt.args is not None:
-            new_args = []
-
-            i = 0
-            while i < len(stmt.args):
-                arg = stmt.args[i]
-                new_arg = self._handle_expr(i, arg, stmt_idx, stmt, block)
-                if new_arg is not None and new_arg is not arg:
-                    if not changed:
-                        # initialize new_args
-                        new_args = list(stmt.args[:i])
-                    new_args.append(new_arg)
-                    changed = True
-                else:
-                    if changed:
-                        new_args.append(arg)
-                i += 1
-
-        if changed:
-            new_stmt = stmt.copy()
-            new_stmt.args = new_args
-            if self._update_block and block is not None:
-                block.statements[stmt_idx] = new_stmt
-            return new_stmt
-        return stmt
-
-    def _handle_FunctionLikeMacroExpr(
+    def _handle_FunctionLikeMacro(
         self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         changed = False

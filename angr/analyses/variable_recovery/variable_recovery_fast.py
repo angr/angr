@@ -32,12 +32,11 @@ from angr.analyses import ForwardAnalysis, visitors
 from angr.analyses.typehoon.typevars import Equivalence, TypeVariable, TypeVariables, Subtype, DerivedTypeVariable
 from angr.analyses.typehoon.typeconsts import Int, TypeConstant, BottomType, TopType
 from angr.analyses.typehoon.translator import TypeTranslator
+from angr.rust.typehoon.translator import RustTypeTranslator
 from .variable_recovery_base import VariableRecoveryBase, VariableRecoveryStateBase
 from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
-
-from ...rust.typehoon.translator import RustTypeTranslator
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint

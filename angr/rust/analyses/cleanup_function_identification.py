@@ -1,7 +1,7 @@
 from __future__ import annotations
 from angr.rust.utils.demangler import normalize
 from angr.knowledge_plugins.functions.function import Function
-from ...analyses import Analysis, AnalysesHub
+from angr.analyses import Analysis, AnalysesHub
 
 CLEANUP_FUNCTIONS = (
     "free",

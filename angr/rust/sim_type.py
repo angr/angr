@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-from ..sim_type import (
+from angr.sim_type import (
     SimType,
     SimTypeBottom,
     SimTypeInt,
@@ -16,7 +16,7 @@ from ..sim_type import (
 
 
 def is_composite_type(ty):
-    return isinstance(ty, RustSimStruct) or isinstance(ty, RustSimEnum)
+    return isinstance(ty, (RustSimStruct, RustSimEnum))
 
 
 class RustSimType:
@@ -175,15 +175,15 @@ class RustSimTypeFunction(RustSimType, SimTypeFunction):
         argnames = list(self.arg_names)
         if self.variadic and show_variadic:
             argnames.append("...")
-        return ", ".join('"%s"' % arg_name for arg_name in argnames)
+        return ", ".join(f'"{arg_name}"' for arg_name in argnames)
 
     def _init_str(self):
         return "{}([{}], {}{}{}{})".format(
             self.__class__.__name__,
             ", ".join([arg._init_str() for arg in self.args]),
             self.returnty._init_str(),
-            (', label="%s"' % self.label) if self.label else "",
-            (", arg_names=[%s]" % self._arg_names_str(show_variadic=False)) if self.arg_names else "",
+            (f', label="{self.label}"') if self.label else "",
+            (f", arg_names=[{self._arg_names_str(show_variadic=False)}]") if self.arg_names else "",
             ", variadic=True" if self.variadic else "",
         )
 
@@ -327,7 +327,7 @@ class RustSimStruct(RustSimType, SimStruct):
 
         # Fixup the offsets to byte aligned addresses for all SimTypeNumOffset types
         offset_so_far = 0
-        for name, ty in out.fields.items():
+        for _name, ty in out.fields.items():
             if isinstance(ty, RustSimTypeNumOffset):
                 out._pack = True
                 ty.offset = offset_so_far % arch.byte_width
@@ -441,7 +441,7 @@ class RustSimTypeNumOffset(RustSimType, SimTypeNumOffset):
 
     _ident = "rust_numoff"
     _args = ("size", "signed", "label", "offset")
-    _fields = SimTypeNum._fields + ("offset",)
+    _fields = (*SimTypeNum._fields, "offset")
 
     def __init__(self, size, signed=True, label=None, offset=0):
         super().__init__(size, signed, label, offset)

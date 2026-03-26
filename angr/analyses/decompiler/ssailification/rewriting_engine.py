@@ -155,9 +155,6 @@ class SimEngineSSARewriting(
     def _handle_expr_VirtualVariable(self, expr):
         return None
 
-    def _handle_stmt_FunctionLikeMacro(self, stmt):
-        return None
-
     def _handle_stmt_Assignment(self, stmt):
         new_src = self._expr(stmt.src)
         new_dst = self._replace_def_expr(stmt.dst, new_src or stmt.src, stmt)

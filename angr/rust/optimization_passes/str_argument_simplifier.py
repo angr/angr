@@ -83,7 +83,7 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
             pass
         return None
 
-    def replace_call(self, call: Call, block: Block, stmt, is_expr):
+    def replace_call(self, call: Call, block: Block, stmt):
         args = call.args
         new_args = []
         changed = False

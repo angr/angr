@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import archinfo
 from angr.ailment import Const
-from angr.ailment.expression import BinaryOp, VirtualVariable, Load, StackBaseOffset
-from angr.ailment.statement import Store, Assignment, Call, FunctionLikeMacro
+from angr.ailment.expression import BinaryOp, VirtualVariable, Load, StackBaseOffset, FunctionLikeMacro, Call
+from angr.ailment.statement import Store, Assignment
 
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass
-from ..base import SSAVariableHelper
-from ...mixins.cfg_transformation_mixin import CFGTransformationMixin
-from ...mixins.srda_mixin import SRDAMixin
-from ...mixins.cfa_mixin import CFAMixin
-from ...sim_type import RustSimTypeVec, RustSimTypeInt
-from .... import SIM_LIBRARIES
-from ....analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
+from angr.rust.optimization_passes.base import SSAVariableHelper
+from angr.rust.mixins.cfg_transformation_mixin import CFGTransformationMixin
+from angr.rust.mixins.srda_mixin import SRDAMixin
+from angr.rust.mixins.cfa_mixin import CFAMixin
+from angr.rust.sim_type import RustSimTypeVec, RustSimTypeInt
+from angr import SIM_LIBRARIES
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage
 
 
 class SimplificationState:
@@ -56,7 +56,7 @@ class SimplificationState:
                 init_bytes = bytearray(b"\x00" * alloc_size)
                 for stmt in self.init_stmts:
                     if isinstance(stmt, Store):
-                        vvar, offset = self.context.extract_vvar_and_offset(stmt.addr)
+                        _, offset = self.context.extract_vvar_and_offset(stmt.addr)
                         data = stmt.data.value.to_bytes(stmt.data.size, endian)
                         init_bytes[offset : offset + stmt.data.size] = data
                 elements = []
@@ -66,7 +66,7 @@ class SimplificationState:
                     elements.append(element)
                 ele_ty = RustSimTypeInt(ele_size * self.context.project.arch.byte_width, signed=False)
                 returnty = RustSimTypeVec(ele_ty).with_arch(self.context.project.arch)
-                macro = FunctionLikeMacro(
+                return FunctionLikeMacro(
                     None,
                     "vec",
                     elements,
@@ -75,7 +75,6 @@ class SimplificationState:
                     returnty=returnty,
                     **self.construct_stmt.tags,
                 )
-                return macro
             if all(
                 isinstance(stmt, Store) and isinstance(stmt.data, VirtualVariable) and stmt.data.was_stack
                 for stmt in self.init_stmts
@@ -93,7 +92,7 @@ class SimplificationState:
                         elements.append(element)
                     ele_ty = RustSimTypeInt(ele_size * self.context.project.arch.byte_width, signed=False)
                     returnty = RustSimTypeVec(ele_ty).with_arch(self.context.project.arch)
-                    macro = FunctionLikeMacro(
+                    return FunctionLikeMacro(
                         None,
                         "vec",
                         elements,
@@ -102,7 +101,6 @@ class SimplificationState:
                         returnty=returnty,
                         **self.construct_stmt.tags,
                     )
-                    return macro
         return None
 
     def outline(self):
@@ -184,7 +182,7 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
     def _bind_init_stmts(self, block):
         for stmt in block.statements:
             if isinstance(stmt, Store):
-                vvar, offset = self.extract_vvar_and_offset(stmt.addr)
+                vvar, _ = self.extract_vvar_and_offset(stmt.addr)
                 value = self.get_terminal_vvar_value(vvar)
                 if value in self.states:
                     state = self.states[value]

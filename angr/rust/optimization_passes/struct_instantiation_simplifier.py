@@ -280,25 +280,23 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         return struct_ty.with_arch(self.project.arch)
 
     def _try_build_struct_instantiation(self, sorted_stmts):
-        if len(sorted_stmts) >= 2:
-            if self._vvar_uses[sorted_stmts[0].dst.varid] and not any(
-                self._vvar_uses[stmt.dst.varid] for stmt in sorted_stmts[1:]
-            ):
-                expected_offset = None
-                fields = {}
-                for stmt in sorted_stmts:
-                    if (
-                        expected_offset is None
-                        or self.project.arch.bytes >= stmt.dst.stack_offset - expected_offset >= 0
-                    ):
-                        expected_offset = stmt.dst.stack_offset + stmt.src.size
-                        field_offset = stmt.dst.stack_offset - sorted_stmts[0].dst.stack_offset
-                        fields[field_offset] = stmt.src
-                    else:
-                        return None, None
-                struct_ty = self._build_struct_ty(fields)
-                struct = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
-                return struct_ty, struct
+        if (
+            len(sorted_stmts) >= 2
+            and self._vvar_uses[sorted_stmts[0].dst.varid]
+            and not any(self._vvar_uses[stmt.dst.varid] for stmt in sorted_stmts[1:])
+        ):
+            expected_offset = None
+            fields = {}
+            for stmt in sorted_stmts:
+                if expected_offset is None or self.project.arch.bytes >= stmt.dst.stack_offset - expected_offset >= 0:
+                    expected_offset = stmt.dst.stack_offset + stmt.src.size
+                    field_offset = stmt.dst.stack_offset - sorted_stmts[0].dst.stack_offset
+                    fields[field_offset] = stmt.src
+                else:
+                    return None, None
+            struct_ty = self._build_struct_ty(fields)
+            struct = Struct(None, struct_ty.name, fields, struct_ty.offsets, struct_ty.size)
+            return struct_ty, struct
         return None, None
 
     @staticmethod
@@ -307,7 +305,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
         current_group = []
         last_idx = None
 
-        for offset, stack_def in stack_defs.items():
+        for stack_def in stack_defs.values():
             stmt_idx = stack_def.stmt_idx
 
             if last_idx is None or stmt_idx == last_idx + 1:
@@ -345,7 +343,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                         self._stmts_to_remove[block].append(stmt)
 
     def _align_prototype_and_args(self):
-        def callback(expr: Call, block, stmt, is_expr):
+        def callback(expr: Call, block, stmt):
             args = list(expr.args)
             prototype = expr.prototype
             if prototype and len(args) > len(prototype.args):

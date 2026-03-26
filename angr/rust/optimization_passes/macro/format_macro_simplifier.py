@@ -5,8 +5,8 @@ from collections import defaultdict, deque
 from angr.analyses import Analysis, AnalysesHub
 from angr.knowledge_plugins import KnowledgeBasePlugin
 from angr.ailment import Block
-from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array
-from angr.ailment.statement import Call, FunctionLikeMacro, Store
+from angr.ailment.expression import Const, VirtualVariable, StringLiteral, Struct, Array, FunctionLikeMacro, Call
+from angr.ailment.statement import Store
 from angr.rust.optimization_passes.utils import extract_str_from_addr
 from angr.rust.utils.ail import unwrap_stack_vvar_reference, extract_vvar_and_offset
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPassStage, OptimizationPass
@@ -127,9 +127,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
         formatter = arg.get_field("formatter") or arg.get_field("field_8")
         if isinstance(formatter, Const) and formatter.value in self.project.kb.functions:
             name = demangle(self.project.kb.functions[formatter.value].name)
-            if "core::fmt::Display" in name:
-                return False
-            return True
+            return "core::fmt::Display" not in name
         return False
 
     def _try_find_arguments_struct(self, call: Call):
@@ -272,7 +270,7 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                 return None, None
         return argument_structs, stmts_to_remove
 
-    def replace_call(self, call: Call, block: Block, stmt, is_expr):
+    def replace_call(self, call: Call, block: Block, stmt):
         name = self.match_call(call, FORMAT_FUNCTIONS, monopolize=False, use_trait_name=False)
         if name is None and isinstance(call.target, Const):
             name = self.project.kb.format_wrappers.resolve(call.target.value)
@@ -316,15 +314,14 @@ class FormatMacroSimplifier(OptimizationPass, CFAMixin, DFAMixin, SRDAMixin, SSA
                         if returnty is not None:
                             returnty = returnty.with_arch(self.project.arch)
                         macro_args.insert(0, StringLiteral(None, fmt_str, self.project.arch.bits * 2))
-                        macro = FunctionLikeMacro(
+                        return FunctionLikeMacro(
                             None,
                             macro_name,
                             macro_args,
-                            bits=call.bits if is_expr else None,
+                            bits=call.bits,
                             returnty=returnty,
                             **call.tags,
                         )
-                        return macro
         return call
 
     def _analyze(self, cache=None):

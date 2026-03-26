@@ -7,11 +7,19 @@ import logging
 
 import angr.ailment as ailment
 from angr.ailment import Block, Expr, Stmt, Tmp
-from angr.ailment.expression import StackBaseOffset, BinaryOp, StringLiteral, Struct, Array, Enum, Let
+from angr.ailment.expression import (
+    StackBaseOffset,
+    BinaryOp,
+    StringLiteral,
+    Struct,
+    Array,
+    Enum,
+    Let,
+    FunctionLikeMacro,
+)
 
-from angr.ailment.statement import FunctionLikeMacro
-from ....rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
-from ....sim_type import (
+from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
+from angr.sim_type import (
     SimTypeLongLong,
     SimTypeChar,
     SimTypeWideChar,
@@ -29,7 +37,7 @@ from ....sim_type import (
     SimTypeReg,
     SimTypeInt,
 )
-from ....rust.sim_type import (
+from angr.rust.sim_type import (
     RustSimType,
     RustSimTypeInt,
     RustSimTypeFunction,
@@ -38,17 +46,17 @@ from ....rust.sim_type import (
     EnumVariant,
     RustSimTypeStrRef,
 )
-from ....knowledge_plugins.functions import Function
-from ....sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
-from ....utils.constants import is_alignment_mask
-from ....rust.utils.demangler import demangle, normalize
-from ....utils.loader import is_in_readonly_segment, is_in_readonly_section
-from ..utils import structured_node_is_simple_return
-from ....errors import UnsupportedNodeTypeError
-from ....knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
-from ... import Analysis, register_analysis
-from ..region_identifier import MultiNode
-from ..structuring.structurer_nodes import (
+from angr.knowledge_plugins.functions import Function
+from angr.sim_variable import SimVariable, SimTemporaryVariable, SimStackVariable, SimMemoryVariable
+from angr.utils.constants import is_alignment_mask
+from angr.rust.utils.demangler import demangle, normalize
+from angr.utils.loader import is_in_readonly_segment, is_in_readonly_section
+from angr.analyses.decompiler.utils import structured_node_is_simple_return
+from angr.errors import UnsupportedNodeTypeError
+from angr.knowledge_plugins.cfg.memory_data import MemoryData, MemoryDataSort
+from angr.analyses import Analysis, register_analysis
+from angr.analyses.decompiler.region_identifier import MultiNode
+from angr.analyses.decompiler.structuring.structurer_nodes import (
     SequenceNode,
     CodeNode,
     ConditionNode,
@@ -60,7 +68,7 @@ from ..structuring.structurer_nodes import (
     CascadingConditionNode,
 )
 from .base import BaseStructuredCodeGenerator, InstructionMapping, PositionMapping, PositionMappingElement
-from ....rust.typehoon.translator import RustTypeTranslator
+from angr.rust.typehoon.translator import RustTypeTranslator
 
 if TYPE_CHECKING:
     import archinfo
@@ -238,11 +246,11 @@ def type_to_rust_repr_chunks(ty: SimType, name=None, name_type=None, full=False,
             indent_str=indent_str,
         )
         return
-        # TODO: Handle other types
-        import ipdb
-
-        ipdb.set_trace()
-        assert False
+    # TODO: Handle other types
+    yield "<unhandled-type> ", None
+    if name and name_type:
+        yield name, name_type
+    yield "<unknown-name>", None
 
 
 #
@@ -302,22 +310,24 @@ class RustConstruct:
 
                     # add all variables, constants, and function calls to map_pos_to_node for highlighting
                     # add ops to pos_to_node but NOT ast_to_pos
-                    if isinstance(
-                        obj,
-                        (
-                            RustVariable,
-                            RustConstant,
-                            RustStructField,
-                            RustIndexedVariable,
-                            RustVariableField,
-                            RustBinaryOp,
-                            RustUnaryOp,
-                            RustAssignment,
-                            RustFunctionCall,
-                        ),
+                    if (
+                        isinstance(
+                            obj,
+                            (
+                                RustVariable,
+                                RustConstant,
+                                RustStructField,
+                                RustIndexedVariable,
+                                RustVariableField,
+                                RustBinaryOp,
+                                RustUnaryOp,
+                                RustAssignment,
+                                RustFunctionCall,
+                            ),
+                        )
+                        and pos_to_node is not None
                     ):
-                        if pos_to_node is not None:
-                            pos_to_node.add_mapping(pos, len(s), obj)
+                        pos_to_node.add_mapping(pos, len(s), obj)
 
                 # add (), {}, [], and [20] to mapping for highlighting as well as the full functions name
                 elif isinstance(obj, (RustClosingObject, RustFunction, RustArrayTypeLength, RustStructFieldNameDef)):
@@ -484,7 +494,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
             if variable.name:
                 name = variable.name
             elif isinstance(variable, SimTemporaryVariable):
-                name = "tmp_%d" % variable.tmp_id
+                name = f"tmp_{variable.tmp_id}"
             else:
                 name = str(variable)
 
@@ -542,10 +552,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
 
         if self.codegen.show_externs and self.codegen.cexterns:
             for v in sorted(self.codegen.cexterns, key=lambda v: v.variable.name):
-                if v.type is None:
-                    varname = v.c_repr()
-                else:
-                    varname = v.variable.name
+                varname = v.c_repr() if v.type is None else v.variable.name
                 yield "extern ", None
                 yield from type_to_rust_repr_chunks(v.type, name=varname, name_type=v, full=False)
                 yield ";\n", None
@@ -562,10 +569,7 @@ class RustFunction(RustConstruct):  # pylint:disable=abstract-method
         # return type
         yield "fn ", None
         # function name
-        if self.demangled_name and self.show_demangled_name:
-            normalized_name = demangle(self.name)
-        else:
-            normalized_name = self.name
+        normalized_name = demangle(self.name) if self.show_demangled_name and self.demangled_name else self.name
         yield normalized_name, self
         # argument list
         paren = RustClosingObject("(")
@@ -641,7 +645,7 @@ class RustExpression(RustConstruct):
 
     @property
     def type(self):
-        raise NotImplementedError("Class %s does not implement type()." % type(self))
+        raise NotImplementedError(f"Class {type(self)} does not implement type().")
 
     def set_type(self, v):
         self._type = v
@@ -1842,7 +1846,7 @@ class RustVariable(RustExpression):
         if v.name:
             yield v.name, self
         elif isinstance(v, SimTemporaryVariable):
-            yield "tmp_%d" % v.tmp_id, self
+            yield f"tmp_{v.tmp_id}", self
         else:
             yield str(v), self
 
@@ -1862,7 +1866,7 @@ class RustIndexedVariable(RustExpression):
         if self._type is None and self.variable.type is not None:
             u = unpack_typeref(self.variable.type)
             if isinstance(u, RustSimTypeReference):
-                if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):
+                if isinstance(u.pts_to, (SimTypeArray, SimTypeFixedSizeArray)):  # noqa: SIM108
                     # special case: (&array)[x]
                     u = u.pts_to.elem_type
                 else:
@@ -1953,9 +1957,8 @@ class RustUnaryOp(RustExpression):
 
     @property
     def type(self):
-        if self._type is None:
-            if self.operand is not None and hasattr(self.operand, "type"):
-                self._type = self.operand.type
+        if self._type is None and self.operand is not None and hasattr(self.operand, "type"):
+            self._type = self.operand.type
         return self._type
 
     def c_repr_chunks(self, indent=0, asexpr=False):
@@ -1975,7 +1978,7 @@ class RustUnaryOp(RustExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "UnaryOp %s" % (self.op), self
+            yield f"UnaryOp {self.op}", self
 
     #
     # Handlers
@@ -2152,7 +2155,7 @@ class RustBinaryOp(RustExpression):
         if handler is not None:
             yield from handler()
         else:
-            yield "BinaryOp %s" % (self.op), self
+            yield f"BinaryOp {self.op}", self
 
     def _has_const_null_rhs(self) -> bool:
         return isinstance(self.rhs, RustConstant) and self.rhs.value == 0
@@ -2163,13 +2166,12 @@ class RustBinaryOp(RustExpression):
 
     def _c_repr_chunks(self, op):
         skip_op_and_rhs = False
-        if self._cstyle_null_cmp:
-            if self._has_const_null_rhs():
-                if self.op == "CmpEQ":
-                    skip_op_and_rhs = True
-                    yield "!", None
-                elif self.op == "CmpNE":
-                    skip_op_and_rhs = True
+        if self._cstyle_null_cmp and self._has_const_null_rhs():
+            if self.op == "CmpEQ":
+                skip_op_and_rhs = True
+                yield "!", None
+            elif self.op == "CmpNE":
+                skip_op_and_rhs = True
         # lhs
         if isinstance(self.lhs, RustBinaryOp) and self.op_precedence > self.lhs.op_precedence:
             paren = RustClosingObject("(")
@@ -2389,10 +2391,7 @@ class RustConstant(RustExpression):
         if result is None:
             result = False
             if isinstance(self.value, int):
-                if self._type is not None:
-                    value_size = self._type.size
-                else:
-                    value_size = None
+                value_size = self._type.size if self._type is not None else None
                 if (value_size == 32 and 0xF000_0000 <= self.value <= 0xFFFF_FFFF) or (
                     value_size == 64 and 0xF000_0000_0000_0000 <= self.value <= 0xFFFF_FFFF_FFFF_FFFF
                 ):
@@ -2420,7 +2419,7 @@ class RustConstant(RustExpression):
     def str_to_rust_str(_str, is_heap_str=False, prefix: str = ""):
         repr_str = repr(_str)
         base_str = repr_str[1:-1]
-        if repr_str[0] == "'":
+        if repr_str[0] == "'":  # noqa: SIM102
             # check if there's double quotes in the body
             if '"' in base_str:
                 base_str = base_str.replace('"', '\\"')
@@ -2435,7 +2434,7 @@ class RustConstant(RustExpression):
 
         # default priority: string references -> variables -> other reference values
         if self.reference_values is not None:
-            for ty, v in self.reference_values.items():  # pylint:disable=unused-variable
+            for _ty, v in self.reference_values.items():  # pylint:disable=unused-variable
                 if isinstance(v, MemoryData) and v.sort == MemoryDataSort.String:
                     yield RustConstant.str_to_rust_str(v.content.decode("utf-8")), self
                     return
@@ -2461,7 +2460,7 @@ class RustConstant(RustExpression):
         elif (
             isinstance(self.value, int)
             and self.value == 0
-            and (isinstance(self.type, RustSimTypeReference) or isinstance(self.type, RustSimStruct))
+            and (isinstance(self.type, (RustSimTypeReference, RustSimStruct)))
         ):
             # print NULL instead
             yield "None", self
@@ -2502,10 +2501,7 @@ class RustConstant(RustExpression):
                 str_value = None
 
         if str_value is None:
-            if self.fmt_hex:
-                str_value = hex(value)
-            else:
-                str_value = str(value)
+            str_value = hex(value) if self.fmt_hex else str(value)
 
         return str_value
 
@@ -2739,7 +2735,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
             Stmt.Label: self._handle_Stmt_Label,
-            FunctionLikeMacro: self._handle_Stmt_FunctionLikeMacro,
             # AIL expressions
             Expr.Register: self._handle_Expr_Register,
             Expr.Load: self._handle_Expr_Load,
@@ -2755,6 +2750,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             Expr.Reinterpret: self._handle_Reinterpret,
             Expr.MultiStatementExpression: self._handle_MultiStatementExpression,
             Expr.VirtualVariable: self._handle_VirtualVariable,
+            Expr.Call: self._handle_Expr_Call,
+            Expr.FunctionLikeMacro: self._handle_FunctionLikeMacro,
             StringLiteral: self._handle_Expr_StringLiteral,
             Struct: self._handle_Expr_Struct,
             Enum: self._handle_Expr_Enum,
@@ -2987,7 +2984,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
     # Util methods
     #
 
-    def default_simtype_from_size(self, n: int, signed: bool = True) -> SimType:
+    def default_simtype_from_size(self, n: int, signed: bool = True) -> RustSimTypeInt:
         return RustSimTypeInt(size=n * self.project.arch.byte_width, signed=signed).with_arch(self.project.arch)
 
     def _variable(self, variable: SimVariable, fallback_type_size: int | None) -> RustVariable:
@@ -3085,10 +3082,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                 codegen=self,
             )
 
-        if isinstance(expr, RustUnaryOp) and expr.op == "Reference":
-            base_expr = expr.operand
-        else:
-            base_expr = None
+        base_expr = expr.operand if isinstance(expr, RustUnaryOp) and expr.op == "Reference" else None
 
         if offset == 0:
             data_type = renegotiate_type(data_type, base_type)
@@ -3108,10 +3102,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                     return _force_type_cast(base_type, data_type, expr)
                 return RustUnaryOp("Dereference", expr, codegen=self)
 
-        if isinstance(base_type, SimTypeBottom):
-            stride = 1
-        else:
-            stride = base_type.size // self.project.arch.byte_width or 1
+        stride = 1 if isinstance(base_type, SimTypeBottom) else base_type.size // self.project.arch.byte_width or 1
         index, remainder = divmod(offset, stride)
         if index != 0:
             index = RustConstant(index, RustSimTypeInt(), codegen=self)
@@ -3256,10 +3247,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
                         ),
                         codegen=self,
                     )
-                if result is None:
-                    result = piece
-                else:
-                    result = RustBinaryOp(op, result, piece, codegen=self)
+                result = piece if result is None else RustBinaryOp(op, result, piece, codegen=self)
             if o_constant != 0:
                 result = RustBinaryOp(
                     "Add", RustConstant(o_constant, RustSimTypeInt(), codegen=self), result, codegen=self
@@ -3390,14 +3378,14 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         handler: Callable | None = self._handlers.get(node.__class__, None)
         if handler is not None:
-            if isinstance(node, (Stmt.Call, Stmt.FunctionLikeMacro)):
+            if isinstance(node, (Stmt.Call, FunctionLikeMacro)):
                 # special case for Call
                 converted = handler(node, is_expr=is_expr)
             else:
                 converted = handler(node, lvalue=lvalue)
             self.ailexpr2cnode[(node, is_expr)] = converted
             return converted
-        raise UnsupportedNodeTypeError("Node type %s is not supported yet." % type(node))
+        raise UnsupportedNodeTypeError(f"Node type {type(node)} is not supported yet.")
 
     def _handle_Code(self, node, **kwargs):
         return self._handle(node.node, is_expr=False)
@@ -3462,7 +3450,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         else_node = self._handle(condition_node.false_node, is_expr=False) if condition_node.false_node else None
 
-        code = RustIfElse(
+        return RustIfElse(
             condition_and_nodes,
             else_node=else_node,
             simplify_else_scope=self.simplify_else_scope
@@ -3472,7 +3460,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=tags,
             codegen=self,
         )
-        return code
 
     def _handle_CascadingCondition(self, cond_node: CascadingConditionNode, **kwargs):
         tags = {"ins_addr": cond_node.addr}
@@ -3482,14 +3469,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ]
         else_node = self._handle(cond_node.else_node) if cond_node.else_node is not None else None
 
-        code = RustIfElse(
+        return RustIfElse(
             condition_and_nodes,
             else_node=else_node,
             tags=tags,
             cstyle_ifs=self.cstyle_ifs,
             codegen=self,
         )
-        return code
 
     def _handle_ConditionalBreak(self, node, **kwargs):
         tags = {"ins_addr": node.addr}
@@ -3521,8 +3507,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         cases = [(idx, self._handle(case, is_expr=False)) for idx, case in node.cases.items()]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
-        switch_case = RustSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
-        return switch_case
+        return RustSwitchCase(switch_expr, cases, default=default, tags=tags, codegen=self)
 
     def _get_bound_variable(self, move):
         expr = None
@@ -3552,8 +3537,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ]
         default = self._handle(node.default_node, is_expr=False) if node.default_node is not None else None
         tags = {"ins_addr": node.addr}
-        pattern_match = RustPatternMatch(scrutinee, arms, default=default, tags=tags, codegen=self)
-        return pattern_match
+        return RustPatternMatch(scrutinee, arms, default=default, tags=tags, codegen=self)
 
     def _handle_IfLet(self, node, **kwargs):
         variant_and_moves = node.pattern
@@ -3624,28 +3608,25 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStmt, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStatement, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            if not isinstance(stmt.expr.target, str):
-                target = self._handle(stmt.expr.target)
-            else:
-                target = stmt.expr.target
+            target = self._handle(stmt.expr.target) if not isinstance(stmt.expr.target, str) else stmt.expr.target
         except UnsupportedNodeTypeError:
             target = stmt.expr.target
 
-        if isinstance(target, RustConstant):
-            target_func = self.kb.functions.function(addr=target.value)
-        else:
-            target_func = None
+        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, RustConstant) else None
 
         args = []
         if stmt.expr.args is not None:
             for i, arg in enumerate(stmt.expr.args):
                 type_ = None
-                if target_func is not None:
-                    if target_func.prototype is not None and i < len(target_func.prototype.args):
-                        type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+                if (
+                    target_func is not None
+                    and target_func.prototype is not None
+                    and i < len(target_func.prototype.args)
+                ):
+                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
 
                 if isinstance(arg, Expr.Const):
                     if type_ is None or is_machine_word_size_type(type_, self.project.arch):
@@ -3695,7 +3676,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             if stmt.false_target is None
             else RustGoto(self._handle(stmt.false_target), None, tags=stmt.tags, codegen=self)
         )
-        ifelse = RustIfElse(
+        return RustIfElse(
             [
                 (
                     self._handle(stmt.condition),
@@ -3707,7 +3688,6 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             codegen=self,
         )
-        return ifelse
 
     def _handle_Stmt_Return(self, stmt: Stmt.Return, **kwargs):
         if not stmt.ret_exprs:
@@ -3725,24 +3705,13 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         self.map_addr_to_label[(stmt.tags["ins_addr"], stmt.tags["block_idx"])] = clabel
         return clabel
 
-    def _handle_Stmt_FunctionLikeMacro(self, stmt: FunctionLikeMacro, is_expr, **kwargs):
-        return RustFunctionLikeMacro(
-            stmt.name,
-            stmt.args,
-            stmt.delimiter,
-            is_expr=is_expr,
-            returnty=stmt.returnty,
-            tags=stmt.tags,
-            codegen=self,
-        )
-
     #
     # AIL expression handlers
     #
 
     def _handle_Expr_Register(self, expr: Expr.Register, lvalue: bool = False, **kwargs):
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
-            if old_ty.size == proposed_ty.size:
+            if old_ty.size == proposed_ty.size:  # noqa: SIM102
                 # we do not allow returning a struct for a primitive type
                 if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
                     return proposed_ty
@@ -3762,7 +3731,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
         ty = self.default_simtype_from_size(expr.size)
 
         def negotiate(old_ty: SimType, proposed_ty: SimType) -> SimType:
-            if old_ty.size == proposed_ty.size:
+            if old_ty.size == proposed_ty.size:  # noqa: SIM102
                 # we do not allow returning a struct for a primitive type
                 if not (isinstance(proposed_ty, SimStruct) and not isinstance(old_ty, SimStruct)):
                     return proposed_ty
@@ -3887,6 +3856,74 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return self._access_constant_offset_reference(self._get_variable_reference(cvar), offset, None)
 
         return RustConstant(expr.value, type_, reference_values=reference_values, tags=expr.tags, codegen=self)
+
+    def _handle_FunctionLikeMacro(self, expr: FunctionLikeMacro, is_expr, **kwargs):
+        return RustFunctionLikeMacro(
+            expr.name,
+            expr.args,
+            expr.delimiter,
+            is_expr=is_expr,
+            returnty=expr.returnty,
+            tags=expr.tags,
+            codegen=self,
+        )
+
+    def _handle_Expr_Call(self, expr: Expr.Call, is_expr: bool = False, **kwargs):
+        """Handle calls that are not wrapped within a SideEffectStatement."""
+
+        try:
+            # Try to handle it as a normal function call
+            target = self._handle(expr.target) if not isinstance(expr.target, str) else expr.target
+        except UnsupportedNodeTypeError:
+            target = expr.target
+
+        target_func = self.kb.functions.function(addr=target.value) if isinstance(target, RustConstant) else None
+
+        args = []
+        if expr.args is not None:
+            for i, arg in enumerate(expr.args):
+                type_ = None
+                if (
+                    target_func is not None
+                    and target_func.prototype is not None
+                    and i < len(target_func.prototype.args)
+                ):
+                    type_ = target_func.prototype.args[i].with_arch(self.project.arch)
+
+                if isinstance(arg, Expr.Const):
+                    if type_ is None or is_machine_word_size_type(type_, self.project.arch):
+                        type_ = guess_value_type(arg.value, self.project) or type_
+
+                    new_arg = self._handle_Expr_Const(arg, type_=type_)
+                else:
+                    new_arg = self._handle(arg)
+                args.append(new_arg)
+
+        ret_expr = None
+
+        result = RustFunctionCall(
+            target,
+            target_func,
+            args,
+            returning=target_func.returning if target_func is not None else True,
+            ret_expr=ret_expr,
+            receiver=self._handle(expr.tags["receiver"]) if "receiver" in expr.tags else None,
+            tags=expr.tags,
+            is_expr=is_expr,
+            show_demangled_name=self.show_demangled_name,
+            callsite_prototype=expr.prototype,
+            codegen=self,
+        )
+
+        if result.is_expr and result.type.size != expr.size * self.project.arch.byte_width:
+            result = RustTypeCast(
+                result.type,
+                self.default_simtype_from_size(expr.size, signed=getattr(result.type, "signed", False)),
+                result,
+                codegen=self,
+            )
+
+        return result
 
     def _handle_Expr_StringLiteral(self, expr: StringLiteral, **kwargs):
         return RustStringLiteral(expr.data, tags=expr.tags, codegen=self)
@@ -4045,8 +4082,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         # FIXME
         stack_base = RustFakeVariable("stack_base", RustSimTypeReference(SimTypeBottom()), codegen=self)
-        ptr = RustBinaryOp("Add", stack_base, RustConstant(expr.offset, RustSimTypeInt(), codegen=self), codegen=self)
-        return ptr
+        return RustBinaryOp("Add", stack_base, RustConstant(expr.offset, RustSimTypeInt(), codegen=self), codegen=self)
 
 
 class RustStructuredCodeWalker:

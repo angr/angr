@@ -2,13 +2,13 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
-from ...analyses.typehoon.typehoon import Typehoon
-from ...analyses.analysis import AnalysesHub
-from ..typehoon.translator import RustTypeTranslator
-from ..sim_type import RustSimTypeInt
-from ...sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
-from ...analyses.typehoon.typevars import TypeVariable
-from ...sim_variable import SimVariable, SimStackVariable
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.analyses.analysis import AnalysesHub
+from angr.rust.typehoon.translator import RustTypeTranslator
+from angr.rust.sim_type import RustSimTypeInt
+from angr.sim_type import SimTypePointer, SimTypeArray, SimStruct, SimTypeBottom
+from angr.analyses.typehoon.typevars import TypeVariable
+from angr.sim_variable import SimVariable, SimStackVariable
 
 if TYPE_CHECKING:
     from angr.sim_type import SimType
@@ -25,6 +25,7 @@ class RustTypehoon(Typehoon):
         stackvar_max_sizes: dict[TypeVariable, int] | None = None,
         stack_offset_tvs: dict[int, TypeVariable] | None = None,
         constraint_set_degradation_threshold: int = 150,
+        type_translator: RustTypeTranslator | None = None,
     ):
         super().__init__(
             constraints,
@@ -35,6 +36,9 @@ class RustTypehoon(Typehoon):
             stackvar_max_sizes,
             stack_offset_tvs,
             constraint_set_degradation_threshold,
+            type_translator=type_translator
+            if type_translator is not None
+            else RustTypeTranslator(project=self.project, arch=self.project.arch),
         )
 
     def update_variable_types(
@@ -99,7 +103,7 @@ class RustTypehoon(Typehoon):
         """
 
         simtypes_solution = {}
-        translator = RustTypeTranslator(project=self.project, arch=self.project.arch)
+        translator = self._type_translator
         needs_backpatch = set()
 
         for tv, sol in self.solution.items():

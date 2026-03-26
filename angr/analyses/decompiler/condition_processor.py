@@ -925,7 +925,7 @@ class ConditionProcessor:
             (ailment.Expr.VEXCCallExpression, ailment.Expr.BasePointerOffset, ailment.Expr.ITE, StringLiteral),
         ):
             return _dummy_bvs(condition, self._condition_mapping, must_bool=must_bool)
-        if isinstance(condition, (ailment.Expr.Call, ailment.Stmt.FunctionLikeMacro)):
+        if isinstance(condition, (ailment.Expr.Call, ailment.Expr.FunctionLikeMacro)):
             return _dummy_bvs(
                 condition,
                 self._condition_mapping,

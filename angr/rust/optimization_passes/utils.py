@@ -1,8 +1,11 @@
 from __future__ import annotations
+
+import contextlib
+
 import angr.ailment as ailment
 from angr.ailment import Block, AILBlockRewriter
-from angr.ailment.statement import *
-from angr.ailment.expression import *
+from angr.ailment.statement import Label, Jump, SideEffectStatement, Statement
+from angr.ailment.expression import Const, Call
 
 
 def extract_callee(obj, kb):
@@ -30,13 +33,11 @@ def extract_str(project, str_ptr, str_len):
     if str_ptr >= 0 and (
         (section := project.loader.find_section_containing(str_ptr)) and section.is_readable and not section.is_writable
     ):
-        try:
+        with contextlib.suppress(UnicodeDecodeError):
             decoded_str = memory.load(str_ptr, str_len).decode("utf-8")
             # decoded_str = (
             #     decoded_str if decoded_str.replace("\n", "").replace("\t", "").replace("\r", "").isprintable() else None
             # )
-        except UnicodeDecodeError:
-            pass
     return decoded_str
 
 
@@ -52,19 +53,28 @@ def extract_str_from_addr(project, addr):
     return None
 
 
+class SideEffectStatementRewriter(AILBlockRewriter):
+    def __init__(self, callback):
+        super().__init__()
+        self.callback = callback
+
+    def _handle_SideEffectStatement(self, stmt_idx: int, stmt: SideEffectStatement, block: Block | None):
+        new_stmt = self.callback(stmt, block, stmt)
+        if new_stmt:
+            block.statements[stmt_idx] = new_stmt
+        return new_stmt
+
+
 class CallRewriter(AILBlockRewriter):
     def __init__(self, callback):
         super().__init__()
         self.callback = callback
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
-        new_stmt = self.callback(stmt, block, stmt, is_expr=False)
+    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement | None, block: Block | None):
+        new_stmt = self.callback(expr, block, stmt)
         if new_stmt:
             block.statements[stmt_idx] = new_stmt
         return new_stmt
-
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
-        return self.callback(expr, block, stmt, is_expr=True)
 
 
 def replace_argument_pairs(call: Call, callback) -> Call:

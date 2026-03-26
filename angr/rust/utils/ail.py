@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from angr.ailment import Block, Expression, UnaryOp, BinaryOp, Const, AILBlockViewer
-from angr.ailment.expression import VirtualVariable
-from angr.ailment.statement import Call, Statement, FunctionLikeMacro
+from angr.ailment.expression import VirtualVariable, FunctionLikeMacro, Call
+from angr.ailment.statement import Statement
 
 
 class CallFinder(AILBlockViewer):
@@ -19,15 +19,11 @@ class CallFinder(AILBlockViewer):
         if not self.call:
             self.call = expr
 
-    def _handle_FunctionLikeMacroExpr(
+    def _handle_FunctionLikeMacro(
         self, expr_idx: int, expr: FunctionLikeMacro, stmt_idx: int, stmt: Statement, block: Block | None
     ):
         if not self.call and self.include_macro:
             self.call = expr
-
-    def _handle_FunctionLikeMacro(self, stmt_idx: int, stmt: FunctionLikeMacro, block: Block | None):
-        if not self.call and self.include_macro:
-            self.call = stmt
 
 
 def find_call(obj: Block | Statement | Expression, include_macro=False):

@@ -34,21 +34,26 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 ident_to_vvar[":".join(str(reg_offset) for reg_offset in arg_vvar.reg_offsets)] = arg_vvar
                 first_offset_to_vvar[arg_vvar.reg_offsets[0]] = arg_vvar
 
-        def handle_Call(call: Call, block, stmt, is_expr):
+        def handle_Call(call: Call, block, stmt):
             def replace_argument_pair(arg, next_arg):
                 if (
-                    isinstance(arg, VirtualVariable)
-                    and isinstance(next_arg, VirtualVariable)
-                    and arg.was_reg
-                    and next_arg.was_reg
+                    (
+                        isinstance(arg, VirtualVariable)
+                        and isinstance(next_arg, VirtualVariable)
+                        and arg.was_reg
+                        and next_arg.was_reg
+                    )
+                    and self.get_vvar_value(arg) is None
+                    and self.get_vvar_value(next_arg) is None
                 ):
-                    if self.get_vvar_value(arg) is None and self.get_vvar_value(next_arg) is None:
-                        ident = f"{arg.reg_offset}:{next_arg.reg_offset}"
-                        if ident in ident_to_vvar:
-                            return True, [ident_to_vvar[ident]]
+                    ident = f"{arg.reg_offset}:{next_arg.reg_offset}"
+                    if ident in ident_to_vvar:
+                        return True, [ident_to_vvar[ident]]
                 return False, None
 
-            return replace_argument_pairs(call, replace_argument_pair)
+            if isinstance(call, Call):
+                return replace_argument_pairs(call, replace_argument_pair)
+            return call
 
         def handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
             if (

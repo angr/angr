@@ -1,14 +1,14 @@
 from __future__ import annotations
 import angr.ailment as ailment
-from angr.ailment.expression import VirtualVariable, Struct
-from angr.ailment.statement import Call, Store, Assignment, FunctionLikeMacro
+from angr.ailment.expression import VirtualVariable, Struct, FunctionLikeMacro, Call
+from angr.ailment.statement import Store, Assignment
 
-from ..sim_type import RustSimStruct, is_composite_type
-from ...utils.graph import GraphUtils
-from ...analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
-from ...analyses.decompiler.structured_codegen.rust import unpack_typeref
-from ...knowledge_plugins.variables.variable_manager import VariableManagerInternal
-from ...sim_variable import SimVariable
+from angr.rust.sim_type import RustSimStruct, is_composite_type
+from angr.utils.graph import GraphUtils
+from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+from angr.analyses.decompiler.structured_codegen.rust import unpack_typeref
+from angr.knowledge_plugins.variables.variable_manager import VariableManagerInternal
+from angr.sim_variable import SimVariable
 
 
 class TypeCorrector(OptimizationPass):
@@ -33,10 +33,14 @@ class TypeCorrector(OptimizationPass):
 
     def _set_unified_variable(self, variable: SimVariable, unified: SimVariable) -> None:
         old_unified = self.variable_manager._variables_to_unified_variables.get(variable, None)
-        if old_unified is not None and old_unified is not unified:
-            if old_unified.name is not None and not unified.renamed:
-                unified.name = old_unified.name
-                unified.renamed = old_unified.renamed
+        if (
+            old_unified is not None
+            and old_unified is not unified
+            and old_unified.name is not None
+            and not unified.renamed
+        ):
+            unified.name = old_unified.name
+            unified.renamed = old_unified.renamed
 
         self.variable_manager._unified_variables.add(unified)
         self.variable_manager._variables_to_unified_variables[variable] = unified

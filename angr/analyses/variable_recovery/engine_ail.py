@@ -9,7 +9,7 @@ from angr.errors import SimMemoryMissingError
 from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
-from angr.ailment.expression import StringLiteral, Struct, Array, Enum, Let
+from angr.ailment.expression import StringLiteral, Struct, Array, Enum, Let, FunctionLikeMacro
 from angr.engines.light.engine import SimEngineNostmtAIL
 from angr.sim_type import SimTypeFunction, SimTypePointer
 from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
@@ -17,7 +17,6 @@ from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
 from angr.utils.types import dereference_simtype_by_lib
-from angr.ailment.statement import FunctionLikeMacro
 from .engine_base import SimEngineVRBase, RichR
 
 if TYPE_CHECKING:
@@ -134,10 +133,6 @@ class SimEngineVRAIL(
         self._expr(stmt.expd_lo)
         if stmt.expd_hi is not None:
             self._expr(stmt.expd_hi)
-
-    def _handle_stmt_FunctionLikeMacro(self, stmt):
-        for arg in stmt.args:
-            self._expr(arg)
 
     def _handle_stmt_Store(self, stmt: ailment.Stmt.Store):
         addr_r = self._expr_bv(stmt.addr)
