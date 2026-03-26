@@ -37,8 +37,8 @@ class SSAVariableHelper:
 
 
 class TransformationPass(OptimizationPass):
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
 
     @property
     def endian(self):

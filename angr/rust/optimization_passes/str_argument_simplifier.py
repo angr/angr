@@ -19,8 +19,8 @@ class StrArgumentSimplifier(OptimizationPass, SRDAMixin):
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Simplify string literals used as function call arguments"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
 
         self._var_manager = self._variable_kb.variables.get_function_manager(self._func.addr)

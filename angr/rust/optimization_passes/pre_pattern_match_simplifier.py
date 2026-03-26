@@ -61,6 +61,7 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
     def __init__(
         self,
         func,
+        manager,
         # settings
         *,
         vvar_id_start: int,
@@ -69,10 +70,11 @@ class PrePatternMatchSimplifier(OptimizationPass, ReturnDuplicatorBase, DFAMixin
         scratch: dict[str, Any] | None = None,
         **kwargs,
     ):
-        OptimizationPass.__init__(self, func, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
+        OptimizationPass.__init__(self, func, manager, vvar_id_start=vvar_id_start, scratch=scratch, **kwargs)
         ReturnDuplicatorBase.__init__(
             self,
             func,
+            manager,
             max_calls_in_regions=max_calls_in_regions,
             minimize_copies_for_regions=minimize_copies_for_regions,
             vvar_id_start=vvar_id_start,

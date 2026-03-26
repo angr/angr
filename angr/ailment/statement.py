@@ -9,7 +9,7 @@ from typing_extensions import Self
 from angr import ailment
 from .utils import stable_hash, is_none_or_likeable, is_none_or_matchable
 from .tagged_object import TaggedObject
-from .expression import Atom, Expression, DirtyExpression
+from .expression import Atom, Expression, DirtyExpression, Call  # noqa: F401 - Call re-exported for compatibility
 
 
 class Statement(TaggedObject, ABC):

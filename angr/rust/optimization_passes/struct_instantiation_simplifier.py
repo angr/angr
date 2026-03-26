@@ -152,8 +152,8 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Make callsite based on known/recovered prototypes"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFAMixin.__init__(self, self._graph, self.project)
         DFAMixin.__init__(self, self._graph)

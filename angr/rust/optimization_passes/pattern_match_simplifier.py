@@ -232,8 +232,8 @@ class PatternMatchSimplifier(SequenceOptimizationPass):
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
     NAME = "Recover idiomatic Rust error handling code"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         self._graph = kwargs.get("graph")
         self._variable_kb = kwargs.get("variable_kb")
         self.analyze()

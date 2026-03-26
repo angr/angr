@@ -137,8 +137,8 @@ class VecMacroSimplifier(OptimizationPass, SRDAMixin, SSAVariableHelper, CFAMixi
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rust Memory Allocation Simplifier"
 
-    def __init__(self, func, **kwargs):
-        OptimizationPass.__init__(self, func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        OptimizationPass.__init__(self, func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         SSAVariableHelper.__init__(self, self)
         CFAMixin.__init__(self, self._graph, self.project)

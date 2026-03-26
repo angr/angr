@@ -12,8 +12,8 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite return expressions for functions returning struct via multiple registers"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
 
         self.analyze()

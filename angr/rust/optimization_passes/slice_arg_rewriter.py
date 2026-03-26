@@ -13,8 +13,8 @@ class SliceArgRewriter(OptimizationPass):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Rewrite slice arguments for Rust functions"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
 
         self.analyze()
 

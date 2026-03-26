@@ -2651,7 +2651,7 @@ class CFGBase(Analysis):
                     # function (src_addr != current_function_addr). Now that make_functions() has corrected the
                     # function assignment, re-evaluate: the jump target should be a separate function.
                     src_addr == src_funcaddr
-                    and len(src.instruction_addrs) == 1
+                    and len(g.get_node_by_key(src_node_key).instruction_addrs) == 1
                     and all_edges is not None
                     and sum(1 for _, _, d in all_edges if d["jumpkind"] != "Ijk_FakeRet") == 1
                 )

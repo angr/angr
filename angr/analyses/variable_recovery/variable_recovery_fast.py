@@ -37,7 +37,7 @@ from .engine_vex import SimEngineVRVEX
 from .engine_ail import SimEngineVRAIL
 import contextlib
 
-from ...rust.typehoon.lifter import RustTypeLifter
+from ...rust.typehoon.translator import RustTypeTranslator
 
 if TYPE_CHECKING:
     from angr.analyses.typehoon.typevars import TypeConstraint
@@ -295,7 +295,7 @@ class VariableRecoveryFast(ForwardAnalysis, VariableRecoveryBase):  # pylint:dis
 
         # handle type hints
         self.type_lifter = (
-            RustTypeLifter(self.project.arch.bits)
+            RustTypeTranslator(arch=self.project.arch)
             if self.project.is_rust_binary
             else TypeTranslator(self.project.arch)
         )

@@ -169,7 +169,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(main_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(main_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
     def test_simple_loop(self):
@@ -192,7 +192,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
         assert len(codegen.map_pos_to_node._posmap) > 1
@@ -218,7 +218,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
         print(codegen.text)
 
     def test_while_true_break(self):
@@ -243,7 +243,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
         print(codegen.text)
 
@@ -269,7 +269,7 @@ class TestStructurer(unittest.TestCase):
         # simplify it
         s = p.analyses.RegionSimplifier(test_func, rs.result)
 
-        codegen = p.analyses.StructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
+        codegen = p.analyses.CStructuredCodeGenerator(test_func, s.result, cfg=cfg, ail_graph=clinic.graph)
 
         print(codegen.text)
 
@@ -288,12 +288,12 @@ class TestStructurer(unittest.TestCase):
         # full code, without the header and variable definitions
         # the outputted code will be missing corrected variable names, which can be corrected by passing
         # private properties from the original codegen object
-        func_no_header = p.analyses.StructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text
+        func_no_header = p.analyses.CStructuredCodeGenerator(f, top_sequence, cfg=cfg, omit_func_header=True).text
         assert "int main(" not in func_no_header
 
         # generate only code under and in the first if-stmt
         if_seq = top_sequence.nodes[1]
-        if_code = p.analyses.StructuredCodeGenerator(f, if_seq, cfg=cfg, omit_func_header=True).text
+        if_code = p.analyses.CStructuredCodeGenerator(f, if_seq, cfg=cfg, omit_func_header=True).text
         assert "if" in if_code
         assert "accepted()" in if_code
         assert "read" not in if_code  # should only be found in the code above the if

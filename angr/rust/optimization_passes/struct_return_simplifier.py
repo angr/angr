@@ -24,8 +24,8 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Simplify function return sites"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFGTransformationMixin.__init__(self, self._graph)
         self.analyze()

@@ -14,8 +14,8 @@ class RustCallingConvention(OptimizationPass):
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
     NAME = "Recover Rust prototypes and calling convention for current function"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         self.analyze()
 
     def _check(self):

@@ -13,8 +13,8 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Infer potential struct/enum argument types and return types"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
         SSAVariableMixin.__init__(self, self)
 
