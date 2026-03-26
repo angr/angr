@@ -1135,7 +1135,7 @@ class CallingConventionAnalysis(Analysis):
                 return SimTypeInt()
             if 5 <= ret_val_size <= 8:
                 return SimTypeLongLong()
-            if 9 <= ret_val_size <= 16:
+            if self.project.is_rust_binary and 9 <= ret_val_size <= 16:
                 return SimTypeInt128()
 
         return SimTypeBottom(label="void")
