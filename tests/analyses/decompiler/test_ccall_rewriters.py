@@ -388,7 +388,7 @@ def test_x86_cond_l_sbbl_rewrite():
     assert isinstance(result, Expr.Convert)
     inner = result.operands[0]
     assert isinstance(inner, Expr.Call) and inner.target == "__SBB_COND_L__"
-    assert len(inner.args) == 3
+    assert inner.args is not None and len(inner.args) == 3
 
 
 def test_amd64_cond_nz_add_rewrite():

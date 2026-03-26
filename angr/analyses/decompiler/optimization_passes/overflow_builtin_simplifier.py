@@ -193,6 +193,7 @@ class OverflowBuiltinWalker(SequenceWalker):
             return False
 
         builtin_name, arith_ops = _OF_MAP[target_name]
+        assert of_call.args is not None
         a, b = of_call.args[0], of_call.args[1]
 
         # Try to find the matching arithmetic expression
