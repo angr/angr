@@ -929,7 +929,7 @@ class SimTypePointer(SimTypeReg):
             d.pop("offset")
         if "q" in d and not d["q"]:
             d.pop("q")
-        if (disp := d.pop("disposition")) != PointerDisposition.UNKNOWN:
+        if (disp := d.pop("disposition", PointerDisposition.UNKNOWN)) != PointerDisposition.UNKNOWN:
             d["disp"] = int(disp)
         return d
 

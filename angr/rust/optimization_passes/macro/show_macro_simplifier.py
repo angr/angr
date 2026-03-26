@@ -20,8 +20,8 @@ class ShowMacroSimplifier(OptimizationPass, CFAMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Recover show-family macros in coreutils"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
 
         self._stmts_to_remove = {}

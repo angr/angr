@@ -16,9 +16,9 @@ if __name__ == "__main__":
     binary = "binaries/FakeCrypt" if args.unstripped else "binaries/FakeCrypt-stripped"
     proj = angr.Project(binary, auto_load_libs=False, is_rust_binary=True)
     print("[*] Running CFGFast ...")
-    proj.analyses.CFGFast(normalize=True)
+    proj.analyses.CFGFast(normalize=True, show_progressbar=True)
     print("[*] Running CompleteCallingConventions ...")
-    proj.analyses.CompleteCallingConventions(recover_variables=False)
+    proj.analyses.CompleteCallingConventions(recover_variables=False, show_progressbar=True)
     if not args.unstripped:
         print("[*] Running RustSymbolRecovery ...")
         proj.analyses.RustSymbolRecovery()
@@ -27,6 +27,6 @@ if __name__ == "__main__":
 
     func = proj.kb.functions.get_by_addr(TARGET_ADDR)
     print("[*] Running Decompiler ...")
-    decompiler = proj.analyses.Decompiler(func)
+    decompiler = proj.analyses.Decompiler(func, fail_fast=True)
     print("[*] Decompiled code:")
     print(decompiler.codegen.text)

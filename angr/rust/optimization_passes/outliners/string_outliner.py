@@ -10,8 +10,8 @@ class StringOutliner(OptimizationPass):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Outline String structs to `String::new`"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         self.analyze()
 
     def _check(self):

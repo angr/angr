@@ -2741,7 +2741,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             # AIL statements
             Stmt.Store: self._handle_Stmt_Store,
             Stmt.Assignment: self._handle_Stmt_Assignment,
-            Stmt.Call: self._handle_Stmt_Call,
+            Stmt.SideEffectStatement: self._handle_Stmt_SideEffectStatement,
             Stmt.Jump: self._handle_Stmt_Jump,
             Stmt.ConditionalJump: self._handle_Stmt_ConditionalJump,
             Stmt.Return: self._handle_Stmt_Return,
@@ -3633,15 +3633,15 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
 
         return RustAssignment(cdst, csrc, tags=stmt.tags, codegen=self)
 
-    def _handle_Stmt_Call(self, stmt: Stmt.Call, is_expr: bool = False, **kwargs):
+    def _handle_Stmt_SideEffectStatement(self, stmt: Stmt.SideEffectStmt, is_expr: bool = False, **kwargs):
         try:
             # Try to handle it as a normal function call
-            if not isinstance(stmt.target, str):
-                target = self._handle(stmt.target)
+            if not isinstance(stmt.expr.target, str):
+                target = self._handle(stmt.expr.target)
             else:
-                target = stmt.target
+                target = stmt.expr.target
         except UnsupportedNodeTypeError:
-            target = stmt.target
+            target = stmt.expr.target
 
         if isinstance(target, RustConstant):
             target_func = self.kb.functions.function(addr=target.value)
@@ -3649,8 +3649,8 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             target_func = None
 
         args = []
-        if stmt.args is not None:
-            for i, arg in enumerate(stmt.args):
+        if stmt.expr.args is not None:
+            for i, arg in enumerate(stmt.expr.args):
                 type_ = None
                 if target_func is not None:
                     if target_func.prototype is not None and i < len(target_func.prototype.args):
@@ -3681,7 +3681,7 @@ class RustStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             tags=stmt.tags,
             is_expr=is_expr,
             show_demangled_name=self.show_demangled_name,
-            callsite_prototype=stmt.prototype,
+            callsite_prototype=stmt.expr.prototype,
             codegen=self,
         )
 

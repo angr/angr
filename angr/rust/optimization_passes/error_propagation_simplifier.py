@@ -146,8 +146,8 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
     NAME = 'Recover error propagation "?" operator'
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         self._graph = kwargs.get("graph")
         self.block_by_addr_and_idx = {(block.addr, block.idx): block for block in self._graph.nodes}
         self.varid_to_assignment = self._collect_varid_to_assignment_mappings()

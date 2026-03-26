@@ -24,8 +24,8 @@ class UnreachableBranchFixer(OptimizationPass, CFGTransformationMixin):
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Fix fake branches"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         CFGTransformationMixin.__init__(self, self._graph)
         self.analyze()
 

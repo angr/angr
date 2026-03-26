@@ -65,8 +65,8 @@ class UnwrapOutliner(OptimizationPass, CFAMixin, SRDAMixin, DFAMixin, CFGTransfo
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Outline unwrap function calls"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         CFAMixin.__init__(self, self._graph, self.project)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         DFAMixin.__init__(self)

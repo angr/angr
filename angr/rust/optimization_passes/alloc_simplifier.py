@@ -185,8 +185,8 @@ class AllocSimplifier(TransformationPass, SRDAMixin, SSAVariableHelper):
     STAGE = OptimizationPassStage.AFTER_GLOBAL_SIMPLIFICATION
     NAME = "Rust Memory Allocation Simplifier"
 
-    def __init__(self, func, **kwargs):
-        TransformationPass.__init__(self, func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        TransformationPass.__init__(self, func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         SSAVariableHelper.__init__(self, self)
 

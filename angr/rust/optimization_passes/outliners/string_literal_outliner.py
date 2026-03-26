@@ -14,8 +14,8 @@ class StringLiteralOutliner(OptimizationPass, DFAMixin, SSAVariableMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Outline struct fields to string literals"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         DFAMixin.__init__(self, self._graph)
         SSAVariableMixin.__init__(self, self)
         self.analyze()

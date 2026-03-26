@@ -16,8 +16,8 @@ class TypeCorrector(OptimizationPass):
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Correct variable types overridden by other Rust optimization passes"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
 
         self.variable_manager: VariableManagerInternal = self._variable_kb.variables.get_function_manager(
             self._func.addr

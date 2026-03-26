@@ -29,8 +29,8 @@ class CleanupCodeRemover(OptimizationPass, CFGTransformationMixin, CFAMixin, SRD
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Remove cleanup code"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
 
         CFGTransformationMixin.__init__(self, self._graph)
         CFAMixin.__init__(self, self._graph, self.project)

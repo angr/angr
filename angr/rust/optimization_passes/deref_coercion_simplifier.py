@@ -51,8 +51,8 @@ class DerefCoercionSimplifier(OptimizationPass, SRDAMixin, CFAMixin):
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
     NAME = "Simplify explict deref coercion operations"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFAMixin.__init__(self, self._graph, self.project)
 

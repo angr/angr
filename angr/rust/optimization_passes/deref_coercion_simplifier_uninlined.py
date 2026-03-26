@@ -28,8 +28,8 @@ class DerefCoercionSimplifierUninlined(OptimizationPass, SRDAMixin, CFAMixin, AI
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY
     NAME = "Simplify explicit deref coercion operations (uninlined)"
 
-    def __init__(self, func, **kwargs):
-        super().__init__(func, **kwargs)
+    def __init__(self, func, manager, **kwargs):
+        super().__init__(func, manager, **kwargs)
         SRDAMixin.__init__(self, func, self._graph, self.project)
         CFAMixin.__init__(self, self._graph, self.project)
         AILBlockRewriter.__init__(self)
