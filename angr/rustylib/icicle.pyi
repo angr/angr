@@ -154,6 +154,13 @@ class Icicle:
         :arg addr: The address where the breakpoint should be removed.
         """
 
+    def revalidate_breakpoints(self) -> None:
+        """Sync per-block JIT breakpoint counters with the global breakpoint set.
+
+        Must be called after adding breakpoints to ensure JIT-compiled blocks
+        pick up the new breakpoints.
+        """
+
     def run(self) -> VmExit:
         """Run the VM until it exits or hits a breakpoint.
 

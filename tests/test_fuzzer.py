@@ -103,7 +103,9 @@ def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-
     state.regs.rax = input[0] if input else 0
     # Set the return address so the executor's breakpoint fires on normal return.
     # Must be inside the binary's mapped region but past the shellcode bytes.
+    assert state.project is not None
     cc = state.project.factory.cc()
+    assert cc.return_addr is not None
     cc.return_addr.set_value(state, RETURN_ADDR)
 
 
@@ -111,7 +113,9 @@ def _apply_fn_memory(state: angr.SimState, input: bytes):  # pylint: disable=red
     # Store the fuzzed byte at DATA_ADDR and point rdi at it.
     state.memory.store(DATA_ADDR, bytes([input[0] if input else 0]))
     state.regs.rdi = DATA_ADDR
+    assert state.project is not None
     cc = state.project.factory.cc()
+    assert cc.return_addr is not None
     cc.return_addr.set_value(state, RETURN_ADDR)
 
 
@@ -438,7 +442,9 @@ class TestFuzzer:
             # >120 bytes overflows past saved rbp (8) into the return address.
             state.memory.store(RBP - 0x70, input_bytes)
             # Tell the executor where to set its breakpoint
+            assert state.project is not None
             cc = state.project.factory.cc()
+            assert cc.return_addr is not None
             cc.return_addr.set_value(state, STACK_RET)
 
         corpus = InMemoryCorpus.from_list([b"\x00"])

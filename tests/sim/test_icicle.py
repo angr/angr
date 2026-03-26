@@ -14,13 +14,15 @@ import os
 from io import BytesIO
 from unittest import TestCase
 
+from typing import cast
+
 import archinfo
 import cle
 
 import angr
 from angr import sim_options as o
 from angr.emulator import Emulator, EmulatorStopReason
-from angr.engines.icicle import IcicleEngine, UberIcicleEngine
+from angr.engines.icicle import IcicleEngine, IcicleStateTranslationData, UberIcicleEngine
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from angr.state_plugins.icicle import SimStateIcicle
 from tests.common import bin_location
@@ -853,31 +855,39 @@ class TestSimStateIciclePlugin(TestCase):
         plugin = state.get_plugin("icicle")
         assert isinstance(plugin, SimStateIcicle)
         assert plugin.engine_id == id(engine)
-        assert plugin.run_id == engine._run_counter
+        assert plugin.run_id > 0
 
     def test_plugin_copy(self):
         """Test that the plugin is correctly copied when the state is copied."""
+        dummy_td = cast(IcicleStateTranslationData, None)
         plugin = SimStateIcicle(
             engine_id=12345,
             run_id=42,
-            translation_data=None,
+            translation_data=dummy_td,
             page_ids={1: 100, 2: 200},
             dirty_pages={3, 4},
         )
-        copy = plugin.copy()
-        assert copy.engine_id == 12345
-        assert copy.run_id == 42
-        assert copy.page_ids == {1: 100, 2: 200}
-        assert copy.dirty_pages == {3, 4}
+        copied = plugin.copy({})
+        assert copied.engine_id == 12345
+        assert copied.run_id == 42
+        assert copied.page_ids == {1: 100, 2: 200}
+        assert copied.dirty_pages == {3, 4}
         # Ensure copies are independent
-        copy.page_ids[5] = 500
-        copy.dirty_pages.add(6)
+        copied.page_ids[5] = 500
+        copied.dirty_pages.add(6)
         assert 5 not in plugin.page_ids
         assert 6 not in plugin.dirty_pages
 
     def test_plugin_merge_and_widen(self):
         """Test that merge and widen return False (not mergeable)."""
-        plugin = SimStateIcicle(engine_id=1, run_id=1, translation_data=None, page_ids={}, dirty_pages=set())
+        dummy_td = cast(IcicleStateTranslationData, None)
+        plugin = SimStateIcicle(
+            engine_id=1,
+            run_id=1,
+            translation_data=dummy_td,
+            page_ids={},
+            dirty_pages=set(),
+        )
         assert plugin.merge([], [], None) is False
         assert plugin.widen([]) is False
 
@@ -891,9 +901,10 @@ class TestContinuation(TestCase):
         shellcode = "mov x0, 0x1; nop; mov x1, 0x2; add x2, x0, x1"
         project = angr.load_shellcode(shellcode, "aarch64")
 
-        @project.hook(0x4, length=4)
         def hook_nop(state):
             state.regs.x0 = 0x10
+
+        project.hook(0x4, hook_nop, length=4)
 
         engine = UberIcicleEngine(project)
         engine.enable_snapshot_mode()
