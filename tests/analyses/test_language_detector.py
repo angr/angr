@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint:disable=no-self-use
 """Tests for the LanguageDetector analysis using mock binary objects."""
 
 from __future__ import annotations
@@ -6,12 +7,14 @@ from __future__ import annotations
 __package__ = __package__ or "tests.analyses"  # pylint:disable=redefined-builtin
 
 import os
-from tests.common import bin_location
+from collections import defaultdict
 import unittest
 from unittest.mock import MagicMock
 
 import angr
 from angr.analyses.language_detector import LanguageDetector, LanguageDetectionResult, LanguageDetectionConfidenceLevel
+
+from tests.common import bin_location
 
 
 def _make_mock_project(
@@ -78,7 +81,7 @@ def _run_detector(project) -> LanguageDetector:
     det.project = project
     det.kb = project.kb
     det.errors = []
-    det.named_errors = {}
+    det.named_errors = defaultdict(list)
     det._fail_fast = False
     det.result = LanguageDetectionResult()
     det._detect()
@@ -264,7 +267,7 @@ class TestLanguageDetectorUnknown(unittest.TestCase):
         assert r.compiler is None
         assert r.compiler_version is None
         assert r.confidence == LanguageDetectionConfidenceLevel.LOW
-        assert r.evidence == []
+        assert r.evidence == []  # pylint:disable=use-implicit-booleaness-not-comparison
 
 
 class TestLanguageDetectorMixedSignals(unittest.TestCase):

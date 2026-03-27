@@ -202,7 +202,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 1: DWARF
     # ------------------------------------------------------------------
-    def _check_dwarf(self, obj: Backend, scores: dict[str, int], evidence: list[str]):
+    @staticmethod
+    def _check_dwarf(obj: Backend, scores: dict[str, int], evidence: list[str]):
         compilation_units = getattr(obj, "compilation_units", None)
         if not compilation_units:
             return
@@ -231,9 +232,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 2: CLE compiler field (.comment section)
     # ------------------------------------------------------------------
-    def _check_cle_compiler(
-        self, obj: Backend, scores: dict[str, int], evidence: list[str]
-    ) -> tuple[str | None, str | None]:
+    @staticmethod
+    def _check_cle_compiler(obj: Backend, scores: dict[str, int], evidence: list[str]) -> tuple[str | None, str | None]:
         compiler_info = getattr(obj, "compiler", (None, None))
         if compiler_info is None:
             return None, None
@@ -248,7 +248,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 3: Symbols
     # ------------------------------------------------------------------
-    def _check_symbols(self, obj: Backend, scores: dict[str, int], evidence: list[str]):
+    @staticmethod
+    def _check_symbols(obj: Backend, scores: dict[str, int], evidence: list[str]):
         symbols = getattr(obj, "symbols", None)
         if not symbols:
             return
@@ -308,7 +309,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 4: Section names
     # ------------------------------------------------------------------
-    def _check_sections(self, obj: Backend, scores: dict[str, int], evidence: list[str]):
+    @staticmethod
+    def _check_sections(obj: Backend, scores: dict[str, int], evidence: list[str]):
         sections = getattr(obj, "sections", None)
         if not sections:
             return
@@ -334,7 +336,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 5: Dependencies
     # ------------------------------------------------------------------
-    def _check_dependencies(self, obj: Backend, scores: dict[str, int], evidence: list[str]):
+    @staticmethod
+    def _check_dependencies(obj: Backend, scores: dict[str, int], evidence: list[str]):
         deps = getattr(obj, "deps", None)
         if not deps:
             return
@@ -351,7 +354,8 @@ class LanguageDetector(Analysis):
     # ------------------------------------------------------------------
     # Layer 6: String scanning (limited, for version markers)
     # ------------------------------------------------------------------
-    def _check_strings(self, obj: Backend, scores: dict[str, int], evidence: list[str]):
+    @staticmethod
+    def _check_strings(obj: Backend, scores: dict[str, int], evidence: list[str]):
         """Scan a limited amount of binary data for compiler/language version strings."""
         memory = getattr(obj, "memory", None)
         if memory is None:
@@ -386,11 +390,11 @@ class LanguageDetector(Analysis):
                 # Try to extract version
                 idx = chunk.find(b"rustc")
                 snippet = chunk[idx : idx + 40]
-                evidence_str = snippet.split(b"\x00")[0].decode("ascii", errors="replace")[:40]
                 try:
-                    evidence.append(f"string: {evidence_str}")
-                except Exception:
-                    evidence.append("string: rustc version marker")
+                    evidence_str = snippet.split(b"\x00")[0].decode("ascii", errors="replace")[:40]
+                except (IndexError, UnicodeDecodeError):
+                    evidence_str = "rustc version marker (undecodable)"
+                evidence.append(f"string: {evidence_str}")
 
             if not go_found and (b"go1." in chunk or b"Go build" in chunk or b"go.buildinfo" in chunk):
                 go_found = True
@@ -415,7 +419,7 @@ class LanguageDetector(Analysis):
             result.confidence = LanguageDetectionConfidenceLevel.LOW
             return
 
-        best_lang = max(scores, key=scores.get)
+        best_lang = max(scores, key=scores.get)  # type:ignore
         best_score = scores[best_lang]
 
         # Check for ambiguity: if second-best is close, lower confidence
