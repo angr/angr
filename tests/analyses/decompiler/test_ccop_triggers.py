@@ -603,6 +603,8 @@ def _make_arm_operands(op_name: str, native_bits: int):
 
 def test_make_arm_operands_categories():
     dep1_a, dep2_a, dep3_a, dep1_c, dep2_c, dep3_c, vv_map = _make_arm_operands("ARM64G_CC_OP_ADD64", 64)
+    assert isinstance(dep1_a, Expr.VirtualVariable)
+    assert isinstance(dep2_a, Expr.VirtualVariable)
     assert dep1_a.varid == 1
     assert dep2_a.varid == 2
     assert isinstance(dep3_a, Expr.Const)
@@ -610,18 +612,25 @@ def test_make_arm_operands_categories():
     assert set(vv_map) == {1, 2}
 
     dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_LOGIC64", 64)
+    assert isinstance(dep1_a, Expr.VirtualVariable)
+    assert isinstance(dep2_a, Expr.VirtualVariable)
+    assert isinstance(dep3_a, Expr.VirtualVariable)
     assert dep1_a.varid == 1
     assert dep2_a.varid == 2
     assert dep3_a.varid == 3
     assert set(vv_map) == {1, 2, 3}
 
     dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_ADC64", 64)
+    assert isinstance(dep1_a, Expr.VirtualVariable)
+    assert isinstance(dep2_a, Expr.VirtualVariable)
+    assert isinstance(dep3_a, Expr.VirtualVariable)
     assert dep1_a.varid == 1
     assert dep2_a.varid == 2
     assert dep3_a.varid == 3
     assert set(vv_map) == {1, 2, 3}
 
     dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_COPY", 64)
+    assert isinstance(dep1_a, Expr.VirtualVariable)
     assert dep1_a.varid == 1
     assert isinstance(dep2_a, Expr.Const)
     assert isinstance(dep3_a, Expr.Const)
