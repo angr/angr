@@ -963,7 +963,7 @@ class Value(OperandPiece):
 
         # default case
         try:
-            func = self.project.kb.functions.get_by_addr(self.val)
+            func = self.project.kb.functions.get_by_addr(self.val, meta_only=True)
         except KeyError:
             func = None
 
