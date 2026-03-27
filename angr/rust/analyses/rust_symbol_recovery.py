@@ -32,7 +32,7 @@ class RustSymbolRecovery(Analysis):
             self.matched_count = 0
             base_dir = get_default_sig_dir()
             base = Path(base_dir) if base_dir else Path(__file__).parent
-            self.best_sig_dir = (sig_dirs or [base / "default"])[0]
+            self.best_sig_dir = (sig_dirs or [base / "inline"])[0]
 
         self._analyze()
 
