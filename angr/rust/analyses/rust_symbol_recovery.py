@@ -5,6 +5,7 @@ import logging
 
 from angr.analyses import Analysis, AnalysesHub
 from angr.rust.utils.demangler import demangle
+from angr.rust.utils.rust_sigs import get_default_sig_dir
 
 l = logging.getLogger(name=__name__)
 
@@ -29,8 +30,9 @@ class RustSymbolRecovery(Analysis):
             self.best_sig_dir = version_id.best_sig_dir
         else:
             self.matched_count = 0
-            base = Path(__file__).parent
-            self.best_sig_dir = (sig_dirs or [base / "flirt_sigs"])[0]
+            base_dir = get_default_sig_dir()
+            base = Path(base_dir) if base_dir else Path(__file__).parent
+            self.best_sig_dir = (sig_dirs or [base / "default"])[0]
 
         self._analyze()
 
@@ -51,21 +53,21 @@ class RustSymbolRecovery(Analysis):
 
         l.info("Applied %d signature files for version %s", applied, version)
 
-        for func in self.project.kb.functions.values():
+        for func in self.project.kb.functions.values(meta_only=True):
             if func.from_signature == "flirt":
                 self.rust_symbols[func.addr] = demangle(func.name)
         l.info("Recovered %d rust symbols (after Flirt)", len(self.rust_symbols))
 
         self.project.analyses.FlirtSigPropagation(cfg=self.project.kb.cfgs.get_most_accurate())
 
-        for func in self.project.kb.functions.values():
+        for func in self.project.kb.functions.values(meta_only=True):
             if func.from_signature == "flirt":
                 self.rust_symbols[func.addr] = demangle(func.name)
         l.info("Recovered %d rust symbols (after FlirtSigPropagation)", len(self.rust_symbols))
 
         self.project.analyses.CleanupFunctionIdentification()
 
-        for func in self.project.kb.functions.values():
+        for func in self.project.kb.functions.values(meta_only=True):
             if func.from_signature == "flirt":
                 self.rust_symbols[func.addr] = demangle(func.name)
         l.info("Recovered %d rust symbols (after CleanupFunctionIdentification)", len(self.rust_symbols))
