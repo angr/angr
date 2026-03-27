@@ -11,16 +11,23 @@ import networkx as nx
 
 import angr
 from angr.ailment.manager import Manager
-from angr.ailment import Block, Assignment, Register, Const, BinaryOp
+from angr.ailment import Expr, Block, Assignment, Register, Const, BinaryOp
 from angr.ailment.expression import Call, Convert, UnaryOp, VirtualVariable, VirtualVariableCategory
 from angr.ailment.statement import Return, Store, ConditionalJump
 from angr.analyses.decompiler.optimization_passes import FlipBooleanCmp
 from angr.analyses.decompiler.optimization_passes.overflow_builtin_simplifier import OverflowBuiltinSimplifier
 from angr.analyses.decompiler.optimization_passes.overflow_builtin_p_simplifier import (
     OverflowBuiltinPredicateSimplifier,
+    _replace_of_p,
 )
-from angr.analyses.decompiler.optimization_passes.carry_flag_simplifier import CarryFlagSimplifier
-from angr.analyses.decompiler.structuring.structurer_nodes import SequenceNode, ConditionNode, CodeNode
+from angr.analyses.decompiler.optimization_passes.carry_flag_simplifier import CarryFlagSimplifier, _replace_cfadd
+from angr.analyses.decompiler.optimization_passes.flag_cond_simplifier import FlagCondSimplifier, _replace_flag_builtins
+from angr.analyses.decompiler.structuring.structurer_nodes import (
+    SequenceNode,
+    ConditionNode,
+    CascadingConditionNode,
+    CodeNode,
+)
 
 log = logging.getLogger(__name__)
 # log.setLevel(logging.DEBUG)
@@ -919,3 +926,162 @@ class TestCarryFlagSimplifier(unittest.TestCase):
         assert isinstance(out_cond, ConditionNode)
         assert isinstance(out_cond.condition, Call)
         assert out_cond.condition.target == "__OFADD__"
+
+
+class TestFlagCondSimplifier(unittest.TestCase):
+    """
+    Test FlagCondSimplifier optimization pass.
+    """
+
+    def test_rewrites_supported_flag_builtins(self):
+        a = _vv(1, bits=32)
+        b = _vv(2, bits=32)
+        carry = _vv(3, bits=32)
+
+        cases = [
+            ("__DEC_COND_LE__", [a]),
+            ("__ADD_COND_LE__", [a, b]),
+            ("__ADD_COND_HI__", [a, b]),
+            ("__ADD_COND_GE__", [a, b]),
+            ("__ADD_COND_GT__", [a, b]),
+            ("__ADD_COND_NBE__", [a, b]),
+            ("__SBB_COND_A__", [a, b, carry]),
+            ("__SBB_COND_L__", [a, b, carry]),
+        ]
+
+        for target, args in cases:
+            with self.subTest(target=target):
+                cond_node = ConditionNode(
+                    0x400000,
+                    None,
+                    Call(None, target, args=args, bits=1),
+                    true_node=Block(0x400010, 0, [Return(None, [_c64(1)])]),
+                    false_node=None,
+                )
+                seq = SequenceNode(0x400000, nodes=[cond_node])
+
+                out = FlagCondSimplifier(None, Manager(), seq=seq).out_seq
+                assert out is not None
+
+                new_cond = out.nodes[0].condition
+                assert not isinstance(new_cond, Call)
+
+                if target in {"__DEC_COND_LE__", "__ADD_COND_LE__"}:
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "CmpLE"
+                    assert new_cond.signed is True
+                    assert isinstance(new_cond.operands[0], BinaryOp)
+                    assert new_cond.operands[0].op == "Add"
+                elif target == "__ADD_COND_HI__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "And"
+                    assert isinstance(new_cond.operands[0], BinaryOp)
+                    assert new_cond.operands[0].op == "CmpLT"
+                    assert isinstance(new_cond.operands[1], BinaryOp)
+                    assert new_cond.operands[1].op == "CmpNE"
+                elif target == "__ADD_COND_GE__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "CmpGE"
+                    assert new_cond.signed is True
+                elif target == "__ADD_COND_GT__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "And"
+                    assert isinstance(new_cond.operands[0], BinaryOp)
+                    assert new_cond.operands[0].op == "CmpGE"
+                    assert isinstance(new_cond.operands[1], BinaryOp)
+                    assert new_cond.operands[1].op == "CmpNE"
+                elif target == "__ADD_COND_NBE__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "And"
+                    assert isinstance(new_cond.operands[0], BinaryOp)
+                    assert new_cond.operands[0].op == "CmpGE"
+                    assert new_cond.operands[0].signed is False
+                elif target == "__SBB_COND_A__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "And"
+                    assert isinstance(new_cond.operands[0], BinaryOp)
+                    assert new_cond.operands[0].op == "CmpGE"
+                    assert new_cond.operands[0].signed is False
+                    assert isinstance(new_cond.operands[1], BinaryOp)
+                    assert new_cond.operands[1].op == "CmpNE"
+                elif target == "__SBB_COND_L__":
+                    assert isinstance(new_cond, BinaryOp)
+                    assert new_cond.op == "CmpLT"
+                    assert new_cond.signed is True
+
+    def test_rewrites_nested_and_cascading_nodes(self):
+        a = _vv(1, bits=32)
+        b = _vv(2, bits=32)
+
+        ite = Expr.ITE(
+            None,
+            Call(None, "__ADD_COND_GT__", args=[a, b], bits=1),
+            c(1),
+            c(0),
+        )
+        replaced_ite = _replace_flag_builtins(ite)
+        assert isinstance(replaced_ite, Expr.ITE)
+        assert not isinstance(replaced_ite.cond, Call)
+
+        cascade = CascadingConditionNode(
+            0x400000,
+            [
+                (
+                    Call(None, "__ADD_COND_HI__", args=[a, b], bits=1),
+                    Block(0x400010, 0, [Return(None, [_c64(1)])]),
+                )
+            ],
+            else_node=Block(0x400020, 0, [Return(None, [_c64(0)])]),
+        )
+        seq = SequenceNode(0x400000, nodes=[cascade])
+
+        out = FlagCondSimplifier(None, Manager(), seq=seq).out_seq
+        assert out is not None
+        out_cascade = out.nodes[0]
+        assert isinstance(out_cascade, CascadingConditionNode)
+        assert not isinstance(out_cascade.condition_and_nodes[0][0], Call)
+
+    def test_ignores_missing_args(self):
+        a = _vv(1, bits=32)
+        b = _vv(2, bits=32)
+
+        malformed = [
+            Call(None, "__DEC_COND_LE__", args=None, bits=1),
+            Call(None, "__DEC_COND_LE__", args=[], bits=1),
+            Call(None, "__ADD_COND_LE__", args=[a], bits=1),
+            Call(None, "__ADD_COND_HI__", args=[a], bits=1),
+            Call(None, "__ADD_COND_GE__", args=[a], bits=1),
+            Call(None, "__ADD_COND_GT__", args=[a], bits=1),
+            Call(None, "__ADD_COND_NBE__", args=[a], bits=1),
+            Call(None, "__SBB_COND_A__", args=[a, b], bits=1),
+            Call(None, "__SBB_COND_L__", args=[a, b], bits=1),
+        ]
+
+        for expr in malformed:
+            with self.subTest(target=expr.target, argc=None if expr.args is None else len(expr.args)):
+                assert _replace_flag_builtins(expr) is expr
+
+
+class TestGuardedBuiltinRewriters(unittest.TestCase):
+    def test_cfadd_ignores_missing_args(self):
+        a = _vv(1)
+
+        for expr in (
+            Call(None, "__CFADD__", args=None, bits=64),
+            Call(None, "__CFADD__", args=[a], bits=64),
+        ):
+            with self.subTest(argc=None if expr.args is None else len(expr.args)):
+                assert _replace_cfadd(expr) is expr
+
+    def test_overflow_builtin_p_ignores_missing_args(self):
+        a = _vv(1)
+
+        malformed = (
+            Call(None, "__OFADD__", args=None, bits=64),
+            Call(None, "__OFADD__", args=[a], bits=64),
+            Call(None, "__OFMUL__", args=None, bits=64),
+            Call(None, "__OFMUL__", args=[a], bits=64),
+        )
+        for expr in malformed:
+            with self.subTest(target=expr.target, argc=None if expr.args is None else len(expr.args)):
+                assert _replace_of_p(expr) is expr

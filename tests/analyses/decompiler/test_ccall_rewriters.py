@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import archinfo
 import pytest
 import claripy
 
@@ -9,6 +10,7 @@ from angr.analyses.decompiler.ccall_rewriters.amd64_ccalls import (
     AMD64_CondTypes,
     AMD64_OpTypes,
 )
+from angr.analyses.decompiler.ccall_rewriters.arm64_ccalls import ARM64CCallRewriter
 from angr.analyses.decompiler.ccall_rewriters.arm_ccalls import ARMCCallRewriter
 from angr.analyses.decompiler.ccall_rewriters.x86_ccalls import X86CCallRewriter, X86_CondTypes, X86_OpTypes
 from angr.ailment.expression import VirtualVariableCategory
@@ -30,6 +32,9 @@ from angr.engines.vex.claripy.ccall import (
     ARMG_CC_OP_LOGIC,
     ARMG_CC_OP_SBB,
     ARMG_CC_OP_SUB,
+    ARM64CondHI,
+    ARM64CondLS,
+    ARM64G_CC_OP_ADD64,
 )
 
 
@@ -637,6 +642,54 @@ def test_arm_cond_gt_add_rewrite():
     assert result is not None
     assert isinstance(result, Expr.Convert)
     assert isinstance(result.operands[0], Expr.Call) and result.operands[0].target == "__ADD_COND_GT__"
+
+
+class _DummyAArch64Project:
+    arch = archinfo.ArchAArch64()
+
+
+def test_arm64_cond_hi_add_rewrite_with_project():
+    ccall = Expr.VEXCCallExpression(
+        None,
+        "arm64g_calculate_condition",
+        (
+            _const((ARM64CondHI << 4) | ARM64G_CC_OP_ADD64, 64),
+            _const(1, 64),
+            _const(2, 64),
+            _const(0, 64),
+        ),
+        64,
+    )
+    result = ARM64CCallRewriter(ccall, _DummyAArch64Project()).result
+    assert result is not None
+    assert isinstance(result, Expr.Convert)
+    inner = result.operands[0]
+    assert isinstance(inner, Expr.Call)
+    assert inner.target == "__ADD_COND_HI__"
+    assert inner.calling_convention is not None
+
+
+def test_arm64_cond_ls_add_rewrite_with_project():
+    ccall = Expr.VEXCCallExpression(
+        None,
+        "arm64g_calculate_condition",
+        (
+            _const((ARM64CondLS << 4) | ARM64G_CC_OP_ADD64, 64),
+            _const(1, 64),
+            _const(2, 64),
+            _const(0, 64),
+        ),
+        64,
+    )
+    result = ARM64CCallRewriter(ccall, _DummyAArch64Project()).result
+    assert result is not None
+    assert isinstance(result, Expr.Convert)
+    inner = result.operands[0]
+    assert isinstance(inner, Expr.UnaryOp)
+    assert inner.op == "Not"
+    assert isinstance(inner.operand, Expr.Call)
+    assert inner.operand.target == "__ADD_COND_HI__"
+    assert inner.operand.calling_convention is not None
 
 
 def test_amd64_cond_nl_sub_rewrite():

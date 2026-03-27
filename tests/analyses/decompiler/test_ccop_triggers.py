@@ -154,6 +154,17 @@ def _parse_ccop_func(name):
     return (op_cond[0], op_cond[1], width)
 
 
+def test_parse_ccop_func_variants():
+    assert _parse_ccop_func("ccop_sub_condz_32") == ("sub", "condz", 32)
+    assert _parse_ccop_func("ccop_sub_eq_32") == ("sub", "eq", 32)
+    assert _parse_ccop_func("ccop_rflagsc_add_32") == ("rflagsc", "add", 32)
+
+    assert _parse_ccop_func("not_a_ccop") is None
+    assert _parse_ccop_func("ccop_sub_eq_xx") is None
+    assert _parse_ccop_func("ccop_onlytwo") is None
+    assert _parse_ccop_func("ccop_sub_32") is None
+
+
 # ---------------------------------------------------------------------------
 # Rewriter coverage tables: which (op, cond) pairs each arch handles
 # ---------------------------------------------------------------------------
@@ -588,6 +599,33 @@ def _make_arm_operands(op_name: str, native_bits: int):
         vv_map[2] = dep2_c
 
     return dep1_a, dep2_a, dep3_a, dep1_c, dep2_c, dep3_c, vv_map
+
+
+def test_make_arm_operands_categories():
+    dep1_a, dep2_a, dep3_a, dep1_c, dep2_c, dep3_c, vv_map = _make_arm_operands("ARM64G_CC_OP_ADD64", 64)
+    assert dep1_a.varid == 1
+    assert dep2_a.varid == 2
+    assert isinstance(dep3_a, Expr.Const)
+    assert dep1_c.size() == dep2_c.size() == dep3_c.size() == 64
+    assert set(vv_map) == {1, 2}
+
+    dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_LOGIC64", 64)
+    assert dep1_a.varid == 1
+    assert dep2_a.varid == 2
+    assert dep3_a.varid == 3
+    assert set(vv_map) == {1, 2, 3}
+
+    dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_ADC64", 64)
+    assert dep1_a.varid == 1
+    assert dep2_a.varid == 2
+    assert dep3_a.varid == 3
+    assert set(vv_map) == {1, 2, 3}
+
+    dep1_a, dep2_a, dep3_a, _, _, _, vv_map = _make_arm_operands("ARM64G_CC_OP_COPY", 64)
+    assert dep1_a.varid == 1
+    assert isinstance(dep2_a, Expr.Const)
+    assert isinstance(dep3_a, Expr.Const)
+    assert set(vv_map) == {1}
 
 
 def _z3_verify_rewriter(arch, op, cond, width):
