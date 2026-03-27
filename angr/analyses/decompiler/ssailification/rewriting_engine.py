@@ -607,20 +607,38 @@ class SimEngineSSARewriting(
 
     def _replace_def_combo_reg(
         self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject
-    ) -> VirtualVariable:
-        vvid = self.next_vvar_id()
+    ) -> Assignment:
+        # Create individual register VirtualVariables for each sub-register
+        reg_vvars = []
+        for reg in expr.registers:
+            reg_varid = self._current_vvar_id
+            self._current_vvar_id += 1
+            reg_vvar = VirtualVariable(
+                self.ail_manager.next_atom(),
+                reg_varid,
+                reg.bits,
+                VirtualVariableCategory.REGISTER,
+                oident=reg.reg_offset,
+                **(reg.tags | {"ins_addr": self.ins_addr}),
+            )
+            for suboff in range(reg.reg_offset, reg.reg_offset + reg.size):
+                self.state.registers[suboff] = reg_vvar
+            reg_vvars.append(reg_vvar)
+
+        vvid = self._current_vvar_id
+        self._current_vvar_id += 1
         result = VirtualVariable(
             expr.idx,
             vvid,
             expr.bits,
             VirtualVariableCategory.COMBO_REGISTER,
             oident=tuple(reg.reg_offset for reg in expr.registers),
-            reg_vvars=[self._replace_def_reg(reg, value, orig_tags) for reg in expr.registers],
+            reg_vvars=reg_vvars,
             **expr.tags,
         )
         for reg_vvar in result.reg_vvars:
             self._varid_to_combo_reg[reg_vvar.varid] = result
-        return result
+        return Assignment(self.ail_manager.next_atom(), result, value, **orig_tags.tags)
 
     def _replace_def_reg(self, expr: Register, value: Expression, orig_tags: TaggedObject) -> Assignment:
         """
