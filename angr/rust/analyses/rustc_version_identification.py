@@ -24,7 +24,11 @@ class RustcVersionIdentification(Analysis):
         super().__init__()
 
         base_dir = get_default_sig_dir()
-        base = Path(base_dir) if base_dir else Path(__file__).parent
+        if not os.path.isdir(base_dir):
+            l.warning("No valid signature directory found, skipping rustc version identification")
+            return
+
+        base = Path(base_dir)
         self.sig_dirs = sig_dirs or [base / "inline", base / "no-inline"]
         self._cache = {}
         self.matched_count = 0
