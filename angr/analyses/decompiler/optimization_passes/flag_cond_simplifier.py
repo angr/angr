@@ -28,19 +28,27 @@ def _replace_flag_builtins(expr):
     """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str):
         target = expr.target
+        args = expr.args
         tags = expr.tags or {}
 
+        if args is None:
+            return expr
+
         if target == "__DEC_COND_LE__":
+            if len(args) < 1:
+                return expr
             # (result + 1) <=s 1
-            result = expr.args[0]
+            result = args[0]
             n = result.bits
             one = Expr.Const(None, None, 1, n, **tags)
             inc = Expr.BinaryOp(None, "Add", [result, one], False, bits=n, **tags)
             return Expr.BinaryOp(expr.idx, "CmpLE", [inc, one], True, bits=expr.bits, **tags)
 
         if target == "__ADD_COND_LE__":
+            if len(args) < 2:
+                return expr
             # (sext(a, N+1) + sext(b, N+1)) <=s 0
-            a, b = expr.args[0], expr.args[1]
+            a, b = args[0], args[1]
             n = a.bits
             ext = n + 1
             a_ext = Expr.Convert(None, n, ext, True, a, **tags)
@@ -50,8 +58,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "CmpLE", [s_ext, zero], True, bits=expr.bits, **tags)
 
         if target == "__ADD_COND_HI__":
+            if len(args) < 2:
+                return expr
             # (a + b) <u a && (a + b) != 0
-            a, b = expr.args[0], expr.args[1]
+            a, b = args[0], args[1]
             n = a.bits
             res = Expr.BinaryOp(None, "Add", [a, b], False, bits=n, **tags)
             cf = Expr.BinaryOp(None, "CmpLT", [res, a], False, bits=1, **tags)
@@ -60,8 +70,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "And", [cf, nz], False, bits=expr.bits, **tags)
 
         if target == "__ADD_COND_GE__":
+            if len(args) < 2:
+                return expr
             # (sext(a, N+1) + sext(b, N+1)) >=s 0
-            a, b = expr.args[0], expr.args[1]
+            a, b = args[0], args[1]
             n = a.bits
             ext = n + 1
             a_ext = Expr.Convert(None, n, ext, True, a, **tags)
@@ -71,8 +83,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "CmpGE", [s_ext, zero], True, bits=expr.bits, **tags)
 
         if target == "__ADD_COND_GT__":
+            if len(args) < 2:
+                return expr
             # (sext(a, N+1) + sext(b, N+1)) >=s 0 && (a + b) != 0
-            a, b = expr.args[0], expr.args[1]
+            a, b = args[0], args[1]
             n = a.bits
             ext = n + 1
             a_ext = Expr.Convert(None, n, ext, True, a, **tags)
@@ -86,8 +100,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "And", [ge, nz], False, bits=expr.bits, **tags)
 
         if target == "__ADD_COND_NBE__":
+            if len(args) < 2:
+                return expr
             # (a + b) >=u a && (a + b) != 0  (x86 unsigned above for ADD)
-            a, b = expr.args[0], expr.args[1]
+            a, b = args[0], args[1]
             n = a.bits
             res = Expr.BinaryOp(None, "Add", [a, b], False, bits=n, **tags)
             no_cf = Expr.BinaryOp(None, "CmpGE", [res, a], False, bits=1, **tags)
@@ -96,8 +112,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "And", [no_cf, nz], False, bits=expr.bits, **tags)
 
         if target == "__SBB_COND_A__":
+            if len(args) < 3:
+                return expr
             # zext(a, N+1) >=u (zext(b, N+1) + zext(c, N+1)) && (a - b - c) != 0
-            a, b, carry = expr.args[0], expr.args[1], expr.args[2]
+            a, b, carry = args[0], args[1], args[2]
             n = a.bits
             ext = n + 1
             a_ext = Expr.Convert(None, n, ext, False, a, **tags)
@@ -112,8 +130,10 @@ def _replace_flag_builtins(expr):
             return Expr.BinaryOp(expr.idx, "And", [no_cf, nz], False, bits=expr.bits, **tags)
 
         if target == "__SBB_COND_L__":
+            if len(args) < 3:
+                return expr
             # sext(a, 2N) <s (sext(b, 2N) + zext(c, 2N))
-            a, b, carry = expr.args[0], expr.args[1], expr.args[2]
+            a, b, carry = args[0], args[1], args[2]
             n = a.bits
             ext = 2 * n
             a_ext = Expr.Convert(None, n, ext, True, a, **tags)

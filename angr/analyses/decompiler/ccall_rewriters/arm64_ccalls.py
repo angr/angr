@@ -302,8 +302,8 @@ class ARM64CCallRewriter(CCallRewriterBase):
     # =======================================================================
     # CondHI / CondLS  —  C=1 && Z=0  /  C=0 || Z=1  (unsigned > / <=)
     # =======================================================================
-    @staticmethod
     def _handle_hi_ls(
+        self,
         ccall: Expr.VEXCCallExpression,
         op_v: int,
         inv: int,

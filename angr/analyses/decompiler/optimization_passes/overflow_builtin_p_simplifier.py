@@ -28,6 +28,8 @@ def _replace_of_p(expr):
     Returns the original expression unchanged if no replacement was made.
     """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target in _OF_P_MAP:
+        if expr.args is None or len(expr.args) < 2:
+            return expr
         builtin = _OF_P_MAP[expr.target]
         a = expr.args[0]
         tags = expr.tags or {}

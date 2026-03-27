@@ -17,6 +17,8 @@ def _replace_cfadd(expr):
     Returns the original expression unchanged if no replacement was made.
     """
     if isinstance(expr, Expr.Call) and isinstance(expr.target, str) and expr.target == "__CFADD__":
+        if expr.args is None or len(expr.args) < 2:
+            return expr
         a, b = expr.args[0], expr.args[1]
         tags = expr.tags or {}
         add_expr = Expr.BinaryOp(None, "Add", [a, b], False, bits=a.bits, **tags)

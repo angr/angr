@@ -145,6 +145,17 @@ class TestDecompilerLLMRefine(TestDecompilerLLMRefineBase):
 class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     """Tests for llm_suggest_variable_names."""
 
+    @staticmethod
+    def _visible_variables(dec):
+        assert dec.codegen is not None and dec.codegen.cfunc is not None
+        visible_vars = list(dec.codegen.cfunc.unified_local_vars.keys())
+        if dec.codegen.cfunc.arg_list:
+            for cvar in dec.codegen.cfunc.arg_list:
+                var = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+                if var not in visible_vars:
+                    visible_vars.append(var)
+        return visible_vars
+
     def test_renames_variables(self):
         """Should rename variables when the LLM suggests new names."""
         dec = self._decompile("main")
@@ -238,16 +249,14 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     def test_multiple_renames(self):
         """Should rename multiple variables at once."""
         dec = self._decompile("main")
-        assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        if len(unified_vars) < 2:
-            self.skipTest("Need at least 2 variables for this test")
+        visible_vars = self._visible_variables(dec)
+        if len(visible_vars) < 2:
+            self.skipTest("Need at least 2 visible variables for this test")
 
-        var_a = unified_vars[0]
-        var_b = unified_vars[1]
+        var_a = visible_vars[0]
+        var_b = visible_vars[1]
         name_a = var_a.name or str(var_a)
         name_b = var_b.name or str(var_b)
 
