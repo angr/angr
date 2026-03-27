@@ -1985,7 +1985,8 @@ class Function(Serializable):
     def demangled_name(self):
         if self.is_rust_function():
             return rust_demangler.demangle(self.name)
-        return pydemumble.demangle(self.name).strip()
+        ast = pydemumble.demangle(self.name).strip()
+        return ast or self.name
 
     @property
     def short_name(self):
