@@ -387,10 +387,7 @@ class ARMCCallRewriter(CCallRewriterBase):
         # HS/LO — C flag (unsigned)
         if cond_v in {ARMCondHS, ARMCondLO}:
             if isinstance(dep_3, Expr.Const):
-                if dep_3.value_int == 0:
-                    op = "CmpGE" if inv == 0 else "CmpLT"
-                else:
-                    op = "CmpGT" if inv == 0 else "CmpLE"
+                op = ("CmpGE" if inv == 0 else "CmpLT") if dep_3.value_int == 0 else ("CmpGT" if inv == 0 else "CmpLE")
                 r = Expr.BinaryOp(ccall.idx, op, (dep_1, dep_2), signed=False, **ccall.tags)
                 return self._wrap(ccall, r)
             # Symbolic dep_3: emit ITE

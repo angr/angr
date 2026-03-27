@@ -34,6 +34,36 @@ def _make_mock_llm_client(responses):
     return client
 
 
+def _visible_codegen_vars(dec):
+    assert dec.codegen is not None and dec.codegen.cfunc is not None
+    visible_vars = list(dec.codegen.cfunc.unified_local_vars.keys())
+    if dec.codegen.cfunc.arg_list:
+        for cvar in dec.codegen.cfunc.arg_list:
+            var = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
+            if var is not None and var not in visible_vars:
+                visible_vars.append(var)
+    return visible_vars
+
+
+def _pick_codegen_visible_unified_var(dec):
+    """
+    Pick a unified variable that is visible in the current codegen output.
+
+    The variable manager may contain phantom unified variables that do not appear in the generated C text.
+    """
+
+    visible_vars = _visible_codegen_vars(dec)
+    assert len(visible_vars) > 0
+
+    text = dec.codegen.text or ""
+    for var in visible_vars:
+        name = var.name or str(var)
+        if name and name in text:
+            return var
+
+    return visible_vars[0]
+
+
 class TestDecompilerLLMOption(unittest.TestCase):
     """Tests for the llm_refine decompilation option."""
 
@@ -145,30 +175,13 @@ class TestDecompilerLLMRefine(TestDecompilerLLMRefineBase):
 class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
     """Tests for llm_suggest_variable_names."""
 
-    @staticmethod
-    def _visible_variables(dec):
-        assert dec.codegen is not None and dec.codegen.cfunc is not None
-        visible_vars = list(dec.codegen.cfunc.unified_local_vars.keys())
-        if dec.codegen.cfunc.arg_list:
-            for cvar in dec.codegen.cfunc.arg_list:
-                var = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                if var not in visible_vars:
-                    visible_vars.append(var)
-        return visible_vars
-
     def test_renames_variables(self):
         """Should rename variables when the LLM suggests new names."""
         dec = self._decompile("main")
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        # collect current variable names
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        assert len(unified_vars) > 0, "Expected at least one variable"
-
-        # pick a variable to rename
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         old_name = target_var.name or str(target_var)
 
         mock_client = _make_mock_llm_client(
@@ -198,9 +211,7 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         old_name = target_var.name or str(target_var)
 
         mock_client = _make_mock_llm_client(
@@ -232,9 +243,7 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         old_name = target_var.name or str(target_var)
         original_name = target_var.name
 
@@ -251,7 +260,7 @@ class TestDecompilerLLMSuggestVariableNames(TestDecompilerLLMRefineBase):
         dec = self._decompile("main")
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        visible_vars = self._visible_variables(dec)
+        visible_vars = _visible_codegen_vars(dec)
         if len(visible_vars) < 2:
             self.skipTest("Need at least 2 visible variables for this test")
 
@@ -389,10 +398,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        assert len(unified_vars) > 0
-
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         var_name = target_var.name or str(target_var)
 
         mock_client = _make_mock_llm_client(
@@ -414,9 +420,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         var_name = target_var.name or str(target_var)
 
         mock_client = _make_mock_llm_client(
@@ -468,11 +472,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        assert len(unified_vars) > 0
-
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         var_name = target_var.name or str(target_var)
 
         mock_client = _make_mock_llm_client(
@@ -489,13 +489,12 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        if len(unified_vars) < 2:
-            self.skipTest("Need at least 2 variables for this test")
+        visible_vars = _visible_codegen_vars(dec)
+        if len(visible_vars) < 2:
+            self.skipTest("Need at least 2 visible variables for this test")
 
-        var_a = unified_vars[0]
-        var_b = unified_vars[1]
+        var_a = visible_vars[0]
+        var_b = visible_vars[1]
         name_a = var_a.name or str(var_a)
         name_b = var_b.name or str(var_b)
 
@@ -520,11 +519,7 @@ class TestDecompilerLLMSuggestVariableTypes(TestDecompilerLLMRefineBase):
         assert dec._variable_kb is not None
         assert dec.codegen is not None and dec.codegen.text is not None
 
-        varman = dec._variable_kb.variables[dec.func.addr]
-        unified_vars = varman.get_unified_variables(sort=None)
-        assert len(unified_vars) > 0
-
-        target_var = unified_vars[0]
+        target_var = _pick_codegen_visible_unified_var(dec)
         var_name = target_var.name or str(target_var)
 
         # one valid, one invalid
@@ -591,35 +586,6 @@ class TestDecompilerLLMRefineHook(TestDecompilerLLMRefineBase):
 class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
     """End-to-end tests with mocked LLM responses flowing through the full pipeline."""
 
-    @staticmethod
-    def _pick_codegen_visible_unified_var(dec):
-        """
-        Pick a unified variable that is actually visible in the current codegen output.
-
-        The variable manager may contain phantom unified variables that do not appear in the generated C text.
-        """
-        assert dec.codegen is not None
-        assert dec.codegen.cfunc is not None
-
-        visible = []
-        visible.extend(dec.codegen.cfunc.unified_local_vars.keys())
-        if dec.codegen.cfunc.arg_list:
-            for cvar in dec.codegen.cfunc.arg_list:
-                v = cvar.unified_variable if cvar.unified_variable is not None else cvar.variable
-                if v is not None and v not in visible:
-                    visible.append(v)
-
-        assert len(visible) > 0
-
-        # Prefer a variable whose current printed name already appears in the generated text.
-        text = dec.codegen.text or ""
-        for v in visible:
-            name = v.name or str(v)
-            if name and name in text:
-                return v
-
-        return visible[0]
-
     def test_full_variable_rename_flow(self):
         """Full flow: decompile -> mock LLM suggests renames -> verify text changes."""
         dec = self._decompile("main")
@@ -627,7 +593,7 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         # collect a variable to rename that is visible in the codegen output
-        target_var = self._pick_codegen_visible_unified_var(dec)
+        target_var = _pick_codegen_visible_unified_var(dec)
         old_name = target_var.name or str(target_var)
         new_name = "llm_suggested_name"
 
@@ -657,7 +623,7 @@ class TestDecompilerLLMEndToEnd(TestDecompilerLLMRefineBase):
         assert dec.codegen is not None and dec.codegen.text is not None
 
         varman = dec._variable_kb.variables[dec.func.addr]
-        target_var = self._pick_codegen_visible_unified_var(dec)
+        target_var = _pick_codegen_visible_unified_var(dec)
         var_name = target_var.name or str(target_var)
 
         # mock client: no renames, no function rename, one type change
