@@ -90,7 +90,7 @@ class RustCallingConventionAnalysis(Analysis):
                 clinic = self.project.kb.clinic_factory.get(
                     self.func,
                     optimization_passes=[CallStatementRewriter, CleanupCodeRemover],
-                    end_stage=ClinicStage.POST_CALLSITES,
+                    end_stage=ClinicStage.POST_SSA_LEVEL1_SIMPLIFICATIONS,
                 )
                 if clinic:
                     self.graph = clinic.graph
