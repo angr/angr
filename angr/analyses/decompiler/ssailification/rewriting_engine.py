@@ -605,9 +605,7 @@ class SimEngineSSARewriting(
                     self.state.stackvars[suboff] = thing
         return None
 
-    def _replace_def_combo_reg(
-        self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject
-    ) -> Assignment:
+    def _replace_def_combo_reg(self, expr: ComboRegister, value: Expression, orig_tags: TaggedObject) -> Assignment:
         # Create individual register VirtualVariables for each sub-register
         reg_vvars = []
         for reg in expr.registers:
