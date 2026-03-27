@@ -579,6 +579,10 @@ class FactCollector(Analysis):
                         tmp_definitions[stmt.tmp] = stmt.data
 
                 # scan the block statements backwards to find writes to the return value register
+                # block_retval_size stores the size of the first write (in the block) to the return register; this is
+                # to account for the common case where the shorter register (e.g., al) is extended to the full register
+                # (e.g., rax) before returning.
+                block_retval_size = None
                 for stmt in reversed(block.vex.statements):
                     if isinstance(stmt, pyvex.IRStmt.Put):
                         assert block.vex.tyenv is not None
@@ -595,9 +599,12 @@ class FactCollector(Analysis):
                                 size = 4
 
                         if stmt.offset == retreg_offset:
-                            retval_sizes.append(max(size, 1))
-                        elif stmt.offset == overflow_retreg_offset:
+                            block_retval_size = max(size, 1)
+                        if stmt.offset == overflow_retreg_offset:
                             overflow_retval_sizes.append(max(size, 1))
+
+                if block_retval_size is not None:
+                    retval_sizes.append(block_retval_size)
 
                 for pred, _, data in func_graph.in_edges(node, data=True):
                     edge_type = data.get("type")
