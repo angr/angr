@@ -134,9 +134,12 @@ class FlirtAnalysis(Analysis):
                     matched = False
 
                     funcs = (
-                        self.project.kb.functions.values()
+                        self.project.kb.functions.values(meta_only=True)
                         if not updated_funcs
-                        else {self.project.kb.functions.get_by_addr(a) for a in self._get_caller_funcs(updated_funcs)}
+                        else {
+                            self.project.kb.functions.get_by_addr(a, meta_only=True)
+                            for a in self._get_caller_funcs(updated_funcs)
+                        }
                     )
                     updated_funcs = set()
 
