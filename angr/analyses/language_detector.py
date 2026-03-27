@@ -241,6 +241,7 @@ class LanguageDetector(Analysis):
         comp_name, comp_ver = compiler_info
         if comp_name:
             scores["c"] += 5
+            scores["rust"] += 5  # rust uses llvm
             evidence.append(f"cle_compiler: {comp_name} {comp_ver}")
             return comp_name, comp_ver
         return None, None

@@ -189,6 +189,7 @@ class Clinic(Analysis):
         static_buffers: dict | None = None,
         flatten_args=False,
         semvar_naming: bool = True,
+        flavor: str = "pseudocode",
     ):
         if not func.normalized and mode == ClinicMode.DECOMPILE:
             raise ValueError("Decompilation must work on normalized function graphs.")
@@ -196,6 +197,7 @@ class Clinic(Analysis):
         self.function = func
 
         self.graph = None
+        self.flavor = flavor
         self.cc_graph: networkx.DiGraph | None = None
         self.unoptimized_graph: networkx.DiGraph | None = None
         self.arg_list = None
@@ -968,7 +970,8 @@ class Clinic(Analysis):
             l.debug("variable_kb is None, skipping semantic variable naming")
             return
 
-        if self.project.is_rust_binary:
+        if self.flavor == "rust":
+            # TODO: FIXME
             return
 
         self._update_progress(91.0, text="Applying semantic variable naming")
