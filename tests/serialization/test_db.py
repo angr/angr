@@ -9,6 +9,7 @@ import tempfile
 import shutil
 import unittest
 
+import archinfo
 import cle
 
 import angr
@@ -21,6 +22,16 @@ test_location = os.path.join(bin_location, "tests")
 
 
 class TestDb(unittest.TestCase):
+    @staticmethod
+    def _roundtrip_angrdb(proj, db_file):
+        AngrDB(proj, nullpool=True).dump(db_file)
+        return AngrDB(nullpool=True).load(db_file)
+
+    @staticmethod
+    def _assert_loader_state(proj, backend_cls, arch_name):
+        assert isinstance(proj.loader.main_object, backend_cls)
+        assert proj.arch.name == arch_name
+
     def test_angrdb_fauxware(self):
         bin_path = os.path.join(test_location, "x86_64", "fauxware")
 
@@ -359,6 +370,81 @@ class TestDb(unittest.TestCase):
             assert o1.min_addr == o2.min_addr
             assert o1.max_addr == o2.max_addr
 
+    def test_angrdb_blob_loader_options_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            blob_path = os.path.join(td, "sample.bin")
+            db_file = os.path.join(td, "sample.adb")
+
+            with open(blob_path, "wb") as f:
+                f.write(b"\x01\x02\x03\x04")
+
+            proj = angr.Project(
+                blob_path,
+                auto_load_libs=False,
+                main_opts={"backend": "blob", "arch": "ARMHF"},
+            )
+
+            loaded = self._roundtrip_angrdb(proj, db_file)
+            self._assert_loader_state(loaded, cle.backends.Blob, "ARMHF")
+
+    def test_angrdb_blob_loader_options_roundtrip_with_arch_object(self):
+        with tempfile.TemporaryDirectory() as td:
+            blob_path = os.path.join(td, "sample.bin")
+            db_file = os.path.join(td, "sample.adb")
+            db_file_2 = os.path.join(td, "sample_2.adb")
+
+            with open(blob_path, "wb") as f:
+                f.write(b"\x01\x02\x03\x04")
+
+            proj = angr.Project(
+                blob_path,
+                auto_load_libs=False,
+                main_opts={"backend": "blob", "arch": archinfo.arch_from_id("ARMHF")},
+            )
+
+            loaded = self._roundtrip_angrdb(proj, db_file)
+            self._assert_loader_state(loaded, cle.backends.Blob, "ARMHF")
+
+            loaded_2 = self._roundtrip_angrdb(loaded, db_file_2)
+            self._assert_loader_state(loaded_2, cle.backends.Blob, "ARMHF")
+
+    def test_angrdb_ihex_loader_options_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            hex_path = os.path.join(td, "sample.ihex")
+            db_file = os.path.join(td, "sample.adb")
+
+            with open(hex_path, "wb") as f:
+                f.write(b":0400000001020304F2\n:00000001FF\n")
+
+            proj = angr.Project(
+                hex_path,
+                auto_load_libs=False,
+                main_opts={"backend": "hex", "arch": "ARMHF"},
+            )
+
+            loaded = self._roundtrip_angrdb(proj, db_file)
+            self._assert_loader_state(loaded, cle.backends.Hex, "ARMHF")
+
+    def test_angrdb_ihex_loader_options_roundtrip_with_arch_object(self):
+        with tempfile.TemporaryDirectory() as td:
+            hex_path = os.path.join(td, "sample.ihex")
+            db_file = os.path.join(td, "sample.adb")
+            db_file_2 = os.path.join(td, "sample_2.adb")
+
+            with open(hex_path, "wb") as f:
+                f.write(b":0400000001020304F2\n:00000001FF\n")
+
+            proj = angr.Project(
+                hex_path,
+                auto_load_libs=False,
+                main_opts={"backend": "hex", "arch": archinfo.arch_from_id("ARMHF")},
+            )
+
+            loaded = self._roundtrip_angrdb(proj, db_file)
+            self._assert_loader_state(loaded, cle.backends.Hex, "ARMHF")
+
+            loaded_2 = self._roundtrip_angrdb(loaded, db_file_2)
+            self._assert_loader_state(loaded_2, cle.backends.Hex, "ARMHF")
 
 if __name__ == "__main__":
     unittest.main()
