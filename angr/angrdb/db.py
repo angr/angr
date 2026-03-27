@@ -174,8 +174,6 @@ class AngrDB:
                 KnowledgeBaseSerializer.dump(session, kb)
 
             # Save rust binary metadata
-            if self.project.is_rust_binary:
-                self.save_info(session, "is_rust_binary", self.project.is_rust_binary)
             if self.project.rustc_version is not None:
                 self.save_info(session, "rustc_version", self.project.rustc_version)
             if self.project.rustc_optimization_level is not None:
@@ -221,12 +219,10 @@ class AngrDB:
             # Load the loader
             loader = LoaderSerializer.load(session)
             # Create the project
-            is_rust_binary = self.get_info(session, "is_rust_binary")
             rustc_version = self.get_info(session, "rustc_version")
             rustc_optimization_level = self.get_info(session, "rustc_optimization_level")
             proj = Project(
                 loader,
-                is_rust_binary=is_rust_binary,
                 rustc_version=rustc_version,
                 rustc_optimization_level=rustc_optimization_level,
             )

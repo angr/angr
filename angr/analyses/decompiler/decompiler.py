@@ -104,6 +104,8 @@ class Decompiler(Analysis):
                 func,
             )
 
+        self._flavor = flavor
+
         if cfg is None:
             cfg = self.func._function_manager._kb.cfgs.get_most_accurate()
         self._cfg = cfg.model if isinstance(cfg, CFGFast) else cfg
@@ -123,14 +125,13 @@ class Decompiler(Analysis):
                 raise TypeError('"preset" must be a DecompilationPreset instance')
             self._optimization_passes = preset.get_optimization_passes(self.project.arch, self.project.simos.name)
 
-        if self.project.is_rust_binary:
+        if self._flavor == "rust":
             self._optimization_passes.extend(get_rust_optimization_passes())
 
         l.debug("Get %d optimization passes for the current binary.", len(self._optimization_passes))
         self._sp_tracker_track_memory = sp_tracker_track_memory
         self._peephole_optimizations = peephole_optimizations
         self._vars_must_struct = vars_must_struct
-        self._flavor = flavor
         self._variable_kb = variable_kb
         self._expr_comments = expr_comments
         self._stmt_comments = stmt_comments
@@ -192,7 +193,7 @@ class Decompiler(Analysis):
 
         self._codegen_cls = CStructuredCodeGenerator
         self._typehoon_cls = Typehoon
-        if self.project.is_rust_binary:
+        if self._flavor == "rust":
             self._codegen_cls = RustStructuredCodeGenerator
             self._typehoon_cls = RustTypehoon
 
@@ -340,6 +341,7 @@ class Decompiler(Analysis):
                 notes=self.notes,
                 static_vvars=self._static_vvars,
                 static_buffers=self._static_buffers,
+                flavor=self._flavor,
                 **self.options_to_params(self.options_by_class["clinic"]),
             )
         else:
@@ -429,7 +431,7 @@ class Decompiler(Analysis):
                 kb=self.kb,
                 fail_fast=self._fail_fast,
                 variable_manager=variable_manager,
-                simplify_ifelse=not self.project.is_rust_binary,
+                simplify_ifelse=self._flavor != "rust",
                 **self.options_to_params(self.options_by_class["region_simplifier"]),
             )
             seq_node = s.result
