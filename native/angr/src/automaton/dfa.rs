@@ -150,10 +150,10 @@ impl DFA {
             }
 
             for &symbol in &self.alphabet {
-                if let Some(next) = self.transition(state, symbol) {
-                    if !visited.contains(next) {
-                        queue.push_back(next);
-                    }
+                if let Some(next) = self.transition(state, symbol)
+                    && !visited.contains(next)
+                {
+                    queue.push_back(next);
                 }
             }
         }
@@ -281,10 +281,10 @@ impl DFA {
             reachable.insert(state);
 
             for &symbol in &self.alphabet {
-                if let Some(next) = self.transition(state, symbol) {
-                    if !reachable.contains(next) {
-                        queue.push_back(next);
-                    }
+                if let Some(next) = self.transition(state, symbol)
+                    && !reachable.contains(next)
+                {
+                    queue.push_back(next);
                 }
             }
         }
@@ -323,10 +323,10 @@ impl DFA {
         }
 
         // Set start state
-        if let Some(start) = self.start_state {
-            if let Some(&new_start) = state_to_partition.get(&start) {
-                minimized.set_start_state(new_start);
-            }
+        if let Some(start) = self.start_state
+            && let Some(&new_start) = state_to_partition.get(&start)
+        {
+            minimized.set_start_state(new_start);
         }
 
         // Set final states
@@ -341,18 +341,16 @@ impl DFA {
             // Get any representative state from the partition
             if let Some(representative) = partition.iter().next() {
                 for &symbol in &self.alphabet {
-                    if let Some(dest) = self.transition(representative, symbol) {
-                        if let Some(&new_dest) = state_to_partition.get(&dest) {
-                            minimized.add_transition(part_idx as StateId, symbol, new_dest);
+                    if let Some(dest) = self.transition(representative, symbol)
+                        && let Some(&new_dest) = state_to_partition.get(&dest)
+                    {
+                        minimized.add_transition(part_idx as StateId, symbol, new_dest);
 
-                            // Copy label if exists
-                            if let Some(label) =
-                                self.transition_labels.get(&(representative, symbol))
-                            {
-                                minimized
-                                    .transition_labels
-                                    .insert((part_idx as StateId, symbol), label.clone());
-                            }
+                        // Copy label if exists
+                        if let Some(label) = self.transition_labels.get(&(representative, symbol)) {
+                            minimized
+                                .transition_labels
+                                .insert((part_idx as StateId, symbol), label.clone());
                         }
                     }
                 }
