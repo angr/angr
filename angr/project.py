@@ -261,6 +261,7 @@ class Project:
         self.is_java_jni_project = isinstance(self.arch, ArchSoot) and getattr(
             self.simos, "is_javavm_with_jni_support", False
         )
+        self._language: str | None = None
 
         # Step 6: Register simprocedures as appropriate for library functions
         if isinstance(self.arch, ArchSoot) and getattr(self.simos, "is_javavm_with_jni_support", False):
