@@ -645,6 +645,8 @@ def test_arm_cond_gt_add_rewrite():
 
 
 class _DummyAArch64Project:
+    """Minimal project stub for ARM64 rewriter tests."""
+
     arch = archinfo.ArchAArch64()
 
 
