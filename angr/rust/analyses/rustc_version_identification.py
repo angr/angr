@@ -25,7 +25,7 @@ class RustcVersionIdentification(Analysis):
 
         base_dir = get_default_sig_dir()
         base = Path(base_dir) if base_dir else Path(__file__).parent
-        self.sig_dirs = sig_dirs or [base / "default", base / "no-inline"]
+        self.sig_dirs = sig_dirs or [base / "inline", base / "no-inline"]
         self._cache = {}
         self.matched_count = 0
         self.best_sig_dir = self.sig_dirs[0]
