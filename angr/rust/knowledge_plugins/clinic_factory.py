@@ -15,7 +15,7 @@ class ClinicFactory(KnowledgeBasePlugin):
     def get(self, func, optimization_passes=None, end_stage=None):
         if optimization_passes is None:
             optimization_passes = tuple()
-        key = (func.addr, tuple(optimization_passes))
+        key = (func.addr, tuple(optimization_passes), end_stage)
         if key in self.cache:
             return self.cache[key]
         cfg = self._kb.cfgs.get_most_accurate()

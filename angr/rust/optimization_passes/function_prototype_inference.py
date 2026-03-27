@@ -45,7 +45,7 @@ class FunctionPrototypeInference(OptimizationPass, CFAMixin, SSAVariableMixin):
                     func,
                     callsite_path=Pathfinder(self._graph).find_backward_path(block),
                     post_callsite_path=post_callsite_path,
-                    is_call_expr=True,
+                    is_call_expr=False,
                     callsite_discriminant_hint=self._detect_callsite_discriminant_hint(post_callsite_path),
                 )
                 call_stmt.expr.prototype = rcc.model.inferred_prototype
