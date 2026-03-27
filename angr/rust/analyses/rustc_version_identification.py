@@ -7,6 +7,7 @@ import logging
 
 from angr.analyses import Analysis, AnalysesHub
 from angr.rust.utils.demangler import demangle
+from angr.rust.utils.rust_sigs import get_default_sig_dir
 
 l = logging.getLogger(name=__name__)
 
@@ -22,8 +23,9 @@ class RustcVersionIdentification(Analysis):
     def __init__(self, sig_dirs=None):
         super().__init__()
 
-        base = Path(__file__).parent
-        self.sig_dirs = sig_dirs or [base / "flirt_sigs", base / "flirt_sigs_no_inline"]
+        base_dir = get_default_sig_dir()
+        base = Path(base_dir) if base_dir else Path(__file__).parent
+        self.sig_dirs = sig_dirs or [base / "default", base / "no-inline"]
         self._cache = {}
         self.matched_count = 0
         self.best_sig_dir = self.sig_dirs[0]
@@ -56,9 +58,9 @@ class RustcVersionIdentification(Analysis):
             fa = self.project.analyses.Flirt(sig_path, dry_run=True, match_named_functions=True)
             matched = fa.matched_suggestions["Temporary"][1]  # {addr: name}
             count = 0
-            for addr, name in matched.items():
+            for _addr, name in matched.items():
                 name = demangle(name)
-                if not (name.startswith("core::") or name.startswith("std::") or name.startswith("alloc::")):
+                if not name.startswith(("core::", "std::", "alloc::")):
                     continue
                 count += 1
             return count
