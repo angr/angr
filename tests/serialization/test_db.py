@@ -335,6 +335,30 @@ class TestDb(unittest.TestCase):
 
             _proj = AngrDB(nullpool=True).load(out_db)
 
+    def test_angrdb_loader_multi_object(self):
+        """Verify that a Loader with multiple objects can be dumped and loaded correctly."""
+        bin_path = os.path.join(test_location, "x86_64", "fauxware")
+        lib_path = os.path.join(test_location, "x86_64", "libc.so.6")
+        proj = angr.Project(bin_path, preload_libs=[lib_path], auto_load_libs=False)
+
+        objects = proj.loader.all_elf_objects
+
+        with tempfile.TemporaryDirectory() as td:
+            db_file = os.path.join(td, "test.adb")
+            AngrDB(proj, nullpool=True).dump(db_file)
+            proj2 = AngrDB(nullpool=True).load(db_file)
+
+        objects2 = proj2.loader.all_elf_objects
+
+        assert len(objects) == len(objects2), f"number of objects mismatch: {len(objects)} vs {len(objects2)}"
+
+        for o1, o2 in zip(objects, objects2):
+            name1 = os.path.basename(o1.binary) if o1.binary else None
+            name2 = os.path.basename(o2.binary) if o2.binary else None
+            assert name1 == name2, f"object binary name mismatch: {name1} vs {name2}"
+            assert o1.min_addr == o2.min_addr
+            assert o1.max_addr == o2.max_addr
+
 
 if __name__ == "__main__":
     unittest.main()
