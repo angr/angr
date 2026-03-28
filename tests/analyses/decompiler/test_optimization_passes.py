@@ -1031,7 +1031,7 @@ class TestFlagCondSimplifier(unittest.TestCase):
                     Block(0x400010, 0, [Return(None, [_c64(1)])]),
                 )
             ],
-            else_node=Block(0x400020, 0, [Return(None, [_c64(0)])]),
+            else_node=CodeNode(Block(0x400020, 0, [Return(None, [_c64(0)])]), None),
         )
         seq = SequenceNode(0x400000, nodes=[cascade])
 
