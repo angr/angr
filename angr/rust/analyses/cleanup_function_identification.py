@@ -30,6 +30,13 @@ class CleanupFunctionIdentification(Analysis):
                 "ret",
             ]:
                 return True
+            if len(block.capstone.insns) == 4 and [insn.mnemonic for insn in block.capstone.insns] == [
+                "cmp",
+                "mov",
+                "cmovb",
+                "ret",
+            ]:
+                return True
             if len(block.capstone.insns) == 1 and [insn.mnemonic for insn in block.capstone.insns] == ["ret"]:
                 return True
         return False
