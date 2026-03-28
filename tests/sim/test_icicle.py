@@ -864,18 +864,14 @@ class TestSimStateIciclePlugin(TestCase):
             engine_id=12345,
             run_id=42,
             translation_data=dummy_td,
-            page_ids={1: 100, 2: 200},
             dirty_pages={3, 4},
         )
         copied = plugin.copy({})
         assert copied.engine_id == 12345
         assert copied.run_id == 42
-        assert copied.page_ids == {1: 100, 2: 200}
         assert copied.dirty_pages == {3, 4}
         # Ensure copies are independent
-        copied.page_ids[5] = 500
         copied.dirty_pages.add(6)
-        assert 5 not in plugin.page_ids
         assert 6 not in plugin.dirty_pages
 
     def test_plugin_merge_and_widen(self):
@@ -885,7 +881,6 @@ class TestSimStateIciclePlugin(TestCase):
             engine_id=1,
             run_id=1,
             translation_data=dummy_td,
-            page_ids={},
             dirty_pages=set(),
         )
         assert plugin.merge([], [], None) is False

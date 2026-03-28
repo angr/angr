@@ -350,10 +350,13 @@ class IcicleEngine(ConcreteEngine):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
                 state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
-                # Advance IP past the syscall instruction.  instruction_alignment
-                # is the syscall size on fixed-width ISAs; clamp to 2 for x86
-                # where alignment is 1 but all syscall variants are 2 bytes.
-                state.regs.ip = emu.pc + max(translation_data.base_state.arch.instruction_alignment, 2)
+                # Advance IP past the syscall instruction.
+                # Fixed-width ISAs: instruction_alignment is the syscall size.
+                # x86 (variable-length): alignment is 1, but all syscall variants are 2 bytes.
+                syscall_len = translation_data.base_state.arch.instruction_alignment
+                if syscall_len is None or syscall_len < 2:
+                    syscall_len = 2
+                state.regs.ip = emu.pc + syscall_len
             elif exc == ExceptionCode.Halt:
                 state.history.jumpkind = "Ijk_Exit"
             elif exc == ExceptionCode.InvalidInstruction:
