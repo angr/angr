@@ -60,7 +60,7 @@ struct Fuzzer {
 #[pymethods]
 impl Fuzzer {
     #[new]
-    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None, mutator=None, max_icount=None))]
+    #[pyo3(signature = (base_state, corpus, solutions, apply_fn, timeout=None, seed=0, max_mutations=None, mutator=None))]
     #[allow(clippy::too_many_arguments)]
     fn py_new(
         base_state: Bound<PyAny>,
@@ -71,7 +71,6 @@ impl Fuzzer {
         seed: u64,
         max_mutations: Option<u64>,
         mutator: Option<Bound<PyAny>>,
-        max_icount: Option<u64>,
     ) -> PyResult<Self> {
         if !apply_fn.is_callable() {
             return Err(PyTypeError::new_err("Expected a callable harness function"));
@@ -147,7 +146,6 @@ impl Fuzzer {
             apply_fn,
             tuple_list!(observer),
             Some(Duration::from_millis(timeout.unwrap_or(0))),
-            max_icount,
         )
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
 
@@ -168,8 +166,8 @@ impl Fuzzer {
     }
 
     #[getter]
-    fn executions(&mut self) -> u64 {
-        *self.fuzzer_state.executions_mut()
+    fn executions(&self) -> u64 {
+        *self.fuzzer_state.executions()
     }
 
     #[pyo3(signature = (progress_callback = None))]

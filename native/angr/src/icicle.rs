@@ -484,13 +484,11 @@ impl Icicle {
     }
 
     pub fn restore_snapshot(&mut self) -> PyResult<()> {
-        {
-            let snapshot = self
-                .snapshot
-                .as_ref()
-                .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
-            self.vm.restore(snapshot);
-        }
+        let snapshot = self
+            .snapshot
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("No snapshot saved"))?;
+        self.vm.restore(snapshot);
         if let Some(path_tracer) = self.path_tracer {
             path_tracer.clear(&mut self.vm);
         }

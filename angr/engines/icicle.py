@@ -61,43 +61,6 @@ def _is_x86_tls_gap(emu, prefix_byte: int, offset_reg: str) -> bool:
     return _effective_segment_prefix(insn_bytes) == prefix_byte
 
 
-def _syscall_insn_len(arch_name: str) -> int:
-    """Return the byte length of the syscall instruction for the given arch."""
-    # x86/x86_64: syscall (0F 05), int 0x80 (CD 80), sysenter (0F 34) are all 2 bytes.
-    if arch_name in ("AMD64", "X86"):
-        return 2
-    # ARM/Thumb SVC is 4 bytes (ARM) or 2 bytes (Thumb), but the icicle PC
-    # already accounts for the instruction, so default to 4 for ARM.
-    if arch_name.startswith(("ARM", "AARCH")):
-        return 4
-    # MIPS syscall is 4 bytes
-    if arch_name.startswith("MIPS"):
-        return 4
-    return 4
-
-
-def _ensure_duplex_stdio(state: HeavyConcreteState) -> None:
-    """Upgrade unidirectional stdio fds to duplex so concrete code can
-    read/write any stdio fd without crashing."""
-    from angr.storage.file import SimFileDescriptor, SimFileDescriptorDuplex, SimPacketsStream
-
-    posix = state.posix
-    for fd_num in (0, 1, 2):
-        fd_obj = posix.fd.get(fd_num)
-        if fd_obj is None or isinstance(fd_obj, SimFileDescriptorDuplex):
-            continue
-        if isinstance(fd_obj, SimFileDescriptor):
-            orig_file = fd_obj.file
-            if orig_file.write_mode:
-                read_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_read", write_mode=False)
-                read_file.set_state(state)
-                duplex = SimFileDescriptorDuplex(read_file, orig_file)
-            else:
-                write_file = SimPacketsStream(f"{orig_file.ident or orig_file.name}_write", write_mode=True)
-                write_file.set_state(state)
-                duplex = SimFileDescriptorDuplex(orig_file, write_file)
-            duplex.set_state(state)
-            posix.fd[fd_num] = duplex
 
 
 def _syscall_jumpkind(arch_name: str, emu) -> str:
@@ -310,8 +273,13 @@ class IcicleEngine(ConcreteEngine):
             if perm_bits & 2:
                 writable_pages.add(page_num)
 
-        # Add breakpoints for simprocedures, skipping ifunc resolvers
-        # which should run natively in the concrete engine.
+        # Add breakpoints for simprocedures so the engine hands control
+        # back to angr for hooks/syscalls.  IFuncResolvers (memcpy, strlen,
+        # etc.) are excluded: they dispatch to a CPU-feature-selected
+        # implementation via self.call(), which would cause an expensive
+        # Python round-trip on every libc string call.  Letting icicle
+        # execute them natively is both faster and correct since IFUNC
+        # resolution is pure concrete computation.
         from angr.procedures.linux_loader.sim_loader import IFuncResolver
 
         for addr, proc in proj._sim_procedures.items():
@@ -352,11 +320,9 @@ class IcicleEngine(ConcreteEngine):
         # Restore TLS base from FS/GS_OFFSET (register copy clobbers it).
         arch_name = translation_data.base_state.arch.name
         if arch_name == "AMD64":
-            with suppress(KeyError):
-                state.regs.fs = emu.reg_read("FS_OFFSET")
+            state.regs.fs = emu.reg_read("FS_OFFSET")
         elif arch_name == "X86":
-            with suppress(KeyError):
-                state.regs.gs = emu.reg_read("GS_OFFSET") >> 16
+            state.regs.gs = emu.reg_read("GS_OFFSET") >> 16
 
         # 2. Copy only memory pages that were actually modified during execution
         modified_addrs = set(emu.modified_pages)
@@ -384,8 +350,10 @@ class IcicleEngine(ConcreteEngine):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
                 state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
-                # Advance IP past the syscall instruction.
-                state.regs.ip = emu.pc + _syscall_insn_len(arch_name)
+                # Advance IP past the syscall instruction.  instruction_alignment
+                # is the syscall size on fixed-width ISAs; clamp to 2 for x86
+                # where alignment is 1 but all syscall variants are 2 bytes.
+                state.regs.ip = emu.pc + max(translation_data.base_state.arch.instruction_alignment, 2)
             elif exc == ExceptionCode.Halt:
                 state.history.jumpkind = "Ijk_Exit"
             elif exc == ExceptionCode.InvalidInstruction:
@@ -526,26 +494,26 @@ class IcicleEngine(ConcreteEngine):
         return self._cached_emu is not None and self._cached_emu.has_snapshot()
 
     @staticmethod
-    def _build_page_ids(state: HeavyConcreteState, writable_pages: set[int]) -> dict[int, int | None]:
-        """Build page object identity snapshot for fast change detection."""
-        page_ids: dict[int, int | None] = {}
-        for page_num in writable_pages:
-            page = state.memory._pages.get(page_num)
-            page_ids[page_num] = id(page) if page is not None else None
-        return page_ids
+    def _install_dirty_page_tracking(state: HeavyConcreteState, dirty_pages: set[int]) -> None:
+        """Wrap the state's memory store to record which pages are written.
 
-    @staticmethod
-    def _get_changed_writable_pages(
-        state: HeavyConcreteState, writable_pages: set[int], page_ids: dict[int, int | None]
-    ) -> list[int]:
-        """Return writable page numbers whose page object changed (COW detection)."""
-        changed: list[int] = []
-        for page_num in writable_pages:
-            page = state.memory._pages.get(page_num)
-            cur_id = id(page) if page is not None else None
-            if page_ids.get(page_num) != cur_id:
-                changed.append(page_num)
-        return changed
+        When hooks or syscall handlers modify the angr state between icicle
+        runs, this tracking lets the continuation path know which pages need
+        to be synced back to the VM.
+        """
+        mem = state.memory
+        page_size = mem.page_size
+        original_store = mem.store
+
+        def _tracking_store(addr, data, size=None, **kwargs):
+            if isinstance(addr, int) and isinstance(size, int):
+                start_page = addr // page_size
+                end_page = (addr + size - 1) // page_size
+                for p in range(start_page, end_page + 1):
+                    dirty_pages.add(p)
+            return original_store(addr, data, size=size, **kwargs)
+
+        mem.store = _tracking_store
 
     @staticmethod
     def __sync_continuation(
@@ -619,27 +587,20 @@ class IcicleEngine(ConcreteEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
-        _ensure_duplex_stdio(state)
-
         # Check for continuation via state plugin.
         plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
         icicle_plugin = plugin if isinstance(plugin, SimStateIcicle) else None
 
-        is_continuation = (
+        if (
             icicle_plugin is not None
             and icicle_plugin.engine_id == id(self)
             and icicle_plugin.run_id == self._run_counter
             and self._cached_emu is not None
-        )
-
-        if is_continuation:
-            assert icicle_plugin is not None
-            assert self._cached_emu is not None
-            # Continuation: sync registers + changed/dirty pages (no snapshot restore).
-            changed = self._get_changed_writable_pages(
-                state, icicle_plugin.translation_data.writable_pages, icicle_plugin.page_ids
-            )
-            pages_to_sync = set(changed) | icicle_plugin.dirty_pages
+        ):
+            # Continuation: sync registers + dirty pages (no snapshot restore).
+            # dirty_pages includes both icicle-written pages (from emu.modified_pages)
+            # and angr-written pages (from the store tracking hook).
+            pages_to_sync = set(icicle_plugin.dirty_pages)
             translation_data = self.__sync_continuation(
                 self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
             )
@@ -694,6 +655,9 @@ class IcicleEngine(ConcreteEngine):
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
         # Attach plugin for continuation detection on the next call.
+        # Seed dirty_pages with pages icicle wrote; the store-tracking hook
+        # will add any pages that angr hooks/syscalls modify before the next
+        # engine call.
         page_size = state.memory.page_size
         dirty_pages = {addr // page_size for addr in emu.modified_pages}
         self._run_counter += 1
@@ -703,10 +667,10 @@ class IcicleEngine(ConcreteEngine):
                 engine_id=id(self),
                 run_id=self._run_counter,
                 translation_data=translation_data,
-                page_ids=self._build_page_ids(result, translation_data.writable_pages),
                 dirty_pages=dirty_pages,
             ),
         )
+        self._install_dirty_page_tracking(result, dirty_pages)
 
         return result
 

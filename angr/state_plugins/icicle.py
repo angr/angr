@@ -24,14 +24,12 @@ class SimStateIcicle(SimStatePlugin):
         engine_id: int,
         run_id: int,
         translation_data: IcicleStateTranslationData,
-        page_ids: dict[int, int | None],
         dirty_pages: set[int],
     ):
         super().__init__()
         self.engine_id = engine_id
         self.run_id = run_id
         self.translation_data = translation_data
-        self.page_ids = page_ids
         self.dirty_pages = dirty_pages
 
     def set_state(self, state):
@@ -43,7 +41,6 @@ class SimStateIcicle(SimStatePlugin):
             engine_id=self.engine_id,
             run_id=self.run_id,
             translation_data=self.translation_data,
-            page_ids=dict(self.page_ids),
             dirty_pages=set(self.dirty_pages),
         )
 
