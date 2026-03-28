@@ -61,8 +61,6 @@ def _is_x86_tls_gap(emu, prefix_byte: int, offset_reg: str) -> bool:
     return _effective_segment_prefix(insn_bytes) == prefix_byte
 
 
-
-
 def _syscall_jumpkind(arch_name: str, emu) -> str:
     """Map icicle's generic Syscall exception to the arch-specific VEX jumpkind."""
     if arch_name in ("AMD64", "X86"):
