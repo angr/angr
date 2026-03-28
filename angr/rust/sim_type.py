@@ -244,9 +244,9 @@ class RustSimTypeReference(RustSimType, SimTypePointer):
         return f"&{self.pts_to}"
 
     def repr(self, name=None, full=0, memo=None, indent=0):
-        # if pts_to is SimTypeBottom, we return a void*
+        # if pts_to is SimTypeBottom, we return a *u8
         if isinstance(self.pts_to, SimTypeBottom):
-            out = "void*"
+            out = "*u8"
             if name is None:
                 return out
             return f"{out} {name}"
