@@ -229,7 +229,7 @@ class IcicleEngine(ConcreteEngine):
             emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
         # Add breakpoints for all registered simprocedures so the engine
-        # hands control back to angr for hooks/syscalls.  
+        # hands control back to angr for hooks/syscalls.
         for addr in proj._sim_procedures:
             emu.add_breakpoint(addr)
 

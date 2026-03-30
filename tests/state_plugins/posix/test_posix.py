@@ -71,7 +71,6 @@ class TestPosix(unittest.TestCase):
         assert real_end is simfd.tell()
         state.posix.close(fd)
 
-
     def test_stderr_is_duplex(self):
         """On a real system all three stdio fds are read+write on the same tty.
         Verify that stderr (fd 2) is duplex so concrete code that reads from it
