@@ -540,6 +540,7 @@ class IcicleEngine(ConcreteEngine):
             icicle_plugin.engine_id == id(self)
             and icicle_plugin.run_id == self._run_counter
             and self._cached_emu is not None
+            and icicle_plugin.translation_data is not None
         ):
             # Continuation: sync registers + dirty pages (no snapshot restore).
             # dirty_pages includes both icicle-written pages (from emu.modified_pages)
@@ -608,7 +609,7 @@ class IcicleEngine(ConcreteEngine):
         # engine call.
         page_size = state.memory.page_size
         self._run_counter += 1
-        result_plugin = result.get_plugin("icicle")
+        result_plugin = cast(SimStateIcicle, result.get_plugin("icicle"))
         result_plugin.engine_id = id(self)
         result_plugin.run_id = self._run_counter
         result_plugin.translation_data = translation_data
