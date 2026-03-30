@@ -7,6 +7,8 @@ import os
 import re
 from typing import TypeVar, TYPE_CHECKING, Any
 
+from angr.errors import AngrAIError
+
 if TYPE_CHECKING:
     from pydantic_ai.models import Model
     from pydantic_ai.settings import ModelSettings
@@ -122,10 +124,14 @@ class LLMClient:
         result = agent.run_sync(prompt, model_settings=self._model_settings())
         return result.output
 
-    def completion_structured(self, messages: list[dict[str, str]], output_type: type[T], **kwargs) -> T | None:
+    def completion_structured(
+        self, messages: list[dict[str, str]], output_type: type[T], raise_exc: bool = False, **kwargs
+    ) -> T | None:
         """
         Call the LLM with the given messages and return a validated Pydantic model.
         Returns None if the call fails.
+
+        :param raise_exc:   If True, exceptions are propagated to the caller instead of being caught.
         """
 
         global Agent
@@ -145,17 +151,23 @@ class LLMClient:
             agent = Agent(self._pydantic_model, output_type=output_type)
             result = agent.run_sync(prompt, model_settings=self._model_settings())
             return result.output
-        except UserError:
+        except UserError as ex:
+            if raise_exc:
+                raise AngrAIError("Failed to get structured LLM response due to a user error.") from ex
             l.error("Failed to get structured LLM response due to a user error.", exc_info=True)
-        except Exception:  # pylint:disable=broad-exception-caught
+        except Exception as ex:  # pylint:disable=broad-exception-caught
+            if raise_exc:
+                raise AngrAIError("Failed to get structured LLM response") from ex
             l.warning("Failed to get structured LLM response", exc_info=True)
         return None
 
-    def completion_json(self, messages: list[dict[str, str]], **kwargs) -> dict | None:
+    def completion_json(self, messages: list[dict[str, str]], raise_exc: bool = False, **kwargs) -> dict | None:
         """
         Call the LLM and parse the response as JSON.
         Strips markdown code fences if present. Returns None on parse failure.
         Kept for backwards compatibility; prefer completion_structured().
+
+        :param raise_exc:   If True, exceptions are propagated to the caller instead of being caught.
         """
         text = self.completion(messages, **kwargs)
         if not text:
@@ -169,7 +181,9 @@ class LLMClient:
 
         try:
             return json.loads(text)
-        except (json.JSONDecodeError, ValueError):
+        except (json.JSONDecodeError, ValueError) as ex:
+            if raise_exc:
+                raise AngrAIError("Failed to parse LLM response as JSON") from ex
             l.warning("Failed to parse LLM response as JSON: %s", text[:200])
             return None
 

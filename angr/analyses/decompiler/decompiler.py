@@ -16,6 +16,7 @@ from angr.sim_variable import SimMemoryVariable, SimRegisterVariable, SimStackVa
 from angr.utils import timethis
 from angr.analyses import Analysis, AnalysesHub
 from angr.sim_type import parse_type
+from angr.errors import AngrAIError
 from .clinic import ClinicStage
 from .structured_codegen.c import CStructuredCodeGenerator
 from .structuring import RecursiveStructurer, PhoenixStructurer, DEFAULT_STRUCTURER
@@ -838,10 +839,15 @@ class Decompiler(Analysis):
 
         return changed
 
-    def llm_suggest_variable_names(self, llm_client=None, code_text: str | None = None) -> bool:
+    def llm_suggest_variable_names(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> bool:
         """
         Ask the LLM to suggest better variable names for the decompiled code.
         Returns True if any variables were renamed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
+                            If False (default), exceptions are caught and the method returns False.
         """
 
         from angr.llm_models import VariableNameSuggestions  # pylint:disable=import-outside-toplevel
@@ -882,7 +888,7 @@ class Decompiler(Analysis):
         )
 
         result = llm_client.completion_structured(
-            [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions
+            [{"role": "user", "content": prompt}], output_type=VariableNameSuggestions, raise_exc=raise_exc
         )
         if not result:
             return False
@@ -911,11 +917,13 @@ class Decompiler(Analysis):
 
         return changed
 
-    def llm_suggest_function_name(self, llm_client=None, code_text: str | None = None) -> bool:
+    def llm_suggest_function_name(self, llm_client=None, code_text: str | None = None, raise_exc: bool = False) -> bool:
         """
         Ask the LLM to suggest a better function name.
         Only suggests rename for auto-generated names (starting with 'sub_' or 'fcn.').
         Returns True if the function was renamed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
         """
 
         from angr.llm_models import FunctionNameSuggestion  # pylint:disable=import-outside-toplevel
@@ -940,7 +948,7 @@ class Decompiler(Analysis):
         )
 
         result = llm_client.completion_structured(
-            [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion
+            [{"role": "user", "content": prompt}], output_type=FunctionNameSuggestion, raise_exc=raise_exc
         )
         if not result:
             return False
@@ -957,10 +965,14 @@ class Decompiler(Analysis):
 
         return True
 
-    def llm_suggest_variable_types(self, llm_client=None, code_text: str | None = None) -> bool:
+    def llm_suggest_variable_types(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> bool:
         """
         Ask the LLM to suggest better C types for variables.
         Returns True if any variable types were changed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
         """
 
         from angr.llm_models import VariableTypeSuggestions  # pylint:disable=import-outside-toplevel
@@ -996,7 +1008,7 @@ class Decompiler(Analysis):
         )
 
         result = llm_client.completion_structured(
-            [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions
+            [{"role": "user", "content": prompt}], output_type=VariableTypeSuggestions, raise_exc=raise_exc
         )
         if not result:
             return False
@@ -1031,12 +1043,16 @@ class Decompiler(Analysis):
 
         return changed
 
-    def llm_summarize_function(self, llm_client=None, code_text: str | None = None) -> str | None:
+    def llm_summarize_function(
+        self, llm_client=None, code_text: str | None = None, raise_exc: bool = False
+    ) -> str | None:
         """
         Ask the LLM to produce a natural-language summary of what the decompiled function does.
         The summary is stored in the DecompilationCache and returned.
 
         Returns the summary string, or None if summarization failed.
+
+        :param raise_exc:   If True, exceptions from the LLM call are propagated to the caller.
         """
         if llm_client is None:
             llm_client = self.project.llm_client
@@ -1059,7 +1075,9 @@ class Decompiler(Analysis):
 
         try:
             summary = llm_client.completion([{"role": "user", "content": prompt}])
-        except Exception:  # pylint:disable=broad-exception-caught
+        except Exception as ex:  # pylint:disable=broad-exception-caught
+            if raise_exc:
+                raise AngrAIError("LLM call failed") from ex
             l.warning("llm_summarize_function: LLM call failed", exc_info=True)
             return None
 
