@@ -13,6 +13,9 @@ if TYPE_CHECKING:
     from pydantic_ai.models import Model
     from pydantic_ai.settings import ModelSettings
     from pydantic_ai.providers import Provider
+    from mcp.shared.context import RequestContext
+    from mcp.client.session import ClientSession
+    from mcp.types import CreateMessageRequestParams, CreateMessageResult, ErrorData
 
 T = TypeVar("T")
 
@@ -186,6 +189,88 @@ class LLMClient:
                 raise AngrAIError("Failed to parse LLM response as JSON") from ex
             l.warning("Failed to parse LLM response as JSON: %s", text[:200])
             return None
+
+    async def create_message(
+        self,
+        context: RequestContext[ClientSession, Any],
+        params: CreateMessageRequestParams,
+    ) -> CreateMessageResult | ErrorData:
+        """
+        MCP sampling callback. Handles ``sampling/createMessage`` requests from
+        MCP servers by forwarding them to the configured LLM via pydantic-ai.
+
+        Suitable for passing directly as the *sampling_callback* argument to
+        :class:`mcp.client.session.ClientSession`.
+
+		Here is an example::
+
+		from mcp.client.session import ClientSession
+		from angr.llm_client import LLMClient
+
+        client = LLMClient(model="openai:gpt-4o", api_key="sk-...")
+        async with ClientSession(
+		    read_stream=read,
+		    write_stream=write,
+		    sampling_callback=client.create_message,
+	    ) as session:
+            await session.initialize()
+			# do whatever you need here
+        """
+        from mcp.types import (
+            CreateMessageResult,
+            ErrorData,
+            SamplingMessage,
+            TextContent,
+        )
+        from pydantic_ai.settings import ModelSettings as PydanticModelSettings  # type: ignore
+
+        global Agent
+
+        try:
+            if Agent is None:
+                from pydantic_ai import Agent  # type: ignore
+        except ImportError:
+            return ErrorData(
+                code=-1,
+                message="pydantic-ai is required for LLM support. Install with: pip install angr[llm]",
+            )
+
+        # build the prompt from MCP messages
+        parts: list[str] = []
+        if params.systemPrompt:
+            parts.append(f"[system]\n{params.systemPrompt}")
+        for msg in params.messages:
+            blocks = msg.content if isinstance(msg.content, list) else [msg.content]
+            for block in blocks:
+                if isinstance(block, TextContent):
+                    parts.append(f"[{msg.role}]\n{block.text}")
+                else:
+                    l.warning("Skipping unsupported content type in MCP sampling request: %s", type(block).__name__)
+
+        prompt = "\n\n".join(parts)
+        if not prompt:
+            return ErrorData(code=-1, message="No text content in sampling request")
+
+        # build model settings, honouring request-level overrides
+        settings: dict[str, Any] = {}
+        settings["max_tokens"] = params.maxTokens
+        temperature = params.temperature if params.temperature is not None else self.temperature
+        settings["temperature"] = temperature
+        if params.stopSequences:
+            settings["stop_sequences"] = params.stopSequences
+
+        try:
+            agent = Agent(self._pydantic_model, output_type=str)
+            result = agent.run_sync(prompt, model_settings=PydanticModelSettings(**settings))
+            return CreateMessageResult(
+                role="assistant",
+                content=TextContent(type="text", text=result.output),
+                model=self.model,
+                stopReason="endTurn",
+            )
+        except Exception as ex:
+            l.warning("MCP sampling request failed", exc_info=True)
+            return ErrorData(code=-1, message=str(ex))
 
     def __repr__(self):
         return f"<LLMClient model={self.model!r}>"
