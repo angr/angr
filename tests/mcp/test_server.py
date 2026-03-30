@@ -18,7 +18,7 @@ from angr.mcp.server import (
     list_projects,
     close_project,
 )
-from angr.mcp.exceptions import (
+from angr.mcp.errors import (
     ProjectNotFoundError,
     CFGNotBuiltError,
     FunctionNotFoundError,
