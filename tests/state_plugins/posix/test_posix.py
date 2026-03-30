@@ -7,6 +7,7 @@ import unittest
 import claripy
 
 from angr import SimState, SimFile
+from angr.storage.file import SimFileDescriptorDuplex
 
 
 class TestPosix(unittest.TestCase):
@@ -69,6 +70,24 @@ class TestPosix(unittest.TestCase):
         simfd.seek(0, "end")
         assert real_end is simfd.tell()
         state.posix.close(fd)
+
+
+    def test_stderr_is_duplex(self):
+        """On a real system all three stdio fds are read+write on the same tty.
+        Verify that stderr (fd 2) is duplex so concrete code that reads from it
+        (e.g. glibc checking isatty) does not crash."""
+        state = SimState(arch="AMD64", mode="symbolic")
+
+        stderr_fd = state.posix.get_fd(2)
+        assert isinstance(stderr_fd, SimFileDescriptorDuplex)
+
+        # Writing to stderr should succeed.
+        data = claripy.BVV(b"err")
+        stderr_fd.write_data(data, size=3)
+
+        # Reading from stderr should also succeed (reads from stdin stream).
+        read_data, read_size = stderr_fd.read_data(1)
+        assert read_data is not None
 
 
 if __name__ == "__main__":

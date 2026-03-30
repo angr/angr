@@ -51,9 +51,9 @@ mov byte ptr [rdi], 0
 ret
 """
 
-# Shellcode with a TLS access: fs:[0x10000] is unmapped when FS_OFFSET=0
+# Shellcode with a TLS access: without TLS setup this faults as a memory error
 SHELLCODE_TLS_ACCESS = """
-mov rax, qword ptr fs:[0x10000]
+mov rax, qword ptr fs:[0x28]
 ret
 """
 
@@ -299,11 +299,8 @@ class TestFuzzer:
         solutions_after_second = fuzzer.solutions()
         assert len(solutions_after_second) >= 1, "crash_path should produce a solution"
 
-    def test_tls_emulation_gap_not_crash(self):
-        """TLS access via uninitialised FS_OFFSET should be an emulation gap, not a crash."""
-        # With FS_OFFSET=0 the effective address 0x10000 is unmapped, triggering
-        # ReadUnmapped.  The emulation-gap heuristic should recognise the fs:
-        # prefix and classify this as Ijk_EmFail, NOT Ijk_SigSEGV.
+    def test_tls_access_without_tls_is_crash(self):
+        """TLS access in shellcode (no TLS setup) is correctly reported as a crash."""
         project = angr.load_shellcode(SHELLCODE_TLS_ACCESS, "amd64")
         base_state = project.factory.entry_state()
 
@@ -324,7 +321,7 @@ class TestFuzzer:
 
         fuzzer.run_once()
         live_solutions = fuzzer.solutions()
-        assert len(live_solutions) == 0, "TLS emulation gap should not be classified as a crash"
+        assert len(live_solutions) >= 1, "TLS access without TLS should be a crash"
 
     def test_syscall_handling(self):
         """Test that a syscall instruction is handled and execution resumes correctly."""

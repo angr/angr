@@ -201,9 +201,8 @@ class TestBreakpoints(TestCase):
         stop_reason = emulator.run()
         assert stop_reason == EmulatorStopReason.MEMORY_ERROR
 
-    def test_emulation_gap(self):
-        """Test that an emulation gap (e.g. TLS access) is reported correctly."""
-        # mov rax, fs:[0] — accesses TLS segment with FS base = 0
+    def test_tls_access_without_tls(self):
+        """TLS access in shellcode (no TLS setup) faults as a memory error."""
         shellcode = "mov rax, fs:[0]"
         project = angr.load_shellcode(shellcode, "amd64")
         engine = UberIcicleEngine(project)
@@ -214,6 +213,4 @@ class TestBreakpoints(TestCase):
 
         emulator = Emulator(engine, init_state.copy())
         stop_reason = emulator.run()
-        # With FS=0 and no TLS threads, this is classified as a memory error
-        # (TLS gap detection requires loader.tls.threads to be populated)
-        assert stop_reason in (EmulatorStopReason.EMULATION_GAP, EmulatorStopReason.MEMORY_ERROR)
+        assert stop_reason == EmulatorStopReason.MEMORY_ERROR

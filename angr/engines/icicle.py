@@ -20,45 +20,12 @@ from angr.engines.syscall import SimEngineSyscall
 from angr.rustylib.icicle import ExceptionCode, Icicle, VmExit
 from angr.state_plugins.edge_hitmap import SimStateEdgeHitmap
 from angr.state_plugins.icicle import SimStateIcicle
+from angr.state_plugins.inspect import BP_AFTER
 
 log = logging.getLogger(__name__)
 
 
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
-
-# x86/x86-64 legacy instruction prefix bytes (appear before REX + opcode)
-_X86_LEGACY_PREFIXES = frozenset({0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0x66, 0x67, 0xF0, 0xF2, 0xF3})
-
-# Group 2 segment-override prefixes (only the last one in the prefix area
-# is effective; earlier ones are silently overridden by the CPU).
-_X86_SEGMENT_PREFIXES = frozenset({0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65})
-
-
-def _effective_segment_prefix(insn_bytes) -> int | None:
-    """Return the last (effective) segment-override prefix, or None."""
-    last_seg = None
-    for byte in insn_bytes:
-        if byte in _X86_SEGMENT_PREFIXES:
-            last_seg = byte
-        elif byte not in _X86_LEGACY_PREFIXES:
-            # REX (0x40-0x4F) or opcode — segment overrides must precede REX,
-            # so the last_seg we've seen is the effective one.
-            break
-    return last_seg
-
-
-def _is_x86_tls_gap(emu, prefix_byte: int, offset_reg: str) -> bool:
-    """Return True if the faulting instruction uses a segment prefix and the base is zero."""
-    try:
-        if emu.reg_read(offset_reg) != 0:
-            return False
-    except KeyError:
-        return False
-    try:
-        insn_bytes = emu.mem_read(emu.pc, 15)
-    except RuntimeError:
-        return False
-    return _effective_segment_prefix(insn_bytes) == prefix_byte
 
 
 def _syscall_jumpkind(arch_name: str, emu) -> str:
@@ -73,17 +40,6 @@ def _syscall_jumpkind(arch_name: str, emu) -> str:
         if insn == b"\x0f\x05":
             return "Ijk_Sys_syscall"
     return "Ijk_Sys_syscall"
-
-
-def _is_emulation_gap(emu, exc: ExceptionCode, arch_name: str) -> bool:
-    """Check if an unmapped-memory fault is a TLS emulation gap, not a real crash."""
-    if exc not in (ExceptionCode.ReadUnmapped, ExceptionCode.WriteUnmapped):
-        return False
-    if arch_name == "AMD64":
-        return _is_x86_tls_gap(emu, 0x64, "FS_OFFSET")
-    if arch_name == "X86":
-        return _is_x86_tls_gap(emu, 0x65, "GS_OFFSET")
-    return False
 
 
 @dataclass
@@ -246,13 +202,6 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
-        # Set x86 TLS segment offsets if the loader initialised TLS.
-        if proj is not None and proj.loader.tls.threads:
-            if state.arch.name == "X86":
-                emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
-            elif state.arch.name == "AMD64":
-                emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
-
         # 2. Copy the memory contents
 
         mapped_pages = IcicleEngine.__get_pages(state)
@@ -270,6 +219,14 @@ class IcicleEngine(ConcreteEngine):
 
             if perm_bits & 2:
                 writable_pages.add(page_num)
+
+        # Set x86/AMD64 TLS segment base from the state register.
+        # The SimOS layer ensures a valid TLS base is always set, either
+        # from the loader's TLS data or via a fallback allocation.
+        if state.arch.name == "AMD64":
+            emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        elif state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
         # Add breakpoints for simprocedures so the engine hands control
         # back to angr for hooks/syscalls.  IFuncResolvers (memcpy, strlen,
@@ -334,11 +291,7 @@ class IcicleEngine(ConcreteEngine):
         # 3.1 history.jumpkind
         exc = emu.exception_code
         if status == VmExit.UnhandledException:
-            if exc in (ExceptionCode.ReadUnmapped, ExceptionCode.WriteUnmapped) and _is_emulation_gap(
-                emu, exc, translation_data.base_state.arch.name
-            ):
-                state.history.jumpkind = "Ijk_EmFail"
-            elif exc in (
+            if exc in (
                 ExceptionCode.ReadUnmapped,
                 ExceptionCode.ReadPerm,
                 ExceptionCode.WriteUnmapped,
@@ -406,12 +359,11 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:
             emu.pc = state.addr
 
-        # Set x86 TLS segment offsets if the loader initialised TLS.
-        if state.project is not None and state.project.loader.tls.threads:
-            if state.arch.name == "X86":
-                emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
-            elif state.arch.name == "AMD64":
-                emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        # Sync x86/AMD64 TLS segment base.
+        if state.arch.name == "AMD64":
+            emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        elif state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
         # 2. Sync mapping/permission deltas.
         page_size = state.memory.page_size
@@ -495,26 +447,25 @@ class IcicleEngine(ConcreteEngine):
         return self._cached_emu is not None and self._cached_emu.has_snapshot()
 
     @staticmethod
-    def _install_dirty_page_tracking(state: HeavyConcreteState, dirty_pages: set[int]) -> None:
-        """Wrap the state's memory store to record which pages are written.
-
-        When hooks or syscall handlers modify the angr state between icicle
-        runs, this tracking lets the continuation path know which pages need
-        to be synced back to the VM.
+    def _install_dirty_page_tracking(state: HeavyConcreteState) -> None:
+        """Register a SimInspect callback on memory writes to record which
+        pages are dirtied by hooks or syscall handlers between icicle runs.
         """
-        mem = state.memory
-        page_size = mem.page_size
-        original_store = mem.store
+        page_size = state.memory.page_size
 
-        def _tracking_store(addr, data, size=None, **kwargs):
-            if isinstance(addr, int) and isinstance(size, int):
+        def _on_mem_write(state):
+            plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
+            if not isinstance(plugin, SimStateIcicle):
+                return
+            addr = state.inspect.mem_write_address
+            length = state.inspect.mem_write_length
+            if isinstance(addr, int) and isinstance(length, int):
                 start_page = addr // page_size
-                end_page = (addr + size - 1) // page_size
+                end_page = (addr + length - 1) // page_size
                 for p in range(start_page, end_page + 1):
-                    dirty_pages.add(p)
-            return original_store(addr, data, size=size, **kwargs)
+                    plugin.dirty_pages.add(p)
 
-        mem.store = _tracking_store
+        state.inspect.b("mem_write", when=BP_AFTER, action=_on_mem_write)
 
     @staticmethod
     def __sync_continuation(
@@ -541,12 +492,11 @@ class IcicleEngine(ConcreteEngine):
         else:
             emu.pc = state.addr
 
-        # TLS segment registers
-        if state.project is not None and state.project.loader.tls.threads:
-            if state.arch.name == "X86":
-                emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
-            elif state.arch.name == "AMD64":
-                emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        # Sync x86/AMD64 TLS segment base.
+        if state.arch.name == "AMD64":
+            emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        elif state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
         # 2. Only sync changed memory pages
         page_size = state.memory.page_size
@@ -602,6 +552,12 @@ class IcicleEngine(ConcreteEngine):
             # dirty_pages includes both icicle-written pages (from emu.modified_pages)
             # and angr-written pages (from the store tracking hook).
             pages_to_sync = set(icicle_plugin.dirty_pages)
+            # >>> PR2 — DO NOT COMMIT TO PR1 <<<
+            # Pick up pages newly mapped by syscall handlers (e.g. mmap).
+            for page_num, page in state.memory._pages.items():
+                if page is not None and page_num not in icicle_plugin.translation_data.mapped_pages:
+                    pages_to_sync.add(page_num)
+            # >>> END PR2 <<<
             translation_data = self.__sync_continuation(
                 self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
             )
@@ -671,7 +627,7 @@ class IcicleEngine(ConcreteEngine):
                 dirty_pages=dirty_pages,
             ),
         )
-        self._install_dirty_page_tracking(result, dirty_pages)
+        self._install_dirty_page_tracking(result)
 
         return result
 
