@@ -552,12 +552,10 @@ class IcicleEngine(ConcreteEngine):
             # dirty_pages includes both icicle-written pages (from emu.modified_pages)
             # and angr-written pages (from the store tracking hook).
             pages_to_sync = set(icicle_plugin.dirty_pages)
-            # >>> PR2 — DO NOT COMMIT TO PR1 <<<
             # Pick up pages newly mapped by syscall handlers (e.g. mmap).
             for page_num, page in state.memory._pages.items():
                 if page is not None and page_num not in icicle_plugin.translation_data.mapped_pages:
                     pages_to_sync.add(page_num)
-            # >>> END PR2 <<<
             translation_data = self.__sync_continuation(
                 self._cached_emu, state, icicle_plugin.translation_data, list(pages_to_sync)
             )
