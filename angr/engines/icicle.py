@@ -228,18 +228,10 @@ class IcicleEngine(ConcreteEngine):
         elif state.arch.name == "X86":
             emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
-        # Add breakpoints for simprocedures so the engine hands control
-        # back to angr for hooks/syscalls.  IFuncResolvers (memcpy, strlen,
-        # etc.) are excluded: they dispatch to a CPU-feature-selected
-        # implementation via self.call(), which would cause an expensive
-        # Python round-trip on every libc string call.  Letting icicle
-        # execute them natively is both faster and correct since IFUNC
-        # resolution is pure concrete computation.
-        from angr.procedures.linux_loader.sim_loader import IFuncResolver
-
-        for addr, proc in proj._sim_procedures.items():
-            if not isinstance(proc, IFuncResolver):
-                emu.add_breakpoint(addr)
+        # Add breakpoints for all registered simprocedures so the engine
+        # hands control back to angr for hooks/syscalls.  
+        for addr in proj._sim_procedures:
+            emu.add_breakpoint(addr)
 
         translation_data = IcicleStateTranslationData(
             base_state=state,
@@ -301,8 +293,9 @@ class IcicleEngine(ConcreteEngine):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
                 state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
-                # Advance IP past the syscall instruction.
-                # Fixed-width ISAs: instruction_alignment is the syscall size.
+                # Icicle stops at the syscall instruction (unlike VEX
+                # which computes the next IP during lifting), so we
+                # advance IP using archinfo's instruction_alignment.
                 # x86 (variable-length): alignment is 1, but all syscall variants are 2 bytes.
                 syscall_len = translation_data.base_state.arch.instruction_alignment
                 if syscall_len is None or syscall_len < 2:
@@ -538,13 +531,13 @@ class IcicleEngine(ConcreteEngine):
         num_inst: int | None = None,
         extra_stop_points: set[int] | None = None,
     ) -> HeavyConcreteState:
-        # Check for continuation via state plugin.
-        plugin = state.get_plugin("icicle") if state.has_plugin("icicle") else None
-        icicle_plugin = plugin if isinstance(plugin, SimStateIcicle) else None
+        # Check for continuation via state plugin (registered as a default).
+        icicle_plugin = state.get_plugin("icicle")
+        if not isinstance(icicle_plugin, SimStateIcicle):
+            raise TypeError("SimStateIcicle plugin missing — is it registered as a default?")
 
         if (
-            icicle_plugin is not None
-            and icicle_plugin.engine_id == id(self)
+            icicle_plugin.engine_id == id(self)
             and icicle_plugin.run_id == self._run_counter
             and self._cached_emu is not None
         ):
@@ -609,22 +602,17 @@ class IcicleEngine(ConcreteEngine):
 
         result = IcicleEngine.__convert_icicle_state_to_angr(emu, translation_data, status)
 
-        # Attach plugin for continuation detection on the next call.
-        # Seed dirty_pages with pages icicle wrote; the store-tracking hook
+        # Update the plugin for continuation detection on the next call.
+        # Seed dirty_pages with pages icicle wrote; the SimInspect callback
         # will add any pages that angr hooks/syscalls modify before the next
         # engine call.
         page_size = state.memory.page_size
-        dirty_pages = {addr // page_size for addr in emu.modified_pages}
         self._run_counter += 1
-        result.register_plugin(
-            "icicle",
-            SimStateIcicle(
-                engine_id=id(self),
-                run_id=self._run_counter,
-                translation_data=translation_data,
-                dirty_pages=dirty_pages,
-            ),
-        )
+        result_plugin = result.get_plugin("icicle")
+        result_plugin.engine_id = id(self)
+        result_plugin.run_id = self._run_counter
+        result_plugin.translation_data = translation_data
+        result_plugin.dirty_pages = {addr // page_size for addr in emu.modified_pages}
         self._install_dirty_page_tracking(result)
 
         return result

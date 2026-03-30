@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from angr.sim_state import SimState
+
 from .plugin import SimStatePlugin
 
 if TYPE_CHECKING:
@@ -14,23 +16,20 @@ class SimStateIcicle(SimStatePlugin):
     Attached to states produced by ``IcicleEngine.process_concrete()``.
     Carries the metadata the engine needs to decide whether the next call
     is a lightweight continuation or requires a full snapshot restore.
-
-    This plugin is NOT registered as a default -- it is only attached by
-    the engine.
     """
 
     def __init__(
         self,
-        engine_id: int,
-        run_id: int,
-        translation_data: IcicleStateTranslationData,
-        dirty_pages: set[int],
+        engine_id: int | None = None,
+        run_id: int | None = None,
+        translation_data: IcicleStateTranslationData | None = None,
+        dirty_pages: set[int] | None = None,
     ):
         super().__init__()
         self.engine_id = engine_id
         self.run_id = run_id
         self.translation_data = translation_data
-        self.dirty_pages = dirty_pages
+        self.dirty_pages = dirty_pages if dirty_pages is not None else set()
 
     def set_state(self, state):
         pass  # no weak ref needed
@@ -49,3 +48,6 @@ class SimStateIcicle(SimStatePlugin):
 
     def widen(self, others):
         return False
+
+
+SimState.register_default("icicle", SimStateIcicle)
