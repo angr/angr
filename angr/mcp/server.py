@@ -128,6 +128,7 @@ def get_cfg(
         )
         session.cfg = cfg.model
 
+    assert session.cfg is not None
     return {
         "project_id": project_id,
         "status": "success",
@@ -363,6 +364,7 @@ def get_strings(
     """
     session = _get_session(project_id)
     _require_cfg(session)
+    assert session.cfg is not None
 
     strings = []
     for md in session.cfg.memory_data.values():
@@ -372,7 +374,7 @@ def get_strings(
         if md.content is None:
             try:
                 md.fill_content(session.project.loader)
-            except Exception:
+            except KeyError:
                 continue
 
         if md.content and len(md.content) >= min_length:
@@ -387,7 +389,7 @@ def get_strings(
                             "type": ("unicode" if md.sort == MemoryDataSort.UnicodeString else "ascii"),
                         }
                     )
-            except Exception:
+            except UnicodeDecodeError:
                 continue
 
         if len(strings) >= limit:

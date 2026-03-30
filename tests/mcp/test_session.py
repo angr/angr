@@ -1,3 +1,4 @@
+# pylint:disable=no-self-use
 from __future__ import annotations
 
 import pytest
@@ -18,7 +19,7 @@ class TestProjectSession:
         """Test that has_cfg is True after CFG is built."""
         assert loaded_session_with_cfg.has_cfg is True
 
-    def test_session_attributes(self, loaded_session, binary_path):
+    def test_session_attributes(self, loaded_session):
         """Test that session has correct attributes."""
         assert loaded_session.project_id is not None
         assert len(loaded_session.project_id) == 8

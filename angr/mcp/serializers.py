@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from angr.errors import AngrError
 from angr.knowledge_plugins.xrefs import XRefType
 
 if TYPE_CHECKING:
@@ -31,12 +32,9 @@ def serialize_function(func: Function, include_blocks: bool = False) -> dict[str
     }
 
     # Cyclomatic complexity requires a non-empty transition graph
-    try:
-        if func.transition_graph.number_of_nodes() > 0:
-            result["cyclomatic_complexity"] = func.cyclomatic_complexity
-        else:
-            result["cyclomatic_complexity"] = None
-    except Exception:
+    if func.transition_graph.number_of_nodes() > 0:
+        result["cyclomatic_complexity"] = func.cyclomatic_complexity
+    else:
         result["cyclomatic_complexity"] = None
 
     if func.calling_convention:
@@ -106,7 +104,7 @@ def serialize_basic_block(block: Any, include_disasm: bool = True) -> dict[str, 
                 }
                 for insn in block.capstone.insns
             ]
-        except Exception:
+        except AngrError:
             result["instructions"] = []
             result["disasm_error"] = "Failed to disassemble"
 

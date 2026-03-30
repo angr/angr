@@ -8,8 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+import angr
+
 if TYPE_CHECKING:
-    import angr
     from angr.knowledge_plugins.cfg import CFGModel
 
 l = logging.getLogger(__name__)
@@ -49,7 +50,6 @@ class SessionManager:
         :param kwargs: Additional arguments passed to angr.Project
         :return: The created ProjectSession with unique ID
         """
-        import angr
 
         # Validate path
         path = Path(binary_path)
@@ -126,7 +126,8 @@ _session_manager: SessionManager | None = None
 
 def get_session_manager() -> SessionManager:
     """Get or create the global session manager."""
-    global _session_manager
+    global _session_manager  # pylint: disable=global-statement
+
     if _session_manager is None:
         _session_manager = SessionManager()
     return _session_manager
