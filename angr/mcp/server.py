@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Main MCP server for angr binary analysis."""
+
+from __future__ import annotations
 
 import logging
 import re
@@ -8,7 +8,7 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .exceptions import (
+from .errors import (
     CFGNotBuiltError,
     DecompilationError,
     FunctionNotFoundError,
@@ -41,7 +41,7 @@ def _get_session(project_id: str) -> ProjectSession:
 def _require_cfg(session: ProjectSession) -> None:
     """Helper to ensure CFG exists."""
     if not session.has_cfg:
-        raise CFGNotBuiltError(f"CFG not built for project {session.project_id}. " "Call get_cfg first.")
+        raise CFGNotBuiltError(f"CFG not built for project {session.project_id}. Call get_cfg first.")
 
 
 def _parse_address(address: str | int) -> int:

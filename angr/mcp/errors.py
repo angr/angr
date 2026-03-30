@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-"""Custom exceptions for the angr MCP server."""
+from angr.errors import AngrError
 
 
-class MCPAngrError(Exception):
+class MCPAngrError(AngrError):
     """Base exception for MCP angr server errors."""
 
 

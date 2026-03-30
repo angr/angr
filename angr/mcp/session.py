@@ -1,6 +1,6 @@
-from __future__ import annotations
-
 """Session management for angr MCP server."""
+
+from __future__ import annotations
 
 import logging
 import uuid
@@ -87,7 +87,7 @@ class SessionManager:
         """
         if project_id not in self._sessions:
             available = list(self._sessions.keys())
-            raise KeyError(f"No project with ID '{project_id}' found. " f"Available: {available}")
+            raise KeyError(f"No project with ID '{project_id}' found. Available: {available}")
         return self._sessions[project_id]
 
     def list_sessions(self) -> list[dict[str, Any]]:
