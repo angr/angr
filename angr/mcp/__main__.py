@@ -6,6 +6,8 @@ import argparse
 import logging
 import sys
 
+from .server import mcp
+
 
 def main() -> None:
     """Entry point for running the angr MCP server."""
@@ -50,8 +52,6 @@ def main() -> None:
         logging.getLogger("pyvex").setLevel(logging.ERROR)
         logging.getLogger("claripy").setLevel(logging.ERROR)
         logging.getLogger("archinfo").setLevel(logging.ERROR)
-
-    from .server import mcp
 
     if args.transport == "stdio":
         mcp.run(transport="stdio")

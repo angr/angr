@@ -6,8 +6,10 @@ import logging
 import re
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+import networkx as nx
+from fastmcp import FastMCP
 
+from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
 from .errors import (
     CFGNotBuiltError,
     DecompilationError,
@@ -362,8 +364,6 @@ def get_strings(
     session = _get_session(project_id)
     _require_cfg(session)
 
-    from angr.knowledge_plugins.cfg.memory_data import MemoryDataSort
-
     strings = []
     for md in session.cfg.memory_data.values():
         if md.sort not in (MemoryDataSort.String, MemoryDataSort.UnicodeString):
@@ -521,8 +521,6 @@ def get_callgraph(
     Returns:
         Call graph as nodes and edges
     """
-    import networkx as nx
-
     session = _get_session(project_id)
     _require_cfg(session)
 

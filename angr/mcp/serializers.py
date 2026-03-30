@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from angr.knowledge_plugins.xrefs import XRefType
+
 if TYPE_CHECKING:
     from angr.knowledge_plugins.cfg import CFGModel
     from angr.knowledge_plugins.functions import Function
@@ -71,8 +73,6 @@ def serialize_xref(xref: XRef) -> dict[str, Any]:
     :param xref: The angr XRef to serialize
     :return: Dictionary with cross-reference information
     """
-    from angr.knowledge_plugins.xrefs import XRefType
-
     return {
         "from_address": hex(xref.ins_addr) if xref.ins_addr else None,
         "to_address": hex(xref.dst) if xref.dst else None,

@@ -56,7 +56,7 @@ Repository = "https://github.com/angr/angr"
 angrdb = ["sqlalchemy"]
 keystone = ["keystone-engine"]
 telemetry = ["opentelemetry-api"]
-llm = ["pydantic-ai", "mcp>=1.0.0"]
+llm = ["pydantic-ai", "mcp>=1.0.0", "fastmcp"]
 unicorn = ["unicorn==2.1.4"]
 
 [project.scripts]
