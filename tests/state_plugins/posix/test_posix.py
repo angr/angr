@@ -86,7 +86,7 @@ class TestPosix(unittest.TestCase):
         stderr_fd.write_data(data, size=3)
 
         # Reading from stderr should also succeed (reads from stdin stream).
-        read_data, read_size = stderr_fd.read_data(1)
+        read_data, _read_size = stderr_fd.read_data(1)
         assert read_data is not None
 
 
