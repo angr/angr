@@ -1,13 +1,11 @@
 from __future__ import annotations
 from typing import Any
 from pathlib import Path
-from io import BytesIO
 import json
 import binascii
 import logging
 import tempfile
 import archinfo
-import tempfile
 
 import cle
 
@@ -29,12 +27,7 @@ class LoadArgsJSONEncoder(json.JSONEncoder):
                 "__v__": binascii.hexlify(o).decode("ascii"),
             }
         if isinstance(o, archinfo.Arch):
-            return {
-                "__custom_type__": "arch",
-                "name": o.name,
-                "endness": o.memory_endness,
-                "bits": o.bits
-            }
+            return {"__custom_type__": "arch", "name": o.name, "endness": o.memory_endness, "bits": o.bits}
         return super().default(o)
 
 
@@ -54,10 +47,10 @@ class LoadArgsJSONDecoder(json.JSONDecoder):
                         return binascii.unhexlify(d["__v__"])
                 case "arch":
                     return archinfo.arch_from_id(
-                          d["name"],
-                          d.get("endness", ""),
-                          d.get("bits", ""),
-                )
+                        d["name"],
+                        d.get("endness", ""),
+                        d.get("bits", ""),
+                    )
         return d
 
 
