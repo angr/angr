@@ -31,7 +31,7 @@ class CFGManager(KnowledgeBasePlugin):
         if ident not in self.cfgs:
             if self._kb is not None and self._kb._project is not None:
                 is_arm = is_arm_arch(self._kb._project.arch)
-                cache_limit = self._kb._project.get_function_cache_limit()
+                cache_limit = self._kb._project.get_cfg_node_cache_limit()
                 edge_cache_limit = self._kb._project.get_cfg_edge_cache_limit()
             else:
                 is_arm = False
