@@ -172,11 +172,9 @@ class ReachingDefinitionsState:
         return None
 
     def _initial_stack_pointer(self):
-        if self.arch.bits == 32:
-            return claripy.BVS("stack_base", 32, explicit_name=True)
-        if self.arch.bits == 64:
-            return claripy.BVS("stack_base", 64, explicit_name=True)
-        raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
+        if self.arch.bits not in (16, 32, 64):
+            raise ValueError(f"Unsupported architecture word size {self.arch.bits}")
+        return claripy.BVS("stack_base", self.arch.bits, explicit_name=True)
 
     def _to_signed(self, n):
         if n >= 2 ** (self.arch.bits - 1):
