@@ -1,9 +1,10 @@
 from __future__ import annotations
 from typing import Any
-from io import BytesIO
+from pathlib import Path
 import json
 import binascii
 import logging
+import tempfile
 
 import cle
 
@@ -132,33 +133,36 @@ class LoaderSerializer:
 
     @staticmethod
     def load(session):
-        all_objects = {}  # path to object
-        main_object = None
+        main_path = None
+        lib_paths = []
 
         db_objects: list[DbObject] = session.query(DbObject)
-        load_args = {}
+        main_opts = None
+        lib_opts = {}
 
         decoder = LoadArgsJSONDecoder()
 
-        for db_o in db_objects:
-            all_objects[db_o.path] = db_o
-            if db_o.main_object:
-                main_object = db_o
-            load_args[db_o] = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            for db_o in db_objects:
+                load_opts = decoder.decode(db_o.backend_args) if db_o.backend_args else {}
+                path = Path(db_o.path)
 
-        if main_object is None:
-            raise AngrCorruptDBError("Corrupt database: No main object.")
+                if not path.exists():
+                    # dump the content to a temporary file if the
+                    # original file does not exist anymore
+                    tmp_path = Path(tmpdir) / path.name
+                    with open(tmp_path, "wb") as f:
+                        f.write(db_o.content)
+                    path = tmp_path
 
-        # build params
-        # FIXME: Load other objects
+                if db_o.main_object:
+                    main_opts = load_opts
+                    main_path = str(path)
+                else:
+                    lib_opts[path.name] = load_opts
+                    lib_paths.append(str(path))
 
-        loader = cle.Loader(BytesIO(main_object.content), main_opts=load_args[main_object])
+            if main_path is None:
+                raise AngrCorruptDBError("Corrupt database: No main object.")
 
-        skip_mainbin, _ = LoaderSerializer.should_skip_main_binary(loader)
-
-        loader._main_binary_path = main_object.path
-        if not skip_mainbin:
-            # fix the binary name of the main binary
-            loader.main_object.binary = main_object.path
-
-        return loader
+            return cle.Loader(main_path, preload_libs=lib_paths, main_opts=main_opts, lib_opts=lib_opts)
