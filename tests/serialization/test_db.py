@@ -446,5 +446,6 @@ class TestDb(unittest.TestCase):
             assert o1.min_addr == o2.min_addr
             assert o1.max_addr == o2.max_addr
 
+
 if __name__ == "__main__":
     unittest.main()
