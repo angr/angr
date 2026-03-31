@@ -4,9 +4,18 @@ from __future__ import annotations
 __package__ = __package__ or "tests.llm"  # pylint:disable=redefined-builtin
 
 import os
+import asyncio
 import unittest
 from unittest import mock
 
+from mcp.types import (
+    CreateMessageResult,
+    CreateMessageRequestParams,
+    SamplingMessage,
+    TextContent,
+    ErrorData,
+    ImageContent,
+)
 from pydantic import BaseModel
 
 from angr.llm_client import LLMClient
@@ -190,8 +199,6 @@ class TestLLMClientMCPSampling(unittest.TestCase):
             return LLMClient(model="test-model", **kwargs)
 
     def _make_params(self, text="Hello", system_prompt=None, temperature=None, max_tokens=100, stop_sequences=None):
-        from mcp.types import CreateMessageRequestParams, SamplingMessage, TextContent
-
         return CreateMessageRequestParams(
             messages=[SamplingMessage(role="user", content=TextContent(type="text", text=text))],
             systemPrompt=system_prompt,
@@ -201,14 +208,10 @@ class TestLLMClientMCPSampling(unittest.TestCase):
         )
 
     def _run_async(self, coro):
-        import asyncio
-
         return asyncio.run(coro)
 
     def test_create_message_returns_text_result(self):
         """create_message returns a CreateMessageResult with the LLM output."""
-        from mcp.types import CreateMessageResult
-
         client = self._make_client()
 
         mock_result = mock.MagicMock()
@@ -224,6 +227,7 @@ class TestLLMClientMCPSampling(unittest.TestCase):
 
         assert isinstance(result, CreateMessageResult)
         assert result.role == "assistant"
+        assert isinstance(result.content, TextContent)
         assert result.content.text == "The capital of France is Paris."
         assert result.model == "test-model"
         assert result.stopReason == "endTurn"
@@ -307,8 +311,6 @@ class TestLLMClientMCPSampling(unittest.TestCase):
 
     def test_create_message_returns_error_on_exception(self):
         """create_message returns ErrorData when the LLM call fails."""
-        from mcp.types import ErrorData
-
         client = self._make_client()
 
         mock_agent_instance = mock.MagicMock()
@@ -325,8 +327,6 @@ class TestLLMClientMCPSampling(unittest.TestCase):
 
     def test_create_message_returns_error_on_empty_content(self):
         """create_message returns ErrorData when no text content is present."""
-        from mcp.types import CreateMessageRequestParams, ErrorData, ImageContent, SamplingMessage
-
         client = self._make_client()
 
         params = CreateMessageRequestParams(
