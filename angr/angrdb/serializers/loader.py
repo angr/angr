@@ -1,11 +1,13 @@
 from __future__ import annotations
 from typing import Any
 from pathlib import Path
+from io import BytesIO
 import json
 import binascii
 import logging
 import tempfile
 import archinfo
+import tempfile
 
 import cle
 
@@ -54,7 +56,7 @@ class LoadArgsJSONDecoder(json.JSONDecoder):
                     return archinfo.arch_from_id(
                           d["name"],
                           d.get("endness", ""),
-                        d.get("bits", ""),
+                          d.get("bits", ""),
                 )
         return d
 
@@ -168,6 +170,8 @@ class LoaderSerializer:
                 path = Path(db_o.path)
 
                 if not path.exists():
+                    # dump the content to a temporary file if the
+                    # original file does not exist anymore
                     tmp_path = Path(tmpdir) / path.name
                     with open(tmp_path, "wb") as f:
                         f.write(db_o.content)
