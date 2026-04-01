@@ -145,12 +145,18 @@ class SimStatePlugin:
         raise NotImplementedError(f"widen() not implemented for {self.__class__.__name__}")
 
     @classmethod
-    def register_default(cls, name, xtr=None):
+    def register_default(cls, name: str, xtr: type[SimStatePlugin] | str | None = None) -> None:
         if cls is SimStatePlugin:
             if once("simstateplugin_register_default deprecation"):
                 l.critical(
                     "SimStatePlugin.register_default(name, cls) is deprecated, "
                     "please use SimState.register_default(name)"
+                )
+
+            if xtr is None or isinstance(xtr, str):
+                raise TypeError(
+                    "When calling SimStatePlugin.register_default, "
+                    "the plugin class must be provided as the second argument."
                 )
 
             from angr.sim_state import SimState
@@ -165,6 +171,11 @@ class SimStatePlugin:
                         "please use cls.register_default(name)"
                     )
                 xtr = None
+            elif not isinstance(xtr, str) and xtr is not None:
+                raise TypeError(
+                    "When calling a plugin subclass's register_default, "
+                    "the second argument must be completely omitted or a preset string."
+                )
 
             from angr.sim_state import SimState
 
