@@ -7,6 +7,7 @@ import os
 import re
 from typing import TypeVar, TYPE_CHECKING, Any
 
+
 from angr.errors import AngrAIError
 
 if TYPE_CHECKING:
@@ -202,19 +203,19 @@ class LLMClient:
         Suitable for passing directly as the *sampling_callback* argument to
         :class:`mcp.client.session.ClientSession`.
 
-                Here is an example::
+        Here is an example::
 
-                from mcp.client.session import ClientSession
-                from angr.llm_client import LLMClient
+        from mcp.client.session import ClientSession
+        from angr.llm_client import LLMClient
 
         client = LLMClient(model="openai:gpt-4o", api_key="sk-...")
         async with ClientSession(
-                    read_stream=read,
-                    write_stream=write,
-                    sampling_callback=client.create_message,
-            ) as session:
+            read_stream=read,
+            write_stream=write,
+            sampling_callback=client.create_message,
+        ) as session:
             await session.initialize()
-                        # do whatever you need here
+            # do whatever you need here
         """
         from mcp.types import (
             CreateMessageResult,
