@@ -403,7 +403,9 @@ class SimEngineVRAIL(
                         self.state.typevars.add_type_variable(stack_var, stack_typevar)
                         existing_variables.add(stack_var)
                     for stack_var in existing_variables:
-                        self.state.add_type_constraint(typevars.Subtype(stack_var, arg_ty.basetype))
+                        if self.state.typevars.has_type_variable_for(stack_var):
+                            tv = self.state.typevars.get_type_variable(stack_var)
+                            self.state.add_type_constraint(typevars.Subtype(tv, arg_ty.basetype))
                 self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
 
     def _get_format_string_arg_types(self, func_name: str, call_args) -> list | None:
