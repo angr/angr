@@ -1768,27 +1768,6 @@ class CFGBase(Analysis):
                         break
         function_nodes |= thunk_targets
 
-        # Pre-identify inter-function boring-jump targets: if a node is the destination of an Ijk_Boring edge from a
-        # node in a different function (per CFGFast's assignment), and the destination is not the entry of its assigned
-        # function, register it as a separate function BEFORE BFS. This prevents such blocks from being incorrectly
-        # absorbed into the wrong function during traversal.
-        inter_func_jump_targets: set[CFGNode] = set()
-        for src, dst, data in self.graph.edges(data=True):
-            jk = data.get("jumpkind", "")
-            if jk not in ("Ijk_Boring", "Ijk_InvalICache"):
-                continue
-            if dst.addr in blockaddr_to_funcaddr:
-                continue
-            if (
-                src.function_address is not None
-                and dst.function_address is not None
-                and src.function_address != dst.function_address
-                and dst.addr != dst.function_address
-            ):
-                self._addr_to_funcaddr(dst.addr, blockaddr_to_funcaddr, tmp_functions)
-                inter_func_jump_targets.add(dst)
-        function_nodes |= inter_func_jump_targets
-
         # traverse the graph starting from each node, not following call edges
         # it's important that we traverse all functions in order so that we have a greater chance to come across
         # rational functions before its irrational counterparts (e.g. due to failed jump table resolution)
