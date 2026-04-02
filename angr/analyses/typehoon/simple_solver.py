@@ -1744,6 +1744,8 @@ class SimpleSolver:
             if ancestor == abstract_t2:
                 return t2
             return ancestor
+        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
+            return t1
         if t1 == Bottom_:
             return t2
         if t2 == Bottom_:
@@ -1770,6 +1772,8 @@ class SimpleSolver:
             if ancestor == abstract_t2:
                 return t2
             return ancestor
+        if isinstance(abstract_t1, Struct) and isinstance(abstract_t2, Struct) and abstract_t1 == abstract_t2:
+            return t1
         if t1 == Top_:
             return t2
         if t2 == Top_:
