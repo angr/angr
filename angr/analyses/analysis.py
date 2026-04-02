@@ -7,7 +7,7 @@ from collections import defaultdict
 from inspect import Signature
 from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
 from collections.abc import Callable
-from types import NoneType
+from types import NoneType, TracebackType
 from itertools import chain
 from traceback import format_exception
 
@@ -65,7 +65,12 @@ t = telemetry.get_tracer(name=__name__)
 
 
 class AnalysisLogEntry:
-    def __init__(self, message, exc_info=False):
+    exc_type: type[BaseException] | None
+    exc_value: BaseException | None
+    exc_traceback: TracebackType | None
+    message: str
+
+    def __init__(self, message: str, exc_info: bool = False) -> None:
         if exc_info:
             e_type, value, traceback = sys.exc_info()
             self.exc_type = e_type
@@ -83,7 +88,7 @@ class AnalysisLogEntry:
             return self.message
         return "\n".join((*format_exception(self.exc_type, self.exc_value, self.exc_traceback), "", self.message))
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple[str, str, str, str]:
         return (
             str(self.__dict__.get("exc_type")),
             str(self.__dict__.get("exc_value")),
@@ -91,10 +96,12 @@ class AnalysisLogEntry:
             self.message,
         )
 
-    def __setstate__(self, s):
+    def __setstate__(
+        self, s: tuple[type[BaseException] | None, BaseException | None, TracebackType | None, str]
+    ) -> None:
         self.exc_type, self.exc_value, self.exc_traceback, self.message = s
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.exc_type is None:
             msg_str = repr(self.message)
             if len(msg_str) > 70:
@@ -118,7 +125,9 @@ class AnalysesHub(PluginVendor[Any]):
     This class contains functions for all the registered and runnable analyses,
     """
 
-    def __init__(self, project):
+    project: Project
+
+    def __init__(self, project: Project) -> None:
         super().__init__()
         self.project = project
 
@@ -427,5 +436,5 @@ default_analyses = VendorPreset()
 AnalysesHub.register_preset("default", default_analyses)
 
 
-def register_analysis(cls, name):
+def register_analysis(cls: type, name: str) -> None:
     AnalysesHub.register_default(name, cls)
