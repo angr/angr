@@ -349,7 +349,9 @@ class Sketch:
         ):
             bt = derived_typevar.type_var.basetype
             assert bt is not None
-            return bt, True
+            if bt != Bottom_:
+                # can't flatten to BOT!
+                return bt, True
         return derived_typevar, False
 
 
