@@ -4013,22 +4013,25 @@ class CStructuredCodeGenerator(BaseStructuredCodeGenerator, Analysis):
             return CTypeCast(child_type, target_type, child, codegen=self)
 
         voidp = SimTypePointer(SimTypeBottom()).with_arch(self.project.arch)
+        inner_expr = CTypeCast(
+            SimTypePointer(child_type).with_arch(self.project.arch),
+            voidp,
+            CUnaryOp("Reference", child, codegen=self),
+            codegen=self,
+        )
+        if offset != 0:
+            inner_expr = CBinaryOp(
+                "Add",
+                inner_expr,
+                CConstant(offset, SimTypeInt(), codegen=self),
+                codegen=self,
+            )
         return CUnaryOp(
             "Dereference",
             CTypeCast(
                 voidp,
                 SimTypePointer(target_type).with_arch(self.project.arch),
-                CBinaryOp(
-                    "Add",
-                    CTypeCast(
-                        SimTypePointer(child_type).with_arch(self.project.arch),
-                        voidp,
-                        CUnaryOp("Reference", child, codegen=self),
-                        codegen=self,
-                    ),
-                    CConstant(offset, SimTypeInt(), codegen=self),
-                    codegen=self,
-                ),
+                inner_expr,
                 codegen=self,
             ),
             codegen=self,
