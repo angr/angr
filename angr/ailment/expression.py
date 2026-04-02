@@ -423,7 +423,16 @@ class Phi(Atom):
         return False
 
     def __repr__(self):
-        return f"𝜙@{self.bits}b {self.src_and_vvars}"
+        src_vars_repr = []
+        for src, vvar in self.src_and_vvars:
+            if src is None:
+                src_str = "unknown"
+            else:
+                src_str = hex(src[0])
+                if src[1] is not None:
+                    src_str += f".{src[1]}"
+            src_vars_repr.append(f"{src_str}:{vvar}")
+        return f"𝜙@{self.bits}b {' '.join(src_vars_repr)}"
 
     def _hash_core(self):
         return stable_hash(("phi", self.bits, tuple(sorted(self.src_and_vvars, key=self._src_and_vvar_filter))))

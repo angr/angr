@@ -62,7 +62,7 @@ class MipsGpSettingSimplifier(OptimizationPass):
         if gp_value is None:
             return None
 
-        first_block = self._get_block(self._func.addr)
+        first_block = self._get_entry_block()
         if first_block is None:
             return None
 
