@@ -39,6 +39,12 @@ class MultipleBlocksException(Exception):
     """
 
 
+class NoBlocksException(Exception):
+    """
+    An exception that is raised in _get_block() where no blocks satisfy the criteria but one is required.
+    """
+
+
 class OptimizationPassStage(Enum):
     """
     Enums about optimization pass stages.
@@ -194,7 +200,7 @@ class OptimizationPass(BaseOptimizationPass):
         seen = set()
 
         if start_node is None:
-            start_node = self._get_block(self._func.addr)
+            start_node = self._get_entry_block()
         if start_node is None:
             return
 
@@ -223,6 +229,17 @@ class OptimizationPass(BaseOptimizationPass):
         new_addr = max(self._new_block_addrs) + 1 if self._new_block_addrs else max(self.blocks_by_addr) + 2048
         self._new_block_addrs.add(new_addr)
         return new_addr
+
+    def _get_entry_block(self, **kwargs) -> ailment.Block:
+        """
+        Get the entry node for the current function.
+
+        May raise NoBlocksException or MultipleBlocksException if the function graph has been really destroyed.
+        """
+        result = self._get_block(self.entry_node_addr[0], idx=self.entry_node_addr[1], **kwargs)
+        if result is None:
+            raise NoBlocksException("No block for function start???")
+        return result
 
     def _get_block(self, addr, **kwargs) -> ailment.Block | None:
         """
