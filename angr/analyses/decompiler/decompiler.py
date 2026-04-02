@@ -177,6 +177,7 @@ class Decompiler(Analysis):
         update_cache: bool = True,
         expr_collapse_depth: int = 16,
         clinic_graph=None,
+        clinic_entry_node_addr=None,
         clinic_arg_vvars=None,
         clinic_start_stage=None,
         clinic_end_stage=None,
@@ -283,6 +284,7 @@ class Decompiler(Analysis):
 
         self.clinic = None  # mostly for debugging purposes
         self._clinic_graph = clinic_graph
+        self._clinic_entry_node_addr = clinic_entry_node_addr
         self._clinic_arg_vvars = clinic_arg_vvars
         self._clinic_start_stage = clinic_start_stage
         self._clinic_end_stage = clinic_end_stage
@@ -559,6 +561,7 @@ class Decompiler(Analysis):
                 force_single_loop_entry=self._force_single_loop_entry,
                 typehoon_cls=self._typehoon_cls,
                 ail_graph=self._clinic_graph,
+                entry_node_addr=self._clinic_entry_node_addr,
                 arg_vvars=self._clinic_arg_vvars,
                 start_stage=self._clinic_start_stage,
                 end_stage=self._clinic_end_stage,
