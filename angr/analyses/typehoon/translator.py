@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from itertools import count
 
 from angr import sim_type
-from angr.sim_type import SimType
+from angr.sim_type import SimType, TypeRef
 from . import typeconsts
 from .typeconsts import TypeConstant
 
@@ -86,6 +86,9 @@ class TypeTranslator:
         return self._simtype2tc(simtype)
 
     def _simtype2tc(self, simtype: sim_type.SimType) -> typeconsts.TypeConstant:
+        if isinstance(simtype, TypeRef):
+            simtype = simtype.ty
+
         if simtype in self.translated_simtypes:
             return self.translated_simtypes[simtype]
         try:

@@ -78,6 +78,7 @@ class TestTypehoon(unittest.TestCase):
 
         dec = proj.analyses.Decompiler(main_func, cfg=cfg.model)
         assert dec.codegen is not None and dec.codegen.text is not None
+        print_decompilation_result(dec)
         assert dec.codegen.text.count("UNICODE_STRING v") == 2
 
     def test_type_inference_basic_case_0(self):
