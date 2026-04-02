@@ -1,62 +1,58 @@
 # pylint:disable=missing-class-docstring
 from __future__ import annotations
+
+import contextlib
 import functools
+import logging
 import os
 import sys
-import contextlib
+import time
 from collections import defaultdict
 from collections.abc import Callable
 from inspect import Signature
-from typing import TYPE_CHECKING, TypeVar, Generic, cast, Any
-from types import NoneType
 from itertools import chain
 from traceback import format_exception
-
-import logging
-import time
-import typing
+from types import NoneType, TracebackType
+from typing import TYPE_CHECKING, Any, Generic, Protocol, TypeVar, cast
 
 import psutil
-
 from rich import progress
 
-from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc import telemetry
+from angr.misc.plugins import PluginVendor, VendorPreset
 from angr.misc.testing import is_testing
 
 if TYPE_CHECKING:
+    from typing_extensions import ParamSpec
+
     from angr.knowledge_base import KnowledgeBase
     from angr.project import Project
-    from typing_extensions import ParamSpec
-    from .identifier import Identifier
-    from .callee_cleanup_finder import CalleeCleanupFinder
-    from .vsa_ddg import VSA_DDG
-    from .cdg import CDG
-    from .bindiff import BinDiff
-    from .cfg import CFGEmulated
-    from .cfg import CFBlanket
-    from .cfg import CFG
-    from .cfg import CFGFast
-    from .static_hooker import StaticHooker
-    from .ddg import DDG
-    from .congruency_check import CongruencyCheck
-    from .reassembler import Reassembler
+
     from .backward_slice import BackwardSlice
     from .binary_optimizer import BinaryOptimizer
-    from .vfg import VFG
-    from .loopfinder import LoopFinder
-    from .disassembly import Disassembly
-    from .veritesting import Veritesting
-    from .code_tagging import CodeTagging
+    from .bindiff import BinDiff
     from .boyscout import BoyScout
-    from .variable_recovery import VariableRecoveryFast
-    from .variable_recovery import VariableRecovery
-    from .reaching_definitions import ReachingDefinitionsAnalysis
-    from .complete_calling_conventions import CompleteCallingConventionsAnalysis
-    from .decompiler.clinic import Clinic
-    from .propagator import PropagatorAnalysis
+    from .callee_cleanup_finder import CalleeCleanupFinder
     from .calling_convention import CallingConventionAnalysis
+    from .cdg import CDG
+    from .cfg import CFG, CFBlanket, CFGEmulated, CFGFast
+    from .code_tagging import CodeTagging
+    from .complete_calling_conventions import CompleteCallingConventionsAnalysis
+    from .congruency_check import CongruencyCheck
+    from .ddg import DDG
+    from .decompiler.clinic import Clinic
     from .decompiler.decompiler import Decompiler
+    from .disassembly import Disassembly
+    from .identifier import Identifier
+    from .loopfinder import LoopFinder
+    from .propagator import PropagatorAnalysis
+    from .reaching_definitions import ReachingDefinitionsAnalysis
+    from .reassembler import Reassembler
+    from .static_hooker import StaticHooker
+    from .variable_recovery import VariableRecovery, VariableRecoveryFast
+    from .veritesting import Veritesting
+    from .vfg import VFG
+    from .vsa_ddg import VSA_DDG
     from .xrefs import XRefsAnalysis
 
     AnalysisParams = ParamSpec("AnalysisParams")
@@ -66,7 +62,12 @@ t = telemetry.get_tracer(name=__name__)
 
 
 class AnalysisLogEntry:
-    def __init__(self, message, exc_info=False):
+    exc_type: type[BaseException] | None
+    exc_value: BaseException | None
+    exc_traceback: TracebackType | None
+    message: str
+
+    def __init__(self, message: str, exc_info: bool = False) -> None:
         if exc_info:
             e_type, value, traceback = sys.exc_info()
             self.exc_type = e_type
@@ -84,7 +85,7 @@ class AnalysisLogEntry:
             return self.message
         return "\n".join((*format_exception(self.exc_type, self.exc_value, self.exc_traceback), "", self.message))
 
-    def __getstate__(self):
+    def __getstate__(self) -> tuple[str, str, str, str]:
         return (
             str(self.__dict__.get("exc_type")),
             str(self.__dict__.get("exc_value")),
@@ -92,10 +93,12 @@ class AnalysisLogEntry:
             self.message,
         )
 
-    def __setstate__(self, s):
+    def __setstate__(
+        self, s: tuple[type[BaseException] | None, BaseException | None, TracebackType | None, str]
+    ) -> None:
         self.exc_type, self.exc_value, self.exc_traceback, self.message = s
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.exc_type is None:
             msg_str = repr(self.message)
             if len(msg_str) > 70:
@@ -119,7 +122,9 @@ class AnalysesHub(PluginVendor[Any]):
     This class contains functions for all the registered and runnable analyses,
     """
 
-    def __init__(self, project):
+    project: Project
+
+    def __init__(self, project: Project) -> None:
         super().__init__()
         self.project = project
 
@@ -138,7 +143,7 @@ class AnalysesHub(PluginVendor[Any]):
         return functools.wraps(plugin_cls)(AnalysisFactory(self.project, plugin_cls))  # type: ignore
 
 
-class KnownAnalysesPlugin(typing.Protocol):
+class KnownAnalysesPlugin(Protocol):
     Identifier: type[Identifier]
     CalleeCleanupFinder: type[CalleeCleanupFinder]
     VSA_DDG: type[VSA_DDG]
@@ -426,5 +431,5 @@ default_analyses = VendorPreset()
 AnalysesHub.register_preset("default", default_analyses)
 
 
-def register_analysis(cls, name):
+def register_analysis(cls: type, name: str) -> None:
     AnalysesHub.register_default(name, cls)
