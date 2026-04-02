@@ -10,7 +10,8 @@ from angr.sim_variable import SimVariable, SimStackVariable
 import claripy
 
 from angr.engines.light.engine import SimEngineNostmtAIL
-from angr.sim_type import SimTypeFunction
+from angr.sim_type import SimTypeFunction, SimTypePointer
+from angr.procedures.stubs.format_parser import FormatParser, FormatSpecifier, ScanfFormatParser
 from angr.analyses.typehoon import typeconsts, typevars
 from angr.analyses.typehoon.translator import TypeTranslator
 from angr.storage.memory_mixins.paged_memory.pages.multi_values import MultiValues
@@ -222,6 +223,7 @@ class SimEngineVRAIL(
         # discover the prototype
         prototype: SimTypeFunction | None = None
         prototype_libname: str | None = None
+        func = None
         if expr.prototype is not None:
             prototype = expr.prototype
         if isinstance(expr.target, ailment.Expr.Const):
@@ -247,6 +249,10 @@ class SimEngineVRAIL(
                 if not isinstance(ret_ty, typeconsts.BottomType):
                     type_constraint = typevars.Subtype(ret_ty, return_ty)
                     self.state.add_type_constraint(type_constraint)
+
+        # add format-string-based type constraints for variadic arguments
+        if func is not None:
+            self._apply_format_string_type_constraints(func.name, prototype, args, expr.args)
 
         if ret_ty is None:
             ret_ty = typevars.TypeVariable()
@@ -288,6 +294,7 @@ class SimEngineVRAIL(
         # discover the prototype
         prototype: SimTypeFunction | None = None
         prototype_libname: str | None = None
+        func = None
         if stmt.expr.prototype is not None:
             prototype = stmt.expr.prototype
         if isinstance(stmt.expr.target, ailment.Expr.Const):
@@ -311,6 +318,10 @@ class SimEngineVRAIL(
             if not isinstance(ret_ty, typeconsts.BottomType):
                 type_constraint = typevars.Subtype(return_ty, ret_ty)
                 self.state.add_type_constraint(type_constraint)
+
+        # add format-string-based type constraints for variadic arguments
+        if func is not None:
+            self._apply_format_string_type_constraints(func.name, prototype, args, stmt.expr.args)
 
         if ret_ty is None:
             ret_ty = typevars.TypeVariable()
@@ -394,6 +405,105 @@ class SimEngineVRAIL(
                     for stack_var in existing_variables:
                         self.state.add_type_constraint(typevars.Subtype(stack_var, arg_ty.basetype))
                 self.state.add_type_constraint(typevars.Subtype(arg.typevar, arg_ty))
+
+    def _get_format_string_arg_types(self, func_name: str, call_args) -> list | None:
+        """
+        For printf/scanf-family functions, parse the format string and return the types of variadic arguments.
+
+        For scanf-family functions, each format specifier type is wrapped in a SimTypePointer since scanf arguments
+        are pointers to the destination variables.
+        """
+        if call_args is None:
+            return None
+
+        is_scanf = "scanf" in func_name
+        is_printf = "printf" in func_name
+        if not is_scanf and not is_printf:
+            return None
+
+        # find the format string argument - it's the first char* constant argument
+        fmt_str = None
+        for arg_expr in call_args:
+            if isinstance(arg_expr, ailment.Expr.Const) and isinstance(arg_expr.value, int):
+                candidate = self._load_string_from_loader(arg_expr.value)
+                if candidate and b"%" in candidate:
+                    fmt_str = candidate
+                    break
+
+        if not fmt_str:
+            return None
+
+        parser_cls = ScanfFormatParser if is_scanf else FormatParser
+        parser = parser_cls(project=self.project)
+        fmt_str_list = [bytes([b]) for b in fmt_str]
+        components = parser.extract_components(fmt_str_list)
+
+        specifiers = [c for c in components if isinstance(c, FormatSpecifier)]
+        if not specifiers:
+            return None
+
+        arg_types = []
+        for spec in specifiers:
+            ty = spec.ty
+            if is_scanf and not isinstance(ty, SimTypePointer):
+                # scanf arguments are pointers to the destination type
+                ty = SimTypePointer(ty)
+            arg_types.append(ty)
+        return arg_types
+
+    def _load_string_from_loader(self, addr: int) -> bytes | None:
+        """Load a null-terminated string from the project loader's memory."""
+        s = b""
+        while True:
+            try:
+                chunk = self.project.loader.memory.load(addr, 8)
+                addr += 8
+            except KeyError:
+                return s or None
+
+            if b"\x00" in chunk:
+                s += chunk[: chunk.index(b"\x00")]
+                return s or None
+            s += chunk
+            if len(s) > 2048:
+                break
+        return s or None
+
+    def _apply_format_string_type_constraints(
+        self, func_name: str, prototype: SimTypeFunction | None, args: list, call_args
+    ) -> None:
+        """
+        Parse the format string and add type constraints for variadic arguments based on format specifiers.
+        """
+        if call_args is None:
+            return
+
+        fmt_arg_types = self._get_format_string_arg_types(func_name, call_args)
+        if not fmt_arg_types:
+            return
+
+        # determine where variadic arguments start
+        if prototype is not None and prototype.variadic:
+            n_fixed = len(prototype.args)
+        else:
+            # no prototype available - find the format string argument index and variadic args start after it
+            n_fixed = None
+            for idx, arg_expr in enumerate(call_args):
+                if isinstance(arg_expr, ailment.Expr.Const) and isinstance(arg_expr.value, int):
+                    candidate = self._load_string_from_loader(arg_expr.value)
+                    if candidate and b"%" in candidate:
+                        n_fixed = idx + 1
+                        break
+            if n_fixed is None:
+                return
+
+        variadic_args = args[n_fixed:]
+        for arg, fmt_ty in zip(variadic_args, fmt_arg_types):
+            if arg.typevar is None:
+                continue
+            lifted_ty = self.type_lifter.lift(fmt_ty)
+            if isinstance(lifted_ty, (typeconsts.TypeConstant, typevars.TypeVariable, typevars.DerivedTypeVariable)):
+                self.state.add_type_constraint(typevars.Subtype(arg.typevar, lifted_ty))
 
     def _handle_stmt_Return(self, stmt):
         if stmt.ret_exprs:
