@@ -135,6 +135,18 @@ class CFGBase(Analysis):
             raise ValueError(f"Unsupported context sensitivity level {context_sensitivity_level}")
 
         self._binary = binary if binary is not None else self.project.loader.main_object
+        if self._binary.is_outer:
+            # this is an "outer" object (e.g., an archive); we switch to the inner object automatically
+            if not self._binary.child_objects:
+                raise ValueError(f"{self._binary} is an outer object without any child object.")
+            if len(self._binary.child_objects) > 1:
+                l.warning(
+                    "%r has multiple child objects; CFG recovery will be performed on the first child object %r "
+                    "by default.",
+                    self._binary,
+                    self._binary.child_objects[0],
+                )
+            self._binary = self._binary.child_objects[0]
         self._force_segment = force_segment
         self._base_state = base_state
         self._detect_tail_calls = detect_tail_calls
