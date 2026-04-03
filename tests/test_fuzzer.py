@@ -6,6 +6,9 @@ import struct
 import tempfile
 
 import angr
+from angr.procedures.glibc.__libc_start_main import (
+    __libc_start_main as _libc_start_main,
+)
 from angr.rustylib.fuzzer import (
     DeterministicMutator,
     Fuzzer,
@@ -48,7 +51,51 @@ mov byte ptr [rdi], 0
 ret
 """
 
+# Shellcode with a TLS access: without TLS setup this faults as a memory error
+SHELLCODE_TLS_ACCESS = """
+mov rax, qword ptr fs:[0x28]
+ret
+"""
+
+# Shellcode with a syscall (getpid): exercises syscall jumpkind mapping and return address
+SHELLCODE_WITH_SYSCALL = """
+push rax
+mov eax, 39
+syscall
+pop rcx
+cmp cl, 0x41
+je path_a
+cmp cl, 0x42
+je path_b
+ret
+path_a:
+nop
+ret
+path_b:
+nop
+nop
+ret
+"""
+
+# Shellcode that reads a byte from [rdi]: exercises concrete_load bitmap fallback
+SHELLCODE_READ_MEMORY = """
+movzx eax, byte ptr [rdi]
+cmp al, 0x41
+je path_a
+cmp al, 0x42
+je path_b
+ret
+path_a:
+nop
+ret
+path_b:
+nop
+nop
+ret
+"""
+
 RETURN_ADDR = 0x100
+DATA_ADDR = 0x200
 
 
 def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
@@ -56,7 +103,19 @@ def _apply_fn(state: angr.SimState, input: bytes):  # pylint: disable=redefined-
     state.regs.rax = input[0] if input else 0
     # Set the return address so the executor's breakpoint fires on normal return.
     # Must be inside the binary's mapped region but past the shellcode bytes.
+    assert state.project is not None
     cc = state.project.factory.cc()
+    assert cc.return_addr is not None
+    cc.return_addr.set_value(state, RETURN_ADDR)
+
+
+def _apply_fn_memory(state: angr.SimState, input: bytes):  # pylint: disable=redefined-builtin
+    # Store the fuzzed byte at DATA_ADDR and point rdi at it.
+    state.memory.store(DATA_ADDR, bytes([input[0] if input else 0]))
+    state.regs.rdi = DATA_ADDR
+    assert state.project is not None
+    cc = state.project.factory.cc()
+    assert cc.return_addr is not None
     cc.return_addr.set_value(state, RETURN_ADDR)
 
 
@@ -240,6 +299,99 @@ class TestFuzzer:
         solutions_after_second = fuzzer.solutions()
         assert len(solutions_after_second) >= 1, "crash_path should produce a solution"
 
+    def test_tls_access_without_tls_is_crash(self):
+        """TLS access in shellcode (no TLS setup) is correctly reported as a crash."""
+        project = angr.load_shellcode(SHELLCODE_TLS_ACCESS, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00"])
+        solutions = InMemoryCorpus()
+
+        mutator = DeterministicMutator([b"\x00"])
+        fuzzer = Fuzzer(
+            base_state,
+            corpus,
+            solutions,
+            _apply_fn,
+            0,
+            0,
+            max_mutations=1,
+            mutator=mutator,
+        )
+
+        fuzzer.run_once()
+        live_solutions = fuzzer.solutions()
+        assert len(live_solutions) >= 1, "TLS access without TLS should be a crash"
+
+    def test_syscall_handling(self):
+        """Test that a syscall instruction is handled and execution resumes correctly."""
+        project = angr.load_shellcode(SHELLCODE_WITH_SYSCALL, "amd64")
+        base_state = project.factory.entry_state(
+            add_options={angr.sim_options.BYPASS_UNSUPPORTED_SYSCALL},
+        )
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
+
+    def test_symbolic_memory_visible_in_icicle(self):
+        """Test that state.memory.store() writes are visible to icicle concrete execution."""
+        project = angr.load_shellcode(SHELLCODE_READ_MEMORY, "amd64")
+        base_state = project.factory.entry_state()
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn_memory, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
+
+    def test_concrete_libc_start_main_hook(self):
+        """__libc_start_main hook redirects to main through the fuzzer."""
+
+        class _Hook(angr.SimProcedure):
+            NO_RET = True
+
+            def run(self, main, argc, argv, init, fini):
+                main, argc, argv, _, _ = _libc_start_main._extract_args(self.state, main, argc, argv, init, fini)
+                self.state.regs.rdi = argc
+                self.state.regs.rsi = argv
+                envp = argv + (argc + 1) * self.state.arch.bytes
+                self.state.regs.rdx = envp
+                self.jump(main)
+
+        # Reuse SHELLCODE as "main" — it branches on al
+        project = angr.load_shellcode(SHELLCODE, "amd64")
+
+        # Hook an address within the mapped page as __libc_start_main
+        HOOK_ADDR = 0x200
+        project.hook(HOOK_ADDR, _Hook())
+
+        # Start at the hook; rdi = main (shellcode at 0x0)
+        base_state = project.factory.blank_state(addr=HOOK_ADDR)
+        base_state.regs.rdi = 0
+        base_state.regs.rsi = 1
+        base_state.regs.rdx = 0
+
+        corpus = InMemoryCorpus.from_list([b"\x00", b"A", b"B", b"C"])
+        solutions = InMemoryCorpus()
+
+        fuzzer = Fuzzer(base_state, corpus, solutions, _apply_fn, 0, 0, max_mutations=2)
+
+        new_corpus_entry = fuzzer.run_once()
+        live_corpus = fuzzer.corpus()
+        assert isinstance(live_corpus, InMemoryCorpus)
+        assert 0 <= new_corpus_entry < len(live_corpus)
+
     def test_vuln_stacksmash_deterministic(self):
         """Test that DeterministicMutator detects a stack buffer overflow in a real binary.
 
@@ -287,7 +439,9 @@ class TestFuzzer:
             # >120 bytes overflows past saved rbp (8) into the return address.
             state.memory.store(RBP - 0x70, input_bytes)
             # Tell the executor where to set its breakpoint
+            assert state.project is not None
             cc = state.project.factory.cc()
+            assert cc.return_addr is not None
             cc.return_addr.set_value(state, STACK_RET)
 
         corpus = InMemoryCorpus.from_list([b"\x00"])
