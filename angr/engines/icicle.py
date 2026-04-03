@@ -26,6 +26,20 @@ log = logging.getLogger(__name__)
 PROCESSORS_DIR = os.path.join(os.path.dirname(pypcode.__file__), "processors")
 
 
+def _syscall_jumpkind(arch_name: str, emu) -> str:
+    """Map icicle's generic Syscall exception to the arch-specific VEX jumpkind."""
+    if arch_name in ("AMD64", "X86"):
+        try:
+            insn = emu.mem_read(emu.pc, 2)
+        except RuntimeError:
+            insn = b""
+        if insn == b"\xcd\x80":
+            return "Ijk_Sys_int128"
+        if insn == b"\x0f\x05":
+            return "Ijk_Sys_syscall"
+    return "Ijk_Sys_syscall"
+
+
 @dataclass
 class IcicleStateTranslationData:
     """
@@ -185,10 +199,6 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:  # Hack to work around us calling it r15t
             emu.pc = state.addr
 
-        # Special case for x86 gs register
-        if state.arch.name == "X86":
-            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
-
         # 2. Copy the memory contents
 
         mapped_pages = IcicleEngine.__get_pages(state)
@@ -198,13 +208,25 @@ class IcicleEngine(ConcreteEngine):
             size = state.memory.page_size
             perm_bits = state.memory.permissions(addr).concrete_value
             emu.mem_map(addr, size, perm_bits)
-            memory = state.memory.concrete_load(addr, size)
+            memory, bitmap = state.memory.concrete_load(addr, size, with_bitmap=True)
+            if any(bitmap):
+                # Page has symbolic values — resolve through the solver.
+                memory = state.solver.eval(state.memory.load(addr, size), cast_to=bytes)
             emu.mem_write(addr, memory)
 
             if perm_bits & 2:
                 writable_pages.add(page_num)
 
-        # Add breakpoints for simprocedures
+        # Set x86/AMD64 TLS segment base from the state register.
+        # The SimOS layer ensures a valid TLS base is always set, either
+        # from the loader's TLS data or via a fallback allocation.
+        if state.arch.name == "AMD64":
+            emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        elif state.arch.name == "X86":
+            emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
+
+        # Add breakpoints for all registered simprocedures so the engine
+        # hands control back to angr for hooks/syscalls.
         for addr in proj._sim_procedures:
             emu.add_breakpoint(addr)
 
@@ -239,6 +261,13 @@ class IcicleEngine(ConcreteEngine):
         if IcicleEngine.__is_arm(emu.architecture):  # Hack to work around us calling it r15t
             state.registers.store("pc", (emu.pc | 1) if emu.isa_mode == 1 else emu.pc)
 
+        # Restore TLS base from FS/GS_OFFSET (register copy clobbers it).
+        arch_name = translation_data.base_state.arch.name
+        if arch_name == "AMD64":
+            state.regs.fs = emu.reg_read("FS_OFFSET")
+        elif arch_name == "X86":
+            state.regs.gs = emu.reg_read("GS_OFFSET") >> 16
+
         # 2. Copy only memory pages that were actually modified during execution
         modified_addrs = set(emu.modified_pages)
         page_size = state.memory.page_size
@@ -260,7 +289,15 @@ class IcicleEngine(ConcreteEngine):
             ):
                 state.history.jumpkind = "Ijk_SigSEGV"
             elif exc == ExceptionCode.Syscall:
-                state.history.jumpkind = "Ijk_Syscall"
+                state.history.jumpkind = _syscall_jumpkind(arch_name, emu)
+                # Icicle stops at the syscall instruction (unlike VEX
+                # which computes the next IP during lifting), so we
+                # advance IP using archinfo's instruction_alignment.
+                # x86 (variable-length): alignment is 1, but all syscall variants are 2 bytes.
+                syscall_len = translation_data.base_state.arch.instruction_alignment
+                if syscall_len is None or syscall_len < 2:
+                    syscall_len = 2
+                state.regs.ip = emu.pc + syscall_len
             elif exc == ExceptionCode.Halt:
                 state.history.jumpkind = "Ijk_Exit"
             elif exc == ExceptionCode.InvalidInstruction:
@@ -312,11 +349,13 @@ class IcicleEngine(ConcreteEngine):
         elif "arm" in icicle_arch:
             emu.pc = state.addr
 
-        # Special case for x86 gs register
-        if state.arch.name == "X86":
+        # Sync x86/AMD64 TLS segment base.
+        if state.arch.name == "AMD64":
+            emu.reg_write("FS_OFFSET", state.registers.load("fs").concrete_value)
+        elif state.arch.name == "X86":
             emu.reg_write("GS_OFFSET", state.registers.load("gs").concrete_value << 16)
 
-        # 2. Sync only mapping/permission deltas from explicit page changes.
+        # 2. Sync mapping/permission deltas.
         page_size = state.memory.page_size
         explicit_page_metadata = IcicleEngine.__get_explicit_page_metadata(state)
         base_explicit_page_metadata = base_translation_data.explicit_page_metadata
@@ -363,7 +402,9 @@ class IcicleEngine(ConcreteEngine):
         # 3. Copy writable page contents.
         for page_num in writable_pages:
             addr = page_num * page_size
-            memory = state.memory.concrete_load(addr, page_size)
+            memory, bitmap = state.memory.concrete_load(addr, page_size, with_bitmap=True)
+            if any(bitmap):
+                memory = state.solver.eval(state.memory.load(addr, page_size), cast_to=bytes)
             emu.mem_write(addr, memory)
 
         return IcicleStateTranslationData(
@@ -415,18 +456,25 @@ class IcicleEngine(ConcreteEngine):
                 self._cached_emu = emu
                 self._base_translation_data = translation_data
 
-        # Set extra stop points, skip the current PC. Track which ones were
-        # actually added so we can clean them up after the run.
+        # Set extra stop points (cleaned up after the run).
         added_breakpoints = []
+        is_arm = IcicleEngine.__is_arm(translation_data.icicle_arch)
         if extra_stop_points is not None:
             for addr in extra_stop_points:
-                addr = addr & ~1  # Clear thumb bit if set
-                if emu.pc != addr and emu.add_breakpoint(addr):
+                if is_arm:
+                    addr = addr & ~1  # Clear thumb bit
+                if emu.pc == addr:
+                    continue
+                bp_page = addr // state.memory.page_size
+                if bp_page not in translation_data.mapped_pages:
+                    log.debug("Breakpoint at %#x skipped: page not mapped.", addr)
+                    continue
+                if emu.add_breakpoint(addr):
                     added_breakpoints.append(addr)
 
-        # Set the instruction count limit
+        # icount_limit is absolute — offset by current cpu_icount.
         if num_inst is not None and num_inst > 0:
-            emu.icount_limit = num_inst
+            emu.icount_limit = emu.cpu_icount + num_inst
 
         # Reset page modification tracking so only writes during execution
         # are recorded.  This clears per-page modified flags and the global
@@ -438,7 +486,7 @@ class IcicleEngine(ConcreteEngine):
         # Run it
         status = emu.run()
 
-        # Remove extra stop points to prevent accumulation across runs
+        # Clean up extra stop points
         for addr in added_breakpoints:
             emu.remove_breakpoint(addr)
 
