@@ -180,7 +180,8 @@ class TestIcicle(TestCase):
         # (icicle advances PC past the syscall: svc is 4 bytes on aarch64)
         assert successors.successors[0].ip.concrete_value == 0x4
         # Check that the syscall was invoked
-        assert successors.successors[0].history.jumpkind.startswith("Ijk_Sys")
+        jk = successors.successors[0].history.jumpkind
+        assert jk is not None and jk.startswith("Ijk_Sys")
 
 
 class TestSnapshotSync(TestCase):
