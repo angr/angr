@@ -6,16 +6,18 @@ from angr.ailment.statement import Statement
 
 
 class CallFinder(AILBlockViewer):
+    """Find the first Call statement or expression in a block."""
+
     def __init__(self, include_macro=False):
         super().__init__()
         self.call = None
         self.include_macro = include_macro
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_Call(self, _stmt_idx: int, stmt: Call, _block: Block | None):
         if not self.call:
             self.call = stmt
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, _expr_idx: int, expr: Call, _stmt_idx: int, _stmt: Statement, _block: Block | None):
         if not self.call:
             self.call = expr
 
@@ -125,14 +127,16 @@ def unwrap_stack_vvar_reference_with_offset(expr) -> tuple[VirtualVariable, int]
 
 
 class CallVisitor(AILBlockViewer):
+    """Visit all Call statements and expressions in a graph, invoking a callback."""
+
     def __init__(self, callback):
         super().__init__()
         self.callback = callback
 
-    def _handle_Call(self, stmt_idx: int, stmt: Call, block: Block | None):
+    def _handle_Call(self, _stmt_idx: int, stmt: Call, block: Block | None):
         self.callback(stmt, block, stmt, is_expr=False)
 
-    def _handle_CallExpr(self, expr_idx: int, expr: Call, stmt_idx: int, stmt: Statement, block: Block | None):
+    def _handle_CallExpr(self, _expr_idx: int, expr: Call, _stmt_idx: int, stmt: Statement, block: Block | None):
         self.callback(expr, block, stmt, is_expr=True)
 
     def visit(self, graph):

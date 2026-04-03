@@ -570,7 +570,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             "StringLiteral": self._handle_expr_StringLiteral,
             "Struct": self._handle_expr_Struct,
             "Array": self._handle_expr_Array,
-            "Enum": self._handle_expr_Enum,
+            "RustEnum": self._handle_expr_RustEnum,
             "Let": self._handle_expr_Let,
             "FunctionLikeMacro": self._handle_expr_FunctionLikeMacro,
             "ComboRegister": self._handle_expr_ComboRegister,
@@ -830,7 +830,7 @@ class SimEngineLightAIL[StateType, DataType_co, StmtDataType, ResultType](
             self._expr(element)
         return self._top(expr.bits)
 
-    def _handle_expr_Enum(self, expr) -> DataType_co:
+    def _handle_expr_RustEnum(self, expr) -> DataType_co:
         for child_expr in expr.fields:
             self._expr(child_expr)
         return self._top(expr.bits)

@@ -67,6 +67,8 @@ from angr.analyses import Analysis, register_analysis
 from angr.analyses.cfg.cfg_base import CFGBase
 from angr.analyses.typehoon import Typehoon
 from angr.analyses.s_liveness import SLivenessAnalysis
+from angr.analyses.typehoon.typehoon import Typehoon
+from angr.ailment.expression import Struct, Array, RustEnum, Let, FunctionLikeMacro
 from .ail_simplifier import AILSimplifier
 from .ssailification.ssailification import Ssailification
 from .stack_item import StackItem, StackItemType
@@ -79,8 +81,6 @@ from .optimization_passes import (
     DUPLICATING_OPTS,
     CONDENSING_OPTS,
 )
-from angr.analyses.typehoon.typehoon import Typehoon
-from angr.ailment.expression import Struct, Array, Enum, Let, FunctionLikeMacro
 from .semantic_naming import SemanticNamingOrchestrator
 
 if TYPE_CHECKING:
@@ -623,6 +623,8 @@ class Clinic(Analysis):
         """
 
         class ComboRegReferenceWalker(AILBlockRewriter):
+            """Rewrite references to combo registers to load from the combo register."""
+
             def __init__(self, project):
                 super().__init__()
                 self.project = project
@@ -2650,7 +2652,7 @@ class Clinic(Analysis):
             for field in expr.fields.values():
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)
 
-        elif isinstance(expr, Enum):
+        elif isinstance(expr, RustEnum):
             for field in expr.fields:
                 self._link_variables_on_expr(variable_manager, global_variables, block, stmt_idx, stmt, field)
 

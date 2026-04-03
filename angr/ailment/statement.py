@@ -1,4 +1,4 @@
-# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions
+# pylint:disable=isinstance-second-argument-not-valid-type,no-self-use,arguments-renamed,too-many-boolean-expressions,unused-import
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -246,7 +246,10 @@ class Store(Statement):
 
     def __str__(self):
         if self.variable is None:
-            return f"STORE(addr={self.addr}, data={self.data!s}, size={self.size}, endness={self.endness}, guard={self.guard})"
+            return (
+                f"STORE(addr={self.addr}, data={self.data!s}, size={self.size},"
+                f" endness={self.endness}, guard={self.guard})"
+            )
         return f"{self.variable.name} ={'L' if self.endness == 'Iend_LE' else 'B'} {self.data}<{self.size}>" + (
             "" if self.guard is None else f"[{self.guard}]"
         )

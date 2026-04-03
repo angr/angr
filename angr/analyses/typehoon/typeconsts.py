@@ -400,7 +400,7 @@ class RustEnum(TypeConstant):
         visited.add(id(self))
         return hash((type(self), self._hash_fields(visited)))
 
-    def _hash_fields(self, visited: set[int]):
+    def _hash_fields(self, visited: set[int]):  # pylint:disable=unused-argument
         tpl = tuple(hash(variant) for variant in self.variants)
         return hash(tpl)
 
@@ -436,22 +436,7 @@ class RustEnum(TypeConstant):
             if self in memo:
                 return self
         memo.add(self)
-        new_fields = {}
-        changed = False
-        for off, typ in self.fields.items():
-            new_typ = typ.replace(mapping, memo=memo) if typ else None
-            new_fields[off] = new_typ
-            if new_typ is not typ:
-                changed = True
-        if not changed:
-            return self
-        return Struct(
-            fields=new_fields,
-            name=self.name,
-            field_names=self.field_names,
-            is_cppclass=self.is_cppclass,
-            idx=self.idx,
-        )
+        return self
 
 
 _ENUM_ID = itertools.count()

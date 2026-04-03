@@ -68,7 +68,7 @@ class RustcVersionIdentification(Analysis):
                     continue
                 count += 1
             return count
-        except Exception:
+        except Exception:  # pylint:disable=broad-exception-caught
             return 0
 
     def _cached_count(self, sig_file):
@@ -79,8 +79,7 @@ class RustcVersionIdentification(Analysis):
                 sig_path = os.path.join(sig_dir, sig_file)
                 if os.path.exists(sig_path):
                     count = self._match_signature(sig_path)
-                    if count > best_count:
-                        best_count = count
+                    best_count = max(best_count, count)
             self._cache[sig_file] = best_count
             l.info("[%d] Testing %s: %d matches", len(self._cache), sig_file, best_count)
         return self._cache[sig_file]

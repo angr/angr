@@ -1,7 +1,7 @@
 from __future__ import annotations
 from collections import defaultdict
 
-from angr.ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, Enum
+from angr.ailment.expression import VirtualVariable, Const, Load, StackBaseOffset, Struct, RustEnum
 from angr.ailment.statement import Return, Store
 from angr.rust.utils.ail import extract_vvar_and_offset
 from angr.rust.analyses.rust_calling_convention import Pathfinder
@@ -20,6 +20,8 @@ from angr.rust.sim_type import (
 
 
 class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin):
+    """Simplify struct return patterns by wrapping return values in enum constructors."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -49,7 +51,8 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
         struct_ty.name = f"struct{struct_ty.size // 8}"
         return struct_ty.with_arch(self.project.arch)
 
-    def _is_stack_mem(self, expr):
+    @staticmethod
+    def _is_stack_mem(expr):
         offset, size = None, None
         if isinstance(expr, Load) and isinstance(expr.addr, StackBaseOffset):
             offset = expr.addr.offset
@@ -75,10 +78,9 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 else:
                     return None
         if cur_offset == sum(field.size for field in fields.values()):
-            vvar = self.get_stack_vvar_by_insn(
+            return self.get_stack_vvar_by_insn(
                 src_stack_offset, block.statements[-1].tags["ins_addr"], block.idx, size=cur_offset
             )
-            return vvar
         return None
 
     def _remove_discriminant_from_struct(self, struct: Struct, variant: EnumVariant):
@@ -106,7 +108,7 @@ class StructReturnSimplifier(OptimizationPass, SRDAMixin, CFGTransformationMixin
                 new_expr = self._remove_discriminant_from_struct(struct, variant)
                 if len(new_expr.fields) == 1 and 0 in new_expr.fields:
                     new_expr = new_expr.fields[0]
-                return Enum(None, variant.name, [new_expr], prototype.returnty.with_arch(self.project.arch).size)
+                return RustEnum(None, variant.name, [new_expr], prototype.returnty.with_arch(self.project.arch).size)
         return struct
 
     def collect_ret_expr(self, path):

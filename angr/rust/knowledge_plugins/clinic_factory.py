@@ -8,13 +8,15 @@ l = logging.getLogger(name=__name__)
 
 
 class ClinicFactory(KnowledgeBasePlugin):
+    """Cache and provide Clinic analysis results for Rust functions."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self.cache = {}
 
     def get(self, func, optimization_passes=None, end_stage=None):
         if optimization_passes is None:
-            optimization_passes = tuple()
+            optimization_passes = ()
         key = (func.addr, tuple(optimization_passes), end_stage)
         if key in self.cache:
             return self.cache[key]
@@ -25,8 +27,8 @@ class ClinicFactory(KnowledgeBasePlugin):
             )
             self.cache[key] = clinic
             return self.cache[key]
-        except Exception as e:
-            l.error(f"Failed to recover AIL graph for {func.demangled_name}")
+        except Exception as e:  # pylint:disable=broad-exception-caught
+            l.error("Failed to recover AIL graph for %s", func.demangled_name)
             l.error("".join(traceback.format_exception(e)))
             return None
 

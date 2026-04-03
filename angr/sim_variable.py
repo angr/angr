@@ -301,7 +301,9 @@ class SimRegisterVariable(SimVariable):
 
 
 class SimComboRegisterVariable(SimVariable):
-    __slots__ = ["_hash", "reg_offsets"]
+    """A variable that spans multiple registers combined into a single value."""
+
+    __slots__ = ["reg_offsets"]
 
     def __init__(self, reg_offsets: tuple, size: int, ident=None, name=None, region=None, category=None):
         SimVariable.__init__(self, ident=ident, name=name, region=region, category=category, size=size)
@@ -317,7 +319,8 @@ class SimComboRegisterVariable(SimVariable):
         ident_str = f"[{self.ident}]" if self.ident else ""
         region_str = hex(self.region) if isinstance(self.region, int) else self.region
 
-        return f"<{region_str}{ident_str}|Reg {':'.join(str(reg_offset) for reg_offset in self.reg_offsets)}, {self.size}B>"
+        reg_str = ":".join(str(reg_offset) for reg_offset in self.reg_offsets)
+        return f"<{region_str}{ident_str}|Reg {reg_str}, {self.size}B>"
 
     def loc_repr(self, arch):
         return ":".join(arch.translate_register_name(reg_offset, self.size) for reg_offset in self.reg_offsets)
@@ -348,7 +351,7 @@ class SimComboRegisterVariable(SimVariable):
     @classmethod
     def _get_cmsg(cls):
         # TODO: Support serialization for SimComboRegisterVariable
-        return pb2.RegisterVariable()
+        return pb2.RegisterVariable()  # pylint:disable=no-member
 
     def serialize_to_cmessage(self):
         # TODO: Support serialization for SimComboRegisterVariable

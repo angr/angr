@@ -1,5 +1,5 @@
 from __future__ import annotations
-import angr.ailment as ailment
+from angr import ailment
 from angr.ailment.expression import VirtualVariable, Struct, FunctionLikeMacro, Call
 from angr.ailment.statement import Store, Assignment
 
@@ -12,6 +12,8 @@ from angr.sim_variable import SimVariable
 
 
 class TypeCorrector(OptimizationPass):
+    """Correct type annotations on AIL expressions based on Rust type information."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_VARIABLE_RECOVERY

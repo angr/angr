@@ -2180,7 +2180,7 @@ class Struct(Expression):
     matches = likes
 
 
-class Enum(Expression):
+class RustEnum(Expression):
     def __init__(self, idx, name, fields, bits, **kwargs):
         super().__init__(idx, (max(field.depth for field in fields) if len(fields) else 0) + 1, **kwargs)
         self.name = name
@@ -2211,7 +2211,7 @@ class Enum(Expression):
         )
 
     def copy(self):
-        return Enum(self.idx, self.name, self.fields, self.bits)
+        return RustEnum(self.idx, self.name, self.fields, self.bits)
 
     def replace(self, old_expr, new_expr):
         new_fields = []
@@ -2229,7 +2229,7 @@ class Enum(Expression):
                     new_fields.append(field)
 
         if replaced:
-            return True, Enum(self.idx, self.name, new_fields, self.bits, **self.tags)
+            return True, RustEnum(self.idx, self.name, new_fields, self.bits, **self.tags)
         return False, self
 
     matches = likes

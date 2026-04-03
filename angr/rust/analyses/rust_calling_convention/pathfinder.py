@@ -12,6 +12,8 @@ from angr.utils.graph import GraphUtils
 
 
 class Pathfinder:
+    """Find paths through the CFG that satisfy certain constraints."""
+
     def __init__(self, graph, srda_mixin: SRDAMixin = None):
         self.graph = graph
         self._srda_mixin = srda_mixin
@@ -27,12 +29,14 @@ class Pathfinder:
         new_path = [block.copy() for block in path]
 
         class PhiRewriter(AILBlockRewriter):
+            """Rewrite Phi nodes to select the value from the predecessor block."""
+
             def __init__(self):
                 super().__init__()
                 self.pred_block = None
 
             def _handle_Phi(
-                self, expr_id: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None
+                self, expr_idx: int, expr: Phi, stmt_idx: int, stmt: Statement, block: Block | None
             ) -> Phi | None:
                 if self.pred_block:
                     pred = (self.pred_block.addr, self.pred_block.idx)
@@ -69,7 +73,7 @@ class Pathfinder:
                 path_changed = False
                 for succ in self.graph.successors(last_block):
                     if succ not in path and (self._is_ret2arg0_block(succ) or self._is_safe_block(succ)):
-                        new_path = list(path) + [succ]
+                        new_path = [*list(path), succ]
                         new_paths.append(new_path)
                         changed = True
                         path_changed = True
@@ -77,8 +81,7 @@ class Pathfinder:
                 if not path_changed:
                     new_paths.append(path)
             paths = new_paths
-        paths = {tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return)}
-        return paths
+        return {tuple(path) for path in paths if isinstance(path[-1].statements[-1], Return)}
 
     def find_ret2arg0_paths(self, remove_phi=False):
         visited = set()
@@ -88,8 +91,7 @@ class Pathfinder:
                 paths = paths.union(self._find_ret2arg0_path(block, visited))
             else:
                 visited.add(block)
-        paths = {self._remove_phi(path) if remove_phi else path for path in paths}
-        return paths
+        return {self._remove_phi(path) if remove_phi else path for path in paths}
 
     @staticmethod
     def path_to_graph(path):

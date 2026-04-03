@@ -1,12 +1,10 @@
 from __future__ import annotations
-from itertools import count
 
 from angr.analyses.typehoon.translator import TypeTranslator, SimTypeTempRef
 from angr.analyses.typehoon import typeconsts
 from angr.analyses.typehoon.typeconsts import TypeConstant, IntVar
 from angr import sim_type
 from angr.rust.sim_type import (
-    SimType,
     RustSimTypeInt,
     RustSimTypeReference,
     RustSimType,
@@ -22,8 +20,7 @@ from angr.sim_type import SimTypeNum
 
 
 class RustSimTypeTempRef(RustSimType, SimTypeTempRef):
-    def __init__(self, typevar):
-        super().__init__(typevar)
+    """Temporary reference to an unresolved type variable during translation."""
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         return "<RustSimTypeTempRef>"
@@ -38,19 +35,8 @@ class RustTypeTranslator(TypeTranslator):
     """
 
     def __init__(self, project=None, arch=None):
+        super().__init__(arch)
         self.project = project
-        self.arch = arch
-
-        self.translated: dict[TypeConstant, SimType] = {}
-        self.translated_simtypes: dict[SimType, TypeConstant] = {}
-        self.structs = {}
-        self._struct_ctr = count()
-        self.memo = {}
-        self.named_struct_id_counter = count(133337)
-        self.struct_name_to_idx = {}
-
-        # will be updated every time .tc2simtype() is called
-        self._has_nonexistent_ref = False
 
     # ----------------------------------------------------------------
     # TypeConstant -> RustSimType (tc2simtype direction)
@@ -85,7 +71,7 @@ class RustTypeTranslator(TypeTranslator):
         return RustSimTypeInt(size=tc.size, signed=False).with_arch(self.arch)
 
     def _translate_Array(self, tc: typeconsts.Array):
-        elem_type = self._tc2simtype(tc.element)
+        _ = self._tc2simtype(tc.element)
         # TODO: Maybe array should be translated to struct?
         return RustSimTypeInt(size=64, signed=False).with_arch(self.arch)
 
@@ -93,10 +79,7 @@ class RustTypeTranslator(TypeTranslator):
         if tc in self.structs:
             return self.structs[tc]
 
-        if tc.name:
-            name = tc.name
-        else:
-            name = self.struct_name()
+        name = tc.name or self.struct_name()
 
         s = RustSimStruct({}, name=name).with_arch(self.arch)
         self.structs[tc] = s
@@ -107,7 +90,7 @@ class RustTypeTranslator(TypeTranslator):
                 # we need padding!
                 # If struct's name is known, do not pad
                 padding_size = offset - next_offset
-                s.fields["padding_%x" % next_offset] = RustSimTypeArray(
+                s.fields[f"padding_{next_offset}"] = RustSimTypeArray(
                     RustSimTypeInt(size=8, signed=False).with_arch(self.arch), padding_size
                 ).with_arch(self.arch)
 
@@ -116,7 +99,7 @@ class RustTypeTranslator(TypeTranslator):
             if isinstance(translated_type, sim_type.SimTypeBottom):
                 translated_type = RustSimTypeInt(self.arch.bytes * self.arch.byte_width).with_arch(self.arch)
 
-            field_name = "field_%x" % offset
+            field_name = f"field_{offset:x}"
             if tc.field_names and offset in tc.field_names:
                 field_name = tc.field_names[offset]
             s.fields[field_name] = translated_type
@@ -183,8 +166,7 @@ class RustTypeTranslator(TypeTranslator):
         except KeyError:
             return sim_type.SimTypeBottom().with_arch(self.arch)
 
-        translated = handler(self, tc)
-        return translated
+        return handler(self, tc)
 
     # ----------------------------------------------------------------
     # RustSimType -> TypeConstant (simtype2tc / lift direction)
@@ -200,7 +182,7 @@ class RustTypeTranslator(TypeTranslator):
             # fall back to parent for non-Rust types
             return super()._simtype2tc(simtype)
 
-    def _translate_RustSimTypeInt(self, ty: RustSimTypeInt):
+    def _translate_RustSimTypeInt(self, ty: RustSimTypeInt):  # pylint: disable=no-self-use
         if ty.size == 8:
             return typeconsts.Int8()
         if ty.size == 16:

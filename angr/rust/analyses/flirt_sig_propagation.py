@@ -4,12 +4,15 @@ from angr.analyses import Analysis, AnalysesHub
 
 
 class FlirtSigPropagation(Analysis):
+    """Propagate FLIRT signatures through simple wrapper functions."""
+
     def __init__(self, cfg):
         self.cfg = cfg
 
         self._analyze()
 
-    def _is_simple_function(self, func):
+    @staticmethod
+    def _is_simple_function(func):
         """A simple function is defined as a function that only contains jmp instructions."""
         for block in func.blocks:
             for insn in block.capstone.insns:

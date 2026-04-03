@@ -15,6 +15,8 @@ SECURITY_CHECK_FUNCTIONS = (
 
 
 class SecurityCheckRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
+    """Remove Rust bounds-check and overflow-check panic branches."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY

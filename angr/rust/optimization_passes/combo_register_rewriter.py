@@ -1,13 +1,17 @@
 from __future__ import annotations
+
+from angr.ailment import Statement, Block
 from angr.ailment.expression import VirtualVariable, VirtualVariableCategory, UnaryOp
 from angr.ailment.statement import Call
-from .utils import CallRewriter, replace_argument_pairs
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
 from angr.rust.mixins import SRDAMixin
-from angr.ailment import Statement, Block
+
+from .utils import CallRewriter, replace_argument_pairs
 
 
 class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
+    """Rewrite return expressions for functions returning struct via multiple registers."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -34,7 +38,7 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 ident_to_vvar[":".join(str(reg_offset) for reg_offset in arg_vvar.reg_offsets)] = arg_vvar
                 first_offset_to_vvar[arg_vvar.reg_offsets[0]] = arg_vvar
 
-        def handle_Call(call: Call, block, stmt):
+        def handle_Call(call: Call, _block, _stmt):
             def replace_argument_pair(arg, next_arg):
                 if (
                     (
@@ -55,7 +59,7 @@ class ComboRegisterRewriter(OptimizationPass, SRDAMixin):
                 return replace_argument_pairs(call, replace_argument_pair)
             return call
 
-        def handle_UnaryOp(expr_idx: int, expr: UnaryOp, stmt_idx: int, stmt: Statement, block: Block | None):
+        def handle_UnaryOp(_expr_idx: int, expr: UnaryOp, _stmt_idx: int, _stmt: Statement, _block: Block | None):
             if (
                 expr.op == "Reference"
                 and isinstance(expr.operand, VirtualVariable)

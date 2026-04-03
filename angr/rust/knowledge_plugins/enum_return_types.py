@@ -3,6 +3,8 @@ from angr.knowledge_plugins import KnowledgeBasePlugin
 
 
 class EnumReturnTypes(KnowledgeBasePlugin):
+    """Store inferred enum return types for functions."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self.enum_return_types = {}

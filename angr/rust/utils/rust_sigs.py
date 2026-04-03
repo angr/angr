@@ -9,6 +9,11 @@ from angr.utils.env import is_pyinstaller
 
 l = logging.getLogger(name=__name__)
 
+try:
+    from flirt_signatures import signatures_path
+except ImportError:
+    signatures_path = None
+
 
 def get_default_sig_dir(arch_name: str = "x86_64", platform: str = "linux") -> str | None:
     if is_pyinstaller():
@@ -21,13 +26,12 @@ def get_default_sig_dir(arch_name: str = "x86_64", platform: str = "linux") -> s
             base_dir = None
 
     if base_dir is None:
-        try:
-            from flirt_signatures import signatures_path
-
+        if signatures_path is not None:
             base_dir = signatures_path()
-        except ImportError:
+        else:
             l.warning(
-                "Could not import flirt_signatures. Please install https://github.com/angr/flirt_signatures.git in your environment."
+                "Could not import flirt_signatures. "
+                "Please install https://github.com/angr/flirt_signatures.git in your environment."
             )
 
     if base_dir:

@@ -2,9 +2,9 @@
 from __future__ import annotations
 from collections import OrderedDict
 
-import angr.ailment as ailment
-
+from angr import ailment
 from angr.errors import UnsupportedNodeTypeError
+from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 from .structuring.structurer_nodes import (
     MultiNode,
     CodeNode,
@@ -16,7 +16,6 @@ from .structuring.structurer_nodes import (
     ConditionalBreakNode,
     IncompleteSwitchCaseNode,
 )
-from angr.rust.structuring.structurer_nodes import PatternMatchNode, IfLetNode
 
 
 class SequenceWalker:

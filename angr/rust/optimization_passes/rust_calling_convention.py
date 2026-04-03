@@ -3,6 +3,8 @@ from angr.analyses.decompiler.optimization_passes.optimization_pass import Optim
 
 
 class RustCallingConvention(OptimizationPass):
+    """Apply Rust calling convention analysis results to function prototypes."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION

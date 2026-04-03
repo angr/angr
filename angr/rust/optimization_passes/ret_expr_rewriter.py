@@ -3,16 +3,18 @@ from typing import TYPE_CHECKING
 
 from angr.ailment import Const, Register
 from angr.ailment.expression import ComboRegister
-from .utils import SideEffectStatementRewriter
-
 from angr.calling_conventions import SimStructArg, SimRegArg, SimFunctionArgument
 from angr.analyses.decompiler.optimization_passes.optimization_pass import OptimizationPass, OptimizationPassStage
+
+from .utils import SideEffectStatementRewriter
 
 if TYPE_CHECKING:
     from angr.ailment.statement import SideEffectStatement
 
 
 class RetExprRewriter(OptimizationPass):
+    """Rewrite return expressions for functions returning struct via multiple registers."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_SSA_LEVEL0_TRANSFORMATION
@@ -35,7 +37,7 @@ class RetExprRewriter(OptimizationPass):
         return [arg]
 
     def _analyze(self, cache=None):
-        def callback(call_stmt: SideEffectStatement, block, stmt):
+        def callback(call_stmt: SideEffectStatement, _block, _stmt):
             if isinstance(call_stmt.expr.target, Const) and call_stmt.expr.target.value in self.kb.functions:
                 func = self.kb.functions[call_stmt.expr.target.value]
                 if func.prototype and func.calling_convention and func.prototype.returnty:

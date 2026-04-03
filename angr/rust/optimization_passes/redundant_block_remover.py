@@ -9,6 +9,8 @@ from angr.utils.ssa import VVarUsesCollector
 
 
 class RedundantBlockRemover(OptimizationPass, CFAMixin, CFGTransformationMixin):
+    """Remove redundant blocks that have no effect on functionality."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_REGION_IDENTIFICATION

@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+# pylint:disable=missing-class-docstring
 from collections import OrderedDict
 
 from angr.sim_type import (
@@ -36,8 +38,8 @@ class RustSimTypeInt(RustSimType, SimTypeInt):
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
+            return repr(self)
+        return f"{name}: {self!r}"
 
     @property
     def alignment(self):
@@ -365,9 +367,8 @@ class RustSimStruct(RustSimType, SimStruct):
         members = newline.join(
             new_indented + v.c_repr(k, full - 1, new_memo, new_indent) + ";" for k, v in self.fields.items()
         )
-        return "struct {} {{{}{}{}{}}}{}".format(
-            self.name, newline, members, newline, indented, "" if name is None else " " + name
-        )
+        suffix = "" if name is None else " " + name
+        return f"struct {self.name} {{{newline}{members}{newline}{indented}}}{suffix}"
 
     def __repr__(self):
         return self.name
@@ -478,8 +479,8 @@ class RustSimTypeSlice(RustSimStruct, SimType):
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
+            return repr(self)
+        return f"{name}: {self!r}"
 
     def copy(self):
         out = RustSimTypeSlice(self.element_type, self.label).with_arch(self._arch)
@@ -548,8 +549,8 @@ class RustSimTypeVec(RustSimStruct, SimType):
 
     def repr(self, name=None, full=0, memo=None, indent=0):
         if name is None or len(name) == 0:
-            return self.__repr__()
-        return f"{name}: {self.__repr__()}"
+            return repr(self)
+        return f"{name}: {self!r}"
 
     def __repr__(self):
         return self.name
@@ -700,7 +701,7 @@ class RustSimEnum(RustSimType, SimType):
     @property
     def size(self) -> int:
         if self._size is None:
-            self._size = max([variant.bits for variant in self.variants], default=0)
+            self._size = max((variant.bits for variant in self.variants), default=0)
         return self._size
 
     def copy(self):

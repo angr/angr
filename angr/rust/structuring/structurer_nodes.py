@@ -8,6 +8,8 @@ from angr.rust.sim_type import EnumVariant
 
 
 class PatternMatchNode(BaseNode):
+    """A Rust match expression node in the structured code tree."""
+
     __slots__ = (
         "addr",
         "arms",
@@ -36,6 +38,8 @@ class PatternMatchNode(BaseNode):
 
 
 class IfLetNode(BaseNode):
+    """A Rust if-let expression node in the structured code tree."""
+
     __slots__ = (
         "addr",
         "false_node",

@@ -47,7 +47,7 @@ def zip_args_and_types(call: Call, prototype: RustSimTypeFunction):
     result = []
     sorted_type_offsets = sorted(offset_to_arg_ty.keys())
 
-    for i, type_offset in enumerate(sorted_type_offsets):
+    for _, type_offset in enumerate(sorted_type_offsets):
         arg_ty = offset_to_arg_ty[type_offset]
         type_end_offset = type_offset + arg_ty.size
 

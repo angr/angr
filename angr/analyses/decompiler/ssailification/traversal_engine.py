@@ -675,7 +675,7 @@ class SimEngineSSATraversal(SimEngineLightAIL[TraversalState, Value, None, None]
             self._expr(field)
         return set()
 
-    def _handle_expr_String(self, expr) -> Value:
+    def _handle_expr_String(self, expr) -> Value:  # pylint:disable=unused-argument, no-self-use
         return set()
 
     def _handle_expr_Let(self, expr) -> Value:

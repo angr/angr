@@ -4,6 +4,8 @@ from angr.rust.typehoon.translator import RustTypeTranslator
 
 
 class TypeHints(KnowledgeBasePlugin):
+    """Store type hints for virtual variables inferred from Rust patterns."""
+
     def __init__(self, kb):
         super().__init__(kb)
         self.vvar_type_hints = {}

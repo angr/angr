@@ -25,6 +25,8 @@ from angr.utils.ssa import VVarUsesCollector
 
 
 class StructBuilder:
+    """Build Struct expressions from sequential memory write patterns."""
+
     def __init__(self, context: StructInstantiationSimplifier):
         self.context = context
         self.pending_potential_structs = []
@@ -81,7 +83,8 @@ class StructBuilder:
                 fixed_field_exprs[offset] = expr
         return fixed_field_exprs
 
-    def _rebase_field_exprs(self, field_exprs, field_offset):
+    @staticmethod
+    def _rebase_field_exprs(field_exprs, field_offset):
         rebased_field_exprs = {}
         for offset in field_exprs:
             if offset - field_offset >= 0:
@@ -148,6 +151,8 @@ class StructBuilder:
 
 
 class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMixin, SSAVariableMixin):
+    """Simplify struct instantiation from sequential stack writes into Struct expressions."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.BEFORE_VARIABLE_RECOVERY
@@ -254,8 +259,8 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                 # Collect type hints
                 self.project.kb.type_hints.add_type_hint(new_vvar, struct_ty)
 
-                for expr, struct_ty in builder.pending_potential_structs:
-                    self._simplify_callsite_struct_instantiation(callsite_block, expr, struct_ty)
+                for expr, pending_ty in builder.pending_potential_structs:
+                    self._simplify_callsite_struct_instantiation(callsite_block, expr, pending_ty)
 
                 self._stmts_to_replace[first_stack_def.block].append((first_stack_def.stmt_idx, new_stmt))
                 for stack_def in used_defs[1:]:
@@ -343,7 +348,7 @@ class StructInstantiationSimplifier(OptimizationPass, SRDAMixin, CFAMixin, DFAMi
                         self._stmts_to_remove[block].append(stmt)
 
     def _align_prototype_and_args(self):
-        def callback(expr: Call, block, stmt):
+        def callback(expr: Call, _block, _stmt):
             args = list(expr.args)
             prototype = expr.prototype
             if prototype and len(args) > len(prototype.args):

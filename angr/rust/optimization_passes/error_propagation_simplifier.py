@@ -1,6 +1,6 @@
 from __future__ import annotations
 from angr.ailment import Block, Assignment, Const, AILBlockViewer
-from angr.ailment.expression import VirtualVariable, Enum
+from angr.ailment.expression import VirtualVariable, RustEnum
 from angr.ailment.statement import Label, Return, Jump, Call
 from angr.analyses.decompiler.utils import _flatten_structured_node
 from angr.rust.sim_type import RustSimTypeResult
@@ -13,6 +13,8 @@ from angr.utils.ssa import VVarUsesCollector
 
 
 class ErrorPropagationWalker(SequenceWalker):
+    """Walk sequence nodes to detect and simplify error propagation patterns."""
+
     def __init__(self, context: ErrorPropagationSimplifier):
         super().__init__()
         self.context = context
@@ -22,9 +24,8 @@ class ErrorPropagationWalker(SequenceWalker):
     def _is_safe_block(block: Block):
         for stmt in block.statements:
             if not (
-                isinstance(stmt, Label)
+                isinstance(stmt, (Label, Jump))
                 or (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg)
-                or isinstance(stmt, Jump)
             ):
                 return False
         return True
@@ -42,9 +43,8 @@ class ErrorPropagationWalker(SequenceWalker):
                     next_block = self.context.block_by_addr_and_idx[key]
                     return self._is_early_return_block(next_block, visited)
             if not (
-                isinstance(stmt, Label)
+                isinstance(stmt, (Label, Return))
                 or (isinstance(stmt, Assignment) and isinstance(stmt.dst, VirtualVariable) and stmt.dst.was_reg)
-                or isinstance(stmt, Return)
             ):
                 return False
         return True
@@ -54,9 +54,8 @@ class ErrorPropagationWalker(SequenceWalker):
             return self._is_early_return_block(node)
         if isinstance(node, SequenceNode):
             nodes = node.nodes
-            if nodes and isinstance(nodes[-1], Block):
-                if self._is_early_return(nodes[-1]):
-                    return all(isinstance(block, Block) and self._is_safe_block(block) for block in nodes[:-1])
+            if nodes and isinstance(nodes[-1], Block) and self._is_early_return(nodes[-1]):
+                return all(isinstance(block, Block) and self._is_safe_block(block) for block in nodes[:-1])
         return False
 
     @staticmethod
@@ -73,15 +72,19 @@ class ErrorPropagationWalker(SequenceWalker):
         if isinstance(node, Block) and len(node.statements) == 1 and isinstance(node.statements[0], Return):
             ret_exprs = node.statements[0].ret_exprs
             ret_expr = ret_exprs[0] if ret_exprs else None
-            return isinstance(ret_expr, Enum) and ret_expr.name == "Err"
+            return isinstance(ret_expr, RustEnum) and ret_expr.name == "Err"
         return False
 
     @staticmethod
     def _contains_addr(node, block_addr, block_idx):
+        """Check whether a structured node contains a block with the given address and index."""
+
         class Temp:
+            """Mutable flag container for closure."""
+
             found = False
 
-        def callback(node, **kwargs):
+        def callback(node, **_kwargs):
             if node.addr == block_addr and node.idx == block_idx:
                 Temp.found = True
 
@@ -142,6 +145,8 @@ class ErrorPropagationWalker(SequenceWalker):
 
 
 class ErrorPropagationSimplifier(SequenceOptimizationPass):
+    """Recover the Rust error propagation '?' operator in decompiled output."""
+
     ARCHES = None
     PLATFORMS = None
     STAGE = OptimizationPassStage.AFTER_STRUCTURING
@@ -161,7 +166,7 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
     def _collect_varid_to_assignment_mappings(self):
         varid_to_assignment = {}
 
-        def callback(stmt_idx, stmt: Assignment, block):
+        def callback(_stmt_idx, stmt: Assignment, _block):
             if (
                 isinstance(stmt.dst, VirtualVariable)
                 and isinstance(stmt.src, Call)
@@ -178,7 +183,7 @@ class ErrorPropagationSimplifier(SequenceOptimizationPass):
         return varid_to_assignment
 
     def _remove_dead_assignments(self, stmts):
-        def callback(block, **kwargs):
+        def callback(block, **_kwargs):
             changed = False
             new_stmts = []
             for stmt in block.statements:
