@@ -127,14 +127,16 @@ class TestARMCCallRewriterCondition(unittest.TestCase):
     def test_sub_mi(self):
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondMI, ARMG_CC_OP_SUB))
         result = _unwrap_convert(_rewrite(ccall))
+        # MI = N flag = sign bit of (dep_1 - dep_2): CmpLT(Sub(dep_1, dep_2), 0)
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpLT"
         assert result.signed is True
+        assert isinstance(result.operands[0], Expr.BinaryOp) and result.operands[0].op == "Sub"
 
     def test_sub_pl(self):
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondPL, ARMG_CC_OP_SUB))
         result = _unwrap_convert(_rewrite(ccall))
-        assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGE"
-        assert result.signed is True
+        # PL = Not(N flag) = Not(CmpLT(Sub(dep_1, dep_2), 0))
+        assert isinstance(result, Expr.UnaryOp) and result.op == "Not"
 
     def test_sub_hi(self):
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondHI, ARMG_CC_OP_SUB))
@@ -198,11 +200,11 @@ class TestARMCCallRewriterCondition(unittest.TestCase):
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpGE"
         assert result.signed is True
 
-    def test_add_unsupported_returns_none(self):
-        # HS on ADD is not implemented
+    def test_add_hs(self):
+        # HS on ADD = carry flag: (dep_1 + dep_2) <u dep_1
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondHS, ARMG_CC_OP_ADD))
         result = _rewrite(ccall)
-        assert result is None
+        assert result is not None
 
     # ---- LOGIC conditions ----
 
@@ -224,11 +226,11 @@ class TestARMCCallRewriterCondition(unittest.TestCase):
         assert isinstance(result, Expr.BinaryOp) and result.op == "CmpLT"
         assert result.signed is True
 
-    def test_logic_unsupported_returns_none(self):
-        # HS on LOGIC is not implemented
+    def test_logic_hs(self):
+        # HS on LOGIC = shifter carry out (dep_2)
         ccall = _make_ccall("armg_calculate_condition", _cond_n_op(ARMCondHS, ARMG_CC_OP_LOGIC))
         result = _rewrite(ccall)
-        assert result is None
+        assert result is not None
 
     # ---- MUL conditions (same as LOGIC) ----
 

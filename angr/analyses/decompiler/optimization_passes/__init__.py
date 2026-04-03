@@ -21,6 +21,10 @@ from .ret_addr_save_simplifier import RetAddrSaveSimplifier
 from .x86_gcc_getpc_simplifier import X86GccGetPcSimplifier
 from .mips_gp_setting_simplifier import MipsGpSettingSimplifier
 from .flip_boolean_cmp import FlipBooleanCmp
+from .overflow_builtin_simplifier import OverflowBuiltinSimplifier
+from .overflow_builtin_p_simplifier import OverflowBuiltinPredicateSimplifier
+from .carry_flag_simplifier import CarryFlagSimplifier
+from .flag_cond_simplifier import FlagCondSimplifier
 from .ret_deduplicator import ReturnDeduplicator
 from .win_stack_canary_simplifier import WinStackCanarySimplifier
 from .cross_jump_reverter import CrossJumpReverter
@@ -73,6 +77,10 @@ ALL_OPTIMIZATION_PASSES = [
     CodeMotionOptimization,
     CrossJumpReverter,
     FlipBooleanCmp,
+    OverflowBuiltinSimplifier,
+    OverflowBuiltinPredicateSimplifier,
+    CarryFlagSimplifier,
+    FlagCondSimplifier,
     InlinedStringTransformationSimplifier,
     CallStatementRewriter,
     TagSlicer,
@@ -130,6 +138,7 @@ __all__ = (
     "DUPLICATING_OPTS",
     "BasePointerSaveSimplifier",
     "CallStatementRewriter",
+    "CarryFlagSimplifier",
     "CodeMotionOptimization",
     "ConditionConstantPropagation",
     "ConstPropOptReverter",
@@ -140,6 +149,7 @@ __all__ = (
     "DuplicationReverter",
     "EagerStdStringConcatenationPass",
     "ExprOpSwapper",
+    "FlagCondSimplifier",
     "FlipBooleanCmp",
     "ITEExprConverter",
     "ITERegionConverter",
@@ -149,6 +159,8 @@ __all__ = (
     "MipsGpSettingSimplifier",
     "ModSimplifier",
     "OptimizationPassStage",
+    "OverflowBuiltinPredicateSimplifier",
+    "OverflowBuiltinSimplifier",
     "RegisterSaveAreaSimplifier",
     "RegisterSaveAreaSimplifierAdvanced",
     "RetAddrSaveSimplifier",
